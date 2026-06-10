@@ -1,0 +1,108 @@
+<template>
+  <AppLayout title="Mi panel de profesor">
+    <div class="space-y-5 sm:space-y-6">
+
+      <!-- Welcome banner -->
+      <div class="bg-gradient-to-r from-brand-800 to-brand-600 rounded-2xl p-5 sm:p-6 text-white shadow-lg shadow-brand-800/20 flex items-center justify-between">
+        <div>
+          <p class="text-white/70 text-sm font-medium">Hola, {{ user?.name?.split(' ')[0] }}</p>
+          <h2 class="text-xl sm:text-2xl font-black mt-0.5">Tu panel de clases</h2>
+          <p class="text-white/60 text-sm mt-1">{{ today }}</p>
+        </div>
+        <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍🏫</div>
+      </div>
+
+      <!-- Stats — 1 col mobile, 3 desktop -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <div class="text-2xl mb-3">📅</div>
+          <p class="text-3xl font-black text-brand-600">{{ upcoming.length }}</p>
+          <p class="text-sm text-slate-500 mt-0.5">Clases próximas</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <div class="text-2xl mb-3">📬</div>
+          <p class="text-3xl font-black text-orange-500">{{ pending_requests }}</p>
+          <p class="text-sm text-slate-500 mt-0.5">Solicitudes abiertas</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <div class="text-2xl mb-3">💰</div>
+          <p class="text-3xl font-black text-green-600">—</p>
+          <p class="text-sm text-slate-500 mt-0.5">Ingresos este mes</p>
+        </div>
+      </div>
+
+      <!-- Upcoming classes -->
+      <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="font-bold text-slate-900">Próximas clases</h3>
+          <Link :href="route('teacher.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todas →</Link>
+        </div>
+        <div v-if="upcoming.length" class="divide-y divide-gray-50">
+          <div v-for="l in upcoming" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0 text-brand-600 font-bold text-sm">
+                {{ l.student?.first_name?.charAt(0) }}
+              </div>
+              <div class="min-w-0">
+                <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                <p v-if="l.zoom_password" class="text-xs text-slate-400 mt-0.5">🔑 {{ l.zoom_password }}</p>
+              </div>
+            </div>
+            <a v-if="l.zoom_link" :href="l.zoom_link" target="_blank"
+              class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/30">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/><path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
+              Entrar a Zoom
+            </a>
+            <span v-else class="flex-shrink-0 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl">Sin enlace</span>
+          </div>
+        </div>
+        <div v-else class="px-6 py-10 text-center text-slate-400">
+          <div class="text-4xl mb-2">📭</div>
+          <p class="text-sm">No tienes clases próximas</p>
+        </div>
+      </div>
+
+      <!-- Quick actions — 1 col mobile, 3 desktop -->
+      <div>
+        <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Link :href="route('teacher.requests')"
+            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+            <div class="w-11 h-11 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📋</div>
+            <p class="font-bold text-slate-900">Solicitudes</p>
+            <p class="text-sm text-slate-400 mt-0.5">{{ pending_requests }} abiertas</p>
+          </Link>
+          <Link :href="route('class-offers.index')"
+            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+            <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📚</div>
+            <p class="font-bold text-slate-900">Mis ofertas</p>
+            <p class="text-sm text-slate-400 mt-0.5">Gestiona tus anuncios</p>
+          </Link>
+          <Link :href="route('teacher.profile')"
+            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+            <div class="w-11 h-11 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">👤</div>
+            <p class="font-bold text-slate-900">Mi perfil</p>
+            <p class="text-sm text-slate-400 mt-0.5">Actualiza tu información</p>
+          </Link>
+        </div>
+      </div>
+
+    </div>
+  </AppLayout>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
+
+defineProps({ upcoming: Array, pending_requests: Number })
+
+const user  = computed(() => usePage().props.auth?.user)
+const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+</script>
