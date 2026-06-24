@@ -71,11 +71,22 @@ class ClassRequestController extends Controller
 
     public function teacherIndex()
     {
-        $subjectIds = auth()->user()->teacherProfile->subjects()->pluck('subjects.id');
+        $profile    = auth()->user()->teacherProfile;
+        $offerIds   = $profile->classOffers()->pluck('id');
+        $subjectIds = $profile->subjects()->pluck('subjects.id');
+
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests' => ClassRequest::whereIn('subject_id', $subjectIds)
-                ->where('status', 'open')
-                ->with(['student', 'subject'])
+            'requests' => ClassRequest::where('status', 'open')
+                ->where(function ($q) use ($offerIds, $subjectIds) {
+                    // Requests directed at one of this teacher's specific offers
+                    $q->whereIn('class_offer_id', $offerIds)
+                    // OR open requests for their subjects (no specific offer chosen)
+                    ->orWhere(function ($inner) use ($subjectIds) {
+                        $inner->whereNull('class_offer_id')
+                              ->whereIn('subject_id', $subjectIds);
+                    });
+                })
+                ->with(['student', 'subject', 'classOffer'])
                 ->latest()->get(),
         ]);
     }
