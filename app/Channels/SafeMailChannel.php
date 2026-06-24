@@ -12,6 +12,18 @@ class SafeMailChannel extends MailChannel
     {
         $mailer = config('mail.default');
 
+        // Gmail API path — uses HTTPS, not SMTP; safe on Railway Hobby
+        if ($mailer === 'gmail_api') {
+            if (empty(config('services.gmail.refresh_token'))) {
+                Log::warning('[Mail] GMAIL_REFRESH_TOKEN not configured — skipping email.', [
+                    'notification' => class_basename($notification),
+                ]);
+                return;
+            }
+            app(\App\Channels\GmailApiMailChannel::class)->send($notifiable, $notification);
+            return;
+        }
+
         // No-op transports — skip silently
         if (in_array($mailer, ['array', 'log'], true)) {
             return;

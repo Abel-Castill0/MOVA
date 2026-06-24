@@ -77,13 +77,13 @@ CACHE_DRIVER=database
 QUEUE_CONNECTION=database
 FILESYSTEM_DISK=local
 
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_ENCRYPTION=tls
-MAIL_USERNAME=              # tu Gmail
-MAIL_PASSWORD=              # App Password de 16 chars
-MAIL_FROM_ADDRESS=          # igual que MAIL_USERNAME
+MAIL_MAILER=gmail_api       # Recomendado para Railway Hobby (HTTPS, sin SMTP)
+GMAIL_CLIENT_ID=            # de Google Cloud Console
+GMAIL_CLIENT_SECRET=        # secreto — nunca en repo
+GMAIL_REFRESH_TOKEN=        # secreto — obtener con: php artisan mova:gmail-auth-url
+GMAIL_FROM_ADDRESS=         # tu cuenta Gmail
+GMAIL_FROM_NAME=MOVA
+MAIL_FROM_ADDRESS=          # igual que GMAIL_FROM_ADDRESS
 MAIL_FROM_NAME=MOVA
 
 ZOOM_ACCOUNT_ID=
@@ -102,6 +102,75 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 ADMIN_NAME=
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
+```
+
+---
+
+## Email en Railway Hobby — sin dominio propio
+
+### Por qué no funciona SMTP en Railway Hobby
+
+Railway Hobby bloquea el tráfico SMTP saliente (puertos 25, 465, 587). Cualquier intento de conectar a `smtp.gmail.com`, `smtp.mailgun.org`, etc., provoca un `TimeoutExceededException` y tumba el job de notificación.
+
+### Solución: Gmail API por HTTPS
+
+La Gmail API envía correos usando llamadas HTTPS (puerto 443), que Railway **no bloquea**. No requiere dominio propio. Solo necesitas una cuenta Gmail y crear una App OAuth en Google Cloud Console.
+
+**Limitaciones**: 500 emails/día por cuenta Gmail gratuita. Suficiente para un MVP.
+
+### Paso a paso para configurar Gmail API
+
+#### 1. Crear credenciales OAuth en Google Cloud Console
+
+1. Ir a [console.cloud.google.com](https://console.cloud.google.com)
+2. Crear un proyecto (ej. `MOVA-Email`)
+3. Ir a **APIs & Services → Enable APIs** → habilitar **Gmail API**
+4. Ir a **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+5. Application type: **Web application**
+6. Authorized redirect URIs: agregar `http://localhost`
+7. Guardar y copiar **Client ID** y **Client Secret**
+
+#### 2. Obtener el Refresh Token
+
+```bash
+# Genera la URL de autorización:
+php artisan mova:gmail-auth-url
+
+# Abre la URL en el navegador, aprueba el permiso.
+# Copia el "code" del parámetro de la URL de redirección.
+
+# Intercambia el código por el refresh token:
+php artisan mova:gmail-exchange-code TU_CODE_AQUI
+# → Imprime tu GMAIL_REFRESH_TOKEN
+```
+
+#### 3. Agregar variables en Railway
+
+En Railway → MOVA → Variables:
+
+```
+MAIL_MAILER=gmail_api
+GMAIL_CLIENT_ID=        ← de Google Cloud Console
+GMAIL_CLIENT_SECRET=    ← de Google Cloud Console (secreto)
+GMAIL_REFRESH_TOKEN=    ← del comando mova:gmail-exchange-code (secreto)
+GMAIL_FROM_ADDRESS=     ← tu cuenta Gmail (ej. abelwuarthon3@gmail.com)
+GMAIL_FROM_NAME=MOVA
+```
+
+**Nunca** commitear `GMAIL_CLIENT_SECRET` ni `GMAIL_REFRESH_TOKEN` al repositorio.
+
+#### 4. Si no hay GMAIL_REFRESH_TOKEN configurado
+
+El `SafeMailChannel` detecta la ausencia y registra un warning en el log. Las notificaciones **in-app (database) y WhatsApp siguen funcionando** — el job no falla.
+
+### Cuándo migrar a Resend/Postmark/Mailgun
+
+Cuando tengas un dominio propio verificado, la migración es un cambio de 2 variables en Railway:
+
+```
+MAIL_MAILER=resend
+RESEND_API_KEY=re_xxxxx
+MAIL_FROM_ADDRESS=noreply@tudominio.com
 ```
 
 ---
@@ -210,7 +279,9 @@ Las siguientes variables contienen secretos y **nunca deben estar en el reposito
 | Variable | Dónde obtenerla |
 |---|---|
 | `APP_KEY` | `php artisan key:generate --show` |
-| `MAIL_PASSWORD` | Gmail → myaccount.google.com/apppasswords |
+| `GMAIL_CLIENT_ID` | console.cloud.google.com → OAuth 2.0 Credentials |
+| `GMAIL_CLIENT_SECRET` | idem (secreto) |
+| `GMAIL_REFRESH_TOKEN` | `php artisan mova:gmail-auth-url` → `mova:gmail-exchange-code` |
 | `ZOOM_ACCOUNT_ID` | marketplace.zoom.us → tu app Server-to-Server |
 | `ZOOM_CLIENT_ID` | idem |
 | `ZOOM_CLIENT_SECRET` | idem |
