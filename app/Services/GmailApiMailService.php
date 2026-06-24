@@ -18,7 +18,7 @@ class GmailApiMailService
         $from     = config('services.gmail.from_address');
         $fromName = config('services.gmail.from_name', 'MOVA');
 
-        $raw     = $this->buildRawMessage($from, $fromName, $to, $toName, $subject, $htmlBody);
+        $raw     = $this->buildRawMessage($from, $fromName, $to, $toName, $subject, $htmlBody, $from);
         $encoded = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
 
         $response = Http::timeout(15)
@@ -66,7 +66,8 @@ class GmailApiMailService
         string $to,
         string $toName,
         string $subject,
-        string $html
+        string $html,
+        string $replyTo = ''
     ): string {
         $boundary = 'MOVA_' . bin2hex(random_bytes(8));
 
@@ -78,9 +79,12 @@ class GmailApiMailService
 
         $textBody = wordwrap(strip_tags(str_replace(['</p>', '<br>', '<br/>'], "\n", $html)), 80, "\n");
 
+        $replyToHeader = $replyTo ? "Reply-To: {$replyTo}\r\n" : '';
+
         return "From: {$fromEncoded} <{$from}>\r\n"
             . "To: {$toHeader}\r\n"
             . "Subject: {$subjectEncoded}\r\n"
+            . $replyToHeader
             . "MIME-Version: 1.0\r\n"
             . "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n"
             . "\r\n"

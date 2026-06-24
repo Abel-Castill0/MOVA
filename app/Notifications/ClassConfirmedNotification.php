@@ -16,7 +16,14 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['mail', 'database', \App\Channels\WhatsAppChannel::class];
+        $channels = ['database'];
+        if ($notifiable->email_verified_at) {
+            $channels[] = 'mail';
+        }
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+        return $channels;
     }
 
     public function toMail($notifiable): MailMessage
@@ -24,13 +31,13 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
         $date = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
 
         return (new MailMessage)
-            ->subject('✅ Clase confirmada – MOVA')
-            ->greeting('¡Hola, ' . $notifiable->name . '!')
+            ->subject('Tu clase fue confirmada en MOVA')
+            ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Tu clase ha sido **confirmada** correctamente.')
-            ->line('📅 **Fecha:** ' . $date)
-            ->line('⏱ **Duración:** ' . $this->lesson->duration_minutes . ' minutos')
-            ->line('🔑 **Contraseña Zoom:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
-            ->action('Entrar a la clase por Zoom', $this->lesson->zoom_link ?? '#')
+            ->line('**Fecha:** ' . $date)
+            ->line('**Duración:** ' . $this->lesson->duration_minutes . ' minutos')
+            ->line('**Contraseña Zoom:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
+            ->action('Entrar a la clase por Zoom', $this->lesson->zoom_link ?? url('/'))
             ->line('Guarda este enlace. 10 minutos antes recibirás un recordatorio.')
             ->salutation('El equipo de MOVA');
     }
@@ -39,12 +46,12 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
     {
         $date = $this->lesson->start_time->format('d/m/Y H:i');
 
-        return "✅ *Clase confirmada – MOVA*\n\n"
+        return "MOVA — Clase confirmada\n\n"
             . "Hola {$notifiable->name},\n"
-            . "📅 Fecha: {$date}\n"
-            . "⏱ Duración: {$this->lesson->duration_minutes} min\n"
-            . "🔗 Zoom: " . ($this->lesson->zoom_link ?? 'No disponible') . "\n"
-            . "🔑 Contraseña: " . ($this->lesson->zoom_password ?? '—') . "\n\n"
+            . "Fecha: {$date}\n"
+            . "Duración: {$this->lesson->duration_minutes} min\n"
+            . "Zoom: " . ($this->lesson->zoom_link ?? 'No disponible') . "\n"
+            . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña') . "\n\n"
             . "Recibirás un recordatorio 10 minutos antes.";
     }
 

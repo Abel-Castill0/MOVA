@@ -102,7 +102,8 @@ class GmailApiMailChannel
                 </tr>
                 <tr>
                   <td style="padding:16px 0;text-align:center">
-                    <p style="color:#9ca3af;font-size:12px;margin:0">MOVA — Plataforma de clases particulares</p>
+                    <p style="color:#9ca3af;font-size:12px;margin:0 0 4px">MOVA — Plataforma de clases particulares</p>
+                    <p style="color:#9ca3af;font-size:11px;margin:0">Este correo fue enviado porque tienes una cuenta registrada en MOVA.<br>Si no reconoces este mensaje, puedes ignorarlo.</p>
                   </td>
                 </tr>
               </table>

@@ -16,16 +16,21 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['mail', 'database'];
+        $channels = ['database'];
+        if ($notifiable->email_verified_at) {
+            $channels[] = 'mail';
+        }
+        return $channels;
     }
 
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('📋 Nueva solicitud de clase – MOVA')
+            ->subject('Nueva solicitud de clase en MOVA')
+            ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Has recibido una nueva solicitud de clase.')
-            ->line('Asignatura: ' . $this->classRequest->subject->name)
-            ->line('Estudiante: ' . $this->classRequest->student->full_name)
+            ->line('**Asignatura:** ' . $this->classRequest->subject->name)
+            ->line('**Estudiante:** ' . $this->classRequest->student->full_name)
             ->action('Ver solicitud', url('/teacher/requests'))
             ->salutation('El equipo de MOVA');
     }
@@ -33,10 +38,10 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
     public function toArray($notifiable): array
     {
         return [
-            'type' => 'new_class_request',
+            'type'       => 'new_class_request',
             'request_id' => $this->classRequest->id,
-            'subject' => $this->classRequest->subject->name,
-            'student' => $this->classRequest->student->full_name,
+            'subject'    => $this->classRequest->subject->name,
+            'student'    => $this->classRequest->student->full_name,
         ];
     }
 }

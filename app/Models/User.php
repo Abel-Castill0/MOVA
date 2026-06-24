@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
@@ -18,6 +19,10 @@ class User extends Authenticatable
         'password',
         'phone',
         'parental_control',
+        'phone_verified_at',
+        'phone_verification_code_hash',
+        'phone_verification_expires_at',
+        'phone_verification_attempts',
     ];
 
     protected $hidden = [
@@ -26,9 +31,12 @@ class User extends Authenticatable
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'parental_control' => 'boolean',
+        'email_verified_at'            => 'datetime',
+        'phone_verified_at'            => 'datetime',
+        'password'                     => 'hashed',
+        'parental_control'             => 'boolean',
+        'phone_verification_attempts'  => 'integer',
+        'phone_verification_expires_at' => 'datetime',
     ];
 
     public function students()
@@ -43,26 +51,25 @@ class User extends Authenticatable
 
     public function routeNotificationForWhatsApp(): ?string
     {
-        $phone = $this->phone;
+        return $this->normalizePhone($this->phone);
+    }
 
-        if (!$phone) {
-            return null;
-        }
+    public static function normalizePhone(?string $phone): ?string
+    {
+        if (!$phone) return null;
 
-        // Strip spaces and dashes
-        $phone = preg_replace('/[\s\-]/', '', $phone);
+        $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
 
-        // Already E.164 with country code
         if (str_starts_with($phone, '+')) {
-            return $phone;
+            return strlen($phone) >= 10 ? $phone : null;
         }
 
-        // Peruvian mobile numbers: 9 digits starting with 9
+        // Peruvian 9-digit mobile (starts with 9)
         if (preg_match('/^9\d{8}$/', $phone)) {
             return '+51' . $phone;
         }
 
-        // 11-digit format starting with 51 (without +)
+        // 11-digit starting with 51 (without +)
         if (preg_match('/^51\d{9}$/', $phone)) {
             return '+' . $phone;
         }
