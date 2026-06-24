@@ -10,13 +10,19 @@ Railway detecta PHP automáticamente con Nixpacks (sin Dockerfile), soporta MySQ
 
 ```
 Proyecto MOVA en Railway
-├── mova-web          ← Servicio PHP/Laravel (web)
-├── mova-queue        ← Worker para colas (emails, WhatsApp)
-├── mova-scheduler    ← Scheduler de recordatorios (loop 60s)
+├── mova-web          ← Servicio PHP/Laravel (web)    → railway.toml
+├── mova-queue        ← Worker para colas             → railway.queue.toml
+├── mova-scheduler    ← Scheduler de recordatorios    → railway.scheduler.toml
 └── MySQL Plugin      ← Base de datos MySQL administrada
 ```
 
-> Cada servicio se conecta al mismo repositorio GitHub pero con comandos de inicio diferentes.
+Cada servicio conecta al mismo repositorio GitHub pero apunta a un archivo de configuración distinto. Esto es necesario porque Railway usa config-as-code: el `railway.toml` embebido en la imagen sobreescribe el Start Command del dashboard.
+
+| Servicio | Config file | Start Command |
+|---|---|---|
+| mova-web | `/railway.toml` | `php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT` |
+| mova-queue | `/railway.queue.toml` | `php artisan config:clear && php artisan queue:work --sleep=3 --tries=3 --timeout=60 --max-time=3600` |
+| mova-scheduler | `/railway.scheduler.toml` | `while true; do php artisan config:clear && php artisan schedule:run --verbose --no-interaction; sleep 60; done` |
 
 ---
 
@@ -92,36 +98,47 @@ TWILIO_WHATSAPP_FROM=+14155238886
 
 SENTRY_LARAVEL_DSN=
 SENTRY_TRACES_SAMPLE_RATE=0.1
+
+ADMIN_NAME=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
 ```
 
 ---
 
-## Paso 4 — Ejecutar migraciones (primer deploy)
+## Paso 4 — Seed de producción (primera vez)
 
-Después del primer deploy exitoso del servicio web, abrir la terminal del servicio en Railway y ejecutar:
+Después del primer deploy exitoso, ejecutar solo el ProductionSeeder (no `db:seed` completo):
 
 ```bash
-php artisan migrate --force
-php artisan db:seed
+php artisan db:seed --class=ProductionSeeder --force
 ```
 
-> Railway permite ejecutar comandos desde el dashboard: servicio → pestaña **Shell**.
+Esto crea los roles (admin, teacher, parent), las materias y el usuario admin usando las variables `ADMIN_NAME`, `ADMIN_EMAIL` y `ADMIN_PASSWORD`. Es idempotente: no duplica datos si se ejecuta más de una vez.
 
 ---
 
 ## Paso 5 — Crear servicio Queue Worker
 
+### Crear el servicio
+
 1. Dentro del mismo proyecto Railway, clic en **+ New Service → GitHub Repo**
 2. Conectar el mismo repo `Abel-Castill0/MOVA`
-3. En **Settings → Deploy → Start Command**, reemplazar por:
-   ```
-   php artisan queue:work --sleep=3 --tries=3 --timeout=60 --max-time=3600
-   ```
-4. En **Settings → Deploy → Build Command**:
-   ```
-   composer install --no-dev --optimize-autoloader
-   ```
-5. Agregar las **mismas variables de entorno** que el servicio web (especialmente DB y QUEUE_CONNECTION)
+3. Nombrar el servicio `mova-queue`
+
+### Apuntar al config file correcto
+
+Railway config-as-code: el Start Command del dashboard es ignorado si el `railway.toml` dentro de la imagen lo sobreescribe. Para que `mova-queue` use su propio comando, configurar el Config File Path:
+
+```
+Railway dashboard → mova-queue → Settings → Config File Path → /railway.queue.toml
+```
+
+Esto hace que Railway use `railway.queue.toml` en lugar de `railway.toml` para este servicio.
+
+### Variables
+
+Agregar las mismas variables de entorno que el servicio web (especialmente `DB_*`, `QUEUE_CONNECTION=database`, `APP_KEY`, `APP_ENV=production`).
 
 ---
 
@@ -129,22 +146,34 @@ php artisan db:seed
 
 ### Por qué no usar Railway Cron
 
-MOVA ejecuta `classmate:send-reminders` cada minuto (recordatorios 10 min antes de clase). Railway Cron tiene un **mínimo de 5 minutos**, lo que no es suficiente para este caso. Además, cada ejecución de Railway Cron levanta un contenedor nuevo con cold start de ~10-30s. Para recordatorios puntuales cada 60s, es necesario un proceso en loop continuo.
+MOVA ejecuta recordatorios cada minuto (10 min antes de clase). Railway Cron tiene un **mínimo de 5 minutos** y levanta un contenedor nuevo con cold start en cada ejecución. Para recordatorios puntuales, se necesita un proceso en loop continuo.
 
-### Servicio scheduler (proceso persistente)
+### Crear el servicio
 
 1. Crear un tercer servicio desde el mismo repo
-2. **Start Command**:
-   ```bash
-   while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done
-   ```
-3. **Build Command**:
-   ```
-   composer install --no-dev --optimize-autoloader
-   ```
-4. Agregar las mismas variables de entorno que el servicio web
+2. Nombrar el servicio `mova-scheduler`
 
-> Este proceso mantiene el scheduler corriendo sin cold starts. Monitorear en logs que no haya errores silenciosos.
+### Apuntar al config file correcto
+
+```
+Railway dashboard → mova-scheduler → Settings → Config File Path → /railway.scheduler.toml
+```
+
+### Variables
+
+Agregar las mismas variables de entorno que el servicio web.
+
+---
+
+## Verificar que los servicios usan los comandos correctos
+
+Después de redesplegar, ir a los logs de cada servicio y confirmar:
+
+| Servicio | Log esperado en arranque |
+|---|---|
+| mova-web | `Server running on [http://0.0.0.0:...]` |
+| mova-queue | `Processing jobs from the [default] queue` |
+| mova-scheduler | `Running scheduled command: ...` cada ~60s |
 
 ---
 
@@ -160,16 +189,16 @@ php artisan view:cache
 php artisan storage:link
 
 # Web
-php artisan serve --host=0.0.0.0 --port=$PORT
+php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT
 
 # Queue worker
-php artisan queue:work --sleep=3 --tries=3 --timeout=60 --max-time=3600
+php artisan config:clear && php artisan queue:work --sleep=3 --tries=3 --timeout=60 --max-time=3600
 
 # Scheduler (loop continuo)
-while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done
+while true; do php artisan config:clear && php artisan schedule:run --verbose --no-interaction; sleep 60; done
 
-# Migraciones (solo primera vez o al agregar migraciones nuevas)
-php artisan migrate --force
+# Seed de producción (idempotente)
+php artisan db:seed --class=ProductionSeeder --force
 ```
 
 ---
@@ -188,6 +217,8 @@ Las siguientes variables contienen secretos y **nunca deben estar en el reposito
 | `TWILIO_SID` | console.twilio.com |
 | `TWILIO_AUTH_TOKEN` | console.twilio.com |
 | `SENTRY_LARAVEL_DSN` | sentry.io → proyecto php-laravel → DSN |
+| `ADMIN_EMAIL` | Email del administrador de producción |
+| `ADMIN_PASSWORD` | Contraseña segura del admin |
 
 ---
 
@@ -197,11 +228,9 @@ Las siguientes variables contienen secretos y **nunca deben estar en el reposito
 |---|---|---|
 | `APP_KEY` vacío en producción | Alta | Generar y pegar antes del deploy |
 | `APP_DEBUG=true` accidentalmente | Alta | Verificar siempre antes del push |
-| Migraciones sin `--force` | Media | Railway no pasa `--force` solo |
-| `storage/` no tiene permisos de escritura | Media | `php artisan storage:link` en build |
+| Config file path no configurado en mova-queue/scheduler | Alta | Seguir Pasos 5 y 6 exactamente |
+| `SENTRY_TRACES_SAMPLE_RATE=1.0` en prod | Media | Usar 0.1 para no agotar cuota |
 | Queue worker sin supervisión | Media | Monitorear logs en Railway |
-| Scheduler detenido silenciosamente | Media | Activar alertas en Sentry |
-| `SENTRY_TRACES_SAMPLE_RATE=1.0` en prod | Baja | Usar 0.1 para no agotar cuota |
 
 ---
 
@@ -217,7 +246,7 @@ Las siguientes variables contienen secretos y **nunca deben estar en el reposito
 - [ ] Variables Twilio configuradas
 - [ ] `SENTRY_LARAVEL_DSN` configurado
 - [ ] `SENTRY_TRACES_SAMPLE_RATE=0.1`
-- [ ] Servicio worker creado y con variables
-- [ ] Servicio scheduler creado y con variables
-- [ ] Migraciones ejecutadas tras primer deploy
-- [ ] `db:seed` ejecutado si se necesitan roles/admin inicial
+- [ ] `ADMIN_EMAIL` y `ADMIN_PASSWORD` configurados
+- [ ] mova-queue → Config File Path → `/railway.queue.toml`
+- [ ] mova-scheduler → Config File Path → `/railway.scheduler.toml`
+- [ ] ProductionSeeder ejecutado tras primer deploy
