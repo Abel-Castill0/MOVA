@@ -26,6 +26,13 @@ class LessonController extends Controller
 
         abort_unless($profile, 403, 'No tienes perfil de profesor.');
 
+        // Verify this request belongs to this teacher (via offer or matching subject)
+        $offerIds   = $profile->classOffers()->pluck('id');
+        $subjectIds = $profile->subjects()->pluck('subjects.id');
+        $ownedViaOffer   = $classRequest->class_offer_id && $offerIds->contains($classRequest->class_offer_id);
+        $ownedViaSubject = !$classRequest->class_offer_id && $subjectIds->contains($classRequest->subject_id);
+        abort_unless($ownedViaOffer || $ownedViaSubject, 403, 'Esta solicitud no pertenece a tus ofertas.');
+
         // Overlap check
         $overlap = Lesson::where('teacher_profile_id', $profile->id)
             ->where('status', 'scheduled')
@@ -52,6 +59,7 @@ class LessonController extends Controller
             'teacher_profile_id' => $profile->id,
             'student_id'         => $classRequest->student_id,
             'class_request_id'   => $classRequest->id,
+            'class_offer_id'     => $classRequest->class_offer_id,
             'start_time'         => $data['start_time'],
             'duration_minutes'   => $data['duration_minutes'],
             'zoom_meeting_id'    => $meeting['meeting_id'],

@@ -40,10 +40,18 @@ class DashboardController extends Controller
                     ->with(['student', 'classRequest.subject'])
                     ->orderBy('start_time')
                     ->take(5)->get() : [],
-                'pending_requests' => $profile ? ClassRequest::whereIn('subject_id',
-                        $profile->subjects()->pluck('subjects.id'))
-                    ->where('status', 'open')
-                    ->count() : 0,
+                'pending_requests' => $profile ? (function () use ($profile) {
+                    $offerIds   = $profile->classOffers()->pluck('id');
+                    $subjectIds = $profile->subjects()->pluck('subjects.id');
+                    return ClassRequest::where('status', 'open')
+                        ->where(function ($q) use ($offerIds, $subjectIds) {
+                            $q->whereIn('class_offer_id', $offerIds)
+                              ->orWhere(function ($inner) use ($subjectIds) {
+                                  $inner->whereNull('class_offer_id')
+                                        ->whereIn('subject_id', $subjectIds);
+                              });
+                        })->count();
+                })() : 0,
             ]);
         }
 
