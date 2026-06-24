@@ -17,6 +17,9 @@ use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
+// ── Health check (no session, no auth) ──────────────────────────────────────
+Route::get('/healthz', fn () => response('OK', 200));
+
 // ── Public pages ────────────────────────────────────────────────────────────
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 Route::get('/quienes-somos', [AboutController::class, 'index'])->name('about');
