@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-white rounded-2xl border border-gray-200 p-8">
       <h1 class="text-2xl font-bold text-gray-900 mb-1">Crear cuenta</h1>
-      <p class="text-sm text-gray-500 mb-6">Únete a ClassMate</p>
+      <p class="text-sm text-gray-500 mb-6">Únete a MOVA</p>
 
       <form @submit.prevent="submit" class="space-y-4">
         <div class="grid grid-cols-2 gap-3">

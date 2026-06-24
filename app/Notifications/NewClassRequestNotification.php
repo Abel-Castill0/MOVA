@@ -22,11 +22,12 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Nueva solicitud de clase - ClassMate')
+            ->subject('📋 Nueva solicitud de clase – MOVA')
             ->line('Has recibido una nueva solicitud de clase.')
             ->line('Asignatura: ' . $this->classRequest->subject->name)
             ->line('Estudiante: ' . $this->classRequest->student->full_name)
-            ->action('Ver solicitud', url('/teacher/requests'));
+            ->action('Ver solicitud', url('/teacher/requests'))
+            ->salutation('El equipo de MOVA');
     }
 
     public function toArray($notifiable): array

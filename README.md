@@ -1,66 +1,209 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MOVA – Plataforma de clases particulares en línea
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+MOVA conecta familias con profesores particulares para clases en vivo por videollamada (Zoom). Los padres registran a sus hijos, buscan profesores en el marketplace, solicitan clases y reciben el enlace de Zoom automáticamente junto con confirmación por correo electrónico y WhatsApp.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Stack tecnológico
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Capa | Tecnología |
+|---|---|
+| Backend | PHP 8.1+ · Laravel 10 |
+| Frontend | Vue 3 (Composition API) · Inertia.js v1 |
+| Estilos | Tailwind CSS v3 · Inter (Google Fonts) |
+| Bundler | Vite 5 |
+| Base de datos | MySQL 8+ |
+| Autenticación | Laravel Breeze (sesiones) |
+| Roles | Spatie Laravel Permission v6 |
+| Videollamadas | Zoom API (Server-to-Server OAuth) |
+| WhatsApp | Twilio SDK v8 (Sandbox) |
+| Email | Gmail SMTP (App Password) |
+| Cola | Laravel Queue (driver: database) |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Requisitos previos
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.1+ con extensiones: `pdo_mysql`, `mbstring`, `openssl`, `xml`, `curl`
+- Composer 2.x
+- Node.js 18+ y npm
+- MySQL 8.0+ o MariaDB 10.6+
+- Cuenta de Zoom con app Server-to-Server OAuth (`meeting:write:admin`)
+- Cuenta de Twilio con Sandbox de WhatsApp
+- Cuenta de Gmail con App Password
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Instalación local
 
-## Laravel Sponsors
+```bash
+# 1. Clonar el repositorio
+git clone <url-del-repositorio> mova
+cd mova
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+# 2. Instalar dependencias PHP y JS
+composer install
+npm install
 
-### Premium Partners
+# 3. Configurar entorno
+cp .env.example .env
+php artisan key:generate
+# Edita .env con tus valores (DB, correo, Zoom, Twilio)
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+# 4. Publicar config de Spatie Permission
+php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"
 
-## Contributing
+# 5. Crear la base de datos en MySQL y ejecutar migraciones
+php artisan migrate
+php artisan db:seed
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 6. Compilar assets
+npm run build
+```
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Variables de entorno necesarias
 
-## Security Vulnerabilities
+Ver `.env.example` para la lista completa con comentarios. Las variables críticas son:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```env
+APP_URL=http://localhost:8001
+DB_DATABASE=mova
+QUEUE_CONNECTION=database
 
-## License
+# Gmail SMTP
+MAIL_USERNAME=tu@gmail.com
+MAIL_PASSWORD=app_password_16_chars
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Zoom (Server-to-Server OAuth)
+ZOOM_ACCOUNT_ID=
+ZOOM_CLIENT_ID=
+ZOOM_CLIENT_SECRET=
+ZOOM_EMAIL=tu@gmail.com
+
+# Twilio WhatsApp
+TWILIO_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_FROM=+14155238886
+```
+
+---
+
+## Comandos para ejecutar el proyecto
+
+Cada proceso en una terminal separada:
+
+```bash
+# Backend
+php artisan serve --port=8001
+
+# Worker de colas (emails y WhatsApp en background)
+php artisan queue:work --sleep=3 --tries=3 --timeout=60
+
+# Frontend en desarrollo (con HMR)
+npm run dev
+
+# Scheduler de recordatorios (en desarrollo)
+php artisan schedule:work
+```
+
+En producción, el scheduler se configura como cron:
+```
+* * * * * cd /ruta/al/proyecto && php artisan schedule:run >> /dev/null 2>&1
+```
+
+---
+
+## Roles del sistema
+
+| Rol | Capacidades |
+|---|---|
+| `parent` | Registrar alumnos, buscar marketplace, solicitar clases, aprobar solicitudes (control parental), ver clases de sus hijos |
+| `teacher` | Crear perfil y ofertas, ver solicitudes de sus materias, aceptar clases (crea reunión Zoom), cancelar clases |
+| `admin` | Ver todos los usuarios, verificar o rechazar profesores pendientes |
+
+El primer admin se crea con el seeder (`admin@mova.test` / `password`). Para crear más admins usa tinker:
+
+```bash
+php artisan tinker
+>>> \App\Models\User::find($id)->assignRole('admin');
+```
+
+---
+
+## Funcionalidades principales
+
+- **Landing page pública** con estadísticas reales y profesores destacados
+- **Registro con selección de rol** (padre / profesor) y verificación por email
+- **Marketplace** de profesores con filtros por materia, nivel y precio
+- **Solicitudes de clase** con control parental opcional
+- **Integración Zoom real**: cada clase genera automáticamente una reunión con enlace y contraseña únicos
+- **Notificaciones** por email (Gmail SMTP), WhatsApp (Twilio) y campana in-app
+- **Recordatorios automáticos** 10 minutos antes de cada clase (scheduler)
+- **Panel admin** para verificar o rechazar profesores
+
+---
+
+## Estructura de carpetas clave
+
+```
+app/
+├── Http/Controllers/     # Controladores por módulo
+├── Models/               # User, Student, TeacherProfile, ClassRequest, Lesson, Subject, ClassOffer
+├── Notifications/        # ClassConfirmedNotification, ClassReminderNotification, etc.
+├── Channels/             # WhatsAppChannel (Twilio)
+├── Services/             # ZoomService (integración Zoom API)
+└── Console/Commands/     # SendClassReminders (cron de recordatorios)
+
+resources/js/
+├── Pages/                # Páginas Vue organizadas por módulo
+├── Layouts/              # AppLayout (sidebar responsive), GuestLayout
+└── Components/           # NotificationBell, StatusBadge, TimeSlotPicker, etc.
+
+routes/
+└── web.php               # Todas las rutas agrupadas por rol
+```
+
+> **Nota técnica:** El modelo `Lesson` usa `protected $table = 'classes'` porque `class` es palabra reservada en PHP. La tabla en MySQL se llama `classes`.
+
+---
+
+## Estado actual del proyecto
+
+| Módulo | Estado |
+|---|---|
+| Autenticación (login, registro, reset, verificación email) | Completo |
+| Roles y permisos (parent, teacher, admin) | Completo |
+| Landing page, About, páginas de invitación | Completo |
+| Marketplace con filtros y paginación | Completo |
+| Solicitudes de clase + control parental | Completo |
+| Integración Zoom (API real, sin fallback) | Funcional |
+| Notificaciones email (Gmail SMTP) | Funcional |
+| Notificaciones WhatsApp (Twilio Sandbox) | Funcional |
+| Notificaciones in-app (campana + DB) | Completo |
+| Recordatorios automáticos (scheduler) | Completo |
+| Panel admin | Completo |
+| Gestión de alumnos | Completo |
+| Perfil de profesor + ofertas de clase | Completo |
+| Sistema de pagos | No implementado |
+| Tests automatizados | No implementado |
+| Despliegue en producción | No configurado |
+
+---
+
+## Credenciales de prueba (después de `db:seed`)
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| Admin | admin@mova.test | password |
+| Profesor | carlos@mova.test | password |
+| Profesor | laura@mova.test | password |
+| Padre | ana@mova.test | password |
+
+---
+
+## Fundadores
+
+- **Abel Enrique Castillo Yarin** — Desarrollador Principal
+- **Elias Paz** — Director Administrativo
