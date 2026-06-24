@@ -16,7 +16,14 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['mail', 'database', \App\Channels\WhatsAppChannel::class];
+        $channels = ['database'];
+        if ($notifiable->email_verified_at) {
+            $channels[] = 'mail';
+        }
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+        return $channels;
     }
 
     public function toMail($notifiable): MailMessage
@@ -24,10 +31,10 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
         $date = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
 
         return (new MailMessage)
-            ->subject('❌ Clase cancelada – MOVA')
+            ->subject('Tu clase fue cancelada en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Lamentamos informarte que tu clase programada ha sido **cancelada**.')
-            ->line('📅 **Fecha original:** ' . $date)
+            ->line('**Fecha original:** ' . $date)
             ->line('Si tienes dudas o deseas reagendar, puedes contactar al equipo de MOVA.')
             ->action('Ver mis clases', url('/'))
             ->salutation('El equipo de MOVA');
@@ -37,7 +44,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
     {
         $date = $this->lesson->start_time->format('d/m/Y H:i');
 
-        return "❌ *Clase cancelada – MOVA*\n\n"
+        return "MOVA — Clase cancelada\n\n"
             . "Hola {$notifiable->name},\n"
             . "Tu clase del {$date} ha sido cancelada.\n\n"
             . "Si tienes dudas, contáctanos a través de la plataforma MOVA.";

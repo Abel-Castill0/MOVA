@@ -30,8 +30,13 @@
           <p v-if="form.errors.email" class="text-xs text-red-500 mt-1">{{ form.errors.email }}</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono (opcional)</label>
-          <input v-model="form.phone" type="tel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="+34600000000" />
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Teléfono
+            <span class="text-gray-400 font-normal">(para recordatorios por WhatsApp)</span>
+          </label>
+          <input v-model="form.phone" type="tel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="987654321 o +51987654321" />
+          <p class="text-xs text-gray-400 mt-1">Perú: 9 dígitos. Internacional: incluye el código de país (+51, +1…)</p>
+          <p v-if="form.errors.phone" class="text-xs text-red-500 mt-1">{{ form.errors.phone }}</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>

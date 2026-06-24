@@ -16,7 +16,14 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
 
     public function via($notifiable): array
     {
-        return ['mail', 'database', \App\Channels\WhatsAppChannel::class];
+        $channels = ['database'];
+        if ($notifiable->email_verified_at) {
+            $channels[] = 'mail';
+        }
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+        return $channels;
     }
 
     public function toMail($notifiable): MailMessage
@@ -25,8 +32,8 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
         $subject = $this->classRequest->subject->name;
 
         return (new MailMessage)
-            ->subject("📚 {$student} ha solicitado una clase – MOVA")
-            ->greeting('Hola, ' . $notifiable->name)
+            ->subject("{$student} ha solicitado una clase en MOVA")
+            ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("**{$student}** ha solicitado una clase de **{$subject}**.")
             ->line('Por favor revisa la solicitud y apruébala o recházala.')
             ->action('Revisar solicitud', url('/class-requests'))
@@ -38,7 +45,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
         $student = $this->classRequest->student->full_name;
         $subject = $this->classRequest->subject->name;
 
-        return "📚 *MOVA – Nueva solicitud de clase*\n\n"
+        return "MOVA — Nueva solicitud de clase\n\n"
             . "{$student} ha solicitado una clase de {$subject}.\n"
             . "Entra a MOVA para aprobarla o rechazarla:\n"
             . url('/class-requests');
