@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\ClassConfirmed;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
+use App\Notifications\ClassCancelledNotification;
 use App\Services\ZoomService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -98,10 +99,21 @@ class LessonController extends Controller
         abort_unless($lesson->teacher_profile_id === $profile->id, 403);
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
 
+        $lesson->load(['student.parent', 'teacherProfile.user']);
         $lesson->update(['status' => 'cancelled']);
 
         if ($lesson->zoom_meeting_id) {
             $zoom->deleteMeeting($lesson->zoom_meeting_id);
+        }
+
+        $notification = new ClassCancelledNotification($lesson);
+
+        if ($lesson->teacherProfile?->user) {
+            $lesson->teacherProfile->user->notify($notification);
+        }
+
+        if ($lesson->student?->parent) {
+            $lesson->student->parent->notify($notification);
         }
 
         return back()->with('success', 'Clase cancelada correctamente.');
