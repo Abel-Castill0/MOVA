@@ -19,12 +19,12 @@ class WhatsAppChannel
 
         $message = $notification->toWhatsApp($notifiable);
 
-        $sid   = env('TWILIO_SID');
-        $token = env('TWILIO_AUTH_TOKEN');
-        $from  = env('TWILIO_WHATSAPP_FROM');
+        $sid   = config('services.twilio.sid');
+        $token = config('services.twilio.token');
+        $from  = config('services.twilio.whatsapp_from');
 
         if (!$sid || !$token || !$from) {
-            Log::warning('[WhatsApp] Credenciales Twilio no configuradas en .env');
+            Log::warning('[WhatsApp] Credenciales Twilio no configuradas (TWILIO_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM)');
             return;
         }
 
@@ -41,7 +41,7 @@ class WhatsAppChannel
                 Log::error('[WhatsApp] El número destino no está unido al Sandbox de Twilio. ' .
                     'Envía "join <sandbox-code>" al número ' . $from . ' desde WhatsApp.');
             } elseif ($code === 20003) {
-                Log::error('[WhatsApp] Credenciales de Twilio inválidas. Verifica TWILIO_SID y TWILIO_AUTH_TOKEN en .env.');
+                Log::error('[WhatsApp] Credenciales de Twilio inválidas. Verifica TWILIO_SID y TWILIO_AUTH_TOKEN en las variables de entorno.');
             } else {
                 Log::error('[WhatsApp] Error Twilio ' . $code . ': ' . $e->getMessage());
             }

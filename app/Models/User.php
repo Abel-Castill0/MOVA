@@ -43,6 +43,30 @@ class User extends Authenticatable
 
     public function routeNotificationForWhatsApp(): ?string
     {
-        return $this->phone;
+        $phone = $this->phone;
+
+        if (!$phone) {
+            return null;
+        }
+
+        // Strip spaces and dashes
+        $phone = preg_replace('/[\s\-]/', '', $phone);
+
+        // Already E.164 with country code
+        if (str_starts_with($phone, '+')) {
+            return $phone;
+        }
+
+        // Peruvian mobile numbers: 9 digits starting with 9
+        if (preg_match('/^9\d{8}$/', $phone)) {
+            return '+51' . $phone;
+        }
+
+        // 11-digit format starting with 51 (without +)
+        if (preg_match('/^51\d{9}$/', $phone)) {
+            return '+' . $phone;
+        }
+
+        return null;
     }
 }
