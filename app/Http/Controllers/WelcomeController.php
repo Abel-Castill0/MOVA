@@ -7,6 +7,7 @@ use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
 use Inertia\Inertia;
+use Spatie\Permission\Models\Role;
 
 class WelcomeController extends Controller
 {
@@ -24,7 +25,9 @@ class WelcomeController extends Controller
 
             'stats' => [
                 'teachers'  => TeacherProfile::where('is_verified', true)->count(),
-                'students'  => User::role('parent')->count(),
+                'students'  => Role::where('name', 'parent')->exists()
+                               ? User::role('parent')->count()
+                               : 0,
                 'completed' => Lesson::where('status', 'completed')->count(),
             ],
         ]);
