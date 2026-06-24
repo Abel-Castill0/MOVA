@@ -41,4 +41,12 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'gmail' => [
+        'client_id'     => env('GMAIL_CLIENT_ID'),
+        'client_secret' => env('GMAIL_CLIENT_SECRET'),
+        'refresh_token' => env('GMAIL_REFRESH_TOKEN'),
+        'from_address'  => env('GMAIL_FROM_ADDRESS'),
+        'from_name'     => env('GMAIL_FROM_NAME', 'MOVA'),
+    ],
+
 ];
