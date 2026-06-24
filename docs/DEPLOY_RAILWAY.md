@@ -129,7 +129,7 @@ php artisan db:seed
 
 ### Por qué no usar Railway Cron
 
-MOVA ejecuta `classmate:send-reminders` cada minuto (recordatorios 10 min antes de clase). Railway Cron tiene un **mínimo de 1 minuto** pero cada ejecución es un contenedor nuevo con cold start de ~10-30s. Para recordatorios puntuales, es preferible un proceso en loop continuo.
+MOVA ejecuta `classmate:send-reminders` cada minuto (recordatorios 10 min antes de clase). Railway Cron tiene un **mínimo de 5 minutos**, lo que no es suficiente para este caso. Además, cada ejecución de Railway Cron levanta un contenedor nuevo con cold start de ~10-30s. Para recordatorios puntuales cada 60s, es necesario un proceso en loop continuo.
 
 ### Servicio scheduler (proceso persistente)
 
