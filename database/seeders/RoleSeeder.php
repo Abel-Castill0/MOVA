@@ -16,9 +16,9 @@ class RoleSeeder extends Seeder
         }
 
         $admin = User::firstOrCreate(
-            ['email' => 'admin@classmate.test'],
+            ['email' => 'admin@mova.test'],
             [
-                'name' => 'Admin ClassMate',
+                'name' => 'Admin MOVA',
                 'password' => Hash::make('password'),
             ]
         );
