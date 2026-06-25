@@ -8,6 +8,10 @@
 .env
 .env.backup
 .env.production
+.env.claude.local
+qa/.env.qa
+qa/reports/
+qa/test-results/
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml

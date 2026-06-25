@@ -22,7 +22,7 @@ class GmailAuthUrl extends Command
             'client_id'     => $clientId,
             'redirect_uri'  => 'http://localhost',
             'response_type' => 'code',
-            'scope'         => 'https://www.googleapis.com/auth/gmail.send',
+            'scope'         => 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly',
             'access_type'   => 'offline',
             'prompt'        => 'consent',
         ]);
@@ -36,7 +36,7 @@ class GmailAuthUrl extends Command
         $this->newLine();
         $this->line('  ' . $url);
         $this->newLine();
-        $this->comment('Step 2 — Approve the Gmail permission ("Send email on your behalf").');
+        $this->comment('Step 2 — Approve the Gmail permissions ("Send email" + "Read email").');
         $this->comment('         Google will redirect to http://localhost?code=CODE&...');
         $this->comment('         The page will fail to load — that is expected.');
         $this->comment('         Copy the "code" value from the browser URL bar.');

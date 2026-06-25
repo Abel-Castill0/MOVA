@@ -1,5 +1,5 @@
 <template>
-  <AppLayout title="Buscar profesor">
+  <component :is="layout" title="Buscar profesor">
     <div class="space-y-6">
       <h2 class="text-2xl font-bold text-gray-900">Marketplace de profesores</h2>
 
@@ -22,7 +22,7 @@
       </div>
 
       <div v-if="!offers.data?.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400">No se encontraron ofertas</p>
+        <p class="text-gray-400">No se encontraron ofertas disponibles</p>
       </div>
 
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -37,9 +37,14 @@
           <p class="text-xs text-indigo-600 font-medium mb-2">{{ o.subject?.name }}</p>
           <p class="text-sm text-gray-500 line-clamp-2 mb-4">{{ o.description }}</p>
           <p class="text-sm text-gray-700 font-medium mb-3">{{ o.teacher_profile?.user?.name }}</p>
-          <Link :href="route('class-requests.create', { offer_id: o.id })"
+          <!-- Authenticated: request class; Guest: redirect to login -->
+          <Link v-if="authUser" :href="route('class-requests.create', { offer_id: o.id })"
             class="block text-center px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
             Solicitar clase
+          </Link>
+          <Link v-else :href="route('login')"
+            class="block text-center px-4 py-2 border border-indigo-600 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors">
+            Inicia sesión para solicitar
           </Link>
         </div>
       </div>
@@ -54,15 +59,19 @@
         />
       </div>
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { reactive, computed } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import GuestLayout from '@/Layouts/GuestLayout.vue'
 
 const props = defineProps({ offers: Object, subjects: Array, filters: Object })
+
+const authUser = computed(() => usePage().props.auth?.user ?? null)
+const layout   = computed(() => authUser.value ? AppLayout : GuestLayout)
 
 const filters = reactive({
   subject_id: props.filters?.subject_id ?? '',

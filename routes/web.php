@@ -25,6 +25,7 @@ Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 Route::get('/quienes-somos', [AboutController::class, 'index'])->name('about');
 Route::get('/invitacion/profesor', [TeacherInvitationController::class, 'index'])->name('landing.teacher');
 Route::get('/invitacion/alumno', [StudentInvitationController::class, 'index'])->name('landing.student');
+Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');
 
 // ── Authenticated routes ─────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -38,9 +39,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
-
-    // Marketplace – any authenticated user
-    Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');
 
     // ── Parent ──────────────────────────────────────────────────────────────
     Route::middleware('role:parent')->group(function () {
