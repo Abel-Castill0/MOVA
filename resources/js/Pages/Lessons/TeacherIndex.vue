@@ -69,13 +69,31 @@
 
             </div>
 
-            <!-- Cancel button -->
-            <div v-if="l.status === 'scheduled'" class="mt-3 pt-3 border-t border-gray-50 flex justify-end">
-              <Link :href="route('lessons.cancel', l.id)" method="post" as="button"
-                class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium"
-                :data="{ _method: 'POST' }">
-                Cancelar clase
-              </Link>
+            <!-- Actions footer -->
+            <div class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2">
+              <!-- Completed: report CTA -->
+              <template v-if="l.status === 'completed'">
+                <Link v-if="l.lesson_report" :href="route('lesson-reports.show', l.id)"
+                  class="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                  Ver reporte enviado ✓
+                </Link>
+                <Link v-else :href="route('lesson-reports.create', l.id)"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
+                  📝 Crear reporte
+                </Link>
+              </template>
+
+              <!-- Scheduled: complete + cancel -->
+              <template v-else-if="l.status === 'scheduled'">
+                <Link :href="route('lessons.complete', l.id)" method="post" as="button"
+                  class="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                  ✓ Marcar como completada
+                </Link>
+                <Link :href="route('lessons.cancel', l.id)" method="post" as="button"
+                  class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                  Cancelar clase
+                </Link>
+              </template>
             </div>
           </div>
         </div>

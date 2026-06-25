@@ -96,6 +96,34 @@
         </div>
       </div>
 
+      <!-- Last learning report -->
+      <div v-if="last_report" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="font-bold text-slate-900">Último reporte de aprendizaje</h3>
+          <Link :href="route('parent.reports')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
+        </div>
+        <div class="p-5 sm:p-6 space-y-3">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <span class="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ last_report.subject }}</span>
+            <span class="text-xs text-slate-400">{{ last_report.student_name }} · Prof. {{ last_report.teacher_name }}</span>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="bg-slate-50 rounded-xl p-3">
+              <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">📚 Tema</p>
+              <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.topic_covered }}</p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3">
+              <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">⭐ Desempeño</p>
+              <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.student_performance }}</p>
+            </div>
+            <div v-if="last_report.next_step" class="sm:col-span-2 bg-green-50 rounded-xl p-3">
+              <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">🎯 Próximo paso</p>
+              <p class="text-sm text-slate-800">{{ last_report.next_step }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick actions — 1 col mobile, 2 desktop -->
       <div>
         <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
@@ -112,6 +140,12 @@
             <p class="font-bold text-slate-900">Gestionar hijos</p>
             <p class="text-sm text-slate-400 mt-0.5">Añade o edita sus datos</p>
           </Link>
+          <Link :href="route('parent.reports')"
+            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+            <div class="text-3xl mb-3">📋</div>
+            <p class="font-bold text-slate-900">Reportes</p>
+            <p class="text-sm text-slate-400 mt-0.5">Historial de aprendizaje</p>
+          </Link>
         </div>
       </div>
 
@@ -124,7 +158,7 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-defineProps({ students: Array, upcoming: Array, pending_approval: Number })
+defineProps({ students: Array, upcoming: Array, pending_approval: Number, last_report: Object })
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))

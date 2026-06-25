@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClassRequest;
 use App\Models\Lesson;
+use App\Models\LessonReport;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -67,6 +68,23 @@ class DashboardController extends Controller
             'pending_approval' => ClassRequest::whereIn('student_id', $studentIds)
                 ->where('status', 'pending_parent_approval')
                 ->count(),
+            'last_report' => (function () use ($studentIds) {
+                $r = LessonReport::whereIn('student_id', $studentIds)
+                    ->with(['lesson.classRequest.subject', 'lesson.teacherProfile.user', 'student'])
+                    ->latest()->first();
+                if (!$r) return null;
+                return [
+                    'lesson_id'           => $r->lesson_id,
+                    'subject'             => $r->lesson?->classRequest?->subject?->name ?? 'Clase',
+                    'student_name'        => $r->student?->first_name,
+                    'teacher_name'        => $r->lesson?->teacherProfile?->user?->name,
+                    'start_time'          => $r->lesson?->start_time,
+                    'topic_covered'       => $r->topic_covered,
+                    'student_performance' => $r->student_performance,
+                    'next_step'           => $r->next_step,
+                    'sent_to_parent_at'   => $r->sent_to_parent_at,
+                ];
+            })(),
         ]);
     }
 }

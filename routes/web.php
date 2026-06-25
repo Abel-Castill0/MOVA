@@ -14,6 +14,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentInvitationController;
 use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
+use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
@@ -51,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->name('class-requests.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
+        Route::get('/my-reports', [LessonReportController::class, 'parentIndex'])->name('parent.reports');
         Route::patch('/settings/parental-control', [ParentSettingsController::class, 'update'])->name('parent.settings.update');
     });
 
@@ -68,7 +70,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/teacher/requests/{classRequest}/accept', [ClassRequestController::class, 'accept'])->name('teacher.requests.accept');
         Route::post('/lessons', [LessonController::class, 'store'])->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
+        Route::post('/lessons/{lesson}/complete', [LessonController::class, 'complete'])->name('lessons.complete');
         Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->name('lessons.cancel');
+        Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
+        Route::get('/lessons/{lesson}/report/create', [LessonReportController::class, 'create'])->name('lesson-reports.create');
+        Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->name('lesson-reports.store');
+        Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
     });
 
     // ── Admin ────────────────────────────────────────────────────────────────

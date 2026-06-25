@@ -95,10 +95,22 @@ class LessonController extends Controller
 
         return Inertia::render('Lessons/TeacherIndex', [
             'lessons' => Lesson::where('teacher_profile_id', $profile->id)
-                ->with(['student', 'classRequest.subject'])
+                ->with(['student', 'classRequest.subject', 'lessonReport'])
                 ->orderBy('start_time', 'desc')
                 ->get(),
         ]);
+    }
+
+    public function complete(Lesson $lesson)
+    {
+        $profile = auth()->user()->teacherProfile;
+        abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
+        abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden completar clases programadas.');
+
+        $lesson->update(['status' => 'completed']);
+
+        return redirect()->route('lesson-reports.create', $lesson)
+            ->with('success', 'Clase marcada como completada. Ahora puedes crear el reporte.');
     }
 
     public function cancel(Lesson $lesson, ZoomService $zoom)

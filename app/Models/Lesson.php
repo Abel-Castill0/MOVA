@@ -42,6 +42,11 @@ class Lesson extends Model
         return $this->belongsTo(ClassOffer::class);
     }
 
+    public function lessonReport()
+    {
+        return $this->hasOne(LessonReport::class);
+    }
+
     public function getEndTimeAttribute()
     {
         return $this->start_time->addMinutes($this->duration_minutes);
