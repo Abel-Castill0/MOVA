@@ -224,7 +224,11 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 const props = defineProps({ offers: Object, subjects: Array, filters: Object })
 
 const authUser = computed(() => usePage().props.auth?.user ?? null)
-const isParent = computed(() => usePage().props.auth?.roles?.includes('parent') ?? false)
+const isParent = computed(() => {
+  const roles = usePage().props.auth?.user?.roles
+  if (!roles) return false
+  return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
+})
 const layout   = computed(() => authUser.value ? AppLayout : GuestLayout)
 
 const filters = reactive({
