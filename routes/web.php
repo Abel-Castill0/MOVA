@@ -14,6 +14,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\StudentInvitationController;
 use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
+use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +27,7 @@ Route::get('/quienes-somos', [AboutController::class, 'index'])->name('about');
 Route::get('/invitacion/profesor', [TeacherInvitationController::class, 'index'])->name('landing.teacher');
 Route::get('/invitacion/alumno', [StudentInvitationController::class, 'index'])->name('landing.student');
 Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');
+Route::get('/teachers/{teacherProfile}', [TeacherPublicController::class, 'show'])->name('teachers.show');
 
 // ── Authenticated routes ─────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
