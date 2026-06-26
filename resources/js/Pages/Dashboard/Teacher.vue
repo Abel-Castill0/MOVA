@@ -76,6 +76,35 @@
         </div>
       </div>
 
+      <!-- Profile completeness checklist -->
+      <div v-if="profile_score < 100" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex-1">
+            <h3 class="font-bold text-slate-900">Tu perfil está {{ profile_score }}% completo</h3>
+            <div class="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-500"
+                :style="{ width: profile_score + '%' }"
+                :class="profile_score >= 70 ? 'bg-green-500' : profile_score >= 40 ? 'bg-yellow-400' : 'bg-red-400'">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="px-5 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div v-for="(done, key) in profile_checklist" :key="key" class="flex items-center gap-2.5">
+            <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+              :class="done ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'">
+              {{ done ? '✓' : '○' }}
+            </div>
+            <span class="text-sm" :class="done ? 'text-slate-700' : 'text-slate-400'">{{ checklistLabel(key) }}</span>
+          </div>
+        </div>
+        <div class="px-5 sm:px-6 py-4 border-t border-gray-50">
+          <Link :href="route('teacher.profile')" class="text-sm text-brand-600 font-semibold hover:underline">
+            Completar perfil →
+          </Link>
+        </div>
+      </div>
+
       <!-- Quick actions — 1 col mobile, 3 desktop -->
       <div>
         <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
@@ -110,10 +139,27 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-defineProps({ upcoming: Array, pending_requests: Number, pending_reports: Number })
+defineProps({
+  upcoming: Array,
+  pending_requests: Number,
+  pending_reports: Number,
+  profile_score: { type: Number, default: 0 },
+  profile_checklist: { type: Object, default: () => ({}) },
+})
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+
+const checklistLabels = {
+  bio:            'Biografía completa',
+  subjects:       'Materias asignadas',
+  active_offer:   'Al menos una oferta activa',
+  hourly_rate:    'Tarifa por hora definida',
+  phone_verified: 'Teléfono verificado',
+  email_verified: 'Email verificado',
+  is_verified:    'Verificado por el equipo MOVA',
+}
+function checklistLabel(key) { return checklistLabels[key] ?? key }
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })

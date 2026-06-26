@@ -9,7 +9,7 @@
         <p class="text-white/60 text-sm mt-1">{{ today }}</p>
       </div>
 
-      <!-- Stats grid — 1 col mobile, 2 tablet, 4 desktop -->
+      <!-- Primary stats — 1 col mobile, 2 tablet, 4 desktop -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between mb-3">
@@ -42,6 +42,73 @@
           </div>
           <p class="text-3xl font-black text-purple-600">{{ stats.subjects }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Materias disponibles</p>
+        </div>
+      </div>
+
+      <!-- Quality & operational metrics -->
+      <div>
+        <h3 class="text-base font-bold text-slate-900 mb-3">Control de calidad</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">📋</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="stats.incomplete_profiles > 0 ? 'text-yellow-700 bg-yellow-50' : 'text-green-600 bg-green-50'">
+                {{ stats.incomplete_profiles > 0 ? 'Atención' : 'OK' }}
+              </span>
+            </div>
+            <p class="text-3xl font-black" :class="stats.incomplete_profiles > 0 ? 'text-yellow-600' : 'text-green-600'">{{ stats.incomplete_profiles }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Perfiles incompletos</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">📬</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="stats.open_requests > 0 ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50'">
+                {{ stats.open_requests > 0 ? 'Pendiente' : 'OK' }}
+              </span>
+            </div>
+            <p class="text-3xl font-black" :class="stats.open_requests > 0 ? 'text-orange-500' : 'text-green-600'">{{ stats.open_requests }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Solicitudes abiertas</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">📝</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="stats.completed_without_report > 0 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'">
+                {{ stats.completed_without_report > 0 ? 'Faltante' : 'OK' }}
+              </span>
+            </div>
+            <p class="text-3xl font-black" :class="stats.completed_without_report > 0 ? 'text-red-500' : 'text-green-600'">{{ stats.completed_without_report }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Clases sin reporte</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">⚠️</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="stats.failed_jobs > 0 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'">
+                {{ stats.failed_jobs > 0 ? 'Error' : 'OK' }}
+              </span>
+            </div>
+            <p class="text-3xl font-black" :class="stats.failed_jobs > 0 ? 'text-red-600' : 'text-green-600'">{{ stats.failed_jobs }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Jobs fallidos en cola</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">✉️</span>
+              <span class="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">Email</span>
+            </div>
+            <p class="text-3xl font-black text-slate-700">{{ stats.unverified_email }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Sin email verificado</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-2xl">📱</span>
+              <span class="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">WhatsApp</span>
+            </div>
+            <p class="text-3xl font-black text-slate-700">{{ stats.unverified_phone }}</p>
+            <p class="text-sm text-slate-500 mt-0.5">Sin teléfono verificado</p>
+          </div>
         </div>
       </div>
 

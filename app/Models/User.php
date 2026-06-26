@@ -23,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone_verification_code_hash',
         'phone_verification_expires_at',
         'phone_verification_attempts',
+        'welcome_notification_sent_at',
     ];
 
     protected $hidden = [
@@ -36,7 +37,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password'                     => 'hashed',
         'parental_control'             => 'boolean',
         'phone_verification_attempts'  => 'integer',
-        'phone_verification_expires_at' => 'datetime',
+        'phone_verification_expires_at'   => 'datetime',
+        'welcome_notification_sent_at'    => 'datetime',
     ];
 
     public function students()

@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ClassRequest;
 use App\Models\Lesson;
 use App\Notifications\ClassReminderNotification;
 use App\Notifications\PendingReportReminderNotification;
+use App\Notifications\UnansweredRequestNotification;
 use Illuminate\Console\Command;
 
 class SendClassReminders extends Command
@@ -18,6 +20,7 @@ class SendClassReminders extends Command
         $this->send2hReminders();
         $this->send10mReminders();
         $this->sendPendingReportAlerts();
+        $this->sendUnansweredRequestAlerts();
     }
 
     private function notifyBoth(Lesson $lesson, $notification): void
@@ -99,5 +102,25 @@ class SendClassReminders extends Command
         }
 
         $this->info("Pending report alerts: {$lessons->count()}");
+    }
+
+    private function sendUnansweredRequestAlerts(): void
+    {
+        // Open requests older than 12 hours with no reminder sent yet
+        $requests = ClassRequest::where('status', 'open')
+            ->whereNull('request_reminder_sent_at')
+            ->where('created_at', '<=', now()->subHours(12))
+            ->with(['classOffer.teacherProfile.user', 'subject'])
+            ->get();
+
+        foreach ($requests as $classRequest) {
+            $teacher = $classRequest->classOffer?->teacherProfile?->user;
+            if ($teacher) {
+                $teacher->notify(new UnansweredRequestNotification($classRequest));
+            }
+            $classRequest->update(['request_reminder_sent_at' => now()]);
+        }
+
+        $this->info("Unanswered request alerts: {$requests->count()}");
     }
 }

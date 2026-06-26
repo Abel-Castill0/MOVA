@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\WelcomeParentNotification;
+use App\Notifications\WelcomeTeacherNotification;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,9 +50,13 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         if ($request->role === 'parent') {
+            $user->notify(new WelcomeParentNotification());
+            $user->update(['welcome_notification_sent_at' => now()]);
             return redirect()->route('students.create');
         }
 
+        $user->notify(new WelcomeTeacherNotification());
+        $user->update(['welcome_notification_sent_at' => now()]);
         return redirect()->route('teacher.setup');
     }
 }

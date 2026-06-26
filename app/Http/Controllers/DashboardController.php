@@ -19,10 +19,18 @@ class DashboardController extends Controller
         if ($user->hasRole('admin')) {
             return Inertia::render('Dashboard/Admin', [
                 'stats' => [
-                    'users' => User::count(),
-                    'pending_teachers' => TeacherProfile::where('is_verified', false)->count(),
-                    'classes_today' => Lesson::whereDate('start_time', today())->count(),
-                    'subjects' => Subject::count(),
+                    'users'                   => User::count(),
+                    'pending_teachers'         => TeacherProfile::where('is_verified', false)->count(),
+                    'incomplete_profiles'      => TeacherProfile::where(function ($q) {
+                        $q->whereNull('bio')->orWhere('bio', '')->orWhere('hourly_rate', 0);
+                    })->count(),
+                    'classes_today'            => Lesson::whereDate('start_time', today())->count(),
+                    'open_requests'            => ClassRequest::where('status', 'open')->count(),
+                    'completed_without_report' => Lesson::where('status', 'completed')->whereDoesntHave('lessonReport')->count(),
+                    'failed_jobs'              => \DB::table('failed_jobs')->count(),
+                    'unverified_email'         => User::whereNull('email_verified_at')->count(),
+                    'unverified_phone'         => User::whereNull('phone_verified_at')->count(),
+                    'subjects'                 => Subject::count(),
                 ],
                 'recentUsers' => User::with('roles')
                     ->latest()
@@ -38,6 +46,24 @@ class DashboardController extends Controller
                 ->where('status', 'completed')
                 ->whereDoesntHave('lessonReport')
                 ->count() : 0;
+
+            $checklist = [];
+            $score     = 0;
+            if ($profile) {
+                $hasSubjects     = $profile->subjects()->exists();
+                $hasActiveOffer  = $profile->classOffers()->where('is_active', true)->exists();
+                $checks = [
+                    'bio'            => !empty($profile->bio),
+                    'subjects'       => $hasSubjects,
+                    'active_offer'   => $hasActiveOffer,
+                    'hourly_rate'    => $profile->hourly_rate > 0,
+                    'phone_verified' => !is_null($user->phone_verified_at),
+                    'email_verified' => !is_null($user->email_verified_at),
+                    'is_verified'    => $profile->is_verified,
+                ];
+                $score     = (int) round(array_sum($checks) / count($checks) * 100);
+                $checklist = $checks;
+            }
 
             return Inertia::render('Dashboard/Teacher', [
                 'upcoming' => $profile ? Lesson::where('teacher_profile_id', $profile->id)
@@ -58,7 +84,9 @@ class DashboardController extends Controller
                               });
                         })->count();
                 })() : 0,
-                'pending_reports' => $pendingReports,
+                'pending_reports'    => $pendingReports,
+                'profile_score'     => $score,
+                'profile_checklist' => $checklist,
             ]);
         }
 
