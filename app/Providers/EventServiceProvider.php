@@ -6,7 +6,9 @@ use App\Events\ClassConfirmed;
 use App\Events\ClassRequestCreated;
 use App\Listeners\SendClassConfirmationNotifications;
 use App\Listeners\SendClassRequestNotifications;
+use App\Listeners\SendWelcomeAfterVerification;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -21,6 +23,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         ClassRequestCreated::class => [
             SendClassRequestNotifications::class,
+        ],
+        Verified::class => [
+            SendWelcomeAfterVerification::class,
         ],
     ];
 
