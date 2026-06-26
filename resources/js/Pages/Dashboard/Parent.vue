@@ -41,6 +41,19 @@
         </div>
       </div>
 
+      <!-- Diagnostic CTA -->
+      <div class="bg-gradient-to-r from-indigo-50 to-brand-50 border border-brand-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="text-3xl flex-shrink-0">🎯</div>
+        <div class="flex-1">
+          <p class="font-bold text-slate-900">¿No sabes qué profesor elegir?</p>
+          <p class="text-sm text-slate-500 mt-0.5">Responde 5 preguntas y MOVA te recomienda profesores ideales para tu hijo</p>
+        </div>
+        <Link :href="route('diagnostics.create')"
+          class="flex-shrink-0 px-5 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
+          Hacer diagnóstico →
+        </Link>
+      </div>
+
       <!-- Students list -->
       <div v-if="students.length" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">

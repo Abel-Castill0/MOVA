@@ -70,6 +70,15 @@
           </button>
         </div>
 
+        <!-- Diagnostic banner -->
+        <div class="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p class="text-sm text-slate-500 flex-1">💡 <strong>¿No sabes cuál elegir?</strong> Responde 5 preguntas y te recomendamos profesores.</p>
+          <Link v-if="$page.props.auth?.user" :href="route('diagnostics.create')"
+            class="inline-block px-4 py-2 bg-brand-600 text-white font-bold rounded-xl text-xs hover:bg-brand-700 transition-colors whitespace-nowrap">
+            Diagnóstico rápido →
+          </Link>
+        </div>
+
         <!-- Active filter chips -->
         <div v-if="hasFilters" class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
           <span v-if="filters.search" class="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-lg">

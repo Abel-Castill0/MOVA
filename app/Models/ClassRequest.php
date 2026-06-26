@@ -12,7 +12,7 @@ class ClassRequest extends Model
     protected $fillable = [
         'student_id', 'subject_id', 'class_offer_id',
         'help_needed', 'preferred_times', 'status',
-        'request_reminder_sent_at',
+        'request_reminder_sent_at', 'student_diagnostic_id',
     ];
 
     protected $casts = [

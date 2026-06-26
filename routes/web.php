@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\DiagnosticsController;
 use App\Http\Controllers\ClassOfferController;
 use App\Http\Controllers\ClassRequestController;
 use App\Http\Controllers\DashboardController;
@@ -45,6 +46,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // ── Parent ──────────────────────────────────────────────────────────────
     Route::middleware('role:parent')->group(function () {
+        Route::get('/diagnostics/create', [DiagnosticsController::class, 'create'])->name('diagnostics.create');
+        Route::post('/diagnostics', [DiagnosticsController::class, 'store'])->name('diagnostics.store');
+        Route::get('/diagnostics/{diagnostic}/results', [DiagnosticsController::class, 'results'])->name('diagnostics.results');
+        Route::post('/diagnostics/{diagnostic}/request/{classOffer}', [DiagnosticsController::class, 'requestClass'])->name('diagnostics.request');
+
         Route::resource('students', StudentController::class);
         Route::get('/class-requests', [ClassRequestController::class, 'index'])->name('class-requests.index');
         Route::get('/class-requests/create', [ClassRequestController::class, 'create'])->name('class-requests.create');
