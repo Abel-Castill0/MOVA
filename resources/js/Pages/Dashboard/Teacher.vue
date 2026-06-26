@@ -25,10 +25,23 @@
           <p class="text-sm text-slate-500 mt-0.5">Solicitudes abiertas</p>
         </div>
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div class="text-2xl mb-3">💰</div>
-          <p class="text-3xl font-black text-green-600">—</p>
-          <p class="text-sm text-slate-500 mt-0.5">Ingresos este mes</p>
+          <div class="text-2xl mb-3">📝</div>
+          <p class="text-3xl font-black" :class="pending_reports > 0 ? 'text-red-500' : 'text-green-600'">{{ pending_reports }}</p>
+          <p class="text-sm text-slate-500 mt-0.5">Reportes pendientes</p>
         </div>
+      </div>
+
+      <!-- Pending reports alert -->
+      <div v-if="pending_reports > 0" class="bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📝</div>
+        <div class="flex-1">
+          <p class="font-semibold text-red-900">{{ pending_reports }} clase(s) completada(s) sin reporte</p>
+          <p class="text-sm text-red-600 mt-0.5">Los padres esperan el reporte de aprendizaje de sus hijos.</p>
+        </div>
+        <Link :href="route('teacher.lessons')"
+          class="flex-shrink-0 px-4 py-2 bg-red-500 text-white text-sm font-bold rounded-xl hover:bg-red-600 transition-colors self-start sm:self-auto">
+          Completar reportes
+        </Link>
       </div>
 
       <!-- Upcoming classes -->
@@ -97,7 +110,7 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-defineProps({ upcoming: Array, pending_requests: Number })
+defineProps({ upcoming: Array, pending_requests: Number, pending_reports: Number })
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))

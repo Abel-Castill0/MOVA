@@ -12,7 +12,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public Lesson $lesson) {}
+    public function __construct(public Lesson $lesson, public string $interval = '10m') {}
 
     public function via($notifiable): array
     {
@@ -26,23 +26,41 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         return $channels;
     }
 
+    private function label(): string
+    {
+        return match ($this->interval) {
+            '24h' => 'mañana',
+            '2h'  => 'en 2 horas',
+            default => 'en menos de 10 minutos',
+        };
+    }
+
+    private function subject(): string
+    {
+        return match ($this->interval) {
+            '24h' => 'Tu clase en MOVA es mañana',
+            '2h'  => 'Tu clase en MOVA empieza en 2 horas',
+            default => 'Tu clase en MOVA empieza en 10 minutos',
+        };
+    }
+
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Recordatorio de clase en MOVA')
+            ->subject($this->subject())
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Tu clase comienza en **menos de 10 minutos**.')
-            ->line('**Hora:** ' . $this->lesson->start_time->format('H:i'))
+            ->line("Tu clase comienza **{$this->label()}**.")
+            ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
             ->line('**Contraseña:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
-            ->action('Entrar a Zoom ahora', $this->lesson->zoom_link ?? url('/'))
+            ->action('Entrar a Zoom', $this->lesson->zoom_link ?? url('/'))
             ->salutation('El equipo de MOVA');
     }
 
     public function toWhatsApp($notifiable): string
     {
         return "MOVA — Recordatorio de clase\n\n"
-            . "Hola {$notifiable->name}, tu clase empieza en menos de 10 minutos.\n"
-            . "Hora: " . $this->lesson->start_time->format('H:i') . "\n"
+            . "Hola {$notifiable->name}, tu clase empieza {$this->label()}.\n"
+            . "Hora: " . $this->lesson->start_time->format('d/m/Y H:i') . "\n"
             . ($this->lesson->zoom_link ?? 'Enlace no disponible') . "\n"
             . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña');
     }
@@ -51,10 +69,11 @@ class ClassReminderNotification extends Notification implements ShouldQueue
     {
         return [
             'type'       => 'class_reminder',
+            'interval'   => $this->interval,
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
             'zoom_link'  => $this->lesson->zoom_link,
-            'message'    => 'Tu clase empieza en menos de 10 minutos.',
+            'message'    => "Tu clase empieza {$this->label()}.",
         ];
     }
 }

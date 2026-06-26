@@ -34,6 +34,11 @@ class DashboardController extends Controller
 
         if ($user->hasRole('teacher')) {
             $profile = $user->teacherProfile;
+            $pendingReports = $profile ? Lesson::where('teacher_profile_id', $profile->id)
+                ->where('status', 'completed')
+                ->whereDoesntHave('lessonReport')
+                ->count() : 0;
+
             return Inertia::render('Dashboard/Teacher', [
                 'upcoming' => $profile ? Lesson::where('teacher_profile_id', $profile->id)
                     ->where('status', 'scheduled')
@@ -53,6 +58,7 @@ class DashboardController extends Controller
                               });
                         })->count();
                 })() : 0,
+                'pending_reports' => $pendingReports,
             ]);
         }
 

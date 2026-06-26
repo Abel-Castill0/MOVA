@@ -15,11 +15,15 @@ class Lesson extends Model
         'teacher_profile_id', 'student_id', 'class_request_id', 'class_offer_id',
         'start_time', 'duration_minutes', 'zoom_meeting_id', 'zoom_link',
         'zoom_password', 'status', 'reminder_sent',
+        'reminder_24h_sent_at', 'reminder_2h_sent_at', 'report_reminder_sent_at',
     ];
 
     protected $casts = [
-        'start_time' => 'datetime',
-        'reminder_sent' => 'boolean',
+        'start_time'              => 'datetime',
+        'reminder_sent'           => 'boolean',
+        'reminder_24h_sent_at'    => 'datetime',
+        'reminder_2h_sent_at'     => 'datetime',
+        'report_reminder_sent_at' => 'datetime',
     ];
 
     public function teacherProfile()
