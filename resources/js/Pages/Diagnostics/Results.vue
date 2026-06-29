@@ -53,9 +53,6 @@
                 <span class="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-bold rounded-lg border border-green-200">
                   ✓ Verificado
                 </span>
-                <span class="px-2 py-0.5 bg-slate-50 text-slate-500 text-xs font-medium rounded-lg">
-                  #{{ rec.rank }} mejor match
-                </span>
               </div>
               <p class="text-sm text-slate-500">{{ rec.offer.subject }} · S/ {{ formatRate(rec.offer.teacher.hourly_rate, rec.offer.specific_rate) }}/hora</p>
             </div>
@@ -69,13 +66,14 @@
 
           <!-- Why recommended -->
           <div class="mt-3">
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">¿Por qué te lo recomendamos?</p>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="reason in rec.reasons" :key="reason"
-                class="flex items-center gap-1 px-2.5 py-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-lg">
-                <span class="text-brand-500">✓</span> {{ reason }}
-              </span>
-            </div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">MOVA lo recomienda porque:</p>
+            <ul class="space-y-1">
+              <li v-for="reason in topReasons(rec.reasons)" :key="reason"
+                class="flex items-start gap-1.5 text-sm text-slate-700">
+                <span class="text-brand-500 font-bold mt-0.5">✓</span>
+                <span>{{ reason }}</span>
+              </li>
+            </ul>
           </div>
         </div>
 
@@ -135,6 +133,10 @@ const urgencyLabels = {
 
 const goalLabel    = computed(() => goalLabels[props.diagnostic.goal] ?? props.diagnostic.goal);
 const urgencyLabel = computed(() => urgencyLabels[props.diagnostic.urgency] ?? props.diagnostic.urgency);
+
+function topReasons(reasons) {
+  return (reasons ?? []).slice(0, 3);
+}
 
 function formatRate(hourly, specific) {
   const rate = specific ?? hourly;

@@ -6,6 +6,7 @@ use App\Models\ClassOffer;
 use App\Models\DiagnosticRecommendation;
 use App\Models\Lesson;
 use App\Models\StudentDiagnostic;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class DiagnosticRecommendationService
@@ -22,7 +23,8 @@ class DiagnosticRecommendationService
      *    5 — any bio present (< 200 chars but > 0)
      *   10 — hourly rate > 0 (tarifa definida)
      *    5 — offer has a title longer than 10 chars
-     *   NOTE: availability_schedule is NULL for all current offers → neutral, not scored
+     *   10 — availability matches urgency (today_or_tomorrow / this_week)
+     *        NULL availability → neutral (no bonus, no penalty)
      */
     public function compute(StudentDiagnostic $diagnostic): Collection
     {
@@ -102,6 +104,16 @@ class DiagnosticRecommendationService
                 $reasons[] = 'Oferta con descripción clara';
             }
 
+            // Availability signal (light — NULL is neutral, not penalized)
+            $schedule = $offer->availability_schedule;
+            if ($schedule && isset($schedule['days'])) {
+                [$availBonus, $availReason] = $this->scoreAvailability($schedule, $diagnostic->urgency);
+                if ($availBonus > 0) {
+                    $score += $availBonus;
+                    $reasons[] = $availReason;
+                }
+            }
+
             $offer->_score   = min($score, 100);
             $offer->_reasons = array_values(array_unique($reasons));
 
@@ -127,5 +139,37 @@ class DiagnosticRecommendationService
         $diagnostic->update(['status' => 'completed']);
 
         return $recommendations;
+    }
+
+    /**
+     * Returns [bonus_points, reason_string] based on availability_schedule vs urgency.
+     * Days are evaluated in America/Lima timezone to match the target market.
+     */
+    private function scoreAvailability(array $schedule, string $urgency): array
+    {
+        $dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        $now = Carbon::now('America/Lima');
+
+        $hasSlot = fn (string $day): bool =>
+            !empty($schedule['days'][$day] ?? []);
+
+        if ($urgency === 'today_or_tomorrow') {
+            $today    = $dayNames[$now->dayOfWeek];
+            $tomorrow = $dayNames[$now->copy()->addDay()->dayOfWeek];
+            if ($hasSlot($today) || $hasSlot($tomorrow)) {
+                return [10, 'Tiene horarios disponibles hoy o mañana'];
+            }
+        }
+
+        if ($urgency === 'this_week') {
+            foreach ($dayNames as $day) {
+                if ($hasSlot($day)) {
+                    return [10, 'Tiene horarios disponibles esta semana'];
+                }
+            }
+        }
+
+        // flexible urgency or no matching slots → no bonus but no penalty
+        return [0, ''];
     }
 }
