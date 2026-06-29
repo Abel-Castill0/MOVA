@@ -26,11 +26,14 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => 'nullable|string|max:20',
-            'role' => 'required|in:parent,teacher',
+            'name'             => 'required|string|max:255',
+            'email'            => 'required|string|email|max:255|unique:users',
+            'password'         => ['required', 'confirmed', Rules\Password::defaults()],
+            'phone'            => 'nullable|string|max:20',
+            'role'             => 'required|in:parent,teacher',
+            'accepted_terms'   => 'accepted',
+        ], [
+            'accepted_terms.accepted' => 'Debes aceptar los Términos y Condiciones y la Política de Privacidad para continuar.',
         ]);
 
         $user = User::create([

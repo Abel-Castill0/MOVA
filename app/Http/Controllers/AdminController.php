@@ -37,4 +37,30 @@ class AdminController extends Controller
         $teacher->user->delete();
         return back()->with('success', 'Profesor rechazado.');
     }
+
+    public function suspendUser(User $user)
+    {
+        if ($user->hasRole('admin')) {
+            return back()->with('error', 'No se puede suspender a un administrador.');
+        }
+
+        $reason = request()->input('reason', 'Suspensión por incumplimiento de términos.');
+
+        $user->update([
+            'suspended_at'       => now(),
+            'suspension_reason'  => $reason,
+        ]);
+
+        return back()->with('success', "Usuario {$user->name} suspendido.");
+    }
+
+    public function unsuspendUser(User $user)
+    {
+        $user->update([
+            'suspended_at'      => null,
+            'suspension_reason' => null,
+        ]);
+
+        return back()->with('success', "Cuenta de {$user->name} reactivada.");
+    }
 }

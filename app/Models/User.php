@@ -24,6 +24,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone_verification_expires_at',
         'phone_verification_attempts',
         'welcome_notification_sent_at',
+        'suspended_at',
+        'suspension_reason',
     ];
 
     protected $hidden = [
@@ -39,6 +41,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone_verification_attempts'  => 'integer',
         'phone_verification_expires_at'   => 'datetime',
         'welcome_notification_sent_at'    => 'datetime',
+        'suspended_at'                    => 'datetime',
     ];
 
     public function students()
