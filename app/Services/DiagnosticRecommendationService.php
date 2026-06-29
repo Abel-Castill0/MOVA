@@ -120,7 +120,37 @@ class DiagnosticRecommendationService
             return $offer;
         });
 
-        $top = $scored->sortByDesc('_score')->take(5)->values();
+        // Sort once to determine baseline scores before AI boost
+        $sorted = $scored->sortByDesc('_score')->values();
+
+        // AI keyword boost: max 5 pts, only when keywords available and confidence >= 60
+        $aiKeywords  = $diagnostic->ai_keywords ?? [];
+        $aiConfidence = $diagnostic->ai_confidence ?? 0;
+        $applyAiBoost = !empty($aiKeywords) && $aiConfidence >= 60;
+
+        if ($applyAiBoost && $sorted->isNotEmpty()) {
+            $topScore = $sorted->first()->_score;
+
+            $sorted = $sorted->map(function ($offer) use ($aiKeywords, $topScore) {
+                // Only boost if within 15 pts of the top candidate
+                if (($topScore - $offer->_score) > 15) {
+                    return $offer;
+                }
+                $searchText = mb_strtolower($offer->title . ' ' . ($offer->description ?? ''));
+                $matched = 0;
+                foreach ($aiKeywords as $kw) {
+                    if (mb_strlen($kw) > 2 && str_contains($searchText, mb_strtolower($kw))) {
+                        $matched++;
+                    }
+                }
+                if ($matched > 0) {
+                    $offer->_score = min($offer->_score + min($matched * 2, 5), 100);
+                }
+                return $offer;
+            })->sortByDesc('_score')->values();
+        }
+
+        $top = $sorted->take(5)->values();
 
         $recommendations = collect();
         foreach ($top as $rank => $offer) {

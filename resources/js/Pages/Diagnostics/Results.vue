@@ -17,6 +17,16 @@
         </div>
       </div>
 
+      <!-- AI understanding card (only shown when AI enrichment succeeded with high confidence) -->
+      <div v-if="diagnostic.ai_summary"
+        class="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-start gap-3">
+        <span class="text-indigo-400 text-lg flex-shrink-0">✨</span>
+        <div>
+          <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">MOVA entendió que necesitas</p>
+          <p class="text-sm text-indigo-900 leading-snug">{{ diagnostic.ai_summary }}</p>
+        </div>
+      </div>
+
       <!-- No results state -->
       <div v-if="recommendations.length === 0"
         class="bg-white rounded-2xl border border-gray-100 p-8 text-center">
@@ -110,7 +120,7 @@ import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
-  diagnostic:      Object,
+  diagnostic:      Object, // { id, goal, urgency, subject, student, ai_summary }
   recommendations: Array,
   subjects:        Array,
 });

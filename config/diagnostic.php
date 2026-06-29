@@ -2,16 +2,21 @@
 
 return [
     /*
-     * Fase 4A.2 — Feature flag para IA futura.
+     * Feature flag para IA opcional.
      *
-     * Cuando sea true, DiagnosticAiEnrichmentService intentará enriquecer
-     * el diagnóstico con keywords y sugerencias adicionales.
+     * Cuando sea true, DiagnosticAiEnrichmentService enriquece el diagnóstico
+     * con keywords, nivel detectado y resumen para el padre.
      *
-     * IMPORTANTE: La IA NUNCA decide qué profesores recomendar.
-     * El scoring determinista siempre se ejecuta primero.
-     * La IA solo agrega contexto opcional (keywords, resumen).
-     *
-     * Requiere: OPENAI_API_KEY configurado (no incluir en git).
+     * IMPORTANTE:
+     *   - La IA NUNCA elige ni rankea profesores.
+     *   - El scoring determinista (DiagnosticRecommendationService) siempre corre.
+     *   - Si la IA falla, el wizard continúa sin enriquecimiento (fallback garantizado).
+     *   - goal=solve_homework nunca activa IA (integridad académica).
+     *   - difficulty_text se anonimiza antes de enviarse (se remueven nombres propios).
      */
-    'ai_enabled' => env('DIAGNOSTIC_AI_ENABLED', false),
+    'ai_enabled'       => env('DIAGNOSTIC_AI_ENABLED', false),
+    'ai_provider'      => env('DIAGNOSTIC_AI_PROVIDER', 'openai'),
+    'openai_model'     => env('DIAGNOSTIC_AI_MODEL', 'gpt-4o-mini'),
+    'timeout_seconds'  => (int) env('DIAGNOSTIC_AI_TIMEOUT', 8),
+    'max_tokens'       => (int) env('DIAGNOSTIC_AI_MAX_TOKENS', 300),
 ];

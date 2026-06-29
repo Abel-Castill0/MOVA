@@ -92,6 +92,13 @@
       <div v-if="step === 3">
         <h1 class="text-xl font-black text-slate-900 mb-1">Cuéntanos el problema</h1>
         <p class="text-sm text-slate-500 mb-5">¿Qué dificultad tiene tu hijo?</p>
+        <div class="mb-4 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          <span class="text-blue-400 text-base mt-0.5 flex-shrink-0">🔒</span>
+          <p class="text-xs text-blue-700 leading-relaxed">
+            MOVA puede analizar tu descripción de forma automática para entender mejor qué necesita tu hijo.
+            No compartimos nombres, correos ni teléfonos.
+          </p>
+        </div>
 
         <div class="space-y-4">
           <div>

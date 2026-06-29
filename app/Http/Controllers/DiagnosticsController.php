@@ -7,6 +7,7 @@ use App\Models\ClassOffer;
 use App\Models\ClassRequest;
 use App\Models\StudentDiagnostic;
 use App\Models\Subject;
+use App\Services\DiagnosticAiEnrichmentService;
 use App\Services\DiagnosticRecommendationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,8 +23,11 @@ class DiagnosticsController extends Controller
         ]);
     }
 
-    public function store(Request $request, DiagnosticRecommendationService $service)
-    {
+    public function store(
+        Request $request,
+        DiagnosticRecommendationService $service,
+        DiagnosticAiEnrichmentService $aiService
+    ) {
         $user = auth()->user();
 
         $data = $request->validate([
@@ -43,7 +47,11 @@ class DiagnosticsController extends Controller
             'level'          => $student->grade_level,
         ]));
 
-        $service->compute($diagnostic);
+        // Optional AI enrichment (never blocks; fallback guaranteed)
+        $aiService->enrich($diagnostic);
+
+        // Deterministic scoring is always the authority
+        $service->compute($diagnostic->fresh());
 
         return redirect()->route('diagnostics.results', $diagnostic);
     }
@@ -82,13 +90,20 @@ class DiagnosticsController extends Controller
                 ],
             ]);
 
+        // Only expose ai_summary when confidence is high enough to be useful
+        $aiSummary = null;
+        if ($diagnostic->ai_summary && ($diagnostic->ai_confidence ?? 0) >= 60) {
+            $aiSummary = $diagnostic->ai_summary;
+        }
+
         return Inertia::render('Diagnostics/Results', [
             'diagnostic'      => [
-                'id'      => $diagnostic->id,
-                'goal'    => $diagnostic->goal,
-                'urgency' => $diagnostic->urgency,
-                'subject' => $diagnostic->subject?->name,
-                'student' => $diagnostic->student?->first_name,
+                'id'         => $diagnostic->id,
+                'goal'       => $diagnostic->goal,
+                'urgency'    => $diagnostic->urgency,
+                'subject'    => $diagnostic->subject?->name,
+                'student'    => $diagnostic->student?->first_name,
+                'ai_summary' => $aiSummary, // null if AI disabled, failed, or low confidence
             ],
             'recommendations' => $recommendations,
             'subjects'        => Subject::orderBy('name')->get(['id', 'name']),

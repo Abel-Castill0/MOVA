@@ -13,6 +13,14 @@ class StudentDiagnostic extends Model
         'parent_user_id', 'student_id', 'subject_id', 'level',
         'difficulty_text', 'school_feedback',
         'goal', 'urgency', 'status',
+        'ai_keywords', 'ai_detected_level', 'ai_summary', 'ai_suggested_goal',
+        'ai_risk_flags', 'ai_confidence', 'ai_used_fallback', 'ai_enriched_at',
+    ];
+
+    protected $casts = [
+        'ai_keywords'   => 'array',
+        'ai_risk_flags' => 'array',
+        'ai_enriched_at' => 'datetime',
     ];
 
     public function parent()
