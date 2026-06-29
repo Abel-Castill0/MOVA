@@ -39,12 +39,12 @@ test('2. /privacidad returns 200 without authentication', async ({ request }) =>
   expect(body.toLowerCase()).toContain('privacidad');
 });
 
-// ── 3. /terminos page contains expected beta notice ───────────────────────────
-test('3. /terminos page shows beta disclaimer and support contact', async ({ page }) => {
+// ── 3. /terminos page contains support contact (beta language removed in Fase Final 4) ──
+test('3. /terminos page shows support contact (no beta language)', async ({ page }) => {
   await page.goto(`${BASE}/terminos`);
   await page.waitForLoadState('networkidle');
   const body = await page.textContent('body') ?? '';
-  expect(body.toLowerCase()).toContain('beta');
+  expect(body.toLowerCase()).not.toMatch(/\bbeta\b/);
   expect(body).toContain('soporte');
 });
 
