@@ -120,6 +120,10 @@ const navItems = computed(() => {
       { href: '/dashboard',               icon: '📊', label: 'Dashboard' },
       { href: '/admin/users',             icon: '👥', label: 'Usuarios' },
       { href: '/admin/pending-teachers',  icon: '✅', label: 'Verificar profesores' },
+      { href: '/admin/requests',          icon: '📋', label: 'Solicitudes' },
+      { href: '/admin/lessons',           icon: '📅', label: 'Clases' },
+      { href: '/admin/reviews',           icon: '⭐', label: 'Reseñas' },
+      { href: '/admin/ai-usage',          icon: '🤖', label: 'Uso de IA' },
     ]
   }
   if (roles.includes('teacher')) {

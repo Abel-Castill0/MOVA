@@ -19,7 +19,7 @@
             <div class="flex items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-2">
-                  <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold flex-shrink-0">
+                  <div class="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-700 font-bold flex-shrink-0">
                     {{ t.user?.name?.charAt(0) }}
                   </div>
                   <div>
@@ -32,7 +32,7 @@
                   <span class="text-sm font-semibold text-gray-900">S/ {{ parseFloat(t.hourly_rate || 0).toFixed(0) }}/h</span>
                   <span class="text-gray-300">·</span>
                   <span v-for="s in t.subjects" :key="s.id"
-                    class="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{{ s.name }}</span>
+                    class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded">{{ s.name }}</span>
                 </div>
               </div>
               <div class="flex gap-2 flex-shrink-0">
@@ -79,7 +79,7 @@
               </div>
               <div class="flex-shrink-0">
                 <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg hover:bg-indigo-200 transition-colors">
+                  class="px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
                   Re-verificar
                 </Link>
               </div>

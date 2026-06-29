@@ -4,7 +4,7 @@
       <div class="flex items-center justify-between">
         <h2 class="text-2xl font-bold text-gray-900">Solicitudes de clase</h2>
         <Link :href="route('class-requests.create')"
-          class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700">
+          class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700">
           + Nueva solicitud
         </Link>
       </div>
@@ -23,7 +23,7 @@
               </div>
               <p class="text-sm text-gray-500">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
               <p class="text-sm text-gray-400 mt-1 line-clamp-2">{{ r.help_needed }}</p>
-              <p v-if="r.class_offer" class="text-xs text-indigo-600 mt-1">
+              <p v-if="r.class_offer" class="text-xs text-brand-600 mt-1">
                 Prof. {{ r.class_offer?.teacher_profile?.user?.name }}
               </p>
               <div v-if="r.status === 'teacher_rejected' && r.teacher_rejection_reason"

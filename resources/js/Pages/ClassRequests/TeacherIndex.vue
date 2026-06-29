@@ -30,7 +30,7 @@
               </div>
               <div class="flex flex-col gap-2 flex-shrink-0">
                 <Link :href="route('teacher.requests.accept', r.id)"
-                  class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 text-center">
+                  class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 text-center">
                   Aceptar
                 </Link>
                 <button @click="openRejectModal(r)"

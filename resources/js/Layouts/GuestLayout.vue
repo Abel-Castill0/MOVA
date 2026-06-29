@@ -14,7 +14,7 @@
           Iniciar sesión
         </Link>
         <Link :href="route('register')"
-          class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
+          class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">
           Registrarse
         </Link>
       </div>
@@ -35,11 +35,11 @@
     </main>
 
     <footer class="border-t border-gray-100 px-4 sm:px-8 py-4 flex flex-wrap gap-4 justify-center text-xs text-gray-400">
-      <Link :href="route('legal.terms')" class="hover:text-indigo-600 transition-colors">Términos y Condiciones</Link>
-      <Link :href="route('legal.privacy')" class="hover:text-indigo-600 transition-colors">Política de Privacidad</Link>
-      <a href="mailto:abelcastillotrabajo@gmail.com" class="hover:text-indigo-600 transition-colors">Soporte</a>
+      <Link :href="route('legal.terms')" class="hover:text-brand-600 transition-colors">Términos y Condiciones</Link>
+      <Link :href="route('legal.privacy')" class="hover:text-brand-600 transition-colors">Política de Privacidad</Link>
+      <a href="mailto:abelcastillotrabajo@gmail.com" class="hover:text-brand-600 transition-colors">Soporte</a>
       <span class="text-gray-300">·</span>
-      <span>MOVA Beta 2026</span>
+      <span>© 2026 MOVA. Todos los derechos reservados.</span>
     </footer>
   </div>
 </template>

@@ -23,7 +23,7 @@
                 <td class="px-5 py-3.5 text-sm text-gray-600">{{ u.email }}</td>
                 <td class="px-5 py-3.5 text-sm text-gray-500">{{ u.phone ?? '–' }}</td>
                 <td class="px-5 py-3.5">
-                  <span v-for="r in u.roles" :key="r.name" class="inline-block text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full mr-1">{{ r.name }}</span>
+                  <span v-for="r in u.roles" :key="r.name" class="inline-block text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full mr-1">{{ r.name }}</span>
                 </td>
                 <td class="px-5 py-3.5">
                   <span v-if="u.suspended_at" class="inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
@@ -66,7 +66,7 @@
           :is="link.url ? Link : 'span'"
           :href="link.url"
           v-html="link.label"
-          :class="['px-3 py-1.5 rounded-lg text-sm transition-colors', link.active ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300', !link.url && 'opacity-40 pointer-events-none']"
+          :class="['px-3 py-1.5 rounded-lg text-sm transition-colors', link.active ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-300', !link.url && 'opacity-40 pointer-events-none']"
         />
       </div>
     </div>

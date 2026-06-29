@@ -15,7 +15,7 @@
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 flex flex-col sm:flex-row gap-5 sm:gap-8">
         <!-- Avatar -->
         <div class="flex-shrink-0 flex flex-col items-center gap-2">
-          <div class="w-20 h-20 bg-gradient-to-br from-brand-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-brand-500/25">
+          <div class="w-20 h-20 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-brand-500/25">
             {{ teacher.name?.charAt(0)?.toUpperCase() }}
           </div>
           <span v-if="teacher.is_verified" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200">
@@ -183,10 +183,10 @@
             </div>
           </div>
           <div class="flex items-start gap-3">
-            <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 flex-shrink-0 text-sm">🔔</div>
+            <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center text-brand-600 flex-shrink-0 text-sm">🔔</div>
             <div>
               <p class="text-sm font-semibold text-slate-900">Recordatorios incluidos</p>
-              <p class="text-xs text-slate-500 mt-0.5">Te avisamos por email y WhatsApp antes de cada clase.</p>
+              <p class="text-xs text-slate-500 mt-0.5">Te avisamos por correo electrónico antes de cada clase.</p>
             </div>
           </div>
         </div>

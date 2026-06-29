@@ -8,7 +8,7 @@
             @click="setFilter(s.value)"
             :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
               statusFilter === s.value
-                ? 'bg-indigo-600 text-white border-indigo-600'
+                ? 'bg-brand-600 text-white border-brand-600'
                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50']">
             {{ s.label }}
           </button>
