@@ -20,7 +20,7 @@ class MarketplaceController extends Controller
 
         $query = ClassOffer::where('is_active', true)
             ->whereHas('teacherProfile', fn($q) => $q->where('is_verified', true))
-            ->with(['teacherProfile.user', 'subject']);
+            ->with(['teacherProfile.user', 'subject', 'teacherProfile.visibleReviews']);
 
         if ($request->subject_id) {
             $query->where('subject_id', $request->subject_id);

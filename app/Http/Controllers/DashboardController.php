@@ -7,6 +7,7 @@ use App\Models\Lesson;
 use App\Models\LessonReport;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
+use App\Models\TeacherReview;
 use App\Models\User;
 use Inertia\Inertia;
 
@@ -87,6 +88,13 @@ class DashboardController extends Controller
                 'pending_reports'    => $pendingReports,
                 'profile_score'     => $score,
                 'profile_checklist' => $checklist,
+                'reviews'           => $profile ? TeacherReview::where('teacher_profile_id', $profile->id)
+                    ->where('is_visible', true)
+                    ->latest()
+                    ->take(5)
+                    ->get(['id', 'rating', 'comment', 'created_at']) : [],
+                'avg_rating'        => $profile ? $profile->avgRating() : null,
+                'review_count'      => $profile ? $profile->reviewCount() : 0,
             ]);
         }
 

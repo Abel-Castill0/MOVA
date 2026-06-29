@@ -85,7 +85,7 @@ class LessonController extends Controller
 
         return Inertia::render('Lessons/ParentIndex', [
             'lessons' => Lesson::whereIn('student_id', $studentIds)
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->with(['teacherProfile.user', 'student', 'classRequest.subject', 'teacherReview'])
                 ->orderBy('start_time', 'desc')
                 ->get(),
         ]);

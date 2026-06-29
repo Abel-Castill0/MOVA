@@ -56,4 +56,25 @@ class TeacherProfile extends Model
     {
         return $this->hasMany(Lesson::class);
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(TeacherReview::class);
+    }
+
+    public function visibleReviews()
+    {
+        return $this->hasMany(TeacherReview::class)->where('is_visible', true);
+    }
+
+    public function avgRating(): ?float
+    {
+        $avg = $this->visibleReviews()->avg('rating');
+        return $avg ? round((float) $avg, 1) : null;
+    }
+
+    public function reviewCount(): int
+    {
+        return $this->visibleReviews()->count();
+    }
 }

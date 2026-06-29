@@ -44,6 +44,10 @@
               <p class="text-xl font-black text-slate-900">S/ {{ parseFloat(teacher.hourly_rate ?? 0).toFixed(0) }}</p>
               <p class="text-xs text-slate-400">por hora</p>
             </div>
+            <div v-if="teacher.avg_rating" class="text-center">
+              <p class="text-xl font-black text-amber-500">{{ teacher.avg_rating }} ★</p>
+              <p class="text-xs text-slate-400">{{ teacher.review_count }} {{ teacher.review_count === 1 ? 'reseña' : 'reseñas' }}</p>
+            </div>
             <div v-if="teacher.classes_completed > 0" class="text-center">
               <p class="text-xl font-black text-slate-900">{{ teacher.classes_completed }}</p>
               <p class="text-xs text-slate-400">clases dictadas</p>
@@ -127,6 +131,39 @@
         </div>
       </div>
 
+      <!-- Reviews section -->
+      <div>
+        <h2 class="text-lg font-black text-slate-900 mb-4">Reseñas verificadas</h2>
+
+        <div v-if="!teacher.reviews?.length" class="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+          <p class="text-2xl mb-2">⭐</p>
+          <p class="text-sm font-semibold text-slate-700">Profesor nuevo en MOVA</p>
+          <p class="text-xs text-slate-400 mt-1">Aún no tiene reseñas. ¡Sé el primero en calificarlo!</p>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div v-if="teacher.avg_rating" class="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center gap-4">
+            <p class="text-4xl font-black text-amber-500">{{ teacher.avg_rating }}</p>
+            <div>
+              <div class="flex gap-0.5">
+                <span v-for="n in 5" :key="n" :class="['text-xl', n <= Math.round(teacher.avg_rating) ? 'text-amber-400' : 'text-gray-200']">★</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Basado en {{ teacher.review_count }} {{ teacher.review_count === 1 ? 'reseña verificada' : 'reseñas verificadas' }}</p>
+            </div>
+          </div>
+
+          <div v-for="r in teacher.reviews" :key="r.id"
+            class="bg-white rounded-xl border border-gray-100 p-4">
+            <div class="flex items-center gap-1 mb-1">
+              <span v-for="n in 5" :key="n" :class="['text-sm', n <= r.rating ? 'text-amber-400' : 'text-gray-200']">★</span>
+              <span class="text-xs text-slate-400 ml-2">{{ fmtDate(r.created_at) }}</span>
+            </div>
+            <p v-if="r.comment" class="text-sm text-slate-700 leading-relaxed">{{ r.comment }}</p>
+            <p v-else class="text-xs text-slate-400 italic">Sin comentario adicional.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Trust section -->
       <div class="bg-slate-50 rounded-2xl border border-gray-100 p-5 sm:p-6">
         <h3 class="font-bold text-slate-900 mb-4">¿Por qué confiar en MOVA?</h3>
@@ -173,5 +210,9 @@ const isParent = computed(() => {
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
-const layout   = computed(() => authUser.value ? AppLayout : GuestLayout)
+const layout = computed(() => authUser.value ? AppLayout : GuestLayout)
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 </script>

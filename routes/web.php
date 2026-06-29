@@ -18,6 +18,7 @@ use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\TeacherPublicController;
+use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +67,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->name('class-requests.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
+        Route::get('/lessons/{lesson}/review/create', [TeacherReviewController::class, 'create'])->name('reviews.create');
+        Route::post('/lessons/{lesson}/review', [TeacherReviewController::class, 'store'])->name('reviews.store');
         Route::get('/my-reports', [LessonReportController::class, 'parentIndex'])->name('parent.reports');
         Route::patch('/settings/parental-control', [ParentSettingsController::class, 'update'])->name('parent.settings.update');
     });
@@ -109,6 +112,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->name('admin.lessons.cancel');
+        Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
+        Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->name('admin.reviews.hide');
+        Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->name('admin.reviews.show');
     });
 });
 

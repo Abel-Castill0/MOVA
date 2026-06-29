@@ -149,6 +149,13 @@
               </div>
             </div>
 
+            <!-- Rating badge -->
+            <div v-if="teacherAvgRating(o)" class="flex items-center gap-1 mb-2 -mt-1">
+              <span class="text-amber-400 text-sm">★</span>
+              <span class="text-xs font-semibold text-slate-700">{{ teacherAvgRating(o) }}</span>
+              <span class="text-xs text-slate-400">({{ teacherReviewCount(o) }} {{ teacherReviewCount(o) === 1 ? 'reseña' : 'reseñas' }})</span>
+            </div>
+
             <!-- Offer info -->
             <div class="mb-3">
               <span class="inline-block px-2 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg mb-2">
@@ -276,5 +283,16 @@ function rate(offer) {
 
 function subjectName(id) {
   return props.subjects?.find(s => String(s.id) === String(id))?.name ?? ''
+}
+
+function teacherAvgRating(offer) {
+  const reviews = offer.teacher_profile?.visible_reviews ?? []
+  if (!reviews.length) return null
+  const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+  return avg.toFixed(1)
+}
+
+function teacherReviewCount(offer) {
+  return offer.teacher_profile?.visible_reviews?.length ?? 0
 }
 </script>

@@ -45,6 +45,17 @@
                   class="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
                   Reprogramada (original: {{ fmtDateShort(l.original_start_time) }})
                 </div>
+                <!-- Review section for completed lessons -->
+                <div v-if="l.status === 'completed'" class="mt-2">
+                  <div v-if="l.teacher_review" class="flex items-center gap-1 text-xs text-amber-600">
+                    <span v-for="n in 5" :key="n" :class="n <= l.teacher_review.rating ? 'text-amber-400' : 'text-gray-200'">★</span>
+                    <span class="text-slate-500 ml-1">Reseña enviada</span>
+                  </div>
+                  <Link v-else :href="route('reviews.create', l.id)"
+                    class="inline-block mt-1 text-xs text-brand-600 hover:text-brand-700 font-semibold underline underline-offset-2">
+                    ★ Calificar al profesor
+                  </Link>
+                </div>
               </div>
 
               <div v-if="l.status === 'scheduled' && l.zoom_link" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px]">

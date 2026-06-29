@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TeacherProfile;
+use App\Models\TeacherReview;
 use Inertia\Inertia;
 
 class TeacherPublicController extends Controller
@@ -25,6 +26,12 @@ class TeacherPublicController extends Controller
             ->where('status', 'completed')
             ->count();
 
+        $reviews = TeacherReview::where('teacher_profile_id', $teacherProfile->id)
+            ->where('is_visible', true)
+            ->latest()
+            ->take(5)
+            ->get(['id', 'rating', 'comment', 'created_at']);
+
         return Inertia::render('Teachers/Show', [
             'teacher'          => [
                 'id'               => $teacherProfile->id,
@@ -35,6 +42,9 @@ class TeacherPublicController extends Controller
                 'subjects'         => $teacherProfile->subjects,
                 'offers'           => $teacherProfile->classOffers,
                 'classes_completed'=> $classesCompleted,
+                'avg_rating'       => $teacherProfile->avgRating(),
+                'review_count'     => $teacherProfile->reviewCount(),
+                'reviews'          => $reviews,
             ],
         ]);
     }
