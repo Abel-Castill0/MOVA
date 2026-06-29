@@ -16,6 +16,7 @@ const map = {
   accepted: { label: 'Aceptada', color: 'bg-green-100 text-green-700' },
   rejected: { label: 'Rechazada', color: 'bg-red-100 text-red-700' },
   pending_parent_approval: { label: 'Pend. aprobación', color: 'bg-orange-100 text-orange-700' },
+  teacher_rejected: { label: 'Rechazada por profesor', color: 'bg-rose-100 text-rose-700' },
 }
 
 const colorClass = computed(() => map[props.status]?.color ?? 'bg-gray-100 text-gray-600')

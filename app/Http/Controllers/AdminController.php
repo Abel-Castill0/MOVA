@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClassEvent;
+use App\Models\ClassRequest;
+use App\Models\Lesson;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\ClassCancelledNotification;
 use App\Notifications\TeacherRejectedNotification;
 use App\Notifications\TeacherVerifiedNotification;
 use Illuminate\Support\Facades\Log;
@@ -82,6 +86,71 @@ class AdminController extends Controller
         ]);
 
         return back()->with('success', "Perfil de {$teacher->user->name} rechazado. El profesor ha sido notificado.");
+    }
+
+    public function requests()
+    {
+        $status = request()->query('status');
+
+        $query = ClassRequest::with(['student.parent', 'subject', 'classOffer.teacherProfile.user'])
+            ->latest();
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        return Inertia::render('Admin/Requests', [
+            'requests'       => $query->paginate(30)->withQueryString(),
+            'statusFilter'   => $status,
+        ]);
+    }
+
+    public function lessons()
+    {
+        $status = request()->query('status');
+
+        $query = Lesson::with(['teacherProfile.user', 'student.parent', 'classRequest.subject'])
+            ->orderBy('start_time', 'desc');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        return Inertia::render('Admin/Lessons', [
+            'lessons'      => $query->paginate(30)->withQueryString(),
+            'statusFilter' => $status,
+        ]);
+    }
+
+    public function cancelLesson(Lesson $lesson)
+    {
+        abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
+
+        $data = request()->validate([
+            'reason' => 'required|string|min:5|max:500',
+        ]);
+
+        $lesson->load(['student.parent', 'teacherProfile.user']);
+        $lesson->update([
+            'status'       => 'cancelled',
+            'cancelled_at' => now(),
+            'cancelled_by' => auth()->id(),
+            'cancel_reason' => $data['reason'],
+        ]);
+
+        ClassEvent::log('class_cancelled', auth()->id(), $lesson->id, $lesson->class_request_id, $data['reason']);
+
+        $notification = new ClassCancelledNotification($lesson);
+        $lesson->teacherProfile?->user?->notify($notification);
+        $lesson->student?->parent?->notify($notification);
+
+        Log::info('ADMIN_LESSON_CANCELLED', [
+            'admin_id'  => auth()->id(),
+            'lesson_id' => $lesson->id,
+            'reason'    => $data['reason'],
+        ]);
+
+        return back()->with('success', 'Clase cancelada y partes notificadas.');
     }
 
     public function suspendUser(User $user)

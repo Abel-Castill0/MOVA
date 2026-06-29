@@ -26,6 +26,10 @@
               <p v-if="r.class_offer" class="text-xs text-indigo-600 mt-1">
                 Prof. {{ r.class_offer?.teacher_profile?.user?.name }}
               </p>
+              <div v-if="r.status === 'teacher_rejected' && r.teacher_rejection_reason"
+                class="mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+                El profesor rechazó: {{ r.teacher_rejection_reason }}
+              </div>
             </div>
             <div v-if="r.status === 'pending_parent_approval'" class="flex gap-2">
               <Link :href="route('class-requests.approve', r.id)" method="post" as="button"

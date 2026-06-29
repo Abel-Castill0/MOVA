@@ -82,14 +82,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/teacher/requests', [ClassRequestController::class, 'teacherIndex'])->name('teacher.requests');
         Route::get('/teacher/requests/{classRequest}/accept', [ClassRequestController::class, 'accept'])->name('teacher.requests.accept');
+        Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->name('teacher.requests.reject');
         Route::post('/lessons', [LessonController::class, 'store'])->middleware('throttle:10,1')->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
         Route::post('/lessons/{lesson}/complete', [LessonController::class, 'complete'])->name('lessons.complete');
-        Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->name('lessons.cancel');
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
         Route::get('/lessons/{lesson}/report/create', [LessonReportController::class, 'create'])->name('lesson-reports.create');
         Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->name('lesson-reports.store');
         Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
+    });
+
+    // ── Shared: cancel & reschedule (parent, teacher, admin) ─────────────────
+    Route::middleware('not.suspended')->group(function () {
+        Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->name('lessons.cancel');
+        Route::post('/lessons/{lesson}/reschedule', [LessonController::class, 'reschedule'])->name('lessons.reschedule');
     });
 
     // ── Admin ────────────────────────────────────────────────────────────────
@@ -100,6 +106,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->name('admin.teachers.reject');
         Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->name('admin.users.suspend');
         Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->name('admin.users.unsuspend');
+        Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
+        Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
+        Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->name('admin.lessons.cancel');
     });
 });
 
