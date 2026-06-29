@@ -17,6 +17,7 @@ use App\Http\Controllers\StudentInvitationController;
 use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
+use App\Http\Controllers\AiUsageController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
@@ -115,6 +116,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->name('admin.reviews.show');
+        Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('admin.ai-usage');
     });
 });
 

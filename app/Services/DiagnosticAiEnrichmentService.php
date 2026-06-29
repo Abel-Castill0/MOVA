@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AiUsageLog;
 use App\Models\StudentDiagnostic;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,12 +17,15 @@ use Illuminate\Support\Facades\Log;
  *   - La IA NUNCA decide qué profesores recomendar.
  *   - DiagnosticRecommendationService es siempre el árbitro final.
  *   - Si falla, el flujo continúa con fallback determinista (nunca lanza excepción).
+ *   - ai_usage_logs registra llamadas sin guardar prompts, respuestas ni difficulty_text.
  */
 class DiagnosticAiEnrichmentService
 {
     private const VALID_LEVELS = ['básico', 'intermedio', 'avanzado', 'desconocido'];
     private const VALID_GOALS  = ['reinforce_topic', 'prepare_exam', 'recover_grades', 'solve_homework', 'continuous_support'];
     private const VALID_FLAGS  = ['homework_request', 'exam_in_hours', 'inappropriate_content', 'vague_description'];
+
+    private ?array $lastTokenUsage = null;
 
     public function isEnabled(): bool
     {
@@ -30,8 +34,8 @@ class DiagnosticAiEnrichmentService
 
     /**
      * Enrich the diagnostic with AI-generated metadata.
-     * Returns null if disabled, goal is solve_homework, or any error occurs.
-     * Side effects: updates ai_* columns on the $diagnostic model.
+     * Returns null if disabled, rate-limited, goal=solve_homework, or any error.
+     * Side effects: updates ai_* columns on $diagnostic; writes to ai_usage_logs.
      */
     public function enrich(StudentDiagnostic $diagnostic): ?array
     {
@@ -39,12 +43,29 @@ class DiagnosticAiEnrichmentService
             return null;
         }
 
-        // Never use AI for homework solving — academic integrity
         if ($diagnostic->goal === 'solve_homework') {
             return null;
         }
 
         $provider = config('diagnostic.ai_provider', 'openai');
+        $model    = $provider === 'gemini'
+            ? config('diagnostic.gemini_model', 'gemini-2.5-flash-lite')
+            : config('diagnostic.openai_model', 'gpt-4o-mini');
+
+        // Rate limit checks
+        if ($this->isDailyLimitExceeded()) {
+            $this->writeLog($diagnostic, $provider, $model, 'skipped', null, 'limit_daily');
+            $this->saveFallback($diagnostic);
+            return null;
+        }
+
+        if ($this->isMonthlyLimitExceeded()) {
+            $this->writeLog($diagnostic, $provider, $model, 'skipped', null, 'limit_monthly');
+            $this->saveFallback($diagnostic);
+            return null;
+        }
+
+        $this->lastTokenUsage = null;
 
         try {
             [$systemPrompt, $userPrompt] = $this->buildPrompts($diagnostic);
@@ -55,12 +76,14 @@ class DiagnosticAiEnrichmentService
             };
 
             if ($result === null) {
+                $this->writeLog($diagnostic, $provider, $model, 'fallback', null, 'http_error');
                 $this->saveFallback($diagnostic);
                 return null;
             }
 
             $validated = $this->validate($result);
             if ($validated === null) {
+                $this->writeLog($diagnostic, $provider, $model, 'fallback', null, 'validation_fail');
                 $this->saveFallback($diagnostic);
                 return null;
             }
@@ -76,6 +99,8 @@ class DiagnosticAiEnrichmentService
                 'ai_enriched_at'    => now(),
             ]);
 
+            $this->writeLog($diagnostic, $provider, $model, 'success', $this->lastTokenUsage);
+
             return $validated;
 
         } catch (\Throwable $e) {
@@ -84,15 +109,62 @@ class DiagnosticAiEnrichmentService
                 'error'         => $e->getMessage(),
                 'provider'      => $provider,
             ]);
+            $this->writeLog($diagnostic, $provider, $model, 'error', null, 'exception');
             $this->saveFallback($diagnostic);
             return null;
+        }
+    }
+
+    private function isDailyLimitExceeded(): bool
+    {
+        $limit = (int) config('diagnostic.daily_limit', 50);
+        if ($limit <= 0) return false;
+        $count = AiUsageLog::where('status', 'success')
+            ->whereDate('created_at', today())
+            ->count();
+        return $count >= $limit;
+    }
+
+    private function isMonthlyLimitExceeded(): bool
+    {
+        $limit = (int) config('diagnostic.monthly_limit', 500);
+        if ($limit <= 0) return false;
+        $count = AiUsageLog::where('status', 'success')
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
+            ->count();
+        return $count >= $limit;
+    }
+
+    private function writeLog(
+        StudentDiagnostic $diagnostic,
+        string $provider,
+        string $model,
+        string $status,
+        ?array $tokens,
+        ?string $errorType = null
+    ): void {
+        try {
+            AiUsageLog::create([
+                'user_id'               => $diagnostic->user_id ?? null,
+                'student_diagnostic_id' => $diagnostic->id,
+                'provider'              => $provider,
+                'model'                 => $model,
+                'status'                => $status,
+                'prompt_tokens'         => $tokens['prompt'] ?? null,
+                'completion_tokens'     => $tokens['completion'] ?? null,
+                'total_tokens'          => $tokens['total'] ?? null,
+                'error_type'            => $errorType,
+                'created_at'            => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('DiagnosticAI: failed to write usage log', ['error' => $e->getMessage()]);
         }
     }
 
     /**
      * Builds shared system + user prompts used by both OpenAI and Gemini.
      * Privacy: only anonymized difficulty_text, subject, level, goal, urgency are included.
-     * Never includes: student/parent names, IDs, emails, phone numbers, school_feedback.
      *
      * @return array{0: string, 1: string}
      */
@@ -153,6 +225,15 @@ class DiagnosticAiEnrichmentService
             return null;
         }
 
+        $usage = $response->json('usage');
+        if ($usage) {
+            $this->lastTokenUsage = [
+                'prompt'     => $usage['prompt_tokens'] ?? null,
+                'completion' => $usage['completion_tokens'] ?? null,
+                'total'      => $usage['total_tokens'] ?? null,
+            ];
+        }
+
         return $this->decodeJsonContent($response->json('choices.0.message.content'));
     }
 
@@ -192,6 +273,15 @@ class DiagnosticAiEnrichmentService
             return null;
         }
 
+        $meta = $response->json('usageMetadata');
+        if ($meta) {
+            $this->lastTokenUsage = [
+                'prompt'     => $meta['promptTokenCount'] ?? null,
+                'completion' => $meta['candidatesTokenCount'] ?? null,
+                'total'      => $meta['totalTokenCount'] ?? null,
+            ];
+        }
+
         $text = $response->json('candidates.0.content.parts.0.text');
         return $this->decodeJsonContent($text);
     }
@@ -224,7 +314,6 @@ class DiagnosticAiEnrichmentService
             }
         }
 
-        // keywords: array, max 5, each string max 30, strip HTML
         if (!is_array($data['suggested_subject_keywords'])) {
             return null;
         }
@@ -236,12 +325,10 @@ class DiagnosticAiEnrichmentService
             }, array_slice($data['suggested_subject_keywords'], 0, 5))
         ));
 
-        // detected_level: whitelist
         $level = in_array($data['detected_level'], self::VALID_LEVELS, true)
             ? $data['detected_level']
             : 'desconocido';
 
-        // summary: string, max 200, strip HTML and markdown
         if (!is_string($data['parent_friendly_summary'])) {
             return null;
         }
@@ -249,12 +336,10 @@ class DiagnosticAiEnrichmentService
         $summary = preg_replace('/[*_`#>]/', '', $summary);
         $summary = mb_substr(trim($summary), 0, 200);
 
-        // suggested_goal: whitelist
         $suggestedGoal = in_array($data['suggested_goal'], self::VALID_GOALS, true)
             ? $data['suggested_goal']
             : null;
 
-        // risk_flags: whitelist only
         $riskFlags = [];
         if (is_array($data['risk_flags'])) {
             foreach (array_slice($data['risk_flags'], 0, 3) as $flag) {
@@ -264,7 +349,6 @@ class DiagnosticAiEnrichmentService
             }
         }
 
-        // confidence_score: int 0-100
         $confidence = max(0, min(100, (int) ($data['confidence_score'] ?? 0)));
 
         return [
@@ -277,9 +361,6 @@ class DiagnosticAiEnrichmentService
         ];
     }
 
-    /**
-     * Remove sequences of 2+ capitalized words mid-sentence to anonymize proper nouns.
-     */
     private function anonymize(string $text): string
     {
         $text = preg_replace(

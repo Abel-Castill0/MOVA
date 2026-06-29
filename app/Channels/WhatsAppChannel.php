@@ -9,7 +9,22 @@ class WhatsAppChannel
 {
     public function send($notifiable, Notification $notification): void
     {
+        // Global kill switch — default off until WhatsApp is in production
+        if (!config('services.whatsapp.enabled', false)) {
+            Log::debug('[WhatsApp] Disabled globally (WHATSAPP_ENABLED=false)');
+            return;
+        }
+
         if (!method_exists($notification, 'toWhatsApp')) return;
+
+        // Require verified phone when configured
+        if (config('services.whatsapp.require_verified', true)) {
+            $verifiedAt = $notifiable->phone_verified_at ?? null;
+            if (!$verifiedAt) {
+                Log::debug('[WhatsApp] Skipped: phone not verified for ' . class_basename($notifiable) . ' #' . $notifiable->getKey());
+                return;
+            }
+        }
 
         $to = $notifiable->routeNotificationFor('WhatsApp', $notification);
         if (!$to) {

@@ -37,6 +37,12 @@ return [
         'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
     ],
 
+    'whatsapp' => [
+        'enabled'          => env('WHATSAPP_ENABLED', false),
+        'mode'             => env('WHATSAPP_MODE', 'sandbox'),       // sandbox|production
+        'require_verified' => env('WHATSAPP_REQUIRE_VERIFIED_PHONE', true),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],
