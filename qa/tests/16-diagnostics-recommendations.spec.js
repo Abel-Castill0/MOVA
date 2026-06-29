@@ -6,15 +6,16 @@ import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env.qa') });
 
 const BASE = process.env.QA_BASE_URL ?? 'https://mova-production-8750.up.railway.app';
-const PARENT_EMAIL = process.env.QA_PARENT_EMAIL ?? 'abelwuarthon3+padreqa@gmail.com';
-const PARENT_PASS  = process.env.QA_PARENT_PASS  ?? '';
+const PARENT_EMAIL = process.env.QA_PARENT_EMAIL ?? 'abelcastilloyarin3@gmail.com';
+const PARENT_PASS  = process.env.QA_PARENT_PASSWORD ?? 'familiawuarthon123';
 
 async function loginAsParent(page) {
   await page.goto(`${BASE}/login`);
-  await page.fill('input[name="email"]', PARENT_EMAIL);
-  await page.fill('input[name="password"]', PARENT_PASS);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/dashboard`, { timeout: 15_000 });
+  await page.waitForLoadState('networkidle');
+  await page.fill('#email', PARENT_EMAIL);
+  await page.fill('#password', PARENT_PASS);
+  await page.locator('form button').first().click();
+  await page.waitForURL(`${BASE}/dashboard`, { timeout: 20_000 });
 }
 
 // ── 1. Dashboard CTA ────────────────────────────────────────────────────────
@@ -78,7 +79,7 @@ test('7. Step 3 textarea requires ≥10 chars', async ({ page }) => {
 
   // Navigate to step 3 programmatically via URL not possible (wizard is SPA).
   // Just verify the create page loads without error.
-  await expect(page.locator('h1')).toBeVisible();
+  await expect(page.locator('h1').first()).toBeVisible();
 });
 
 // ── 8. Unauthenticated POST to /diagnostics returns 302/403 ───────────────
