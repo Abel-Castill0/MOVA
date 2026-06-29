@@ -89,7 +89,7 @@ const props = defineProps({
   stats_today: { type: Object, default: () => ({}) },
   stats_month: { type: Object, default: () => ({}) },
   recent:      { type: Array,  default: () => [] },
-  limits:      { type: Object, required: true },
+  limits:      { type: Object, default: () => ({ daily: 50, monthly: 500, enabled: false }) },
 })
 
 const statuses = [
@@ -101,8 +101,8 @@ const statuses = [
 
 const todaySuccess  = computed(() => props.stats_today?.success  ?? 0)
 const monthSuccess  = computed(() => props.stats_month?.success  ?? 0)
-const dailyPct      = computed(() => Math.min(100, Math.round((todaySuccess.value / (props.limits.daily || 1)) * 100)))
-const monthlyPct    = computed(() => Math.min(100, Math.round((monthSuccess.value / (props.limits.monthly || 1)) * 100)))
+const dailyPct      = computed(() => Math.min(100, Math.round((todaySuccess.value / (props.limits?.daily || 1)) * 100)))
+const monthlyPct    = computed(() => Math.min(100, Math.round((monthSuccess.value / (props.limits?.monthly || 1)) * 100)))
 
 function statusBadge(s) {
   return {
