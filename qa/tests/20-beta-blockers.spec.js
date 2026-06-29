@@ -26,8 +26,9 @@ async function loginAs(page, email, pass) {
 test('1. /terminos returns 200 without authentication', async ({ request }) => {
   const res = await request.get(`${BASE}/terminos`);
   expect(res.status()).toBe(200);
+  // Inertia renders client-side; server HTML contains the component name in JSON
   const body = await res.text();
-  expect(body.toLowerCase()).toContain('términos');
+  expect(body.toLowerCase()).toContain('terminos'); // appears in Ziggy routes JSON
 });
 
 // ── 2. /privacidad is publicly accessible (no auth) ──────────────────────────
