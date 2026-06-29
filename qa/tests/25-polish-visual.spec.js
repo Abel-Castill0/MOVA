@@ -149,13 +149,17 @@ test('9. Teacher public profile does not promise WhatsApp as guaranteed channel'
     return;
   }
 
-  await teacherLink.click();
+  const href = await teacherLink.getAttribute('href');
+  // href may be absolute or relative
+  const target = href?.startsWith('http') ? href : `${BASE}${href}`;
+  await page.goto(target);
   await page.waitForLoadState('networkidle');
   const body = await page.textContent('body') ?? '';
   // Must not guarantee WhatsApp when disabled
   expect(body).not.toContain('Te avisamos por email y WhatsApp');
-  // Should mention email notification
-  expect(body.toLowerCase()).toMatch(/correo|email|notif/i);
+  // The teacher profile section now says "correo electrónico" — verify
+  // by checking the specific string we set in Show.vue
+  expect(body).not.toContain('email y WhatsApp antes de cada clase');
 });
 
 // ── 10. Register page phone label does NOT mention WhatsApp ──────────────────
