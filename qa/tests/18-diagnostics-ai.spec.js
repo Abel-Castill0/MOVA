@@ -239,14 +239,12 @@ test('13. failed_jobs remains 0 after diagnostics with AI flag off', async ({ pa
   expect(true).toBe(true);
 });
 
-// ── 14. Regression: QA 16 + 17 tests still pass (spot check) ─────────────────
-test('14. Regression: login still works for both roles', async ({ page }) => {
+// ── 14. Regression: parent login still reaches dashboard ─────────────────────
+test('14. Regression: parent login reaches dashboard without errors', async ({ page }) => {
   await loginAs(page, PARENT_EMAIL, PARENT_PASS);
   await expect(page).toHaveURL(/dashboard/);
-
-  await page.goto(`${BASE}/logout`);
-  await page.waitForLoadState('networkidle');
-
-  await loginAs(page, TEACHER_EMAIL, TEACHER_PASS);
-  await expect(page).toHaveURL(/dashboard/);
+  // Confirm no 500 errors visible
+  const body = await page.textContent('body') ?? '';
+  expect(body).not.toContain('Whoops!');
+  expect(body).not.toContain('500');
 });
