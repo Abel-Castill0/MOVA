@@ -50,7 +50,7 @@ test('2. Admin: /admin/ai-usage loads without errors', async ({ page }) => {
   expect(res?.status()).toBe(200);
   const body = await page.textContent('body') ?? '';
   expect(body).not.toContain('Whoops!');
-  expect(body).not.toContain('500');
+  expect(body).not.toContain('Server Error');
   // AppLayout h1 is always rendered for authenticated admin pages
   await expect(page.locator('h1').first()).toBeVisible({ timeout: 12_000 });
   // Title "IA — Uso y límites" or page heading should reference IA or similar
@@ -139,7 +139,7 @@ test('10. Admin: /admin/ai-usage shows status categories', async ({ page }) => {
   // After the layout is rendered, the component slot should also be ready
   const body = await page.textContent('body') ?? '';
   expect(body).not.toContain('Whoops!');
-  expect(body).not.toContain('500');
+  expect(body).not.toContain('Server Error');
   // AiUsage.vue always renders the 4 status category labels
   expect(body.toLowerCase()).toMatch(/exitosas|fallback|error|omitidas/i);
 });
