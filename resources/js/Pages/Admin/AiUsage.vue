@@ -99,8 +99,10 @@ const statuses = [
   { key: 'skipped',  label: 'Omitidas',  color: 'text-slate-400' },
 ]
 
-const todaySuccess  = computed(() => props.stats_today?.success  ?? 0)
-const monthSuccess  = computed(() => props.stats_month?.success  ?? 0)
+const statsToday    = computed(() => props.stats_today ?? {})
+const statsMonth    = computed(() => props.stats_month ?? {})
+const todaySuccess  = computed(() => statsToday.value.success  ?? 0)
+const monthSuccess  = computed(() => statsMonth.value.success  ?? 0)
 const dailyPct      = computed(() => Math.min(100, Math.round((todaySuccess.value / (props.limits?.daily || 1)) * 100)))
 const monthlyPct    = computed(() => Math.min(100, Math.round((monthSuccess.value / (props.limits?.monthly || 1)) * 100)))
 
