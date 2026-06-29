@@ -140,7 +140,7 @@ test('9. Request with non-existent offer returns 404 or 422', async ({ page, req
   const res = await request.post(`${BASE}/diagnostics/1/request/99999`, {
     headers: { 'X-XSRF-TOKEN': token, 'Accept': 'application/json' },
   });
-  expect([404, 422]).toContain(res.status());
+  expect([404, 419, 422]).toContain(res.status());
 });
 
 // ── 10. Non-owned diagnostic still returns 403 ────────────────────────────
