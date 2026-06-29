@@ -11,12 +11,30 @@ class TeacherProfile extends Model
 
     protected $fillable = [
         'user_id', 'bio', 'hourly_rate', 'zoom_account_id', 'is_verified',
+        'rejected_at', 'rejection_reason', 'reviewed_by', 'reviewed_at',
     ];
 
     protected $casts = [
-        'is_verified' => 'boolean',
-        'hourly_rate' => 'decimal:2',
+        'is_verified'  => 'boolean',
+        'hourly_rate'  => 'decimal:2',
+        'rejected_at'  => 'datetime',
+        'reviewed_at'  => 'datetime',
     ];
+
+    public function isRejected(): bool
+    {
+        return !$this->is_verified && $this->rejected_at !== null;
+    }
+
+    public function isPending(): bool
+    {
+        return !$this->is_verified && $this->rejected_at === null;
+    }
+
+    public function reviewedBy()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
 
     public function user()
     {

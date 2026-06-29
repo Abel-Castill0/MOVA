@@ -134,26 +134,43 @@ test('8. POST /diagnostics has throttle middleware — 5 rapid requests produce 
 
 // ── 9. Admin can see users list with suspension column ────────────────────────
 test('9. Admin users list loads and has suspend/unsuspend capability', async ({ page }) => {
-  // We can only test this if the admin credentials match
-  // If admin login fails, skip gracefully
+  // Login as admin
+  await page.goto(`${BASE}/login`);
+  await page.waitForLoadState('networkidle');
+  await page.fill('#email', ADMIN_EMAIL);
+  await page.fill('#password', ADMIN_PASS);
+  await page.locator('form button').first().click();
+
+  // Wait for redirect — admins go to /dashboard
   try {
-    await page.goto(`${BASE}/login`);
-    await page.waitForLoadState('networkidle');
-    await page.fill('#email', ADMIN_EMAIL);
-    await page.fill('#password', ADMIN_PASS);
-    await page.locator('form button').first().click();
     await page.waitForURL(/dashboard/, { timeout: 15_000 });
-    const roles = await page.evaluate(() => window?.__page?.props?.auth?.user?.roles ?? []);
-    const isAdmin = roles.includes('admin');
-    if (!isAdmin) { test.skip(); return; }
-    await page.goto(`${BASE}/admin/users`);
-    await page.waitForLoadState('networkidle');
-    const body = await page.textContent('body') ?? '';
-    expect(body).not.toContain('Whoops!');
-    expect(body).not.toContain('500');
   } catch {
+    // Login failed — wrong credentials or admin not found
     test.skip();
+    return;
   }
+
+  // Confirm admin access by navigating directly to /admin/users
+  // Non-admins are redirected away; admins see the users table
+  const res = await page.goto(`${BASE}/admin/users`);
+  await page.waitForLoadState('networkidle');
+
+  // If we were redirected to login or dashboard, we're not admin
+  const finalUrl = page.url();
+  if (!finalUrl.includes('/admin/users')) {
+    test.skip();
+    return;
+  }
+
+  // Admin page loaded — verify it has suspension columns
+  const body = await page.textContent('body') ?? '';
+  expect(body).not.toContain('Whoops!');
+  expect(body).not.toContain('500');
+  // The page should have the Estado and Acción columns we added
+  expect(body).toContain('Estado');
+  expect(body).toContain('Acción');
+  // Should contain at least one of these suspension-related words
+  expect(body.toLowerCase()).toMatch(/suspender|reactivar|activo|suspendido/i);
 });
 
 // ── 10. /suspended page is accessible when authenticated ─────────────────────
