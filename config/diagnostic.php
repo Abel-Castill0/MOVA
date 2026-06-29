@@ -15,8 +15,9 @@ return [
      *   - difficulty_text se anonimiza antes de enviarse (se remueven nombres propios).
      */
     'ai_enabled'       => env('DIAGNOSTIC_AI_ENABLED', false),
-    'ai_provider'      => env('DIAGNOSTIC_AI_PROVIDER', 'openai'),
+    'ai_provider'      => env('DIAGNOSTIC_AI_PROVIDER', 'openai'),  // openai | gemini
     'openai_model'     => env('DIAGNOSTIC_AI_MODEL', 'gpt-4o-mini'),
+    'gemini_model'     => env('DIAGNOSTIC_GEMINI_MODEL', 'gemini-2.5-flash-lite'),
     'timeout_seconds'  => (int) env('DIAGNOSTIC_AI_TIMEOUT', 8),
     'max_tokens'       => (int) env('DIAGNOSTIC_AI_MAX_TOKENS', 300),
 ];

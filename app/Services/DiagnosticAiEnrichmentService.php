@@ -44,16 +44,15 @@ class DiagnosticAiEnrichmentService
             return null;
         }
 
-        $apiKey = env('OPENAI_API_KEY');
-        if (!$apiKey) {
-            Log::warning('DiagnosticAI: OPENAI_API_KEY not configured', ['diagnostic_id' => $diagnostic->id]);
-            $this->saveFallback($diagnostic);
-            return null;
-        }
+        $provider = config('diagnostic.ai_provider', 'openai');
 
         try {
-            $payload = $this->buildPayload($diagnostic);
-            $result  = $this->callOpenAi($apiKey, $payload);
+            [$systemPrompt, $userPrompt] = $this->buildPrompts($diagnostic);
+
+            $result = match ($provider) {
+                'gemini' => $this->callGemini($systemPrompt, $userPrompt, $diagnostic->id),
+                default  => $this->callOpenAi($systemPrompt, $userPrompt, $diagnostic->id),
+            };
 
             if ($result === null) {
                 $this->saveFallback($diagnostic);
@@ -83,13 +82,21 @@ class DiagnosticAiEnrichmentService
             Log::warning('DiagnosticAI: unexpected error', [
                 'diagnostic_id' => $diagnostic->id,
                 'error'         => $e->getMessage(),
+                'provider'      => $provider,
             ]);
             $this->saveFallback($diagnostic);
             return null;
         }
     }
 
-    private function buildPayload(StudentDiagnostic $diagnostic): array
+    /**
+     * Builds shared system + user prompts used by both OpenAI and Gemini.
+     * Privacy: only anonymized difficulty_text, subject, level, goal, urgency are included.
+     * Never includes: student/parent names, IDs, emails, phone numbers, school_feedback.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function buildPrompts(StudentDiagnostic $diagnostic): array
     {
         $subjectName = $diagnostic->subject?->name ?? 'materia no especificada';
         $level       = $diagnostic->level ?? 'no especificado';
@@ -112,36 +119,88 @@ class DiagnosticAiEnrichmentService
             "Responde con este JSON exacto (sin texto adicional):\n" .
             '{"suggested_subject_keywords":["keyword1"],"detected_level":"básico","parent_friendly_summary":"Resumen.","suggested_goal":"reinforce_topic","risk_flags":[],"confidence_score":75}';
 
-        return [
-            'model'           => config('diagnostic.openai_model', 'gpt-4o-mini'),
-            'max_tokens'      => (int) config('diagnostic.max_tokens', 300),
-            'temperature'     => 0.1,
-            'response_format' => ['type' => 'json_object'],
-            'messages'        => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user',   'content' => $userPrompt],
-            ],
-        ];
+        return [$systemPrompt, $userPrompt];
     }
 
-    private function callOpenAi(string $apiKey, array $payload): ?array
+    private function callOpenAi(string $systemPrompt, string $userPrompt, int $diagnosticId): ?array
     {
+        $apiKey = env('OPENAI_API_KEY');
+        if (!$apiKey) {
+            Log::warning('DiagnosticAI: OPENAI_API_KEY not configured', ['diagnostic_id' => $diagnosticId]);
+            return null;
+        }
+
         $timeout = (int) config('diagnostic.timeout_seconds', 8);
 
         $response = Http::timeout($timeout)
             ->withToken($apiKey)
-            ->post('https://api.openai.com/v1/chat/completions', $payload);
+            ->post('https://api.openai.com/v1/chat/completions', [
+                'model'           => config('diagnostic.openai_model', 'gpt-4o-mini'),
+                'max_tokens'      => (int) config('diagnostic.max_tokens', 300),
+                'temperature'     => 0.1,
+                'response_format' => ['type' => 'json_object'],
+                'messages'        => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user',   'content' => $userPrompt],
+                ],
+            ]);
 
         if (!$response->successful()) {
-            Log::warning('DiagnosticAI: OpenAI HTTP error', ['status' => $response->status()]);
+            Log::warning('DiagnosticAI: OpenAI HTTP error', [
+                'diagnostic_id' => $diagnosticId,
+                'status'        => $response->status(),
+            ]);
             return null;
         }
 
-        $content = $response->json('choices.0.message.content');
+        return $this->decodeJsonContent($response->json('choices.0.message.content'));
+    }
+
+    private function callGemini(string $systemPrompt, string $userPrompt, int $diagnosticId): ?array
+    {
+        $apiKey = env('GEMINI_API_KEY');
+        if (!$apiKey) {
+            Log::warning('DiagnosticAI: GEMINI_API_KEY not configured', ['diagnostic_id' => $diagnosticId]);
+            return null;
+        }
+
+        $model   = config('diagnostic.gemini_model', 'gemini-2.5-flash-lite');
+        $timeout = (int) config('diagnostic.timeout_seconds', 8);
+        $url     = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+
+        $response = Http::timeout($timeout)
+            ->withHeaders(['x-goog-api-key' => $apiKey])
+            ->post($url, [
+                'system_instruction' => [
+                    'parts' => [['text' => $systemPrompt]],
+                ],
+                'contents' => [
+                    ['role' => 'user', 'parts' => [['text' => $userPrompt]]],
+                ],
+                'generationConfig' => [
+                    'responseMimeType' => 'application/json',
+                    'maxOutputTokens'  => (int) config('diagnostic.max_tokens', 300),
+                    'temperature'      => 0.1,
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            Log::warning('DiagnosticAI: Gemini HTTP error', [
+                'diagnostic_id' => $diagnosticId,
+                'status'        => $response->status(),
+            ]);
+            return null;
+        }
+
+        $text = $response->json('candidates.0.content.parts.0.text');
+        return $this->decodeJsonContent($text);
+    }
+
+    private function decodeJsonContent(?string $content): ?array
+    {
         if (!$content) {
             return null;
         }
-
         try {
             $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
             return is_array($decoded) ? $decoded : null;
