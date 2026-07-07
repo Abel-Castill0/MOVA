@@ -26,28 +26,28 @@ class WelcomeTeacherNotification extends Notification implements ShouldQueue
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Bienvenido a MOVA como profesor')
+            ->subject('Le damos la bienvenida a MOVA como profesor')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Gracias por registrarte en MOVA como profesor. Sigue estos pasos para empezar:')
-            ->line('**1.** Completa tu perfil con tu biografía y tarifa por hora.')
-            ->line('**2.** Agrega las materias que enseñas.')
-            ->line('**3.** Espera la verificación del equipo de MOVA.')
-            ->line('**4.** Una vez verificado, crea tus ofertas de clase.')
-            ->line('**5.** Responde las solicitudes de los padres.')
-            ->line('**6.** Después de cada clase, envía un reporte de aprendizaje.')
+            ->line('Colega, gracias por registrarse en MOVA como profesor. Siga estos pasos para comenzar:')
+            ->line('**1.** Complete su perfil con biografía y tarifa por hora.')
+            ->line('**2.** Agregue las materias que enseña.')
+            ->line('**3.** Espere la verificación del equipo de MOVA.')
+            ->line('**4.** Una vez verificado, cree sus ofertas de clase.')
+            ->line('**5.** Responda las solicitudes de las familias.')
+            ->line('**6.** Después de cada clase, envíe un reporte de aprendizaje.')
             ->action('Completar perfil', url('/teacher/setup'))
             ->salutation('El equipo de MOVA');
     }
 
     public function toWhatsApp($notifiable): string
     {
-        return "¡Bienvenido a MOVA como profesor, {$notifiable->name}!\n\n"
+        return "Le damos la bienvenida a MOVA como profesor, {$notifiable->name}.\n\n"
             . "Pasos para empezar:\n"
-            . "1. Completa tu perfil (bio y tarifa)\n"
-            . "2. Agrega tus materias\n"
-            . "3. Espera verificación del equipo\n"
-            . "4. Crea tus ofertas de clase\n"
-            . "5. Responde solicitudes y envía reportes\n\n"
+            . "1. Complete su perfil (biografía y tarifa)\n"
+            . "2. Agregue sus materias\n"
+            . "3. Espere la verificación del equipo\n"
+            . "4. Cree sus ofertas de clase\n"
+            . "5. Responda solicitudes y envíe reportes\n\n"
             . url('/teacher/setup');
     }
 
@@ -55,7 +55,7 @@ class WelcomeTeacherNotification extends Notification implements ShouldQueue
     {
         return [
             'type'    => 'welcome_teacher',
-            'message' => 'Bienvenido a MOVA. Completa tu perfil para empezar a recibir solicitudes.',
+            'message' => 'Le damos la bienvenida a MOVA. Complete su perfil para empezar a recibir solicitudes.',
         ];
     }
 }

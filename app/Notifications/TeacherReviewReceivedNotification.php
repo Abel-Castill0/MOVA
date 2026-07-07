@@ -31,8 +31,8 @@ class TeacherReviewReceivedNotification extends Notification implements ShouldQu
 
         $mail = (new MailMessage)
             ->subject('Nueva reseña recibida en MOVA')
-            ->greeting('Hola, ' . $notifiable->name)
-            ->line("Recibiste una nueva reseña de " . $subject . ".")
+            ->greeting('Hola, ' . $notifiable->name . '.')
+            ->line("Colega, recibió una nueva reseña de " . $subject . ".")
             ->line("Calificación: {$stars} ({$rating}/5)");
 
         if ($this->review->comment) {
@@ -48,7 +48,7 @@ class TeacherReviewReceivedNotification extends Notification implements ShouldQu
             'type'    => 'teacher_review_received',
             'rating'  => $this->review->rating,
             'subject' => $this->review->lesson->classRequest?->subject?->name ?? 'Clase',
-            'message' => 'Recibiste una nueva reseña de ' . $this->review->rating . '/5',
+            'message' => 'Recibió una nueva reseña de ' . $this->review->rating . '/5',
         ];
     }
 }

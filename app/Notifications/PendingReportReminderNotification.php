@@ -35,8 +35,8 @@ class PendingReportReminderNotification extends Notification implements ShouldQu
         return (new MailMessage)
             ->subject('Reporte pendiente en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line("Tienes un reporte pendiente para la clase de **{$subject}**.")
-            ->line('Completar el reporte ayuda a los padres a seguir el progreso de sus hijos.')
+            ->line("Colega, tiene un reporte pendiente para la clase de **{$subject}**.")
+            ->line('Completar el reporte ayuda a las familias a seguir el progreso académico de sus hijos.')
             ->action('Crear reporte ahora', route('lesson-reports.create', $lesson))
             ->salutation('El equipo de MOVA');
     }
@@ -48,8 +48,8 @@ class PendingReportReminderNotification extends Notification implements ShouldQu
 
         return "MOVA — Reporte pendiente\n\n"
             . "Hola {$notifiable->name},\n"
-            . "Tienes un reporte pendiente en MOVA para la clase de {$subject}.\n"
-            . "Complétalo para informar al padre del progreso.";
+            . "Tiene un reporte pendiente en MOVA para la clase de {$subject}.\n"
+            . "Complételo para informar a la familia sobre el progreso del estudiante.";
     }
 
     public function toArray($notifiable): array
@@ -57,7 +57,7 @@ class PendingReportReminderNotification extends Notification implements ShouldQu
         return [
             'type'      => 'pending_report_reminder',
             'lesson_id' => $this->lesson->id,
-            'message'   => 'Tienes un reporte pendiente en MOVA.',
+            'message'   => 'Tiene un reporte pendiente en MOVA.',
         ];
     }
 }

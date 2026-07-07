@@ -38,9 +38,9 @@ class ClassReminderNotification extends Notification implements ShouldQueue
     private function subject(): string
     {
         return match ($this->interval) {
-            '24h' => 'Tu clase en MOVA es mañana',
-            '2h'  => 'Tu clase en MOVA empieza en 2 horas',
-            default => 'Tu clase en MOVA empieza en 10 minutos',
+            '24h' => 'Su clase en MOVA es mañana',
+            '2h'  => 'Su clase en MOVA empieza en 2 horas',
+            default => 'Su clase en MOVA empieza en 10 minutos',
         };
     }
 
@@ -49,7 +49,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject($this->subject())
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line("Tu clase comienza **{$this->label()}**.")
+            ->line("Su clase comienza **{$this->label()}**.")
             ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
             ->line('**Contraseña:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
             ->action('Entrar a Zoom', $this->lesson->zoom_link ?? url('/'))
@@ -59,7 +59,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
     public function toWhatsApp($notifiable): string
     {
         return "MOVA — Recordatorio de clase\n\n"
-            . "Hola {$notifiable->name}, tu clase empieza {$this->label()}.\n"
+            . "Hola {$notifiable->name}, su clase empieza {$this->label()}.\n"
             . "Hora: " . $this->lesson->start_time->format('d/m/Y H:i') . "\n"
             . ($this->lesson->zoom_link ?? 'Enlace no disponible') . "\n"
             . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña');
@@ -73,7 +73,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
             'zoom_link'  => $this->lesson->zoom_link,
-            'message'    => "Tu clase empieza {$this->label()}.",
+            'message'    => "Su clase empieza {$this->label()}.",
         ];
     }
 }

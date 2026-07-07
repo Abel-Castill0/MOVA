@@ -25,21 +25,21 @@ class WelcomeEmailNotification extends Notification implements ShouldQueue
         $isTeacher = $notifiable->hasRole('teacher');
 
         $mail = (new MailMessage)
-            ->subject('Bienvenido a MOVA — Tu cuenta está lista')
+            ->subject('MOVA — Su cuenta está lista')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Tu correo fue verificado. Ya puedes usar MOVA al 100%.');
+            ->line('Su correo fue verificado. Ya puede usar MOVA con todas sus funcionalidades.');
 
         if ($isTeacher) {
             $mail->line('**Próximos pasos:**')
-                 ->line('1. Completa tu perfil con bio y tarifa.')
-                 ->line('2. Espera verificación del equipo MOVA.')
-                 ->line('3. Crea tus ofertas de clase y responde solicitudes.')
+                 ->line('1. Complete su perfil con biografía y tarifa.')
+                 ->line('2. Espere la verificación del equipo MOVA.')
+                 ->line('3. Cree sus ofertas de clase y responda solicitudes.')
                  ->action('Completar perfil', url('/teacher/setup'));
         } else {
             $mail->line('**Próximos pasos:**')
-                 ->line('1. Agrega a tu hijo en tu perfil.')
-                 ->line('2. Explora el marketplace y elige un profesor.')
-                 ->line('3. Solicita una clase — recibirás recordatorios y reportes.')
+                 ->line('1. Agregue a su hijo/a en su perfil.')
+                 ->line('2. Explore el marketplace y elija un profesor.')
+                 ->line('3. Solicite una clase — recibirá recordatorios y reportes.')
                  ->action('Ir al panel', url('/dashboard'));
         }
 

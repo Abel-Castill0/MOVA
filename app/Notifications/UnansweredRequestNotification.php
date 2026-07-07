@@ -30,10 +30,10 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
     {
         $subject = $this->classRequest->subject?->name ?? 'una clase';
         return (new MailMessage)
-            ->subject('Tienes una solicitud pendiente en MOVA')
+            ->subject('Solicitud pendiente en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line("Un padre solicitó una clase de **{$subject}** hace más de 12 horas.")
-            ->line('Responde pronto para no perder la oportunidad.')
+            ->line("Colega, una familia solicitó una clase de **{$subject}** hace más de 12 horas.")
+            ->line('Responda pronto para no perder la oportunidad.')
             ->action('Ver solicitud', url('/teacher/requests'))
             ->salutation('El equipo de MOVA');
     }
@@ -43,8 +43,8 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
         $subject = $this->classRequest->subject?->name ?? 'una clase';
         return "MOVA — Solicitud pendiente\n\n"
             . "Hola {$notifiable->name},\n"
-            . "Un padre solicitó una clase de {$subject} hace más de 12 horas.\n"
-            . "Responde pronto desde tu panel:\n"
+            . "Una familia solicitó una clase de {$subject} hace más de 12 horas.\n"
+            . "Responda pronto desde su panel:\n"
             . url('/teacher/requests');
     }
 
@@ -54,7 +54,7 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
             'type'             => 'unanswered_request',
             'class_request_id' => $this->classRequest->id,
             'subject'          => $this->classRequest->subject?->name,
-            'message'          => 'Tienes una solicitud de clase sin responder hace más de 12 horas.',
+            'message'          => 'Tiene una solicitud de clase sin responder hace más de 12 horas.',
         ];
     }
 }

@@ -31,9 +31,9 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
         $date = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
 
         $mail = (new MailMessage)
-            ->subject('Tu clase fue cancelada en MOVA')
+            ->subject('Clase cancelada en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Lamentamos informarte que tu clase programada ha sido **cancelada**.')
+            ->line('Le informamos que su clase programada ha sido **cancelada**.')
             ->line('**Fecha original:** ' . $date);
 
         if ($this->lesson->cancel_reason) {
@@ -41,7 +41,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->line('Si tienes dudas o deseas reagendar, puedes contactar al equipo de MOVA.')
+            ->line('Si tiene dudas o desea reagendar, puede contactar al equipo de MOVA.')
             ->action('Ver mis clases', url('/'))
             ->salutation('El equipo de MOVA');
     }
@@ -52,8 +52,8 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
 
         return "MOVA — Clase cancelada\n\n"
             . "Hola {$notifiable->name},\n"
-            . "Tu clase del {$date} ha sido cancelada.\n\n"
-            . "Si tienes dudas, contáctanos a través de la plataforma MOVA.";
+            . "Su clase del {$date} ha sido cancelada.\n\n"
+            . "Si tiene dudas, contáctenos a través de la plataforma MOVA.";
     }
 
     public function toArray($notifiable): array
@@ -62,7 +62,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
             'type'       => 'class_cancelled',
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'message'    => 'Tu clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido cancelada.',
+            'message'    => 'Su clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido cancelada.',
         ];
     }
 }

@@ -31,14 +31,14 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
         $date = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
 
         return (new MailMessage)
-            ->subject('Tu clase fue confirmada en MOVA')
+            ->subject('Clase confirmada en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Tu clase ha sido **confirmada** correctamente.')
+            ->line('Su clase ha sido **confirmada** correctamente.')
             ->line('**Fecha:** ' . $date)
             ->line('**Duración:** ' . $this->lesson->duration_minutes . ' minutos')
             ->line('**Contraseña Zoom:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
             ->action('Entrar a la clase por Zoom', $this->lesson->zoom_link ?? url('/'))
-            ->line('Guarda este enlace. 10 minutos antes recibirás un recordatorio.')
+            ->line('Conserve este enlace. Recibirá un recordatorio 10 minutos antes de la clase.')
             ->salutation('El equipo de MOVA');
     }
 
@@ -52,7 +52,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             . "Duración: {$this->lesson->duration_minutes} min\n"
             . "Zoom: " . ($this->lesson->zoom_link ?? 'No disponible') . "\n"
             . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña') . "\n\n"
-            . "Recibirás un recordatorio 10 minutos antes.";
+            . "Recibirá un recordatorio 10 minutos antes.";
     }
 
     public function toArray($notifiable): array
@@ -62,7 +62,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
             'zoom_link'  => $this->lesson->zoom_link,
-            'message'    => 'Tu clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido confirmada.',
+            'message'    => 'Su clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido confirmada.',
         ];
     }
 }

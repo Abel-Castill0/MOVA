@@ -26,24 +26,24 @@ class TeacherRejectedNotification extends Notification implements ShouldQueue
     public function toMail($notifiable): MailMessage
     {
         $mail = (new MailMessage)
-            ->subject('Tu solicitud como profesor en MOVA no fue aprobada')
+            ->subject('Su solicitud como profesor en MOVA no fue aprobada')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Gracias por registrarte como profesor en MOVA.')
-            ->line('Lamentamos informarte que tu perfil docente no pudo ser aprobado en esta ocasión.');
+            ->line('Gracias por registrarse como profesor en MOVA.')
+            ->line('Lamentamos informarle que su perfil docente no pudo ser aprobado en esta ocasión.');
 
         if ($this->profile->rejection_reason) {
             $mail->line('**Motivo:** ' . $this->profile->rejection_reason);
         }
 
         return $mail
-            ->line('Si tienes preguntas o consideras que hay un error, puedes escribirnos a: abelcastillotrabajo@gmail.com')
+            ->line('Si tiene preguntas o considera que hay un error, puede escribirnos a: abelcastillotrabajo@gmail.com')
             ->action('Ver mi cuenta', url('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 
     public function toArray($notifiable): array
     {
-        $message = 'Tu solicitud como profesor no fue aprobada.';
+        $message = 'Su solicitud como profesor no fue aprobada.';
         if ($this->profile->rejection_reason) {
             $message .= ' Motivo: ' . $this->profile->rejection_reason;
         }

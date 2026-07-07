@@ -28,7 +28,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject('Nueva solicitud de clase en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Has recibido una nueva solicitud de clase.')
+            ->line('Colega, ha recibido una nueva solicitud de clase.')
             ->line('**Asignatura:** ' . $this->classRequest->subject->name)
             ->line('**Estudiante:** ' . $this->classRequest->student->full_name)
             ->action('Ver solicitud', url('/teacher/requests'))

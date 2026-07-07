@@ -31,9 +31,9 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
             : '—';
 
         $mail = (new MailMessage)
-            ->subject('Tu clase ha sido reprogramada en MOVA')
+            ->subject('Su clase ha sido reprogramada en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Tu clase ha sido reprogramada por ' . $this->changedBy . '.')
+            ->line('Su clase ha sido reprogramada por ' . $this->changedBy . '.')
             ->line('**Fecha original:** ' . $originalDate)
             ->line('**Nueva fecha:** ' . $newDate);
 
@@ -53,7 +53,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
             'type'       => 'class_rescheduled',
             'lesson_id'  => $this->lesson->id,
             'new_date'   => $newDate,
-            'message'    => "Tu clase ha sido reprogramada para el {$newDate}.",
+            'message'    => "Su clase ha sido reprogramada para el {$newDate}.",
         ];
     }
 }

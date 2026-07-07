@@ -26,25 +26,25 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Bienvenido a MOVA')
+            ->subject('Le damos la bienvenida a MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Gracias por unirte a MOVA. Aquí te explicamos cómo empezar:')
-            ->line('**1.** Agrega a tu hijo en tu perfil.')
-            ->line('**2.** Explora el marketplace y elige un profesor.')
-            ->line('**3.** Solicita una clase directamente desde la oferta del profesor.')
-            ->line('**4.** Recibirás recordatorios antes de cada clase y un reporte de aprendizaje después.')
+            ->line('Gracias por unirse a MOVA. Para comenzar:')
+            ->line('**1.** Agregue a su hijo/a en su perfil.')
+            ->line('**2.** Explore el marketplace y elija un profesor.')
+            ->line('**3.** Solicite una clase directamente desde la oferta del profesor.')
+            ->line('**4.** Recibirá recordatorios antes de cada clase y un reporte de aprendizaje al finalizar.')
             ->action('Ir al panel', url('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 
     public function toWhatsApp($notifiable): string
     {
-        return "¡Bienvenido a MOVA, {$notifiable->name}!\n\n"
+        return "Le damos la bienvenida a MOVA, {$notifiable->name}.\n\n"
             . "Para empezar:\n"
-            . "1. Agrega a tu hijo en tu perfil\n"
-            . "2. Explora el marketplace\n"
-            . "3. Solicita una clase\n"
-            . "4. Recibirás recordatorios y reportes\n\n"
+            . "1. Agregue a su hijo/a en su perfil\n"
+            . "2. Explore el marketplace\n"
+            . "3. Solicite una clase\n"
+            . "4. Recibirá recordatorios y reportes\n\n"
             . url('/dashboard');
     }
 
@@ -52,7 +52,7 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
     {
         return [
             'type'    => 'welcome_parent',
-            'message' => 'Bienvenido a MOVA. Agrega a tu hijo y solicita tu primera clase.',
+            'message' => 'Le damos la bienvenida a MOVA. Agregue a su hijo/a y solicite su primera clase.',
         ];
     }
 }

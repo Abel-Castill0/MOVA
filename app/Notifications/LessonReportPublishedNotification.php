@@ -34,7 +34,7 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
         return (new MailMessage)
             ->subject('Nuevo reporte de aprendizaje en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('El profesor ha enviado el reporte de la clase de **' . $subject . '** para ' . ($student->first_name ?? 'tu hijo/a') . '.')
+            ->line('El profesor ha enviado el reporte de la clase de **' . $subject . '** para ' . ($student->first_name ?? 'su hijo/a') . '.')
             ->line('**Tema trabajado:** ' . $this->report->topic_covered)
             ->line('**Desempeño:** ' . $this->report->student_performance)
             ->when($this->report->homework_assigned, fn ($mail) =>
@@ -50,12 +50,12 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
     public function toWhatsApp($notifiable): string
     {
         $subject = $this->report->lesson->classRequest?->subject?->name ?? 'la clase';
-        $student = $this->report->student->first_name ?? 'tu hijo/a';
+        $student = $this->report->student->first_name ?? 'su hijo/a';
 
         return "MOVA — Reporte de aprendizaje\n\n"
             . "Hola {$notifiable->name},\n"
-            . "Tienes un nuevo reporte de aprendizaje en MOVA para la clase de {$subject} de {$student}.\n"
-            . "Puedes revisarlo en tu panel.";
+            . "Tiene un nuevo reporte de aprendizaje en MOVA para la clase de {$subject} de {$student}.\n"
+            . "Puede revisarlo en su panel.";
     }
 
     public function toArray($notifiable): array

@@ -35,7 +35,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
             ->subject("{$student} ha solicitado una clase en MOVA")
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("**{$student}** ha solicitado una clase de **{$subject}**.")
-            ->line('Por favor revisa la solicitud y apruébala o recházala.')
+            ->line('Por favor, revise la solicitud y apruébela o rechácela.')
             ->action('Revisar solicitud', url('/class-requests'))
             ->salutation('El equipo de MOVA');
     }
@@ -47,7 +47,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
 
         return "MOVA — Nueva solicitud de clase\n\n"
             . "{$student} ha solicitado una clase de {$subject}.\n"
-            . "Entra a MOVA para aprobarla o rechazarla:\n"
+            . "Ingrese a MOVA para aprobarla o rechazarla:\n"
             . url('/class-requests');
     }
 

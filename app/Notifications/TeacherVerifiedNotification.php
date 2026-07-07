@@ -23,10 +23,10 @@ class TeacherVerifiedNotification extends Notification implements ShouldQueue
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Tu perfil docente fue verificado en MOVA')
+            ->subject('Su perfil docente fue verificado en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Tu perfil de profesor ha sido **verificado** por nuestro equipo.')
-            ->line('Ya puedes recibir solicitudes de clase y comenzar a enseñar en MOVA.')
+            ->line('Colega, su perfil de profesor ha sido **verificado** por nuestro equipo.')
+            ->line('Ya puede recibir solicitudes de clase y comenzar a enseñar en MOVA.')
             ->action('Ver mi perfil', url('/'))
             ->salutation('El equipo de MOVA');
     }
@@ -35,7 +35,7 @@ class TeacherVerifiedNotification extends Notification implements ShouldQueue
     {
         return [
             'type'    => 'teacher_verified',
-            'message' => 'Tu perfil de profesor ha sido verificado. Ya puedes recibir solicitudes de clase.',
+            'message' => 'Su perfil de profesor ha sido verificado. Ya puede recibir solicitudes de clase.',
         ];
     }
 }

@@ -28,16 +28,16 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
         $subject = $this->request->subject?->name ?? 'la clase';
 
         $mail = (new MailMessage)
-            ->subject('Tu solicitud de clase no pudo ser aceptada en MOVA')
+            ->subject('Su solicitud de clase no pudo ser aceptada en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line('Lamentamos informarte que el profesor no pudo aceptar tu solicitud de ' . $subject . '.');
+            ->line('Lamentamos informarle que el profesor no pudo aceptar su solicitud de ' . $subject . '.');
 
         if ($this->request->teacher_rejection_reason) {
             $mail->line('**Motivo:** ' . $this->request->teacher_rejection_reason);
         }
 
         return $mail
-            ->line('Puedes buscar otro profesor disponible en el marketplace.')
+            ->line('Puede buscar otro profesor disponible en el marketplace.')
             ->action('Buscar profesores', url('/marketplace'))
             ->salutation('El equipo de MOVA');
     }
@@ -45,7 +45,7 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
     public function toArray($notifiable): array
     {
         $subject = $this->request->subject?->name ?? 'la clase';
-        $message = "Tu solicitud de {$subject} no pudo ser aceptada por el profesor.";
+        $message = "Su solicitud de {$subject} no pudo ser aceptada por el profesor.";
         if ($this->request->teacher_rejection_reason) {
             $message .= ' Motivo: ' . $this->request->teacher_rejection_reason;
         }
