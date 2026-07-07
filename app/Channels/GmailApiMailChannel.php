@@ -11,10 +11,10 @@ class GmailApiMailChannel
 {
     public function __construct(private GmailApiMailService $gmail) {}
 
-    public function send($notifiable, Notification $notification): void
+    public function send($notifiable, Notification $notification): bool
     {
         if (!method_exists($notification, 'toMail')) {
-            return;
+            return true;
         }
 
         $to = $notifiable->routeNotificationFor('mail', $notification)
@@ -24,7 +24,7 @@ class GmailApiMailChannel
             Log::warning('[Gmail] No email address for notifiable.', [
                 'notification' => class_basename($notification),
             ]);
-            return;
+            return false;
         }
 
         try {
@@ -40,13 +40,16 @@ class GmailApiMailChannel
                     'notification' => class_basename($notification),
                     'to'           => $to,
                 ]);
+                return false;
             }
+
+            return true;
         } catch (\Throwable $e) {
             Log::error('[Gmail] Error preparing notification email.', [
                 'notification' => class_basename($notification),
                 'error'        => $e->getMessage(),
             ]);
-            // Swallowed intentionally — database and WhatsApp channels must continue
+            return false;
         }
     }
 

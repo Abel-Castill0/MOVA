@@ -59,6 +59,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->normalizePhone($this->phone);
     }
 
+    public function routeNotificationForMail(): string
+    {
+        return $this->email;
+    }
+
     public static function normalizePhone(?string $phone): ?string
     {
         if (!$phone) return null;

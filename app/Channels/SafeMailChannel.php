@@ -8,51 +8,80 @@ use Illuminate\Support\Facades\Log;
 
 class SafeMailChannel extends MailChannel
 {
-    public function send($notifiable, Notification $notification): void
+    public function send($notifiable, Notification $notification)
     {
         $mailer = config('mail.default');
 
-        // Gmail API path — uses HTTPS, not SMTP; safe on Railway Hobby
+        // Gmail API path uses HTTPS, not SMTP; safe on Railway Hobby.
         if ($mailer === 'gmail_api') {
             if (empty(config('services.gmail.refresh_token'))) {
-                Log::warning('[Mail] GMAIL_REFRESH_TOKEN not configured — skipping email.', [
+                Log::warning('[Mail] GMAIL_REFRESH_TOKEN not configured; skipping Gmail API.', [
                     'notification' => class_basename($notification),
                 ]);
+            } elseif (app(GmailApiMailChannel::class)->send($notifiable, $notification)) {
                 return;
             }
-            app(\App\Channels\GmailApiMailChannel::class)->send($notifiable, $notification);
+
+            if ($this->canUseSmtpFallback()) {
+                Log::warning('[Mail] Gmail API failed; falling back to SMTP.', [
+                    'notification' => class_basename($notification),
+                ]);
+                return $this->sendUsingMailer('smtp', $notifiable, $notification);
+            }
+
             return;
         }
 
-        // No-op transports — skip silently
         if (in_array($mailer, ['array', 'log'], true)) {
             return;
         }
 
-        // Resend configured but key missing
         if ($mailer === 'resend' && empty(config('services.resend.key'))) {
-            Log::warning('[Mail] RESEND_API_KEY not configured — skipping email.', [
+            Log::warning('[Mail] RESEND_API_KEY not configured; skipping email.', [
                 'notification' => class_basename($notification),
             ]);
             return;
         }
 
-        // SMTP configured but no credentials — avoids connecting to smtp.mailgun.org default
         if ($mailer === 'smtp' && empty(config('mail.mailers.smtp.username'))) {
-            Log::warning('[Mail] SMTP credentials not configured — skipping email.', [
+            Log::warning('[Mail] SMTP credentials not configured; skipping email.', [
                 'notification' => class_basename($notification),
             ]);
             return;
         }
 
         try {
-            parent::send($notifiable, $notification);
+            return parent::send($notifiable, $notification);
         } catch (\Throwable $e) {
             Log::error('[Mail] Notification email failed.', [
                 'notification' => class_basename($notification),
                 'error'        => $e->getMessage(),
             ]);
-            // Intentionally swallowed: database and WhatsApp channels must continue
+        }
+    }
+
+    private function canUseSmtpFallback(): bool
+    {
+        return !empty(config('mail.mailers.smtp.host'))
+            && !empty(config('mail.mailers.smtp.username'))
+            && !empty(config('mail.mailers.smtp.password'));
+    }
+
+    private function sendUsingMailer(string $mailer, $notifiable, Notification $notification)
+    {
+        $previous = config('mail.default');
+
+        try {
+            config(['mail.default' => $mailer]);
+            return parent::send($notifiable, $notification);
+        } catch (\Throwable $e) {
+            Log::error('[Mail] Fallback notification email failed.', [
+                'notification' => class_basename($notification),
+                'mailer'       => $mailer,
+                'error'        => $e->getMessage(),
+            ]);
+        } finally {
+            config(['mail.default' => $previous]);
         }
     }
 }
