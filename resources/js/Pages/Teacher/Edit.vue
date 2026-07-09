@@ -12,6 +12,14 @@
           <input v-model="form.hourly_rate" type="number" min="0" step="0.5" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cupos de acompañamiento continuo</label>
+          <input v-model="form.mentorship_slots_total" type="number" min="0" max="50" step="1" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <p class="text-xs text-gray-500 mt-1">
+            Ocupados: {{ props.profile?.mentorship_slots_taken ?? 0 }} de {{ form.mentorship_slots_total || 0 }}.
+          </p>
+          <p v-if="form.errors.mentorship_slots_total" class="text-xs text-red-500 mt-1">{{ form.errors.mentorship_slots_total }}</p>
+        </div>
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Asignaturas</label>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <label v-for="s in subjects" :key="s.id"
@@ -40,6 +48,7 @@ const props = defineProps({ profile: Object, subjects: Array })
 const form = useForm({
   bio: props.profile?.bio ?? '',
   hourly_rate: props.profile?.hourly_rate ?? '',
+  mentorship_slots_total: props.profile?.mentorship_slots_total ?? 0,
   subject_ids: props.profile?.subjects?.map(s => s.id) ?? [],
 })
 

@@ -1,59 +1,99 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-white rounded-2xl border border-gray-200 p-8">
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">Crear cuenta</h1>
-      <p class="text-sm text-gray-500 mb-6">Únete a MOVA</p>
+  <div class="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+    <div class="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+      <div class="mb-6">
+        <p class="text-sm font-semibold text-brand-600">MOVA</p>
+        <h1 class="text-2xl font-black text-slate-900">Crear cuenta</h1>
+        <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-brand-600 transition-all duration-300" :style="{ width: `${(step / totalSteps) * 100}%` }" />
+        </div>
+        <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Paso {{ step }} de {{ totalSteps }}</p>
+      </div>
 
-      <form @submit.prevent="submit" class="space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <button type="button" @click="form.role = 'parent'"
-            :class="['py-3 rounded-xl border-2 text-sm font-semibold transition-all',
-              form.role === 'parent' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600']">
-            👨‍👩‍👧 Soy padre
-          </button>
-          <button type="button" @click="form.role = 'teacher'"
-            :class="['py-3 rounded-xl border-2 text-sm font-semibold transition-all',
-              form.role === 'teacher' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600']">
-            👨‍🏫 Soy profesor
-          </button>
-        </div>
-        <p v-if="form.errors.role" class="text-xs text-red-500">{{ form.errors.role }}</p>
+      <form @submit.prevent="submit">
+        <section v-if="step === 1" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">¡Hola! ¿Cómo usarás MOVA?</h2>
+            <p class="text-sm text-slate-500">Esto personaliza tu experiencia desde el inicio.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <button type="button" @click="form.role = 'parent'" :class="roleClass(form.role === 'parent')">
+              <span class="text-2xl">👪</span>
+              <span class="block font-bold">Soy padre</span>
+              <span class="block text-xs text-slate-500">Busco apoyo para mi hijo.</span>
+            </button>
+            <button type="button" @click="form.role = 'teacher'" :class="roleClass(form.role === 'teacher')">
+              <span class="text-2xl">🎓</span>
+              <span class="block font-bold">Soy profesor</span>
+              <span class="block text-xs text-slate-500">Quiero enseñar en MOVA.</span>
+            </button>
+          </div>
+          <InputError :message="form.errors.role" />
+        </section>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
-          <input v-model="form.name" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          <p v-if="form.errors.name" class="text-xs text-red-500 mt-1">{{ form.errors.name }}</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input v-model="form.email" type="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          <p v-if="form.errors.email" class="text-xs text-red-500 mt-1">{{ form.errors.email }}</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Teléfono
-            <span class="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <input v-model="form.phone" type="tel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="987654321 o +51987654321" />
-          <p class="text-xs text-gray-400 mt-1">Perú: 9 dígitos. Internacional: incluye el código de país (+51, +1…)</p>
-          <p v-if="form.errors.phone" class="text-xs text-red-500 mt-1">{{ form.errors.phone }}</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-          <input v-model="form.password" type="password" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-          <p v-if="form.errors.password" class="text-xs text-red-500 mt-1">{{ form.errors.password }}</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
-          <input v-model="form.password_confirmation" type="password" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-        </div>
+        <section v-if="step === 2" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">¿Cómo te llamas?</h2>
+            <p class="text-sm text-slate-500">Usaremos tu nombre en la plataforma y las comunicaciones.</p>
+          </div>
+          <TextInput v-model="form.name" type="text" class="block w-full" placeholder="Nombre completo" autofocus />
+          <InputError :message="form.errors.name" />
+        </section>
 
-        <!-- Terms checkbox -->
-        <div>
-          <label class="flex items-start gap-2.5 cursor-pointer group">
-            <input v-model="form.accepted_terms" type="checkbox"
-              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 flex-shrink-0" />
-            <span class="text-xs text-gray-600 leading-snug">
+        <section v-if="step === 3" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">¿Cuál es tu correo y teléfono?</h2>
+            <p class="text-sm text-slate-500">Tu correo recibirá la verificación de cuenta.</p>
+          </div>
+          <TextInput v-model="form.email" type="email" class="block w-full" placeholder="correo@ejemplo.com" />
+          <InputError :message="form.errors.email" />
+          <TextInput v-model="form.phone" type="tel" class="block w-full" placeholder="987654321 o +51987654321" />
+          <InputError :message="form.errors.phone" />
+        </section>
+
+        <section v-if="step === 4 && form.role === 'teacher'" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">¿Qué materias te apasiona enseñar?</h2>
+            <p class="text-sm text-slate-500">Escribe materias o cursos especializados. Si no existen, MOVA los creará.</p>
+          </div>
+          <div class="flex gap-2">
+            <TextInput v-model="subjectDraft" type="text" class="block flex-1" placeholder="Ej: Robótica, Álgebra, Python" @keydown.enter.prevent="addSubject" />
+            <button type="button" class="rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700" @click="addSubject">
+              Agregar
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="subject in form.teacher_subject_names"
+              :key="subject"
+              type="button"
+              class="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-100"
+              @click="removeSubject(subject)"
+            >
+              {{ subject }} ×
+            </button>
+          </div>
+          <InputError :message="form.errors.teacher_subject_names || form.errors['teacher_subject_names.0']" />
+        </section>
+
+        <section v-if="step === passwordStep" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">Crea una contraseña segura</h2>
+            <p class="text-sm text-slate-500">Debe coincidir en ambos campos para continuar.</p>
+          </div>
+          <TextInput v-model="form.password" type="password" class="block w-full" placeholder="Contraseña" />
+          <InputError :message="form.errors.password" />
+          <TextInput v-model="form.password_confirmation" type="password" class="block w-full" placeholder="Confirmar contraseña" />
+        </section>
+
+        <section v-if="step === totalSteps" class="space-y-5">
+          <div>
+            <h2 class="text-xl font-black text-slate-900">Último paso</h2>
+            <p class="text-sm text-slate-500">Acepta los términos para crear tu cuenta.</p>
+          </div>
+          <label class="flex cursor-pointer items-start gap-2.5">
+            <input v-model="form.accepted_terms" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            <span class="text-xs leading-snug text-gray-600">
               He leído y acepto los
               <a :href="route('legal.terms')" target="_blank" class="text-brand-600 hover:underline">Términos y Condiciones</a>
               y la
@@ -61,16 +101,23 @@
               de MOVA.
             </span>
           </label>
-          <p v-if="form.errors.accepted_terms" class="text-xs text-red-500 mt-1">{{ form.errors.accepted_terms }}</p>
-        </div>
+          <InputError :message="form.errors.accepted_terms" />
+        </section>
 
-        <button type="submit" :disabled="form.processing || !form.accepted_terms"
-          class="w-full bg-brand-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors">
-          Crear cuenta
-        </button>
+        <div class="mt-6 flex gap-3">
+          <button v-if="step > 1" type="button" class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" @click="back">
+            Atrás
+          </button>
+          <button v-if="step < totalSteps" type="button" class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700" @click="next">
+            Continuar
+          </button>
+          <button v-else type="submit" :disabled="form.processing || !form.accepted_terms" class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+            Crear cuenta
+          </button>
+        </div>
       </form>
 
-      <p class="mt-4 text-center text-sm text-gray-500">
+      <p class="mt-5 text-center text-sm text-gray-500">
         ¿Ya tienes cuenta?
         <Link :href="route('login')" class="text-brand-600 hover:underline">Inicia sesión</Link>
       </p>
@@ -79,7 +126,12 @@
 </template>
 
 <script setup>
+import { computed, ref } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
+import InputError from '@/Components/InputError.vue'
+import TextInput from '@/Components/TextInput.vue'
+
+const subjectDraft = ref('')
 
 const form = useForm({
   name: '',
@@ -88,8 +140,42 @@ const form = useForm({
   password: '',
   password_confirmation: '',
   role: 'parent',
+  teacher_subject_names: [],
   accepted_terms: false,
 })
+
+const totalSteps = computed(() => form.role === 'teacher' ? 6 : 5)
+const passwordStep = computed(() => form.role === 'teacher' ? 5 : 4)
+const step = ref(1)
+
+function roleClass(active) {
+  return [
+    'rounded-2xl border-2 p-4 text-left transition-all hover:border-brand-400',
+    active ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-slate-700',
+  ]
+}
+
+function addSubject() {
+  const value = subjectDraft.value.trim()
+  if (!value) return
+  if (!form.teacher_subject_names.some((subject) => subject.toLowerCase() === value.toLowerCase())) {
+    form.teacher_subject_names.push(value)
+  }
+  subjectDraft.value = ''
+}
+
+function removeSubject(subject) {
+  form.teacher_subject_names = form.teacher_subject_names.filter((item) => item !== subject)
+}
+
+function next() {
+  if (step.value === 4 && form.role === 'teacher') addSubject()
+  if (step.value < totalSteps.value) step.value += 1
+}
+
+function back() {
+  if (step.value > 1) step.value -= 1
+}
 
 function submit() {
   form.post(route('register'))

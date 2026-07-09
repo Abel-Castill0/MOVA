@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class ClassRescheduledNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public Lesson $lesson, public string $changedBy) {}
 
@@ -42,7 +43,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->action('Ver mis clases', url('/'))
+            ->action('Ver mis clases', $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 

@@ -173,6 +173,23 @@
               </svg>
               Clase online por Zoom
             </div>
+
+            <!-- Mentorship slots -->
+            <div
+              :class="[
+                'mt-3 inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold',
+                hasMentorshipSlots(o)
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-slate-100 text-slate-500'
+              ]"
+            >
+              <template v-if="hasMentorshipSlots(o)">
+                Cupos de seguimiento continuo: {{ mentorshipSlotsAvailable(o) }} disponibles
+              </template>
+              <template v-else>
+                Agenda Llena - Sin cupos disponibles
+              </template>
+            </div>
           </div>
 
           <!-- Card footer -->
@@ -192,6 +209,13 @@
                   class="block text-center px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20">
                   Solicitar clase
                 </Link>
+                <Link v-if="hasMentorshipSlots(o)" :href="route('class-requests.create', { offer_id: o.id, is_mentorship: 1 })"
+                  class="block text-center px-4 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-bold rounded-xl hover:bg-emerald-100 transition-colors">
+                  Solicitar acompañamiento
+                </Link>
+                <span v-else class="block text-center px-4 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-xl cursor-not-allowed">
+                  Agenda Llena - Sin cupos disponibles
+                </span>
               </template>
               <template v-else>
                 <span class="block text-center px-4 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-xl cursor-default">
@@ -294,5 +318,15 @@ function teacherAvgRating(offer) {
 
 function teacherReviewCount(offer) {
   return offer.teacher_profile?.visible_reviews?.length ?? 0
+}
+
+function mentorshipSlotsAvailable(offer) {
+  const total = Number(offer.teacher_profile?.mentorship_slots_total ?? 0)
+  const taken = Number(offer.teacher_profile?.mentorship_slots_taken ?? 0)
+  return Math.max(total - taken, 0)
+}
+
+function hasMentorshipSlots(offer) {
+  return mentorshipSlotsAvailable(offer) > 0
 }
 </script>

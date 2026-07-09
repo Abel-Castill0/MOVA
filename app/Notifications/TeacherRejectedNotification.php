@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\TeacherProfile;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class TeacherRejectedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public TeacherProfile $profile) {}
 
@@ -37,7 +38,7 @@ class TeacherRejectedNotification extends Notification implements ShouldQueue
 
         return $mail
             ->line('Si tiene preguntas o considera que hay un error, puede escribirnos a: abelcastillotrabajo@gmail.com')
-            ->action('Ver mi cuenta', url('/dashboard'))
+            ->action('Ver mi cuenta', $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 

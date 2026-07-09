@@ -1,276 +1,228 @@
 <template>
   <AppLayout title="Diagnóstico rápido">
-    <div class="max-w-lg mx-auto">
-
-      <!-- Progress bar -->
+    <div class="mx-auto max-w-lg">
       <div class="mb-6">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Paso {{ step }} de 5</span>
-          <button v-if="step > 1" @click="back"
-            class="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
-            ← Atrás
+        <div class="mb-2 flex items-center justify-between">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Paso {{ step }} de 5</span>
+          <button v-if="step > 1" @click="back" class="text-xs font-medium text-brand-600 hover:underline">
+            Atrás
           </button>
         </div>
-        <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div class="h-full bg-brand-600 rounded-full transition-all duration-300"
-            :style="{ width: (step / 5 * 100) + '%' }" />
-        </div>
-        <div class="flex justify-between mt-2">
-          <span v-for="i in 5" :key="i"
-            :class="['w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all',
-              i < step ? 'bg-brand-600 text-white' :
-              i === step ? 'bg-brand-600 text-white ring-2 ring-brand-200' :
-              'bg-slate-100 text-slate-400']">
-            {{ i < step ? '✓' : i }}
-          </span>
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-brand-600 transition-all duration-300" :style="{ width: `${(step / 5) * 100}%` }" />
         </div>
       </div>
 
-      <!-- Step 1: ¿Para cuál hijo? -->
-      <div v-if="step === 1">
-        <h1 class="text-xl font-black text-slate-900 mb-1">¿Para cuál hijo es el diagnóstico?</h1>
-        <p class="text-sm text-slate-500 mb-5">Selecciona el alumno que necesita ayuda</p>
+      <section v-if="step === 1" class="space-y-5">
+        <div>
+          <h1 class="text-xl font-black text-slate-900">¿Para cuál hijo es el diagnóstico?</h1>
+          <p class="text-sm text-slate-500">Selecciona el alumno que necesita ayuda.</p>
+        </div>
 
-        <div v-if="students.length === 0"
-          class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
-          <div class="text-4xl mb-3">🎒</div>
-          <p class="font-semibold text-amber-900 mb-1">Aún no tienes hijos registrados</p>
-          <p class="text-sm text-amber-700 mb-4">Agrega a tu hijo primero para continuar</p>
-          <Link :href="route('students.create')"
-            class="inline-block px-5 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors">
-            Agregar hijo →
+        <div v-if="students.length === 0" class="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+          <p class="font-semibold text-amber-900">Aún no tienes hijos registrados</p>
+          <Link :href="route('students.create')" class="mt-4 inline-block rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700">
+            Agregar hijo
           </Link>
         </div>
 
         <div v-else class="space-y-3">
-          <button v-for="s in students" :key="s.id"
-            @click="form.student_id = s.id; next()"
-            :class="['w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all hover:border-brand-400 hover:shadow-md',
-              form.student_id === s.id ? 'border-brand-600 bg-brand-50' : 'border-gray-100 bg-white']">
-            <div class="w-12 h-12 bg-gradient-to-br from-green-400 to-teal-500 rounded-xl flex items-center justify-center text-white font-black text-lg flex-shrink-0">
-              {{ s.first_name?.charAt(0) }}
-            </div>
-            <div>
-              <p class="font-bold text-slate-900">{{ s.first_name }} {{ s.last_name }}</p>
-              <p class="text-sm text-slate-500 capitalize">{{ gradeLevelLabel(s.grade_level) }}</p>
-            </div>
-            <div v-if="form.student_id === s.id" class="ml-auto text-brand-600 text-xl">✓</div>
+          <button
+            v-for="student in students"
+            :key="student.id"
+            @click="form.student_id = student.id; next()"
+            :class="optionClass(form.student_id === student.id)"
+          >
+            <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 font-black text-brand-700">
+              {{ student.first_name?.charAt(0) }}
+            </span>
+            <span>
+              <span class="block font-bold text-slate-900">{{ student.first_name }} {{ student.last_name }}</span>
+              <span class="block text-sm text-slate-500">{{ gradeLevelLabel(student.grade_level) }}</span>
+            </span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <!-- Step 2: ¿Qué materia? -->
-      <div v-if="step === 2">
-        <h1 class="text-xl font-black text-slate-900 mb-1">¿Qué materia necesita reforzar?</h1>
-        <p class="text-sm text-slate-500 mb-5">Puedes saltarlo si no estás seguro</p>
+      <section v-if="step === 2" class="space-y-5">
+        <div>
+          <h1 class="text-xl font-black text-slate-900">¿Qué materia necesita reforzar?</h1>
+          <p class="text-sm text-slate-500">Elige una materia para enviar la solicitud a profesores relevantes.</p>
+        </div>
 
-        <div class="flex flex-wrap gap-2 mb-4">
-          <button v-for="s in filteredSubjects" :key="s.id"
-            @click="form.subject_id = form.subject_id === s.id ? null : s.id"
-            :class="['px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all',
-              form.subject_id === s.id
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="subject in filteredSubjects"
+            :key="subject.id"
+            @click="form.subject_id = subject.id"
+            :class="[
+              'rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-all',
+              form.subject_id === subject.id
                 ? 'border-brand-600 bg-brand-600 text-white'
-                : 'border-gray-200 bg-white text-slate-700 hover:border-brand-400']">
-            {{ s.name }}
+                : 'border-gray-200 bg-white text-slate-700 hover:border-brand-400',
+            ]"
+          >
+            {{ subject.name }}
           </button>
         </div>
 
-        <p class="text-xs text-slate-400 mb-5">Mostrando materias para {{ selectedStudentLevel }}</p>
-
-        <button @click="form.subject_id = null; next()"
-          class="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-slate-500 hover:border-slate-300 transition-colors">
-          No estoy seguro de la materia →
+        <button
+          @click="next"
+          :disabled="!form.subject_id"
+          :class="primaryClass(Boolean(form.subject_id))"
+        >
+          Continuar
         </button>
+      </section>
 
-        <button @click="next" :disabled="false"
-          class="mt-3 w-full py-3.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors shadow-sm">
-          Continuar →
+      <section v-if="step === 3" class="space-y-5">
+        <div>
+          <h1 class="text-xl font-black text-slate-900">Cuéntanos el problema</h1>
+          <p class="text-sm text-slate-500">Describe la dificultad académica con claridad.</p>
+        </div>
+
+        <textarea
+          v-model="form.difficulty_text"
+          rows="5"
+          maxlength="500"
+          placeholder="Ejemplo: Mi hijo necesita ayuda con ecuaciones y se bloquea en los ejercicios."
+          class="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        <p v-if="errors.difficulty_text" class="text-xs text-red-500">{{ errors.difficulty_text }}</p>
+
+        <textarea
+          v-model="form.school_feedback"
+          rows="3"
+          maxlength="500"
+          placeholder="Comentario del colegio o profesor, si lo tienes."
+          class="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+
+        <button @click="validateStep3" class="w-full rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white hover:bg-brand-700">
+          Continuar
         </button>
-      </div>
+      </section>
 
-      <!-- Step 3: Cuéntanos el problema -->
-      <div v-if="step === 3">
-        <h1 class="text-xl font-black text-slate-900 mb-1">Cuéntanos el problema</h1>
-        <p class="text-sm text-slate-500 mb-5">¿Qué dificultad tiene tu hijo?</p>
-        <div class="mb-4 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-          <span class="text-blue-400 text-base mt-0.5 flex-shrink-0">🔒</span>
-          <p class="text-xs text-blue-700 leading-relaxed">
-            MOVA puede analizar tu descripción de forma automática para entender mejor qué necesita tu hijo.
-            No compartimos nombres, correos ni teléfonos.
-          </p>
+      <section v-if="step === 4" class="space-y-5">
+        <div>
+          <h1 class="text-xl font-black text-slate-900">¿Qué necesitas lograr?</h1>
+          <p class="text-sm text-slate-500">Elige el objetivo principal de esta solicitud.</p>
         </div>
 
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">
-              ¿Qué está pasando? <span class="text-red-500">*</span>
-            </label>
-            <textarea
-              v-model="form.difficulty_text"
-              rows="4"
-              maxlength="500"
-              placeholder="Ejemplo: Mi hijo no entiende fracciones y se bloquea en los exámenes de matemáticas."
-              class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none transition"
-            />
-            <p class="text-xs text-slate-400 mt-1 text-right">{{ form.difficulty_text.length }}/500</p>
-            <p v-if="errors.difficulty_text" class="text-xs text-red-500 mt-1">{{ errors.difficulty_text }}</p>
-          </div>
-
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1.5">
-              ¿Qué dijo el profesor del colegio? <span class="text-slate-400">(opcional)</span>
-            </label>
-            <textarea
-              v-model="form.school_feedback"
-              rows="2"
-              maxlength="500"
-              placeholder="Ejemplo: El profesor dijo que tiene dificultades para seguir el ritmo de la clase."
-              class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none transition"
-            />
-          </div>
-        </div>
-
-        <button @click="validateStep3"
-          class="mt-5 w-full py-3.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors shadow-sm">
-          Continuar →
-        </button>
-      </div>
-
-      <!-- Step 4: ¿Qué quieres lograr? -->
-      <div v-if="step === 4">
-        <h1 class="text-xl font-black text-slate-900 mb-1">¿Qué quieres lograr?</h1>
-        <p class="text-sm text-slate-500 mb-5">Elige el objetivo principal</p>
-
-        <div class="space-y-3">
-          <button v-for="g in goalOptions" :key="g.value"
-            @click="form.goal = g.value; next()"
-            :class="['w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all hover:border-brand-400 hover:shadow-md',
-              form.goal === g.value ? 'border-brand-600 bg-brand-50' : 'border-gray-100 bg-white']">
-            <span class="text-2xl flex-shrink-0">{{ g.icon }}</span>
-            <div>
-              <p class="font-bold text-slate-900 text-sm">{{ g.label }}</p>
-              <p class="text-xs text-slate-500">{{ g.desc }}</p>
-            </div>
-            <div v-if="form.goal === g.value" class="ml-auto text-brand-600 text-xl">✓</div>
-          </button>
-        </div>
-      </div>
-
-      <!-- Step 5: ¿Con qué urgencia? -->
-      <div v-if="step === 5">
-        <h1 class="text-xl font-black text-slate-900 mb-1">¿Con qué urgencia lo necesitas?</h1>
-        <p class="text-sm text-slate-500 mb-5">Esto nos ayuda a encontrar el profesor disponible</p>
-
-        <div class="space-y-3">
-          <button v-for="u in urgencyOptions" :key="u.value"
-            @click="form.urgency = u.value"
-            :class="['w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all hover:border-brand-400 hover:shadow-md',
-              form.urgency === u.value ? 'border-brand-600 bg-brand-50' : 'border-gray-100 bg-white']">
-            <span class="text-2xl flex-shrink-0">{{ u.icon }}</span>
-            <div>
-              <p class="font-bold text-slate-900 text-sm">{{ u.label }}</p>
-              <p class="text-xs text-slate-500">{{ u.desc }}</p>
-            </div>
-            <div v-if="form.urgency === u.value" class="ml-auto text-brand-600 text-xl">✓</div>
-          </button>
-        </div>
-
-        <button @click="submit" :disabled="!form.urgency || loading"
-          :class="['mt-5 w-full py-3.5 font-bold rounded-xl text-sm transition-all shadow-sm',
-            form.urgency && !loading
-              ? 'bg-brand-600 text-white hover:bg-brand-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed']">
-          <span v-if="loading" class="flex items-center justify-center gap-2">
-            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-            Buscando profesores...
+        <button v-for="goal in goalOptions" :key="goal.value" @click="form.goal = goal.value; next()" :class="optionClass(form.goal === goal.value)">
+          <span class="text-2xl">{{ goal.icon }}</span>
+          <span>
+            <span class="block font-bold text-slate-900">{{ goal.label }}</span>
+            <span class="block text-sm text-slate-500">{{ goal.desc }}</span>
           </span>
-          <span v-else>🔍 Ver profesores recomendados →</span>
         </button>
-      </div>
+      </section>
 
+      <section v-if="step === 5" class="space-y-5">
+        <div>
+          <h1 class="text-xl font-black text-slate-900">¿Con qué urgencia lo necesitas?</h1>
+          <p class="text-sm text-slate-500">La solicitud se enviará a profesores verificados de la materia.</p>
+        </div>
+
+        <button v-for="urgency in urgencyOptions" :key="urgency.value" @click="form.urgency = urgency.value" :class="optionClass(form.urgency === urgency.value)">
+          <span class="text-2xl">{{ urgency.icon }}</span>
+          <span>
+            <span class="block font-bold text-slate-900">{{ urgency.label }}</span>
+            <span class="block text-sm text-slate-500">{{ urgency.desc }}</span>
+          </span>
+        </button>
+
+        <button @click="submit" :disabled="!form.urgency || loading" :class="primaryClass(Boolean(form.urgency) && !loading)">
+          {{ loading ? 'Enviando solicitud...' : 'Completar diagnóstico y solicitar clase' }}
+        </button>
+      </section>
     </div>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import { computed, ref } from 'vue'
+import { Link, router } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
   students: Array,
   subjects: Array,
-});
+})
 
-const step    = ref(1);
-const loading = ref(false);
-const errors  = ref({});
+const step = ref(1)
+const loading = ref(false)
+const errors = ref({})
 
 const form = ref({
-  student_id:       null,
-  subject_id:       null,
-  difficulty_text:  '',
-  school_feedback:  '',
-  goal:             null,
-  urgency:          null,
-});
+  student_id: null,
+  subject_id: null,
+  difficulty_text: '',
+  school_feedback: '',
+  goal: null,
+  urgency: null,
+})
 
-const selectedStudent = computed(() => props.students.find(s => s.id === form.value.student_id));
-const selectedStudentLevel = computed(() => {
-  const lvl = selectedStudent.value?.grade_level;
-  return lvl ? gradeLevelLabel(lvl) : 'todos los niveles';
-});
-
+const selectedStudent = computed(() => props.students.find((student) => student.id === form.value.student_id))
 const filteredSubjects = computed(() => {
-  const lvl = selectedStudent.value?.grade_level;
-  if (!lvl) return props.subjects;
-  return props.subjects.filter(s => s.level === lvl || s.level === 'todos');
-});
-
-function gradeLevelLabel(lvl) {
-  return { primaria: 'Primaria', secundaria: 'Secundaria', universidad: 'Universidad' }[lvl] ?? lvl;
-}
+  const level = selectedStudent.value?.grade_level
+  if (!level) return props.subjects
+  return props.subjects.filter((subject) => subject.level === level || subject.level === 'todos')
+})
 
 const goalOptions = [
-  { value: 'reinforce_topic',    icon: '📚', label: 'Reforzar un tema', desc: 'El alumno necesita repasar o practicar más un contenido' },
-  { value: 'prepare_exam',       icon: '📝', label: 'Preparar un examen', desc: 'Hay un examen próximo que necesita aprobar' },
-  { value: 'recover_grades',     icon: '📈', label: 'Recuperar notas', desc: 'Las calificaciones han bajado y necesita mejorarlas' },
-  { value: 'solve_homework',     icon: '✏️', label: 'Resolver una tarea', desc: 'Necesita ayuda puntual con una tarea específica' },
-  { value: 'continuous_support', icon: '🤝', label: 'Acompañamiento continuo', desc: 'Clases regulares para avanzar semana a semana' },
-];
+  { value: 'prepare_exam', icon: '📝', label: 'Preparar un examen', desc: 'Hay una evaluación próxima y necesita práctica guiada.' },
+  { value: 'solve_homework', icon: '✏️', label: 'Resolver una tarea', desc: 'Necesita ayuda puntual para avanzar con seguridad.' },
+  { value: 'continuous_support', icon: '🤝', label: 'Acompañamiento continuo', desc: 'Busca clases regulares para sostener el progreso.' },
+]
 
 const urgencyOptions = [
-  { value: 'today_or_tomorrow', icon: '⚡', label: 'Hoy o mañana', desc: 'Necesito un profesor lo antes posible' },
-  { value: 'this_week',         icon: '📅', label: 'Esta semana', desc: 'Tengo tiempo hasta el fin de semana' },
-  { value: 'flexible',          icon: '😌', label: 'Sin prisa, a mi ritmo', desc: 'No hay urgencia, busco la mejor opción' },
-];
+  { value: 'today_or_tomorrow', icon: '⚡', label: 'Hoy o mañana', desc: 'Necesita apoyo lo antes posible.' },
+  { value: 'this_week', icon: '📅', label: 'Esta semana', desc: 'Puede coordinar dentro de los próximos días.' },
+  { value: 'flexible', icon: '🕊️', label: 'Sin prisa', desc: 'Prefiere encontrar el mejor horario disponible.' },
+]
+
+function gradeLevelLabel(level) {
+  return { primaria: 'Primaria', secundaria: 'Secundaria', universidad: 'Universidad' }[level] ?? level
+}
+
+function optionClass(active) {
+  return [
+    'flex w-full items-center gap-4 rounded-2xl border-2 bg-white p-4 text-left transition-all hover:border-brand-400 hover:shadow-md',
+    active ? 'border-brand-600 bg-brand-50' : 'border-gray-100',
+  ]
+}
+
+function primaryClass(enabled) {
+  return [
+    'w-full rounded-xl py-3.5 text-sm font-bold transition-colors',
+    enabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'cursor-not-allowed bg-gray-100 text-gray-400',
+  ]
+}
 
 function next() {
-  if (step.value < 5) step.value++;
+  if (step.value < 5) step.value += 1
 }
 
 function back() {
-  if (step.value > 1) step.value--;
+  if (step.value > 1) step.value -= 1
 }
 
 function validateStep3() {
-  errors.value = {};
-  if (!form.value.difficulty_text || form.value.difficulty_text.trim().length < 10) {
-    errors.value.difficulty_text = 'Por favor describe el problema (mínimo 10 caracteres).';
-    return;
+  errors.value = {}
+  if (form.value.difficulty_text.trim().length < 10) {
+    errors.value.difficulty_text = 'Describe el problema con al menos 10 caracteres.'
+    return
   }
-  next();
+  next()
 }
 
 function submit() {
-  if (!form.value.urgency || loading.value) return;
-  loading.value = true;
+  if (!form.value.urgency || loading.value) return
+  loading.value = true
   router.post(route('diagnostics.store'), form.value, {
-    onError: (e) => { errors.value = e; loading.value = false; },
-    onFinish: () => { loading.value = false; },
-  });
+    onError: (errorBag) => { errors.value = errorBag },
+    onFinish: () => { loading.value = false },
+  })
 }
 </script>

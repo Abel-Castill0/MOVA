@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ClassRequest;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class ClassRequestRejectedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public ClassRequest $request) {}
 
@@ -38,7 +39,7 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
 
         return $mail
             ->line('Puede buscar otro profesor disponible en el marketplace.')
-            ->action('Buscar profesores', url('/marketplace'))
+            ->action('Ver solicitudes', $this->appUrl('/class-requests'))
             ->salutation('El equipo de MOVA');
     }
 

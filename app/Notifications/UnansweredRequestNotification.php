@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ClassRequest;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class UnansweredRequestNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public ClassRequest $classRequest) {}
 
@@ -34,7 +35,7 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Colega, una familia solicitó una clase de **{$subject}** hace más de 12 horas.")
             ->line('Responda pronto para no perder la oportunidad.')
-            ->action('Ver solicitud', url('/teacher/requests'))
+            ->action('Ver solicitud', $this->appUrl('/teacher/requests'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -45,7 +46,7 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
             . "Hola {$notifiable->name},\n"
             . "Una familia solicitó una clase de {$subject} hace más de 12 horas.\n"
             . "Responda pronto desde su panel:\n"
-            . url('/teacher/requests');
+            . $this->appUrl('/teacher/requests');
     }
 
     public function toArray($notifiable): array

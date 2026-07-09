@@ -20,6 +20,7 @@ class ClassRequestController extends Controller
             'subjects' => Subject::orderBy('name')->get(),
             'students' => auth()->user()->students()->get(),
             'offer' => $offer,
+            'isMentorship' => $request->boolean('is_mentorship'),
         ]);
     }
 
@@ -29,6 +30,7 @@ class ClassRequestController extends Controller
             'student_id' => 'required|exists:students,id',
             'subject_id' => 'required|exists:subjects,id',
             'class_offer_id' => 'nullable|exists:class_offers,id',
+            'is_mentorship' => 'sometimes|boolean',
             'help_needed' => 'required|string|max:2000',
             'preferred_times' => 'nullable|array',
         ]);
@@ -37,6 +39,19 @@ class ClassRequestController extends Controller
         auth()->user()->students()->findOrFail($data['student_id']);
 
         $status = auth()->user()->parental_control ? 'pending_parent_approval' : 'open';
+        $data['is_mentorship'] = (bool) ($data['is_mentorship'] ?? false);
+
+        if ($data['is_mentorship'] && !empty($data['class_offer_id'])) {
+            $teacherProfile = ClassOffer::with('teacherProfile')
+                ->findOrFail($data['class_offer_id'])
+                ->teacherProfile;
+
+            abort_unless(
+                $teacherProfile?->hasAvailableMentorshipSlots(),
+                422,
+                'Este profesor tiene la agenda llena para acompañamiento continuo.'
+            );
+        }
 
         $classRequest = ClassRequest::create(array_merge($data, ['status' => $status]));
 

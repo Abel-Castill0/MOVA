@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\LessonReport;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class LessonReportPublishedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public LessonReport $report) {}
 
@@ -43,7 +44,7 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
             ->when($this->report->next_step, fn ($mail) =>
                 $mail->line('**Próximo paso:** ' . $this->report->next_step)
             )
-            ->action('Ver reporte completo', url('/my-classes'))
+            ->action('Ver reporte completo', $this->appUrl('/my-classes'))
             ->salutation('El equipo de MOVA');
     }
 

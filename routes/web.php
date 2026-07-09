@@ -18,9 +18,11 @@ use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\AiUsageController;
+use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\Teacher\CreditController;
 use Illuminate\Support\Facades\Route;
 
 // ── Health check (no session, no auth) ──────────────────────────────────────
@@ -80,6 +82,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/teacher/setup', [TeacherProfileController::class, 'storeSetup'])->name('teacher.setup.store');
         Route::get('/teacher/profile', [TeacherProfileController::class, 'edit'])->name('teacher.profile');
         Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->name('teacher.profile.update');
+        Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
+        Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->name('teacher.credits.recharge');
 
         Route::resource('class-offers', ClassOfferController::class)->except(['show']);
         Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->name('class-offers.toggle');
@@ -113,6 +117,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->name('admin.lessons.cancel');
+        Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
+        Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->name('admin.recharges.approve');
+        Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->name('admin.recharges.reject');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->name('admin.reviews.show');

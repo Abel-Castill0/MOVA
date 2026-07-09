@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class ClassReminderNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public Lesson $lesson, public string $interval = '10m') {}
 
@@ -52,7 +53,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             ->line("Su clase comienza **{$this->label()}**.")
             ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
             ->line('**Contraseña:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
-            ->action('Entrar a Zoom', $this->lesson->zoom_link ?? url('/'))
+            ->action('Entrar a Zoom', $this->lesson->zoom_link ?? $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 

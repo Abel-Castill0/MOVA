@@ -26,6 +26,9 @@ class ClassOfferController extends Controller
 
     public function store(Request $request)
     {
+        $profile = auth()->user()->teacherProfile;
+        $maxRate = $profile->maxAllowedRate();
+
         $data = $request->validate([
             'subject_id'                         => 'required|exists:subjects,id',
             'title'                              => 'required|string|max:200',
@@ -36,12 +39,14 @@ class ClassOfferController extends Controller
             'availability_schedule.days.*'       => 'array',
             'availability_schedule.days.*.*.start' => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
             'availability_schedule.days.*.*.end'   => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
-            'specific_rate'                      => 'nullable|numeric|min:0',
+            'specific_rate'                      => 'nullable|numeric|min:0|max:' . $maxRate,
+        ], [
+            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate}. Complete 5 clases para desbloquear S/ 25.",
         ]);
 
         $data = $this->normalizeAvailability($data);
 
-        auth()->user()->teacherProfile->classOffers()->create($data);
+        $profile->classOffers()->create($data);
 
         return redirect()->route('class-offers.index')->with('success', 'Oferta creada.');
     }
@@ -58,6 +63,7 @@ class ClassOfferController extends Controller
     public function update(Request $request, ClassOffer $classOffer)
     {
         abort_unless($classOffer->teacher_profile_id === auth()->user()->teacherProfile->id, 403);
+        $maxRate = auth()->user()->teacherProfile->maxAllowedRate();
 
         $data = $request->validate([
             'subject_id'                         => 'required|exists:subjects,id',
@@ -69,7 +75,9 @@ class ClassOfferController extends Controller
             'availability_schedule.days.*'       => 'array',
             'availability_schedule.days.*.*.start' => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
             'availability_schedule.days.*.*.end'   => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
-            'specific_rate'                      => 'nullable|numeric|min:0',
+            'specific_rate'                      => 'nullable|numeric|min:0|max:' . $maxRate,
+        ], [
+            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate}. Complete 5 clases para desbloquear S/ 25.",
         ]);
 
         $data = $this->normalizeAvailability($data);

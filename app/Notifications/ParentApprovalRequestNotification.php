@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ClassRequest;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class ParentApprovalRequestNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public ClassRequest $classRequest) {}
 
@@ -36,7 +37,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("**{$student}** ha solicitado una clase de **{$subject}**.")
             ->line('Por favor, revise la solicitud y apruébela o rechácela.')
-            ->action('Revisar solicitud', url('/class-requests'))
+            ->action('Revisar solicitud', $this->appUrl('/class-requests'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -48,7 +49,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
         return "MOVA — Nueva solicitud de clase\n\n"
             . "{$student} ha solicitado una clase de {$subject}.\n"
             . "Ingrese a MOVA para aprobarla o rechazarla:\n"
-            . url('/class-requests');
+            . $this->appUrl('/class-requests');
     }
 
     public function toArray($notifiable): array

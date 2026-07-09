@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class PendingReportReminderNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public Lesson $lesson) {}
 
@@ -37,7 +38,7 @@ class PendingReportReminderNotification extends Notification implements ShouldQu
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Colega, tiene un reporte pendiente para la clase de **{$subject}**.")
             ->line('Completar el reporte ayuda a las familias a seguir el progreso académico de sus hijos.')
-            ->action('Crear reporte ahora', route('lesson-reports.create', $lesson))
+            ->action('Crear reporte ahora', $this->appRoute('lesson-reports.create', $lesson))
             ->salutation('El equipo de MOVA');
     }
 

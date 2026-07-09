@@ -5,7 +5,12 @@
 
       <div v-if="offer" class="bg-brand-50 border border-brand-200 rounded-xl p-4 mb-6">
         <p class="text-sm font-medium text-brand-700">Clase con: {{ offer.teacher_profile?.user?.name }}</p>
-        <p class="text-sm text-brand-600">{{ offer.subject?.name }} · S/ {{ parseFloat(offer.specific_rate ?? offer.teacher_profile?.hourly_rate ?? 0).toFixed(0) }}/h</p>
+        <p class="text-sm text-brand-600">
+          {{ offer.subject?.name }} · S/ {{ parseFloat(offer.specific_rate ?? offer.teacher_profile?.hourly_rate ?? 0).toFixed(0) }}/h
+        </p>
+        <p v-if="form.is_mentorship" class="mt-2 inline-flex rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          Solicitud de acompañamiento continuo
+        </p>
       </div>
 
       <form @submit.prevent="submit" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
@@ -50,12 +55,13 @@ import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import TimeSlotPicker from '@/Components/TimeSlotPicker.vue'
 
-const props = defineProps({ subjects: Array, students: Array, offer: Object })
+const props = defineProps({ subjects: Array, students: Array, offer: Object, isMentorship: Boolean })
 
 const form = useForm({
   student_id: '',
   subject_id: props.offer?.subject_id ?? '',
   class_offer_id: props.offer?.id ?? null,
+  is_mentorship: props.isMentorship ?? false,
   help_needed: '',
   preferred_times: [],
 })

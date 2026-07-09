@@ -10,11 +10,15 @@ use App\Models\User;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\TeacherRejectedNotification;
 use App\Notifications\TeacherVerifiedNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class AdminController extends Controller
 {
+    private const WELCOME_BONUS_CREDITS = 5;
+    private const CLASS_CREDIT_COST = 2;
+
     public function users()
     {
         return Inertia::render('Admin/Users', [
@@ -39,13 +43,36 @@ class AdminController extends Controller
 
     public function verifyTeacher(TeacherProfile $teacher)
     {
-        $teacher->update([
-            'is_verified'      => true,
-            'rejected_at'      => null,
-            'rejection_reason' => null,
-            'reviewed_by'      => auth()->id(),
-            'reviewed_at'      => now(),
-        ]);
+        $teacher = DB::transaction(function () use ($teacher) {
+            $teacher = TeacherProfile::whereKey($teacher->id)->lockForUpdate()->firstOrFail();
+
+            $teacher->update([
+                'is_verified'      => true,
+                'rejected_at'      => null,
+                'rejection_reason' => null,
+                'reviewed_by'      => auth()->id(),
+                'reviewed_at'      => now(),
+            ]);
+
+            $welcomeBonusExists = $teacher->creditTransactions()
+                ->where('type', 'deposit')
+                ->where('description', 'Bono de bienvenida MOVA')
+                ->exists();
+
+            if (!$welcomeBonusExists) {
+                $teacher->update([
+                    'credits_available' => $teacher->credits_available + self::WELCOME_BONUS_CREDITS,
+                ]);
+
+                $teacher->creditTransactions()->create([
+                    'type'        => 'deposit',
+                    'amount'      => self::WELCOME_BONUS_CREDITS,
+                    'description' => 'Bono de bienvenida MOVA',
+                ]);
+            }
+
+            return $teacher->load('user');
+        });
 
         $teacher->user->notify(new TeacherVerifiedNotification());
 
@@ -130,15 +157,46 @@ class AdminController extends Controller
             'reason' => 'required|string|min:5|max:500',
         ]);
 
-        $lesson->load(['student.parent', 'teacherProfile.user']);
-        $lesson->update([
-            'status'       => 'cancelled',
-            'cancelled_at' => now(),
-            'cancelled_by' => auth()->id(),
-            'cancel_reason' => $data['reason'],
-        ]);
+        $lesson = DB::transaction(function () use ($lesson, $data) {
+            $lesson = Lesson::with(['student.parent', 'teacherProfile.user'])
+                ->whereKey($lesson->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        ClassEvent::log('class_cancelled', auth()->id(), $lesson->id, $lesson->class_request_id, $data['reason']);
+            abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
+
+            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_if(
+                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST,
+                422,
+                'No hay créditos reservados suficientes para devolver esta clase.'
+            );
+
+            $teacherProfile->update([
+                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST,
+                'credits_reserved'  => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
+            ]);
+
+            $teacherProfile->creditTransactions()->create([
+                'type'        => 'refund',
+                'amount'      => self::CLASS_CREDIT_COST,
+                'description' => 'Devolución por clase cancelada',
+            ]);
+
+            $lesson->update([
+                'status'        => 'cancelled',
+                'cancelled_at'  => now(),
+                'cancelled_by'  => auth()->id(),
+                'cancel_reason' => $data['reason'],
+            ]);
+
+            ClassEvent::log('class_cancelled', auth()->id(), $lesson->id, $lesson->class_request_id, $data['reason']);
+
+            return $lesson;
+        });
 
         $notification = new ClassCancelledNotification($lesson);
         $lesson->teacherProfile?->user?->notify($notification);

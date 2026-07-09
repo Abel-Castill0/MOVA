@@ -122,6 +122,7 @@ const navItems = computed(() => {
       { href: '/admin/pending-teachers',  icon: '✅', label: 'Verificar profesores' },
       { href: '/admin/requests',          icon: '📋', label: 'Solicitudes' },
       { href: '/admin/lessons',           icon: '📅', label: 'Clases' },
+      { href: '/admin/recharges',         icon: '💳', label: 'Recargas' },
       { href: '/admin/reviews',           icon: '⭐', label: 'Reseñas' },
       { href: '/admin/ai-usage',          icon: '🤖', label: 'Uso de IA' },
     ]
@@ -132,6 +133,7 @@ const navItems = computed(() => {
       { href: '/teacher/requests',icon: '📋', label: 'Solicitudes' },
       { href: '/class-offers',    icon: '📚', label: 'Mis ofertas' },
       { href: '/teacher/classes', icon: '📅', label: 'Mis clases' },
+      { href: '/teacher/credits', icon: 'C', label: 'Mis créditos' },
       { href: '/teacher/profile', icon: '👤', label: 'Mi perfil' },
     ]
   }

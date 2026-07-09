@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -9,7 +10,7 @@ use Illuminate\Notifications\Notification;
 
 class WelcomeParentNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function via($notifiable): array
     {
@@ -33,7 +34,7 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
             ->line('**2.** Explore el marketplace y elija un profesor.')
             ->line('**3.** Solicite una clase directamente desde la oferta del profesor.')
             ->line('**4.** Recibirá recordatorios antes de cada clase y un reporte de aprendizaje al finalizar.')
-            ->action('Ir al panel', url('/dashboard'))
+            ->action('Ir al panel', $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -45,7 +46,7 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
             . "2. Explore el marketplace\n"
             . "3. Solicite una clase\n"
             . "4. Recibirá recordatorios y reportes\n\n"
-            . url('/dashboard');
+            . $this->appUrl('/dashboard');
     }
 
     public function toArray($notifiable): array

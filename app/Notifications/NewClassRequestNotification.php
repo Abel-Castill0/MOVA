@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ClassRequest;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class NewClassRequestNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public ClassRequest $classRequest) {}
 
@@ -31,7 +32,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             ->line('Colega, ha recibido una nueva solicitud de clase.')
             ->line('**Asignatura:** ' . $this->classRequest->subject->name)
             ->line('**Estudiante:** ' . $this->classRequest->student->full_name)
-            ->action('Ver solicitud', url('/teacher/requests'))
+            ->action('Ver solicitud', $this->appUrl('/teacher/requests'))
             ->salutation('El equipo de MOVA');
     }
 

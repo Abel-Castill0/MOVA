@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -9,7 +10,7 @@ use Illuminate\Notifications\Notification;
 
 class TeacherVerifiedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function via($notifiable): array
     {
@@ -27,7 +28,7 @@ class TeacherVerifiedNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Colega, su perfil de profesor ha sido **verificado** por nuestro equipo.')
             ->line('Ya puede recibir solicitudes de clase y comenzar a enseñar en MOVA.')
-            ->action('Ver mi perfil', url('/'))
+            ->action('Ver mi perfil', $this->appUrl('/teacher/profile'))
             ->salutation('El equipo de MOVA');
     }
 

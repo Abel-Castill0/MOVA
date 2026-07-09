@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class ClassCancelledNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(public Lesson $lesson) {}
 
@@ -42,7 +43,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
 
         return $mail
             ->line('Si tiene dudas o desea reagendar, puede contactar al equipo de MOVA.')
-            ->action('Ver mis clases', url('/'))
+            ->action('Ver mis clases', $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 

@@ -11,13 +11,14 @@ class ClassRequest extends Model
 
     protected $fillable = [
         'student_id', 'subject_id', 'class_offer_id',
-        'help_needed', 'preferred_times', 'status',
+        'is_mentorship', 'help_needed', 'preferred_times', 'status',
         'request_reminder_sent_at', 'student_diagnostic_id',
         'teacher_rejected_at', 'teacher_rejection_reason',
     ];
 
     protected $casts = [
         'preferred_times'            => 'array',
+        'is_mentorship'              => 'boolean',
         'request_reminder_sent_at'   => 'datetime',
         'teacher_rejected_at'        => 'datetime',
     ];
