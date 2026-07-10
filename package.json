@@ -3,7 +3,10 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "qa:build": "vite build",
+        "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
+        "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^1.0.0",

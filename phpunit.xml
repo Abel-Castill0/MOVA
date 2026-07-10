@@ -18,15 +18,34 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_DRIVER" value="array"/>
-        <!-- <env name="DB_CONNECTION" value="sqlite"/> -->
-        <!-- <env name="DB_DATABASE" value=":memory:"/> -->
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="PULSE_ENABLED" value="false"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_DEBUG" value="false" force="true"/>
+        <env name="APP_URL" value="http://localhost" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_DRIVER" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_FOREIGN_KEYS" value="true" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="DIAGNOSTIC_AI_ENABLED" value="false" force="true"/>
+        <env name="WHATSAPP_ENABLED" value="false" force="true"/>
+        <env name="TWILIO_SID" value="" force="true"/>
+        <env name="TWILIO_AUTH_TOKEN" value="" force="true"/>
+        <env name="TWILIO_WHATSAPP_FROM" value="" force="true"/>
+        <env name="ZOOM_ACCOUNT_ID" value="" force="true"/>
+        <env name="ZOOM_CLIENT_ID" value="" force="true"/>
+        <env name="ZOOM_CLIENT_SECRET" value="" force="true"/>
+        <env name="ZOOM_EMAIL" value="" force="true"/>
+        <env name="GMAIL_CLIENT_ID" value="" force="true"/>
+        <env name="GMAIL_CLIENT_SECRET" value="" force="true"/>
+        <env name="GMAIL_REFRESH_TOKEN" value="" force="true"/>
+        <env name="OPENAI_API_KEY" value="" force="true"/>
+        <env name="GEMINI_API_KEY" value="" force="true"/>
+        <env name="SENTRY_LARAVEL_DSN" value="" force="true"/>
+        <env name="SENTRY_DSN" value="" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
     </php>
 </phpunit>

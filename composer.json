@@ -40,6 +40,9 @@
         }
     },
     "scripts": {
+        "qa:safe": [
+            "powershell -ExecutionPolicy Bypass -File scripts/qa-safe.ps1"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
