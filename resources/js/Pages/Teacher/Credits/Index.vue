@@ -4,7 +4,7 @@
       <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 class="text-xl font-black text-slate-900">Mis creditos MOVA</h2>
-          <p class="text-sm text-slate-500">Consulta tu saldo, revisa movimientos y solicita recargas por Yape o transferencia.</p>
+          <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
         </div>
       </div>
 
@@ -25,19 +25,22 @@
       <section class="space-y-3">
         <div>
           <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
-          <p class="text-sm text-slate-500">Despues de yapear, registra el numero de operacion para revision administrativa.</p>
+          <p v-if="!rechargesEnabled" class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            Las recargas se habilitarán próximamente.
+          </p>
+          <p v-else class="text-sm text-slate-500">Realiza el pago al destino indicado y registra el número de operación para revisión administrativa.</p>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-3">
-          <article v-for="pack in packages" :key="pack.name" class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div v-if="rechargesEnabled" class="grid gap-4 lg:grid-cols-3">
+          <article v-for="pack in packages" :key="pack.code" class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h4 class="text-lg font-black text-slate-900">{{ pack.name }}</h4>
-                <p class="mt-1 text-sm text-slate-500">{{ pack.description }}</p>
+                <p class="mt-1 text-sm text-slate-500">1 crédito equivale a S/ 2.00.</p>
               </div>
               <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} creditos</span>
             </div>
-            <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ pack.amount }}</p>
+            <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
             <button
               type="button"
               class="mt-5 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
@@ -126,7 +129,7 @@
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="text-lg font-black text-slate-900">Recargar paquete {{ selectedPackage?.name }}</h3>
-            <p class="mt-1 text-sm text-slate-500">Yapea el monto exacto y registra el numero de operacion.</p>
+            <p class="mt-1 text-sm text-slate-500">Realiza el pago exacto y registra el número de operación.</p>
           </div>
           <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" @click="closeRecharge">
             <span class="sr-only">Cerrar</span>
@@ -134,18 +137,29 @@
           </button>
         </div>
 
-        <div class="mt-5 grid gap-4 sm:grid-cols-[160px_1fr]">
-          <div class="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-brand-200 bg-brand-50 text-center text-sm font-bold text-brand-700">
-            QR MOVA<br />Placeholder
-          </div>
-          <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
-            <p class="text-sm font-semibold text-slate-700">Yapea a este numero</p>
-            <p class="mt-2 text-2xl font-black text-slate-900">999 999 999</p>
+        <div class="mt-5">
+          <div class="rounded-lg border border-gray-100 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-700">Destino de pago</p>
+            <p class="mt-2 text-lg font-black text-slate-900">{{ paymentDestination }}</p>
             <p class="mt-2 text-sm text-slate-500">
-              Monto: <strong class="text-slate-900">S/ {{ selectedPackage?.amount }}</strong>
+              Monto: <strong class="text-slate-900">S/ {{ money(selectedPackage?.amount_pen) }}</strong>
               · Creditos: <strong class="text-slate-900">{{ selectedPackage?.credits }}</strong>
             </p>
           </div>
+        </div>
+
+        <div class="mt-5">
+          <InputLabel for="payment_method" value="Método de pago" />
+          <select
+            id="payment_method"
+            v-model="form.payment_method"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+            required
+          >
+            <option value="" disabled>Selecciona un método</option>
+            <option v-for="(label, code) in paymentMethods" :key="code" :value="code">{{ label }}</option>
+          </select>
+          <InputError class="mt-2" :message="form.errors.payment_method" />
         </div>
 
         <div class="mt-5">
@@ -162,7 +176,7 @@
           <InputError class="mt-2" :message="form.errors.operation_number" />
         </div>
 
-        <InputError class="mt-3" :message="form.errors.package_name || form.errors.credits || form.errors.amount_pen" />
+        <InputError class="mt-3" :message="form.errors.package_code" />
 
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <SecondaryButton type="button" @click="closeRecharge">Cancelar</SecondaryButton>
@@ -196,31 +210,39 @@ defineProps({
     type: Array,
     default: () => [],
   },
+  packages: {
+    type: Array,
+    default: () => [],
+  },
+  paymentMethods: {
+    type: Object,
+    default: () => ({}),
+  },
+  rechargesEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  paymentDestination: {
+    type: String,
+    default: null,
+  },
 })
-
-const packages = [
-  { name: 'Inicio', credits: 5, amount: 10, description: 'Para empezar a aceptar clases.' },
-  { name: 'Impulso', credits: 15, amount: 30, description: 'Saldo para una semana activa.' },
-  { name: 'Pro', credits: 30, amount: 60, description: 'Mayor margen para profesores con alta demanda.' },
-]
 
 const activeTab = ref('transactions')
 const showRechargeModal = ref(false)
 const selectedPackage = ref(null)
 
 const form = useForm({
-  package_name: '',
-  credits: null,
-  amount_pen: null,
+  package_code: '',
+  payment_method: '',
   operation_number: '',
 })
 
 function openRecharge(pack) {
   selectedPackage.value = pack
   form.clearErrors()
-  form.package_name = pack.name
-  form.credits = pack.credits
-  form.amount_pen = pack.amount
+  form.package_code = pack.code
+  form.payment_method = ''
   form.operation_number = ''
   showRechargeModal.value = true
 }

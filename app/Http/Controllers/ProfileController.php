@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\ClassRequest;
+use App\Models\Lesson;
+use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -51,13 +56,71 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // Logout first so token rotation cannot persist a model after a hard delete.
         Auth::logout();
 
-        $user->delete();
+        if ($this->hasProtectedHistory($user)) {
+            DB::transaction(function () use ($user) {
+                $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+                $user->forceFill([
+                    'name' => 'Cuenta eliminada',
+                    'email' => "deleted-{$user->id}@mova.invalid",
+                    'email_verified_at' => null,
+                    'phone' => null,
+                    'phone_verified_at' => null,
+                    'phone_verification_code_hash' => null,
+                    'phone_verification_expires_at' => null,
+                    'password' => Str::random(64),
+                    'suspended_at' => now(),
+                    'suspension_reason' => 'Cuenta anonimizada a solicitud del usuario.',
+                ])->save();
+
+                if ($user->teacherProfile) {
+                    $user->teacherProfile->update([
+                        'bio' => null,
+                        'zoom_account_id' => null,
+                        'is_verified' => false,
+                    ]);
+                    $user->teacherProfile->classOffers()->update(['is_active' => false]);
+                }
+
+                $user->students()->get()->each(function ($student) {
+                    $student->update([
+                        'first_name' => 'Estudiante',
+                        'last_name' => "anonimizado {$student->id}",
+                        'birth_date' => null,
+                        'school' => null,
+                    ]);
+                });
+            });
+        } else {
+            $user->delete();
+        }
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    private function hasProtectedHistory(User $user): bool
+    {
+        $teacherProfile = $user->teacherProfile;
+
+        if ($teacherProfile && (
+            $teacherProfile->creditTransactions()->exists()
+            || $teacherProfile->rechargeRequests()->exists()
+            || $teacherProfile->classes()->exists()
+        )) {
+            return true;
+        }
+
+        $studentIds = $user->students()->pluck('id');
+
+        return $studentIds->isNotEmpty() && (
+            ClassRequest::whereIn('student_id', $studentIds)->exists()
+            || Lesson::whereIn('student_id', $studentIds)->exists()
+        );
     }
 }

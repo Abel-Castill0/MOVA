@@ -11,6 +11,9 @@ class CreditTransaction extends Model
 
     protected $fillable = [
         'teacher_profile_id',
+        'idempotency_key',
+        'lesson_id',
+        'recharge_request_id',
         'type',
         'amount',
         'description',
@@ -23,5 +26,15 @@ class CreditTransaction extends Model
     public function teacherProfile()
     {
         return $this->belongsTo(TeacherProfile::class);
+    }
+
+    public function lesson()
+    {
+        return $this->belongsTo(Lesson::class);
+    }
+
+    public function rechargeRequest()
+    {
+        return $this->belongsTo(RechargeRequest::class);
     }
 }

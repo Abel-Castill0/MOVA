@@ -55,8 +55,13 @@ class AdminController extends Controller
             ]);
 
             $welcomeBonusExists = $teacher->creditTransactions()
-                ->where('type', 'deposit')
-                ->where('description', 'Bono de bienvenida MOVA')
+                ->where(function ($query) use ($teacher) {
+                    $query->where('idempotency_key', "teacher:{$teacher->id}:welcome")
+                        ->orWhere(function ($legacy) {
+                            $legacy->where('type', 'deposit')
+                                ->where('description', 'Bono de bienvenida MOVA');
+                        });
+                })
                 ->exists();
 
             if (!$welcomeBonusExists) {
@@ -65,6 +70,7 @@ class AdminController extends Controller
                 ]);
 
                 $teacher->creditTransactions()->create([
+                    'idempotency_key' => "teacher:{$teacher->id}:welcome",
                     'type'        => 'deposit',
                     'amount'      => self::WELCOME_BONUS_CREDITS,
                     'description' => 'Bono de bienvenida MOVA',
@@ -158,7 +164,7 @@ class AdminController extends Controller
         ]);
 
         $lesson = DB::transaction(function () use ($lesson, $data) {
-            $lesson = Lesson::with(['student.parent', 'teacherProfile.user'])
+            $lesson = Lesson::with(['student.parent', 'teacherProfile.user', 'classRequest'])
                 ->whereKey($lesson->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -175,12 +181,23 @@ class AdminController extends Controller
                 'No hay créditos reservados suficientes para devolver esta clase.'
             );
 
-            $teacherProfile->update([
+            $profileUpdates = [
                 'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST,
                 'credits_reserved'  => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
-            ]);
+            ];
+
+            if ($lesson->classRequest?->is_mentorship) {
+                $profileUpdates['mentorship_slots_taken'] = max(
+                    0,
+                    $teacherProfile->mentorship_slots_taken - 1
+                );
+            }
+
+            $teacherProfile->update($profileUpdates);
 
             $teacherProfile->creditTransactions()->create([
+                'idempotency_key' => "lesson:{$lesson->id}:release",
+                'lesson_id'   => $lesson->id,
                 'type'        => 'refund',
                 'amount'      => self::CLASS_CREDIT_COST,
                 'description' => 'Devolución por clase cancelada',

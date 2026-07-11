@@ -42,6 +42,7 @@
                   <p class="text-xs text-gray-500">S/ {{ money(recharge.amount_pen) }}</p>
                 </td>
                 <td class="px-5 py-3.5">
+                  <p class="mb-1 text-xs font-semibold uppercase text-slate-500">{{ recharge.payment_method ?? 'legacy' }}</p>
                   <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                     {{ recharge.operation_number }}
                   </span>
@@ -122,12 +123,14 @@ function approve(recharge) {
 }
 
 function reject(recharge) {
-  if (!confirm('Rechazar esta solicitud de recarga?')) {
+  const reason = prompt('Indica el motivo del rechazo:')
+
+  if (!reason?.trim()) {
     return
   }
 
   processing.value = { id: recharge.id, action: 'reject' }
-  router.post(route('admin.recharges.reject', recharge.id), {}, {
+  router.post(route('admin.recharges.reject', recharge.id), { reason: reason.trim() }, {
     preserveScroll: true,
     onFinish: () => { processing.value = { id: null, action: null } },
   })

@@ -14,7 +14,7 @@ class LessonReportController extends Controller
     {
         $profile = auth()->user()->teacherProfile;
         abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
-        abort_unless(in_array($lesson->status, ['scheduled', 'completed']), 422, 'No se puede reportar esta clase.');
+        abort_unless($lesson->status === 'completed', 422, 'Solo se pueden reportar clases completadas.');
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson);
         }
@@ -37,7 +37,7 @@ class LessonReportController extends Controller
     {
         $profile = auth()->user()->teacherProfile;
         abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
-        abort_unless(in_array($lesson->status, ['scheduled', 'completed']), 422);
+        abort_unless($lesson->status === 'completed', 422, 'Solo se pueden reportar clases completadas.');
 
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson)
@@ -61,11 +61,6 @@ class LessonReportController extends Controller
             'student_id'         => $lesson->student_id,
             'sent_to_parent_at'  => now(),
         ]));
-
-        // Mark lesson completed if still scheduled
-        if ($lesson->status === 'scheduled') {
-            $lesson->update(['status' => 'completed']);
-        }
 
         // Notify parent
         $parent = $lesson->student?->parent;

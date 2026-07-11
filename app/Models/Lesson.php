@@ -63,6 +63,6 @@ class Lesson extends Model
 
     public function getEndTimeAttribute()
     {
-        return $this->start_time->addMinutes($this->duration_minutes);
+        return $this->start_time->copy()->addMinutes($this->duration_minutes);
     }
 }

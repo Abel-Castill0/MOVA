@@ -9,6 +9,7 @@ use App\Models\ClassRequest;
 use App\Models\Subject;
 use App\Notifications\ClassRequestRejectedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class ClassRequestController extends Controller
@@ -74,7 +75,22 @@ class ClassRequestController extends Controller
     {
         $studentIds = auth()->user()->students()->pluck('id');
         abort_unless($studentIds->contains($classRequest->student_id), 403);
-        $classRequest->update(['status' => 'open']);
+
+        DB::transaction(function () use ($classRequest, $studentIds) {
+            $classRequest = ClassRequest::whereKey($classRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless($studentIds->contains($classRequest->student_id), 403);
+            abort_unless(
+                $classRequest->status === 'pending_parent_approval',
+                422,
+                'Solo se pueden aprobar solicitudes pendientes de aprobación.'
+            );
+
+            $classRequest->update(['status' => 'open']);
+        });
+
         return back()->with('success', 'Solicitud aprobada.');
     }
 
@@ -82,7 +98,22 @@ class ClassRequestController extends Controller
     {
         $studentIds = auth()->user()->students()->pluck('id');
         abort_unless($studentIds->contains($classRequest->student_id), 403);
-        $classRequest->update(['status' => 'rejected']);
+
+        DB::transaction(function () use ($classRequest, $studentIds) {
+            $classRequest = ClassRequest::whereKey($classRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless($studentIds->contains($classRequest->student_id), 403);
+            abort_unless(
+                $classRequest->status === 'pending_parent_approval',
+                422,
+                'Solo se pueden rechazar solicitudes pendientes de aprobación.'
+            );
+
+            $classRequest->update(['status' => 'rejected']);
+        });
+
         return back()->with('success', 'Solicitud rechazada.');
     }
 

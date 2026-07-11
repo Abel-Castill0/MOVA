@@ -12,9 +12,11 @@ use App\Notifications\ClassRescheduledNotification;
 use App\Services\ZoomService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class LessonController extends Controller
 {
@@ -41,14 +43,7 @@ class LessonController extends Controller
         $ownedViaSubject = !$classRequest->class_offer_id && $subjectIds->contains($classRequest->subject_id);
         abort_unless($ownedViaOffer || $ownedViaSubject, 403, 'Esta solicitud no pertenece a tus ofertas.');
 
-        // Overlap check
-        $overlap = Lesson::where('teacher_profile_id', $profile->id)
-            ->where('status', 'scheduled')
-            ->whereRaw("start_time < DATE_ADD(?, INTERVAL ? MINUTE)", [$data['start_time'], $data['duration_minutes']])
-            ->whereRaw("DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) > ?", [$data['start_time']])
-            ->exists();
-
-        if ($overlap) {
+        if ($this->hasScheduleOverlap($profile->id, $data['start_time'], $data['duration_minutes'])) {
             return back()->withErrors(['start_time' => 'Ya tienes una clase en ese horario.']);
         }
 
@@ -62,14 +57,12 @@ class LessonController extends Controller
 
                 abort_if($classRequest->status !== 'open', 403, 'Esta solicitud ya no está disponible.');
 
-                $overlap = Lesson::where('teacher_profile_id', $profile->id)
-                    ->where('status', 'scheduled')
-                    ->whereRaw("start_time < DATE_ADD(?, INTERVAL ? MINUTE)", [$data['start_time'], $data['duration_minutes']])
-                    ->whereRaw("DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) > ?", [$data['start_time']])
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($overlap) {
+                if ($this->hasScheduleOverlap(
+                    $profile->id,
+                    $data['start_time'],
+                    $data['duration_minutes'],
+                    true
+                )) {
                     throw ValidationException::withMessages([
                         'start_time' => 'Ya tienes una clase en ese horario.',
                     ]);
@@ -85,11 +78,6 @@ class LessonController extends Controller
                     'Créditos insuficientes. Por favor, recargue su saldo para aceptar esta clase.'
                 );
 
-                $profileUpdates = [
-                    'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST,
-                    'credits_reserved'  => $teacherProfile->credits_reserved + self::CLASS_CREDIT_COST,
-                ];
-
                 if ($classRequest->is_mentorship) {
                     abort_unless(
                         $teacherProfile->hasAvailableMentorshipSlots(),
@@ -97,16 +85,7 @@ class LessonController extends Controller
                         'Este profesor tiene la agenda llena para acompañamiento continuo.'
                     );
 
-                    $profileUpdates['mentorship_slots_taken'] = $teacherProfile->mentorship_slots_taken + 1;
                 }
-
-                $teacherProfile->update($profileUpdates);
-
-                $teacherProfile->creditTransactions()->create([
-                    'type'        => 'reservation',
-                    'amount'      => self::CLASS_CREDIT_COST,
-                    'description' => 'Reserva por aceptación de clase',
-                ]);
 
                 // Create Zoom meeting; throws RuntimeException if credentials are missing or API fails.
                 $meeting = $zoom->createMeeting(
@@ -128,11 +107,34 @@ class LessonController extends Controller
                     'status'             => 'scheduled',
                 ]);
 
+                $profileUpdates = [
+                    'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST,
+                    'credits_reserved'  => $teacherProfile->credits_reserved + self::CLASS_CREDIT_COST,
+                ];
+
+                if ($classRequest->is_mentorship) {
+                    $profileUpdates['mentorship_slots_taken'] = $teacherProfile->mentorship_slots_taken + 1;
+                }
+
+                $teacherProfile->update($profileUpdates);
+
+                $teacherProfile->creditTransactions()->create([
+                    'idempotency_key' => "lesson:{$lesson->id}:reservation",
+                    'lesson_id'   => $lesson->id,
+                    'type'        => 'reservation',
+                    'amount'      => self::CLASS_CREDIT_COST,
+                    'description' => 'Reserva por aceptación de clase',
+                ]);
+
                 $classRequest->update(['status' => 'accepted']);
 
                 return $lesson;
             });
         } catch (RuntimeException $e) {
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
+
             return back()->withErrors(['zoom' => $e->getMessage()]);
         }
 
@@ -172,6 +174,7 @@ class LessonController extends Controller
         $profile = auth()->user()->teacherProfile;
         abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden completar clases programadas.');
+        abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
 
         DB::transaction(function () use ($lesson, $profile) {
             $lesson = Lesson::whereKey($lesson->id)
@@ -180,6 +183,7 @@ class LessonController extends Controller
 
             abort_unless($lesson->teacher_profile_id === $profile->id, 403);
             abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden completar clases programadas.');
+            abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
 
             $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)
                 ->lockForUpdate()
@@ -198,6 +202,8 @@ class LessonController extends Controller
             ]);
 
             $teacherProfile->creditTransactions()->create([
+                'idempotency_key' => "lesson:{$lesson->id}:consumption",
+                'lesson_id'   => $lesson->id,
                 'type'        => 'consumption',
                 'amount'      => self::CLASS_CREDIT_COST,
                 'description' => 'Consumo por clase completada',
@@ -227,7 +233,7 @@ class LessonController extends Controller
         ]);
 
         $lesson = DB::transaction(function () use ($lesson, $user, $data) {
-            $lesson = Lesson::with(['student.parent', 'teacherProfile.user'])
+            $lesson = Lesson::with(['student.parent', 'teacherProfile.user', 'classRequest'])
                 ->whereKey($lesson->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -244,12 +250,23 @@ class LessonController extends Controller
                 'No hay créditos reservados suficientes para devolver esta clase.'
             );
 
-            $teacherProfile->update([
+            $profileUpdates = [
                 'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST,
                 'credits_reserved'  => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
-            ]);
+            ];
+
+            if ($lesson->classRequest?->is_mentorship) {
+                $profileUpdates['mentorship_slots_taken'] = max(
+                    0,
+                    $teacherProfile->mentorship_slots_taken - 1
+                );
+            }
+
+            $teacherProfile->update($profileUpdates);
 
             $teacherProfile->creditTransactions()->create([
+                'idempotency_key' => "lesson:{$lesson->id}:release",
+                'lesson_id'   => $lesson->id,
                 'type'        => 'refund',
                 'amount'      => self::CLASS_CREDIT_COST,
                 'description' => 'Devolución por clase cancelada',
@@ -342,5 +359,26 @@ class LessonController extends Controller
         $lesson->student?->parent?->notify($notification);
 
         return back()->with('success', 'Clase reprogramada correctamente.');
+    }
+
+    private function hasScheduleOverlap(
+        int $teacherProfileId,
+        string $startTime,
+        int $durationMinutes,
+        bool $lock = false
+    ): bool {
+        $requestedStart = Carbon::parse($startTime);
+        $requestedEnd = $requestedStart->copy()->addMinutes($durationMinutes);
+        $query = Lesson::where('teacher_profile_id', $teacherProfileId)
+            ->where('status', 'scheduled')
+            ->where('start_time', '<', $requestedEnd);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get()->contains(
+            fn (Lesson $lesson) => $lesson->end_time->gt($requestedStart)
+        );
     }
 }

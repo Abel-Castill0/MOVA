@@ -11,20 +11,41 @@ class RechargeRequest extends Model
 
     protected $fillable = [
         'teacher_profile_id',
+        'package_code',
         'package_name',
         'credits',
         'amount_pen',
+        'payment_method',
         'operation_number',
+        'operation_number_normalized',
         'status',
+        'reviewed_at',
+        'reviewed_by',
+        'approved_at',
+        'rejected_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
         'credits' => 'integer',
         'amount_pen' => 'decimal:2',
+        'reviewed_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     public function teacherProfile()
     {
         return $this->belongsTo(TeacherProfile::class);
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function creditTransaction()
+    {
+        return $this->hasOne(CreditTransaction::class);
     }
 }

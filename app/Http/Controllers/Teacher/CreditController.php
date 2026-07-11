@@ -6,18 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\RechargeRequest;
 use App\Models\User;
 use App\Notifications\NewRechargeRequestNotification;
+use App\Support\OperationNumberNormalizer;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CreditController extends Controller
 {
-    private const PACKAGES = [
-        'Inicio' => ['credits' => 5, 'amount_pen' => '10.00'],
-        'Impulso' => ['credits' => 15, 'amount_pen' => '30.00'],
-        'Pro' => ['credits' => 30, 'amount_pen' => '60.00'],
-    ];
-
     public function index()
     {
         $teacherProfile = auth()->user()->teacherProfile;
@@ -37,7 +35,18 @@ class CreditController extends Controller
             'rechargeRequests' => $teacherProfile->rechargeRequests()
                 ->latest()
                 ->limit(20)
-                ->get(['id', 'package_name', 'credits', 'amount_pen', 'operation_number', 'status', 'created_at']),
+                ->get([
+                    'id', 'package_code', 'package_name', 'credits', 'amount_pen',
+                    'payment_method', 'operation_number', 'status', 'rejection_reason', 'created_at',
+                ]),
+            'packages' => collect(config('credits.packages'))
+                ->map(fn (array $package, string $code) => ['code' => $code] + $package)
+                ->values(),
+            'paymentMethods' => config('credits.payment_methods'),
+            'rechargesEnabled' => $this->rechargesEnabled(),
+            'paymentDestination' => $this->rechargesEnabled()
+                ? config('credits.recharges.payment_destination')
+                : null,
         ]);
     }
 
@@ -46,30 +55,63 @@ class CreditController extends Controller
         $teacherProfile = $request->user()->teacherProfile;
 
         abort_unless($teacherProfile, 403, 'No tienes perfil de profesor.');
+        abort_unless(
+            $this->rechargesEnabled(),
+            503,
+            'Las recargas se habilitarán próximamente.'
+        );
+
+        $packages = config('credits.packages');
+        $paymentMethods = config('credits.payment_methods');
 
         $data = $request->validate([
-            'package_name' => ['required', 'string', Rule::in(array_keys(self::PACKAGES))],
-            'credits' => ['required', 'integer', Rule::in([5, 15, 30])],
-            'amount_pen' => ['required', 'numeric', Rule::in([10, 30, 60])],
+            'package_code' => ['required', 'string', Rule::in(array_keys($packages))],
+            'payment_method' => ['required', 'string', Rule::in(array_keys($paymentMethods))],
             'operation_number' => ['required', 'string', 'min:4', 'max:80'],
         ]);
 
-        $package = self::PACKAGES[$data['package_name']];
+        $normalizedOperation = OperationNumberNormalizer::normalize($data['operation_number']);
 
-        abort_if(
-            (int) $data['credits'] !== $package['credits'] || number_format((float) $data['amount_pen'], 2, '.', '') !== $package['amount_pen'],
-            422,
-            'El paquete seleccionado no coincide con el monto enviado.'
-        );
+        if (mb_strlen($normalizedOperation, 'UTF-8') < 4) {
+            throw ValidationException::withMessages([
+                'operation_number' => 'Ingrese un número de operación válido.',
+            ]);
+        }
 
-        $recharge = RechargeRequest::create([
-            'teacher_profile_id' => $teacherProfile->id,
-            'package_name' => $data['package_name'],
-            'credits' => $package['credits'],
-            'amount_pen' => $package['amount_pen'],
-            'operation_number' => $data['operation_number'],
-            'status' => 'pending',
-        ]);
+        $duplicate = RechargeRequest::where('operation_number_normalized', $normalizedOperation)
+            ->where(function ($query) use ($data) {
+                $query->where('payment_method', $data['payment_method'])
+                    ->orWhere('payment_method', 'legacy');
+            })
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'operation_number' => 'Este número de operación ya fue registrado.',
+            ]);
+        }
+
+        $package = $packages[$data['package_code']];
+
+        try {
+            $recharge = DB::transaction(function () use ($teacherProfile, $data, $package, $normalizedOperation) {
+                return RechargeRequest::create([
+                    'teacher_profile_id' => $teacherProfile->id,
+                    'package_code' => $data['package_code'],
+                    'package_name' => $package['name'],
+                    'credits' => $package['credits'],
+                    'amount_pen' => $package['amount_pen'],
+                    'payment_method' => $data['payment_method'],
+                    'operation_number' => trim($data['operation_number']),
+                    'operation_number_normalized' => $normalizedOperation,
+                    'status' => 'pending',
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'operation_number' => 'Este número de operación ya fue registrado.',
+            ]);
+        }
 
         $recharge->load('teacherProfile.user');
         User::role('admin')->get()->each(function (User $admin) use ($recharge) {
@@ -79,5 +121,11 @@ class CreditController extends Controller
         return redirect()
             ->route('teacher.credits.index')
             ->with('success', 'Solicitud de recarga enviada. El administrador la validará pronto.');
+    }
+
+    private function rechargesEnabled(): bool
+    {
+        return (bool) config('credits.recharges.enabled')
+            && filled(config('credits.recharges.payment_destination'));
     }
 }
