@@ -9,10 +9,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $this->assertLegacyRechargeOperationsAreSafe();
+
         Schema::table('recharge_requests', function (Blueprint $table) {
-            $table->string('package_code')->nullable()->after('teacher_profile_id');
-            $table->string('payment_method')->nullable()->after('amount_pen');
-            $table->string('operation_number_normalized')->nullable()->after('operation_number');
+            $table->string('package_code', 64)->nullable()->after('teacher_profile_id');
+            $table->string('payment_method', 32)->nullable()->after('amount_pen');
+            $table->string('operation_number_normalized', 191)->nullable()->after('operation_number');
             $table->timestamp('reviewed_at')->nullable()->after('status');
             $table->foreignId('reviewed_by')->nullable()->after('reviewed_at');
             $table->timestamp('approved_at')->nullable()->after('reviewed_by');
@@ -20,21 +22,7 @@ return new class extends Migration
             $table->string('rejection_reason', 500)->nullable()->after('rejected_at');
         });
 
-        $seen = [];
-        DB::table('recharge_requests')->orderBy('id')->get()->each(function ($recharge) use (&$seen) {
-            $base = mb_strtoupper(
-                preg_replace('/[^\p{L}\p{N}]+/u', '', trim((string) $recharge->operation_number)) ?? '',
-                'UTF-8'
-            );
-            $base = $base !== '' ? $base : 'LEGACY';
-            $normalized = $base;
-
-            if (isset($seen['legacy|' . $normalized])) {
-                $normalized .= 'LEGACY' . $recharge->id;
-            }
-
-            $seen['legacy|' . $normalized] = true;
-
+        DB::table('recharge_requests')->orderBy('id')->get()->each(function ($recharge) {
             DB::table('recharge_requests')->where('id', $recharge->id)->update([
                 'package_code' => match (mb_strtolower((string) $recharge->package_name, 'UTF-8')) {
                     'inicio' => 'inicio',
@@ -43,9 +31,18 @@ return new class extends Migration
                     default => 'legacy',
                 },
                 'payment_method' => 'legacy',
-                'operation_number_normalized' => $normalized,
+                'operation_number_normalized' => $this->normalizeOperation($recharge->operation_number),
             ]);
         });
+
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement(
+                'ALTER TABLE `recharge_requests` '
+                .'MODIFY `package_code` VARCHAR(64) NOT NULL, '
+                .'MODIFY `payment_method` VARCHAR(32) NOT NULL, '
+                .'MODIFY `operation_number_normalized` VARCHAR(191) NOT NULL'
+            );
+        }
 
         Schema::table('recharge_requests', function (Blueprint $table) {
             $table->unique(
@@ -55,7 +52,7 @@ return new class extends Migration
         });
 
         Schema::table('credit_transactions', function (Blueprint $table) {
-            $table->string('idempotency_key')->nullable()->after('teacher_profile_id');
+            $table->string('idempotency_key', 128)->nullable()->after('teacher_profile_id');
             $table->foreignId('lesson_id')->nullable()->after('idempotency_key');
             $table->foreignId('recharge_request_id')->nullable()->after('lesson_id');
             $table->unique('idempotency_key');
@@ -91,6 +88,8 @@ return new class extends Migration
 
     public function down(): void
     {
+        $this->assertRollbackDoesNotDiscardFinancialHistory();
+
         if (DB::getDriverName() === 'mysql') {
             Schema::table('credit_transactions', function (Blueprint $table) {
                 $table->dropForeign(['lesson_id']);
@@ -122,5 +121,65 @@ return new class extends Migration
                 'rejection_reason',
             ]);
         });
+    }
+
+    private function assertLegacyRechargeOperationsAreSafe(): void
+    {
+        $seen = [];
+        $emptyOperations = 0;
+        $duplicateOperations = 0;
+
+        DB::table('recharge_requests')
+            ->select(['id', 'operation_number'])
+            ->orderBy('id')
+            ->cursor()
+            ->each(function ($recharge) use (&$seen, &$emptyOperations, &$duplicateOperations) {
+                $normalized = $this->normalizeOperation($recharge->operation_number);
+
+                if ($normalized === '') {
+                    $emptyOperations++;
+
+                    return;
+                }
+
+                if (isset($seen[$normalized])) {
+                    $duplicateOperations++;
+
+                    return;
+                }
+
+                $seen[$normalized] = true;
+            });
+
+        if ($emptyOperations > 0 || $duplicateOperations > 0) {
+            throw new RuntimeException(
+                'Monetization migration aborted: legacy recharge operations require approved remediation. '
+                ."Empty operations: {$emptyOperations}; normalized duplicates: {$duplicateOperations}."
+            );
+        }
+    }
+
+    private function assertRollbackDoesNotDiscardFinancialHistory(): void
+    {
+        $hasRechargeHistory = DB::table('recharge_requests')->exists();
+        $hasContextualLedger = DB::table('credit_transactions')
+            ->whereNotNull('idempotency_key')
+            ->orWhereNotNull('lesson_id')
+            ->orWhereNotNull('recharge_request_id')
+            ->exists();
+
+        if ($hasRechargeHistory || $hasContextualLedger) {
+            throw new RuntimeException(
+                'Monetization rollback aborted: removing these columns would discard financial audit history.'
+            );
+        }
+    }
+
+    private function normalizeOperation(mixed $value): string
+    {
+        $normalized = trim((string) $value);
+        $normalized = preg_replace('/[^\p{L}\p{N}]+/u', '', $normalized) ?? '';
+
+        return mb_strtoupper($normalized, 'UTF-8');
     }
 };

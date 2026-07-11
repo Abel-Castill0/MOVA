@@ -47,6 +47,24 @@ lesson:{lesson_id}:release
 
 El ledger incluye referencias opcionales a `lesson_id` y `recharge_request_id`. Los saldos de `teacher_profiles` siguen siendo la fuente operativa; la reconciliación automática con el ledger queda pendiente.
 
+### Preflight de datos históricos
+
+La migración aborta antes de alterar el esquema cuando encuentra operaciones históricas vacías o duplicadas después de normalizar. No modifica, combina ni elimina esos registros. El diagnóstico previo equivalente para MySQL 8 es:
+
+```sql
+SELECT COUNT(*) AS empty_operations
+FROM recharge_requests
+WHERE REGEXP_REPLACE(TRIM(operation_number), '[^[:alnum:]]', '') = '';
+
+SELECT UPPER(REGEXP_REPLACE(TRIM(operation_number), '[^[:alnum:]]', '')) AS normalized_operation,
+       COUNT(*) AS occurrences
+FROM recharge_requests
+GROUP BY normalized_operation
+HAVING normalized_operation = '' OR COUNT(*) > 1;
+```
+
+La consulta debe ejecutarse únicamente en modo de solo lectura y no deben copiarse números de operación a reportes o logs. Cualquier remediación requiere aprobación del propietario antes de reintentar la migración.
+
 ## Estados protegidos
 
 ```text
@@ -72,9 +90,12 @@ El rechazo individual de solicitudes genéricas no se rediseñó: `teacher_rejec
 - Las referencias secundarias de revisión pueden quedar en `NULL`.
 - Una cuenta con ledger, recargas o clases se anonimiza y suspende en lugar de eliminarse físicamente.
 - Se eliminan datos personales operativos, se desactivan ofertas y se conserva la evidencia financiera.
+- Se revocan roles, sesiones persistidas y tokens personales antes de terminar el flujo.
 - Una cuenta sin historial protegido mantiene el flujo de borrado físico existente.
 
 La migración de reemplazo de foreign keys es intencionalmente un no-op en SQLite; SQLite se usa para pruebas funcionales, no para validar las reglas `ON DELETE` de MySQL.
+
+El rollback de columnas financieras se niega cuando existen recargas o ledger contextual. La restauración de foreign keys con `CASCADE` también se niega cuando existen clases, solicitudes o registros financieros. Ambos controles evitan destruir o volver vulnerable la evidencia de auditoría.
 
 ## Cobertura automatizada
 
@@ -90,7 +111,7 @@ La migración de reemplazo de foreign keys es intencionalmente un no-op en SQLit
 - conservación de ledger, recarga y clase al eliminar cuenta;
 - ausencia de saldos negativos en los casos cubiertos.
 
-Resultado local de Fase 1: 50 tests, 151 assertions.
+El conteo exacto de tests y assertions se actualiza en el reporte del release gate después del QA final.
 
 ## Validación MySQL pendiente
 

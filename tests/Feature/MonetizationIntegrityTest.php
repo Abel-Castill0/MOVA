@@ -15,8 +15,10 @@ use App\Models\User;
 use App\Services\ZoomService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -183,6 +185,28 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('credit_transactions', 1);
     }
 
+    public function test_pending_recharge_with_existing_idempotency_key_requires_manual_review(): void
+    {
+        [, $profile] = $this->teacher();
+        $admin = $this->userWithRole('admin');
+        $recharge = $this->recharge($profile);
+        CreditTransaction::create([
+            'teacher_profile_id' => $profile->id,
+            'recharge_request_id' => $recharge->id,
+            'idempotency_key' => "recharge:{$recharge->id}:deposit",
+            'type' => 'deposit',
+            'amount' => $recharge->credits,
+            'description' => 'Fixture de inconsistencia',
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.recharges.approve', $recharge))
+            ->assertStatus(409);
+
+        $this->assertSame('pending', $recharge->fresh()->status);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertDatabaseCount('credit_transactions', 1);
+    }
+
     public function test_recharge_rejection_requires_reason(): void
     {
         [, $profile] = $this->teacher();
@@ -233,6 +257,27 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame(1, Lesson::count());
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:reservation")->count());
         $this->assertSame(3, $profile->fresh()->credits_available);
+    }
+
+    public function test_lesson_start_with_timezone_offset_is_stored_and_guarded_in_utc(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 12:00:00 UTC'));
+        [$teacher, , $subject] = $this->teacher(5);
+        [, , $request] = $this->parentRequest($subject, 'open');
+        $this->mockZoomMeeting();
+
+        $this->actingAs($teacher)->post(route('lessons.store'), [
+            'class_request_id' => $request->id,
+            'start_time' => '2026-07-11T10:00:00-05:00',
+            'duration_minutes' => 60,
+        ])->assertRedirect(route('teacher.lessons'));
+
+        $lesson = Lesson::firstOrFail();
+        $this->assertSame('2026-07-11 15:00:00', $lesson->start_time->utc()->format('Y-m-d H:i:s'));
+
+        Carbon::setTestNow(Carbon::parse('2026-07-11 15:30:00 UTC'));
+        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
+            ->assertStatus(422);
     }
 
     public function test_parent_cannot_approve_request_outside_pending_state(): void
@@ -358,6 +403,16 @@ class MonetizationIntegrityTest extends TestCase
     public function test_financial_history_survives_account_deletion_flow(): void
     {
         [$teacher, $profile, $subject] = $this->teacher(3);
+        $originalEmail = $teacher->email;
+        $teacher->createToken('account-deletion-review');
+        DB::table('sessions')->insert([
+            'id' => 'review-session',
+            'user_id' => $teacher->id,
+            'ip_address' => null,
+            'user_agent' => null,
+            'payload' => 'fixture',
+            'last_activity' => now()->timestamp,
+        ]);
         [, $student, $request] = $this->parentRequest($subject, 'accepted');
         $recharge = $this->recharge($profile);
         $lesson = Lesson::create([
@@ -386,6 +441,19 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseHas('credit_transactions', ['id' => $transaction->id]);
         $this->assertDatabaseHas('recharge_requests', ['id' => $recharge->id]);
         $this->assertDatabaseHas('classes', ['id' => $lesson->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_type' => User::class,
+            'tokenable_id' => $teacher->id,
+        ]);
+        $this->assertDatabaseMissing('sessions', ['user_id' => $teacher->id]);
+        $this->assertDatabaseMissing('model_has_roles', [
+            'model_type' => User::class,
+            'model_id' => $teacher->id,
+        ]);
+        $this->post('/login', [
+            'email' => $originalEmail,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
     }
 
     public function test_insufficient_credits_never_create_negative_balance(): void
@@ -405,6 +473,51 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('classes', 0);
     }
 
+    public function test_monetization_migration_aborts_before_schema_changes_for_legacy_duplicates(): void
+    {
+        [, $profile] = $this->teacher();
+        $migration = require database_path('migrations/2026_07_10_000001_harden_monetization_records.php');
+        $migration->down();
+
+        foreach (['00-1234', '00 1234'] as $operation) {
+            DB::table('recharge_requests')->insert([
+                'teacher_profile_id' => $profile->id,
+                'package_name' => 'Inicio',
+                'credits' => 5,
+                'amount_pen' => '10.00',
+                'operation_number' => $operation,
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        try {
+            $migration->up();
+            $this->fail('La migración debió abortar por operaciones históricas duplicadas.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('normalized duplicates: 1', $exception->getMessage());
+            $this->assertFalse(Schema::hasColumn('recharge_requests', 'operation_number_normalized'));
+            $this->assertDatabaseCount('recharge_requests', 2);
+        }
+    }
+
+    public function test_monetization_rollback_refuses_to_discard_financial_history(): void
+    {
+        [, $profile] = $this->teacher();
+        $this->recharge($profile);
+        $migration = require database_path('migrations/2026_07_10_000001_harden_monetization_records.php');
+
+        try {
+            $migration->down();
+            $this->fail('El rollback debió rechazar la pérdida de historial financiero.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('rollback aborted', $exception->getMessage());
+            $this->assertTrue(Schema::hasColumn('recharge_requests', 'operation_number_normalized'));
+            $this->assertDatabaseCount('recharge_requests', 1);
+        }
+    }
+
     private function teacher(int $availableCredits = 0): array
     {
         $teacher = $this->userWithRole('teacher');
@@ -415,7 +528,7 @@ class MonetizationIntegrityTest extends TestCase
             'credits_reserved' => 0,
         ]);
         $subject = Subject::create([
-            'name' => 'Materia ' . fake()->unique()->numerify('####'),
+            'name' => 'Materia '.fake()->unique()->numerify('####'),
             'level' => 'secundaria',
         ]);
         $profile->subjects()->attach($subject->id);

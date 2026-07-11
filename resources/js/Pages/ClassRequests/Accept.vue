@@ -110,10 +110,16 @@ const durationOptions = [
 // Minimum selectable time = now + 5 min
 const minDateTime = computed(() => {
   const d = new Date(Date.now() + 5 * 60000)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
 })
 
 function submit() {
-  form.post(route('lessons.store'))
+  form
+    .transform(data => ({
+      ...data,
+      start_time: new Date(data.start_time).toISOString(),
+    }))
+    .post(route('lessons.store'))
 }
 </script>

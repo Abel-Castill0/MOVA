@@ -198,7 +198,10 @@ function submitReschedule() {
   }
   router.post(
     route('lessons.reschedule', rescheduleTarget.value.id),
-    { ...rescheduleForm.value },
+    {
+      ...rescheduleForm.value,
+      start_time: new Date(rescheduleForm.value.start_time).toISOString(),
+    },
     {
       onSuccess: () => { rescheduleTarget.value = null },
       onError: (e) => { rescheduleError.value = e.start_time || 'Error al reprogramar.' },

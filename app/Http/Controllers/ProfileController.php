@@ -59,9 +59,16 @@ class ProfileController extends Controller
         // Logout first so token rotation cannot persist a model after a hard delete.
         Auth::logout();
 
-        if ($this->hasProtectedHistory($user)) {
-            DB::transaction(function () use ($user) {
-                $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+        $preserveFinancialHistory = $this->hasProtectedHistory($user);
+
+        DB::transaction(function () use ($user, $preserveFinancialHistory) {
+            $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            $user->tokens()->delete();
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+            $user->syncRoles([]);
+
+            if ($preserveFinancialHistory) {
 
                 $user->forceFill([
                     'name' => 'Cuenta eliminada',
@@ -71,6 +78,7 @@ class ProfileController extends Controller
                     'phone_verified_at' => null,
                     'phone_verification_code_hash' => null,
                     'phone_verification_expires_at' => null,
+                    'remember_token' => null,
                     'password' => Str::random(64),
                     'suspended_at' => now(),
                     'suspension_reason' => 'Cuenta anonimizada a solicitud del usuario.',
@@ -93,10 +101,10 @@ class ProfileController extends Controller
                         'school' => null,
                     ]);
                 });
-            });
-        } else {
-            $user->delete();
-        }
+            } else {
+                $user->delete();
+            }
+        });
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
