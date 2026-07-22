@@ -57,6 +57,13 @@ function fmtDate(d) {
 }
 
 let interval
-onMounted(() => { load(); interval = setInterval(load, 30000) })
-onUnmounted(() => clearInterval(interval))
+onMounted(() => {
+  load()
+  interval = setInterval(load, 30000)
+  window.addEventListener('mova:notification', load)
+})
+onUnmounted(() => {
+  clearInterval(interval)
+  window.removeEventListener('mova:notification', load)
+})
 </script>

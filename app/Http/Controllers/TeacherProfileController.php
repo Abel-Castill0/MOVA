@@ -65,6 +65,8 @@ class TeacherProfileController extends Controller
         $data = $request->validate([
             'bio' => 'nullable|string|max:1000',
             'hourly_rate' => 'required|numeric|min:0|max:' . $maxRate,
+            'yape_number' => 'nullable|string|max:20',
+            'plin_number' => 'nullable|string|max:20',
             'mentorship_slots_total' => 'required|integer|min:0|max:50',
             'subject_ids' => 'nullable|array',
             'subject_ids.*' => 'exists:subjects,id',
@@ -77,6 +79,8 @@ class TeacherProfileController extends Controller
         $profile->update([
             'bio' => $data['bio'] ?? null,
             'hourly_rate' => $data['hourly_rate'],
+            'yape_number' => $data['yape_number'] ?? null,
+            'plin_number' => $data['plin_number'] ?? null,
             'mentorship_slots_total' => $data['mentorship_slots_total'],
         ]);
 

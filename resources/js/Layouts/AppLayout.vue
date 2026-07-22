@@ -90,6 +90,15 @@
         </div>
       </div>
 
+      <!-- Toast de notificación en tiempo real -->
+      <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0 -translate-y-2" leave-active-class="transition duration-200" leave-to-class="opacity-0">
+        <div v-if="realtimeToast" class="px-4 sm:px-6 lg:px-8 pt-4">
+          <div class="bg-brand-50 border border-brand-200 text-brand-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+            <span>🔔</span> {{ realtimeToast }}
+          </div>
+        </div>
+      </Transition>
+
       <main class="flex-1 px-4 sm:px-6 lg:px-8 py-6">
         <slot />
       </main>
@@ -98,8 +107,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
 
 defineProps({ title: String })
@@ -108,6 +117,36 @@ const page        = usePage()
 const user        = computed(() => page.props.auth?.user)
 const flash       = computed(() => page.props.flash ?? {})
 const sidebarOpen = ref(false)
+const realtimeToast = ref('')
+let toastTimeout
+
+function showRealtimeToast(message) {
+  if (!message) return
+  clearTimeout(toastTimeout)
+  realtimeToast.value = message
+  toastTimeout = setTimeout(() => { realtimeToast.value = '' }, 6000)
+}
+
+let channel
+onMounted(() => {
+  const userId = user.value?.id
+  if (!userId || !window.Echo) return
+
+  channel = window.Echo.private(`App.Models.User.${userId}`)
+  channel.notification((notification) => {
+    router.reload({ only: ['lessons', 'notifications', 'auth'], preserveScroll: true })
+    window.dispatchEvent(new CustomEvent('mova:notification', { detail: notification }))
+    showRealtimeToast(notification.message)
+  })
+})
+
+onUnmounted(() => {
+  clearTimeout(toastTimeout)
+  const userId = user.value?.id
+  if (userId && window.Echo) {
+    window.Echo.leave(`App.Models.User.${userId}`)
+  }
+})
 
 function isActive(href) {
   return page.url.startsWith(href) && href !== '/'

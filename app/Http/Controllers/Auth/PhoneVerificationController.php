@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -15,6 +17,7 @@ class PhoneVerificationController extends Controller
 {
     private const MAX_ATTEMPTS = 5;
     private const CODE_TTL_MINUTES = 10;
+    private const WELCOME_BONUS_CREDITS = 5;
 
     public function show(Request $request): Response
     {
@@ -97,7 +100,49 @@ class PhoneVerificationController extends Controller
             'phone_verification_attempts'    => 0,
         ]);
 
+        $this->grantTeacherWelcomeBonus($user);
+
         return redirect()->intended(route('dashboard'))->with('status', 'phone-verified');
+    }
+
+    private function grantTeacherWelcomeBonus(User $user): void
+    {
+        if (!$user->hasRole('teacher')) {
+            return;
+        }
+
+        DB::transaction(function () use ($user) {
+            $teacher = TeacherProfile::where('user_id', $user->id)->lockForUpdate()->first();
+
+            if (!$teacher) {
+                return;
+            }
+
+            $welcomeBonusExists = $teacher->creditTransactions()
+                ->where(function ($query) use ($teacher) {
+                    $query->where('idempotency_key', "teacher:{$teacher->id}:welcome")
+                        ->orWhere(function ($legacy) {
+                            $legacy->where('type', 'deposit')
+                                ->where('description', 'Bono de bienvenida MOVA');
+                        });
+                })
+                ->exists();
+
+            if ($welcomeBonusExists) {
+                return;
+            }
+
+            $teacher->update([
+                'credits_available' => $teacher->credits_available + self::WELCOME_BONUS_CREDITS,
+            ]);
+
+            $teacher->creditTransactions()->create([
+                'idempotency_key' => "teacher:{$teacher->id}:welcome",
+                'type'        => 'deposit',
+                'amount'      => self::WELCOME_BONUS_CREDITS,
+                'description' => 'Bono de bienvenida MOVA',
+            ]);
+        });
     }
 
     private function sendWhatsAppCode(string $to, string $code, string $name): bool

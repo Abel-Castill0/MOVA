@@ -87,7 +87,6 @@ class ProfileController extends Controller
                 if ($user->teacherProfile) {
                     $user->teacherProfile->update([
                         'bio' => null,
-                        'zoom_account_id' => null,
                         'is_verified' => false,
                     ]);
                     $user->teacherProfile->classOffers()->update(['is_active' => false]);

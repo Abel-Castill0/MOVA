@@ -10,7 +10,7 @@ class TeacherProfile extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'bio', 'hourly_rate', 'zoom_account_id', 'is_verified',
+        'user_id', 'bio', 'hourly_rate', 'yape_number', 'plin_number', 'is_verified',
         'credits_available', 'credits_reserved',
         'completed_classes_count', 'is_experienced',
         'mentorship_slots_total', 'mentorship_slots_taken',

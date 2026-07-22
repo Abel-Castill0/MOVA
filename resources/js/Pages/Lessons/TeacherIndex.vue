@@ -44,19 +44,11 @@
                 </div>
               </div>
 
-              <div v-if="l.status === 'scheduled' && l.zoom_link" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px]">
-                <p class="text-xs font-semibold text-brand-600 uppercase tracking-wide mb-2">Enlace Zoom</p>
-                <a :href="l.zoom_link" target="_blank" rel="noopener"
-                  class="flex items-center gap-2 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow shadow-brand-600/25 mb-2">
-                  <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-                    <path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/>
-                  </svg>
-                  Unirse a la clase
-                </a>
-                <p v-if="l.zoom_password" class="text-xs text-slate-500 text-center">
-                  🔑 Contraseña: <strong class="text-slate-700 select-all">{{ l.zoom_password }}</strong>
-                </p>
+              <div v-if="canJoinJitsi(l)" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px] flex items-center">
+                <button @click="openJitsi(l)"
+                  class="flex items-center gap-2 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow shadow-brand-600/25">
+                  🎥 Ingresar a la Sala Virtual
+                </button>
               </div>
 
               <div v-else-if="l.status !== 'scheduled'" class="flex-shrink-0 text-center px-4 py-3 bg-slate-50 rounded-xl">
@@ -64,23 +56,29 @@
               </div>
             </div>
 
+            <div v-if="l.status === 'paid' && !l.lesson_report" class="mt-3 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+              <p class="text-xs font-medium text-indigo-700">
+                💰 El padre/tutor confirmó el pago de esta clase. Ya puedes escribir el reporte pedagógico.
+              </p>
+            </div>
+
             <div class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2">
-              <template v-if="l.status === 'completed'">
-                <Link v-if="l.lesson_report" :href="route('lesson-reports.show', l.id)"
+              <template v-if="l.lesson_report">
+                <Link :href="route('lesson-reports.show', l.id)"
                   class="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
                   Ver reporte enviado ✓
                 </Link>
-                <Link v-else :href="route('lesson-reports.create', l.id)"
+              </template>
+
+              <template v-else-if="l.status === 'paid'">
+                <Link :href="route('lesson-reports.create', l.id)"
                   class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
-                  📝 Crear reporte
+                  📝 Escribir reporte pedagógico
                 </Link>
               </template>
 
               <template v-else-if="l.status === 'scheduled'">
-                <Link :href="route('lessons.complete', l.id)" method="post" as="button"
-                  class="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
-                  ✓ Marcar como completada
-                </Link>
+                <span class="text-xs text-slate-400">Pendiente de confirmación de pago</span>
                 <div class="flex gap-2">
                   <button @click="openReschedule(l)"
                     class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
@@ -155,6 +153,12 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Modal Sala Virtual (Jitsi) ─────────────────────────────────────────── -->
+    <Modal :show="showingJitsiModal" max-width="7xl" @close="closeJitsi">
+      <iframe :src="currentJitsiUrl" allow="camera; microphone; fullscreen; display-capture"
+        class="w-full h-[80vh] border-0"></iframe>
+    </Modal>
   </AppLayout>
 </template>
 
@@ -163,6 +167,7 @@ import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import Modal from '@/Components/Modal.vue'
 
 defineProps({ lessons: Array })
 
@@ -171,6 +176,26 @@ const cancelReason   = ref('')
 const rescheduleTarget = ref(null)
 const rescheduleError  = ref('')
 const rescheduleForm   = ref({ start_time: '', duration_minutes: 60, reason: '' })
+const showingJitsiModal = ref(false)
+const currentJitsiUrl   = ref('')
+
+function canJoinJitsi(l) {
+  if (!l.jitsi_room) return false
+  if (l.status === 'paid') return true
+  if (l.status !== 'scheduled') return false
+  const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
+  return minutesToStart <= 15
+}
+
+function openJitsi(l) {
+  currentJitsiUrl.value = `https://meet.jit.si/${l.jitsi_room}`
+  showingJitsiModal.value = true
+}
+
+function closeJitsi() {
+  showingJitsiModal.value = false
+  currentJitsiUrl.value = ''
+}
 
 function openCancel(l) {
   cancelTarget.value = l
@@ -234,10 +259,22 @@ function zoomId(url) {
 }
 
 function statusStripe(s) {
-  return { scheduled: 'bg-brand-500', completed: 'bg-green-500', cancelled: 'bg-red-400' }[s] ?? 'bg-slate-300'
+  return {
+    scheduled: 'bg-brand-500',
+    paid: 'bg-indigo-500',
+    pending_parent_confirmation: 'bg-amber-500',
+    completed: 'bg-green-500',
+    cancelled: 'bg-red-400',
+  }[s] ?? 'bg-slate-300'
 }
 
 function statusLabel(s) {
-  return { scheduled: 'Programada', completed: 'Completada', cancelled: 'Cancelada' }[s] ?? s
+  return {
+    scheduled: 'Programada',
+    paid: 'Pagada',
+    pending_parent_confirmation: 'Esperando calificación',
+    completed: 'Completada',
+    cancelled: 'Cancelada',
+  }[s] ?? s
 }
 </script>

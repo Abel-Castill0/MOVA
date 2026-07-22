@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\ClassConfirmed;
+use App\Models\ClassEvent;
 use App\Models\ClassRequest;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
@@ -12,11 +13,11 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
-use App\Services\ZoomService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
@@ -239,7 +240,6 @@ class MonetizationIntegrityTest extends TestCase
     {
         [$teacher, $profile, $subject] = $this->teacher(5);
         [, , $request] = $this->parentRequest($subject, 'open');
-        $this->mockZoomMeeting();
 
         $payload = [
             'class_request_id' => $request->id,
@@ -257,14 +257,15 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame(1, Lesson::count());
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:reservation")->count());
         $this->assertSame(3, $profile->fresh()->credits_available);
+        $this->assertNotNull($lesson->jitsi_room);
+        $this->assertStringStartsWith("mova-lesson-{$lesson->id}-", $lesson->jitsi_room);
     }
 
     public function test_lesson_start_with_timezone_offset_is_stored_and_guarded_in_utc(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-11 12:00:00 UTC'));
         [$teacher, , $subject] = $this->teacher(5);
-        [, , $request] = $this->parentRequest($subject, 'open');
-        $this->mockZoomMeeting();
+        [$parent, , $request] = $this->parentRequest($subject, 'open');
 
         $this->actingAs($teacher)->post(route('lessons.store'), [
             'class_request_id' => $request->id,
@@ -276,7 +277,7 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('2026-07-11 15:00:00', $lesson->start_time->utc()->format('Y-m-d H:i:s'));
 
         Carbon::setTestNow(Carbon::parse('2026-07-11 15:30:00 UTC'));
-        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
             ->assertStatus(422);
     }
 
@@ -302,11 +303,11 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('accepted', $request->fresh()->status);
     }
 
-    public function test_cancelled_lesson_cannot_be_completed(): void
+    public function test_cancelled_lesson_payment_cannot_be_confirmed(): void
     {
-        [$teacher, , $lesson] = $this->lesson('cancelled', now()->subHours(2));
+        [, , $lesson, $parent] = $this->lesson('cancelled', now()->subHours(2));
 
-        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
             ->assertStatus(422);
 
         $this->assertDatabaseCount('credit_transactions', 1);
@@ -322,33 +323,32 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('completed', $lesson->fresh()->status);
     }
 
-    public function test_future_lesson_cannot_be_completed(): void
+    public function test_future_lesson_payment_cannot_be_confirmed(): void
     {
-        [$teacher, $profile, $lesson] = $this->lesson('scheduled', now()->addHour());
+        [, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
 
-        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
             ->assertStatus(422);
 
+        $this->assertSame('scheduled', $lesson->fresh()->status);
         $this->assertSame(2, $profile->fresh()->credits_reserved);
         $this->assertSame(0, $profile->fresh()->completed_classes_count);
     }
 
-    public function test_completing_twice_does_not_duplicate_consumption_or_experience(): void
+    public function test_confirming_payment_twice_does_not_duplicate_status_change(): void
     {
-        [$teacher, $profile, $lesson] = $this->lesson('scheduled', now()->subHours(2));
+        [, , $lesson, $parent] = $this->lesson('scheduled', now()->subHours(2));
 
-        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
-            ->assertRedirect(route('lesson-reports.create', $lesson));
-        $this->actingAs($teacher)->post(route('lessons.complete', $lesson))
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
+            ->assertRedirect();
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
             ->assertStatus(422);
 
-        $profile->refresh();
-        $this->assertSame(0, $profile->credits_reserved);
-        $this->assertSame(1, $profile->completed_classes_count);
-        $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:consumption")->count());
+        $this->assertSame('paid', $lesson->fresh()->status);
+        $this->assertSame(1, ClassEvent::where('event_type', 'payment_confirmed')->count());
     }
 
-    public function test_report_does_not_complete_scheduled_lesson(): void
+    public function test_report_requires_a_paid_lesson(): void
     {
         [$teacher, , $lesson] = $this->lesson('scheduled', now()->subHours(2));
 
@@ -359,18 +359,35 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('lesson_reports', 0);
     }
 
-    public function test_report_is_created_only_for_completed_lesson_without_financial_side_effects(): void
+    public function test_report_advances_paid_lesson_to_pending_parent_confirmation_without_financial_side_effects(): void
     {
-        [$teacher, $profile, $lesson] = $this->lesson('completed', now()->subHours(2), 0);
+        [$teacher, $profile, $lesson] = $this->lesson('paid', now()->subHours(2), 0);
         $beforeTransactions = CreditTransaction::count();
 
         $this->actingAs($teacher)->post(route('lesson-reports.store', $lesson), $this->reportPayload())
             ->assertRedirect(route('lesson-reports.show', $lesson));
 
-        $this->assertSame('completed', $lesson->fresh()->status);
+        $this->assertSame('pending_parent_confirmation', $lesson->fresh()->status);
         $this->assertSame($beforeTransactions, CreditTransaction::count());
         $this->assertTrue(LessonReport::where('lesson_id', $lesson->id)->exists());
         $this->assertSame(0, $profile->fresh()->credits_reserved);
+    }
+
+    public function test_review_completes_lesson_and_consumes_reserved_credit_once(): void
+    {
+        [, $profile, $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subHours(2));
+
+        $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5])
+            ->assertRedirect(route('parent.lessons'));
+        $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 4])
+            ->assertStatus(403);
+
+        $profile->refresh();
+        $this->assertSame('completed', $lesson->fresh()->status);
+        $this->assertSame(0, $profile->credits_reserved);
+        $this->assertSame(1, $profile->completed_classes_count);
+        $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:consumption")->count());
+        $this->assertSame(1, \App\Models\TeacherReview::where('lesson_id', $lesson->id)->count());
     }
 
     public function test_approved_deposit_has_idempotency_key(): void
@@ -388,16 +405,64 @@ class MonetizationIntegrityTest extends TestCase
         ]);
     }
 
-    public function test_welcome_bonus_cannot_be_duplicated(): void
+    public function test_admin_verifying_teacher_does_not_grant_credits(): void
     {
-        [, $profile] = $this->teacher();
+        [$teacher, $profile] = $this->teacher();
         $admin = $this->userWithRole('admin');
 
-        $this->actingAs($admin)->post(route('admin.teachers.verify', $profile));
-        $this->actingAs($admin)->post(route('admin.teachers.verify', $profile));
+        $this->actingAs($admin)->post(route('admin.teachers.verify', $profile))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertDatabaseCount('credit_transactions', 0);
+    }
+
+    public function test_phone_verification_grants_teacher_welcome_bonus_once(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $code = '123456';
+        $teacher->update([
+            'phone_verification_code_hash'  => Hash::make($code),
+            'phone_verification_expires_at' => now()->addMinutes(10),
+            'phone_verification_attempts'   => 0,
+        ]);
+
+        $this->actingAs($teacher)->post(route('phone.verification.verify'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertNotNull($teacher->fresh()->phone_verified_at);
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(1, CreditTransaction::where('idempotency_key', "teacher:{$profile->id}:welcome")->count());
+
+        // Simulate a re-verification (e.g. phone changed and re-confirmed): the bonus must not duplicate.
+        $teacher->update([
+            'phone_verified_at'              => null,
+            'phone_verification_code_hash'   => Hash::make($code),
+            'phone_verification_expires_at'  => now()->addMinutes(10),
+            'phone_verification_attempts'    => 0,
+        ]);
+        $this->actingAs($teacher)->post(route('phone.verification.verify'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
 
         $this->assertSame(5, $profile->fresh()->credits_available);
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "teacher:{$profile->id}:welcome")->count());
+    }
+
+    public function test_phone_verification_does_not_grant_credits_to_parents(): void
+    {
+        $parent = $this->userWithRole('parent');
+        $code = '123456';
+        $parent->update([
+            'phone_verification_code_hash'  => Hash::make($code),
+            'phone_verification_expires_at' => now()->addMinutes(10),
+            'phone_verification_attempts'   => 0,
+        ]);
+
+        $this->actingAs($parent)->post(route('phone.verification.verify'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertNotNull($parent->fresh()->phone_verified_at);
+        $this->assertDatabaseCount('credit_transactions', 0);
     }
 
     public function test_financial_history_survives_account_deletion_flow(): void
@@ -584,7 +649,7 @@ class MonetizationIntegrityTest extends TestCase
     {
         [$teacher, $profile, $subject] = $this->teacher();
         $profile->update(['credits_reserved' => $reservedCredits]);
-        [, $student, $request] = $this->parentRequest($subject, 'accepted');
+        [$parent, $student, $request] = $this->parentRequest($subject, 'accepted');
         $lesson = Lesson::create([
             'teacher_profile_id' => $profile->id,
             'student_id' => $student->id,
@@ -603,18 +668,7 @@ class MonetizationIntegrityTest extends TestCase
             'description' => 'Reserva por aceptación de clase',
         ]);
 
-        return [$teacher, $profile, $lesson];
-    }
-
-    private function mockZoomMeeting(): void
-    {
-        $this->mock(ZoomService::class, function ($mock) {
-            $mock->shouldReceive('createMeeting')->once()->andReturn([
-                'meeting_id' => 'test-meeting',
-                'join_url' => 'https://example.test/meeting',
-                'password' => 'test',
-            ]);
-        });
+        return [$teacher, $profile, $lesson, $parent];
     }
 
     private function reportPayload(): array

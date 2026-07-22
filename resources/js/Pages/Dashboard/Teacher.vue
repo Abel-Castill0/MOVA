@@ -12,6 +12,18 @@
         <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍🏫</div>
       </div>
 
+      <!-- Phone verification incentive banner -->
+      <div v-if="!user?.phone_verified" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🎁</div>
+        <div class="flex-1">
+          <p class="font-semibold text-blue-900">¡Verifica tu número de celular para desbloquear tus 5 créditos gratis y empezar a aceptar solicitudes de clases!</p>
+        </div>
+        <Link :href="route('phone.verification.notice')"
+          class="flex-shrink-0 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors self-start sm:self-auto">
+          Verificar celular
+        </Link>
+      </div>
+
       <!-- Stats — 1 col mobile, 3 desktop -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">

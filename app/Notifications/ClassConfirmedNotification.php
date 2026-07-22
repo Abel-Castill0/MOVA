@@ -6,6 +6,7 @@ use App\Models\Lesson;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -17,7 +18,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -25,6 +26,11 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             $channels[] = \App\Channels\WhatsAppChannel::class;
         }
         return $channels;
+    }
+
+    private function jitsiUrl(): ?string
+    {
+        return $this->lesson->jitsi_room ? 'https://meet.jit.si/'.$this->lesson->jitsi_room : null;
     }
 
     public function toMail($notifiable): MailMessage
@@ -37,8 +43,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             ->line('Su clase ha sido **confirmada** correctamente.')
             ->line('**Fecha:** ' . $date)
             ->line('**Duración:** ' . $this->lesson->duration_minutes . ' minutos')
-            ->line('**Contraseña Zoom:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
-            ->action('Entrar a la clase por Zoom', $this->lesson->zoom_link ?? $this->appUrl('/dashboard'))
+            ->action('Entrar a la Sala Virtual', $this->jitsiUrl() ?? $this->appUrl('/dashboard'))
             ->line('Conserve este enlace. Recibirá un recordatorio 10 minutos antes de la clase.')
             ->salutation('El equipo de MOVA');
     }
@@ -51,8 +56,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             . "Hola {$notifiable->name},\n"
             . "Fecha: {$date}\n"
             . "Duración: {$this->lesson->duration_minutes} min\n"
-            . "Zoom: " . ($this->lesson->zoom_link ?? 'No disponible') . "\n"
-            . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña') . "\n\n"
+            . "Sala Virtual: " . ($this->jitsiUrl() ?? 'No disponible') . "\n\n"
             . "Recibirá un recordatorio 10 minutos antes.";
     }
 
@@ -62,8 +66,13 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             'type'       => 'class_confirmed',
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'zoom_link'  => $this->lesson->zoom_link,
+            'jitsi_url'  => $this->jitsiUrl(),
             'message'    => 'Su clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido confirmada.',
         ];
+    }
+
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage($this->toArray($notifiable));
     }
 }

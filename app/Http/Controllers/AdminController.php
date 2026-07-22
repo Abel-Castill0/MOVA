@@ -16,7 +16,6 @@ use Inertia\Inertia;
 
 class AdminController extends Controller
 {
-    private const WELCOME_BONUS_CREDITS = 5;
     private const CLASS_CREDIT_COST = 2;
 
     public function users()
@@ -53,29 +52,6 @@ class AdminController extends Controller
                 'reviewed_by'      => auth()->id(),
                 'reviewed_at'      => now(),
             ]);
-
-            $welcomeBonusExists = $teacher->creditTransactions()
-                ->where(function ($query) use ($teacher) {
-                    $query->where('idempotency_key', "teacher:{$teacher->id}:welcome")
-                        ->orWhere(function ($legacy) {
-                            $legacy->where('type', 'deposit')
-                                ->where('description', 'Bono de bienvenida MOVA');
-                        });
-                })
-                ->exists();
-
-            if (!$welcomeBonusExists) {
-                $teacher->update([
-                    'credits_available' => $teacher->credits_available + self::WELCOME_BONUS_CREDITS,
-                ]);
-
-                $teacher->creditTransactions()->create([
-                    'idempotency_key' => "teacher:{$teacher->id}:welcome",
-                    'type'        => 'deposit',
-                    'amount'      => self::WELCOME_BONUS_CREDITS,
-                    'description' => 'Bono de bienvenida MOVA',
-                ]);
-            }
 
             return $teacher->load('user');
         });

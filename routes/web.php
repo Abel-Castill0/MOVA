@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->name('class-requests.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
+        Route::post('/lessons/{lesson}/confirm-payment', [LessonController::class, 'confirmPayment'])->name('lessons.confirm-payment');
         Route::get('/lessons/{lesson}/review/create', [TeacherReviewController::class, 'create'])->name('reviews.create');
         Route::post('/lessons/{lesson}/review', [TeacherReviewController::class, 'store'])->name('reviews.store');
         Route::get('/my-reports', [LessonReportController::class, 'parentIndex'])->name('parent.reports');
@@ -93,7 +94,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->name('teacher.requests.reject');
         Route::post('/lessons', [LessonController::class, 'store'])->middleware('throttle:10,1')->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
-        Route::post('/lessons/{lesson}/complete', [LessonController::class, 'complete'])->name('lessons.complete');
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
         Route::get('/lessons/{lesson}/report/create', [LessonReportController::class, 'create'])->name('lesson-reports.create');
         Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->name('lesson-reports.store');

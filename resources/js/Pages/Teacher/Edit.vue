@@ -11,6 +11,23 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa por hora (€)</label>
           <input v-model="form.hourly_rate" type="number" min="0" step="0.5" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Número Yape</label>
+            <input v-model="form.yape_number" type="text" maxlength="20" placeholder="999 999 999"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p v-if="form.errors.yape_number" class="text-xs text-red-500 mt-1">{{ form.errors.yape_number }}</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Número Plin</label>
+            <input v-model="form.plin_number" type="text" maxlength="20" placeholder="999 999 999"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p v-if="form.errors.plin_number" class="text-xs text-red-500 mt-1">{{ form.errors.plin_number }}</p>
+          </div>
+          <p class="sm:col-span-2 text-xs text-gray-500">
+            Los padres verán estos números para confirmar el pago offline de tus clases.
+          </p>
+        </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Cupos de acompañamiento continuo</label>
           <input v-model="form.mentorship_slots_total" type="number" min="0" max="50" step="1" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -48,6 +65,8 @@ const props = defineProps({ profile: Object, subjects: Array })
 const form = useForm({
   bio: props.profile?.bio ?? '',
   hourly_rate: props.profile?.hourly_rate ?? '',
+  yape_number: props.profile?.yape_number ?? '',
+  plin_number: props.profile?.plin_number ?? '',
   mentorship_slots_total: props.profile?.mentorship_slots_total ?? 0,
   subject_ids: props.profile?.subjects?.map(s => s.id) ?? [],
 })

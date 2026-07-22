@@ -9,19 +9,20 @@ use App\Models\Lesson;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\ClassRescheduledNotification;
+use App\Notifications\PaymentConfirmedNotification;
 use App\Services\ZoomService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use RuntimeException;
 
 class LessonController extends Controller
 {
-    private const CLASS_CREDIT_COST = 2;
+    private const CLASS_CREDIT_COST = Lesson::CLASS_CREDIT_COST;
 
-    public function store(Request $request, ZoomService $zoom)
+    public function store(Request $request)
     {
         $data = $request->validate([
             'class_request_id' => 'required|exists:class_requests,id',
@@ -47,7 +48,7 @@ class LessonController extends Controller
             return back()->withErrors(['start_time' => 'Ya tienes una clase en ese horario.']);
         }
 
-        $lesson = DB::transaction(function () use ($classRequest, $data, $profile, $zoom) {
+        $lesson = DB::transaction(function () use ($classRequest, $data, $profile) {
             $classRequest = ClassRequest::with(['student', 'subject'])
                 ->whereKey($classRequest->id)
                 ->lockForUpdate()
@@ -85,17 +86,6 @@ class LessonController extends Controller
 
             }
 
-            // Create Zoom meeting; throws RuntimeException if credentials are missing or API fails.
-            try {
-                $meeting = $zoom->createMeeting(
-                    'MOVA: '.($classRequest->subject->name ?? 'Clase'),
-                    $data['start_time'],
-                    $data['duration_minutes']
-                );
-            } catch (RuntimeException $e) {
-                throw ValidationException::withMessages(['zoom' => $e->getMessage()]);
-            }
-
             $lesson = Lesson::create([
                 'teacher_profile_id' => $profile->id,
                 'student_id' => $classRequest->student_id,
@@ -103,11 +93,10 @@ class LessonController extends Controller
                 'class_offer_id' => $classRequest->class_offer_id,
                 'start_time' => $data['start_time'],
                 'duration_minutes' => $data['duration_minutes'],
-                'zoom_meeting_id' => $meeting['meeting_id'],
-                'zoom_link' => $meeting['join_url'],
-                'zoom_password' => $meeting['password'],
                 'status' => 'scheduled',
             ]);
+
+            $lesson->update(['jitsi_room' => "mova-lesson-{$lesson->id}-".Str::random(8)]);
 
             $profileUpdates = [
                 'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST,
@@ -136,7 +125,7 @@ class LessonController extends Controller
         event(new ClassConfirmed($lesson));
 
         return redirect()->route('teacher.lessons')->with('success',
-            '¡Clase programada! El enlace de Zoom está disponible en "Mis clases".'
+            '¡Clase programada! La sala virtual está disponible en "Mis clases".'
         );
     }
 
@@ -164,51 +153,33 @@ class LessonController extends Controller
         ]);
     }
 
-    public function complete(Lesson $lesson)
+    public function confirmPayment(Lesson $lesson)
     {
-        $profile = auth()->user()->teacherProfile;
-        abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
-        abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden completar clases programadas.');
+        $user = auth()->user();
+        abort_unless($user->hasRole('parent'), 403);
+        abort_unless($user->students()->where('id', $lesson->student_id)->exists(), 403);
+        abort_unless($lesson->status === 'scheduled', 422, 'Solo se puede confirmar el pago de clases programadas.');
         abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
 
-        DB::transaction(function () use ($lesson, $profile) {
-            $lesson = Lesson::whereKey($lesson->id)
+        $lesson = DB::transaction(function () use ($lesson, $user) {
+            $lesson = Lesson::with(['teacherProfile.user'])
+                ->whereKey($lesson->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($lesson->teacher_profile_id === $profile->id, 403);
-            abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden completar clases programadas.');
+            abort_unless($lesson->status === 'scheduled', 422, 'Solo se puede confirmar el pago de clases programadas.');
             abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
 
-            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            $lesson->update(['status' => 'paid']);
 
-            abort_if(
-                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST,
-                422,
-                'No hay créditos reservados suficientes para completar esta clase.'
-            );
+            ClassEvent::log('payment_confirmed', $user->id, $lesson->id, $lesson->class_request_id);
 
-            $teacherProfile->update([
-                'credits_reserved' => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
-                'completed_classes_count' => $teacherProfile->completed_classes_count + 1,
-                'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
-            ]);
-
-            $teacherProfile->creditTransactions()->create([
-                'idempotency_key' => "lesson:{$lesson->id}:consumption",
-                'lesson_id' => $lesson->id,
-                'type' => 'consumption',
-                'amount' => self::CLASS_CREDIT_COST,
-                'description' => 'Consumo por clase completada',
-            ]);
-
-            $lesson->update(['status' => 'completed']);
+            return $lesson;
         });
 
-        return redirect()->route('lesson-reports.create', $lesson)
-            ->with('success', 'Clase marcada como completada. Ahora puedes crear el reporte.');
+        $lesson->teacherProfile?->user?->notify(new PaymentConfirmedNotification($lesson));
+
+        return back()->with('success', 'Pago confirmado. El profesor podrá subir el reporte de la clase.');
     }
 
     public function cancel(Lesson $lesson, ZoomService $zoom)

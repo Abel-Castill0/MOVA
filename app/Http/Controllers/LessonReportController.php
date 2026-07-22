@@ -6,6 +6,7 @@ use App\Models\Lesson;
 use App\Models\LessonReport;
 use App\Notifications\LessonReportPublishedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class LessonReportController extends Controller
@@ -14,7 +15,7 @@ class LessonReportController extends Controller
     {
         $profile = auth()->user()->teacherProfile;
         abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
-        abort_unless($lesson->status === 'completed', 422, 'Solo se pueden reportar clases completadas.');
+        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson);
         }
@@ -37,7 +38,7 @@ class LessonReportController extends Controller
     {
         $profile = auth()->user()->teacherProfile;
         abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
-        abort_unless($lesson->status === 'completed', 422, 'Solo se pueden reportar clases completadas.');
+        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
 
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson)
@@ -55,12 +56,22 @@ class LessonReportController extends Controller
 
         $lesson->load(['student.parent', 'classRequest.subject']);
 
-        $report = LessonReport::create(array_merge($data, [
-            'lesson_id'          => $lesson->id,
-            'teacher_profile_id' => $profile->id,
-            'student_id'         => $lesson->student_id,
-            'sent_to_parent_at'  => now(),
-        ]));
+        $report = DB::transaction(function () use ($lesson, $profile, $data) {
+            $lesson = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
+
+            abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
+
+            $report = LessonReport::create(array_merge($data, [
+                'lesson_id'          => $lesson->id,
+                'teacher_profile_id' => $profile->id,
+                'student_id'         => $lesson->student_id,
+                'sent_to_parent_at'  => now(),
+            ]));
+
+            $lesson->update(['status' => 'pending_parent_confirmation']);
+
+            return $report;
+        });
 
         // Notify parent
         $parent = $lesson->student?->parent;

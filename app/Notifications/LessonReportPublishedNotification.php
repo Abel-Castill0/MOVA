@@ -6,6 +6,7 @@ use App\Models\LessonReport;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -17,7 +18,7 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -72,5 +73,10 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
             'subject'    => $subject,
             'message'    => "Nuevo reporte de {$subject} para {$student}.",
         ];
+    }
+
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage($this->toArray($notifiable));
     }
 }

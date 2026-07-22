@@ -45,6 +45,11 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         };
     }
 
+    private function jitsiUrl(): ?string
+    {
+        return $this->lesson->jitsi_room ? 'https://meet.jit.si/'.$this->lesson->jitsi_room : null;
+    }
+
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
@@ -52,8 +57,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Su clase comienza **{$this->label()}**.")
             ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
-            ->line('**Contraseña:** ' . ($this->lesson->zoom_password ?? 'Sin contraseña'))
-            ->action('Entrar a Zoom', $this->lesson->zoom_link ?? $this->appUrl('/dashboard'))
+            ->action('Entrar a la Sala Virtual', $this->jitsiUrl() ?? $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -62,8 +66,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         return "MOVA — Recordatorio de clase\n\n"
             . "Hola {$notifiable->name}, su clase empieza {$this->label()}.\n"
             . "Hora: " . $this->lesson->start_time->format('d/m/Y H:i') . "\n"
-            . ($this->lesson->zoom_link ?? 'Enlace no disponible') . "\n"
-            . "Contraseña: " . ($this->lesson->zoom_password ?? 'Sin contraseña');
+            . "Sala Virtual: " . ($this->jitsiUrl() ?? 'No disponible');
     }
 
     public function toArray($notifiable): array
@@ -73,7 +76,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             'interval'   => $this->interval,
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'zoom_link'  => $this->lesson->zoom_link,
+            'jitsi_url'  => $this->jitsiUrl(),
             'message'    => "Su clase empieza {$this->label()}.",
         ];
     }

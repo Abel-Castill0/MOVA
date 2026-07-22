@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lesson;
+use App\Models\TeacherProfile;
 use App\Models\TeacherReview;
 use App\Notifications\TeacherReviewReceivedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class TeacherReviewController extends Controller
@@ -14,7 +16,7 @@ class TeacherReviewController extends Controller
     public function create(Lesson $lesson)
     {
         $this->authorizeParentOwnership($lesson);
-        abort_unless($lesson->status === 'completed', 403, 'Solo se puede calificar una clase completada.');
+        abort_unless($lesson->status === 'pending_parent_confirmation', 403, 'Solo se puede calificar una clase con el reporte del profesor listo.');
         abort_if($lesson->teacherReview()->exists(), 422, 'Ya existe una reseña para esta clase.');
 
         $lesson->load(['teacherProfile.user', 'student']);
@@ -34,7 +36,7 @@ class TeacherReviewController extends Controller
     public function store(Request $request, Lesson $lesson)
     {
         $this->authorizeParentOwnership($lesson);
-        abort_unless($lesson->status === 'completed', 403, 'Solo se puede calificar una clase completada.');
+        abort_unless($lesson->status === 'pending_parent_confirmation', 403, 'Solo se puede calificar una clase con el reporte del profesor listo.');
         abort_if($lesson->teacherReview()->exists(), 422, 'Ya enviaste una reseña para esta clase.');
 
         $data = $request->validate([
@@ -42,15 +44,50 @@ class TeacherReviewController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
 
-        $review = TeacherReview::create([
-            'lesson_id'          => $lesson->id,
-            'teacher_profile_id' => $lesson->teacher_profile_id,
-            'parent_id'          => auth()->id(),
-            'student_id'         => $lesson->student_id,
-            'rating'             => $data['rating'],
-            'comment'            => $data['comment'] ?? null,
-            'is_visible'         => true,
-        ]);
+        $review = DB::transaction(function () use ($lesson, $data) {
+            $lesson = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
+
+            abort_unless($lesson->status === 'pending_parent_confirmation', 403, 'Solo se puede calificar una clase con el reporte del profesor listo.');
+            abort_if($lesson->teacherReview()->exists(), 422, 'Ya enviaste una reseña para esta clase.');
+
+            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_if(
+                $teacherProfile->credits_reserved < Lesson::CLASS_CREDIT_COST,
+                422,
+                'No hay créditos reservados suficientes para cerrar esta clase.'
+            );
+
+            $review = TeacherReview::create([
+                'lesson_id'          => $lesson->id,
+                'teacher_profile_id' => $lesson->teacher_profile_id,
+                'parent_id'          => auth()->id(),
+                'student_id'         => $lesson->student_id,
+                'rating'             => $data['rating'],
+                'comment'            => $data['comment'] ?? null,
+                'is_visible'         => true,
+            ]);
+
+            $teacherProfile->update([
+                'credits_reserved' => $teacherProfile->credits_reserved - Lesson::CLASS_CREDIT_COST,
+                'completed_classes_count' => $teacherProfile->completed_classes_count + 1,
+                'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
+            ]);
+
+            $teacherProfile->creditTransactions()->create([
+                'idempotency_key' => "lesson:{$lesson->id}:consumption",
+                'lesson_id' => $lesson->id,
+                'type' => 'consumption',
+                'amount' => Lesson::CLASS_CREDIT_COST,
+                'description' => 'Consumo por clase completada',
+            ]);
+
+            $lesson->update(['status' => 'completed']);
+
+            return $review;
+        });
 
         // Notify teacher
         $teacher = $lesson->teacherProfile?->user;
