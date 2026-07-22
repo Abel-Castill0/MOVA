@@ -18,7 +18,7 @@ return new class extends Migration
             $table->json('reasons');
             $table->timestamps();
 
-            $table->unique(['student_diagnostic_id', 'class_offer_id']);
+            $table->unique(['student_diagnostic_id', 'class_offer_id'], 'diag_rec_student_class_unique');
             $table->index(['student_diagnostic_id', 'rank']);
         });
     }
