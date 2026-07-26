@@ -26,6 +26,7 @@ class RechargeController extends Controller
 
     public function approve(RechargeRequest $recharge)
     {
+        $this->authorize('approve', $recharge);
         $reviewerId = auth()->id();
 
         try {
@@ -87,6 +88,7 @@ class RechargeController extends Controller
 
     public function reject(Request $request, RechargeRequest $recharge)
     {
+        $this->authorize('reject', $recharge);
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
         ]);
