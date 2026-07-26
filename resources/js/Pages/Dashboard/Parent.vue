@@ -1,6 +1,6 @@
 <template>
   <AppLayout title="Mi panel">
-    <div class="space-y-5 sm:space-y-6">
+    <div class="space-y-6 sm:space-y-8">
 
       <!-- Welcome banner -->
       <div class="bg-gradient-to-r from-brand-800 to-brand-600 rounded-2xl p-5 sm:p-6 text-white shadow-lg shadow-brand-800/20 flex items-center justify-between">
@@ -12,171 +12,329 @@
         <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍👩‍👧</div>
       </div>
 
-      <!-- Pending approval alert -->
-      <div v-if="pending_approval > 0" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">⚠️</div>
-        <div class="flex-1">
-          <p class="font-semibold text-orange-900">{{ pending_approval }} solicitud(es) esperan tu aprobación</p>
-          <p class="text-sm text-orange-600 mt-0.5">Revisa y aprueba las clases de tus hijos</p>
-        </div>
-        <Link :href="route('class-requests.index')"
-          class="flex-shrink-0 px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition-colors self-start sm:self-auto">
-          Revisar
-        </Link>
-      </div>
-
-      <!-- Stats — 1 col mobile, 3 desktop -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow text-center">
-          <p class="text-3xl font-black text-brand-600">{{ students.length }}</p>
-          <p class="text-sm text-slate-500 mt-0.5">Hijos registrados</p>
-        </div>
-        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow text-center">
-          <p class="text-3xl font-black text-green-600">{{ upcoming.length }}</p>
-          <p class="text-sm text-slate-500 mt-0.5">Clases próximas</p>
-        </div>
-        <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow text-center">
-          <p class="text-3xl font-black text-orange-500">{{ pending_approval }}</p>
-          <p class="text-sm text-slate-500 mt-0.5">Por aprobar</p>
+      <!-- Empty state: sin hijos registrados -->
+      <div v-if="!students.length" class="reveal-group">
+        <div class="reveal-item bg-white rounded-2xl border border-gray-100 px-6 py-16 sm:py-20 text-center max-w-xl mx-auto">
+          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-5">🎒</div>
+          <h3 class="text-xl font-black text-slate-900">Registra a tu primer hijo/a</h3>
+          <p class="text-slate-500 mt-2 leading-relaxed">
+            Para solicitar clases, seguir su progreso y calificar profesores, primero necesitamos
+            saber para quién estás buscando tutorías.
+          </p>
+          <Link :href="route('students.create')"
+            class="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-600/30">
+            + Añadir hijo/a
+          </Link>
         </div>
       </div>
 
-      <!-- Diagnostic CTA -->
-      <div class="bg-gradient-to-r from-indigo-50 to-brand-50 border border-brand-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div class="text-3xl flex-shrink-0">🎯</div>
-        <div class="flex-1">
-          <p class="font-bold text-slate-900">¿No sabes qué profesor elegir?</p>
-          <p class="text-sm text-slate-500 mt-0.5">Responde 5 preguntas y MOVA te recomienda profesores ideales para tu hijo</p>
-        </div>
-        <Link :href="route('diagnostics.create')"
-          class="flex-shrink-0 px-5 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
-          Hacer diagnóstico →
-        </Link>
-      </div>
+      <template v-else>
 
-      <!-- Students list -->
-      <div v-if="students.length" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 class="font-bold text-slate-900">Mis hijos</h3>
-          <Link :href="route('students.index')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
+        <!-- Pending approval alert -->
+        <div v-if="pending_approval > 0" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">⚠️</div>
+          <div class="flex-1">
+            <p class="font-semibold text-orange-900">{{ pending_approval }} solicitud(es) esperan tu aprobación</p>
+            <p class="text-sm text-orange-600 mt-0.5">Revisa y aprueba las clases de tus hijos</p>
+          </div>
+          <Link :href="route('class-requests.index')"
+            class="flex-shrink-0 px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition-colors self-start sm:self-auto">
+            Revisar
+          </Link>
         </div>
-        <div class="divide-y divide-gray-50">
-          <div v-for="s in students" :key="s.id" class="px-5 sm:px-6 py-3.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
-            <div class="w-9 h-9 bg-gradient-to-br from-green-400 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              {{ s.first_name?.charAt(0) }}
-            </div>
-            <div>
-              <p class="text-sm font-semibold text-slate-900">{{ s.first_name }} {{ s.last_name }}</p>
-              <p class="text-xs text-slate-400 capitalize">{{ s.grade_level ?? 'Sin nivel asignado' }}</p>
-            </div>
+
+        <!-- Metric cards — Spatial UI: superficie elevada, badge de icono, profundidad sutil -->
+        <div class="reveal-group grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+            <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-brand-100 transition-colors">📋</div>
+            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.class_requests_total }}</p>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Clases solicitadas</p>
+          </div>
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+            <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-green-100 transition-colors">✅</div>
+            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.classes_completed }}</p>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Clases completadas</p>
+          </div>
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+            <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-indigo-100 transition-colors">📅</div>
+            <template v-if="next_lesson">
+              <p class="text-sm sm:text-base font-black text-slate-900 leading-snug line-clamp-1">{{ next_lesson.class_request?.subject?.name ?? 'Clase' }}</p>
+              <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ fmtDateShort(next_lesson.start_time) }}</p>
+            </template>
+            <template v-else>
+              <p class="text-2xl sm:text-3xl font-black text-slate-300">—</p>
+              <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Próxima clase</p>
+            </template>
+          </div>
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-amber-100 transition-colors">⭐</div>
+            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.avg_teacher_rating ?? '—' }}</p>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Calificación promedio</p>
           </div>
         </div>
-      </div>
 
-      <!-- Upcoming classes with Zoom link + password -->
-      <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 class="font-bold text-slate-900">Próximas clases</h3>
-          <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todas →</Link>
+        <!-- Diagnostic CTA -->
+        <div class="bg-gradient-to-r from-indigo-50 to-brand-50 border border-brand-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div class="text-3xl flex-shrink-0">🎯</div>
+          <div class="flex-1">
+            <p class="font-bold text-slate-900">¿No sabes qué profesor elegir?</p>
+            <p class="text-sm text-slate-500 mt-0.5">Responde 5 preguntas y MOVA te recomienda profesores ideales para tu hijo</p>
+          </div>
+          <Link :href="route('diagnostics.create')"
+            class="flex-shrink-0 px-5 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
+            Hacer diagnóstico →
+          </Link>
         </div>
-        <div v-if="upcoming.length" class="divide-y divide-gray-50">
-          <div v-for="l in upcoming" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0 text-brand-600 font-bold text-sm">
-                {{ l.class_request?.subject?.name?.charAt(0) ?? '?' }}
+
+        <!-- Próximas clases — timeline -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-slate-900">Próximas clases</h3>
+            <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todas →</Link>
+          </div>
+
+          <div v-if="upcoming.length" class="reveal-group bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
+            <ol class="relative">
+              <li v-for="(l, i) in upcoming" :key="l.id"
+                class="reveal-item relative pl-9 pb-6 last:pb-0">
+                <!-- Connecting line -->
+                <span v-if="i < upcoming.length - 1" class="absolute left-[7px] top-4 bottom-0 w-px bg-gray-100"></span>
+                <!-- Status dot -->
+                <span class="absolute left-0 top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100"
+                  :class="dotColor(l.status)"></span>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="font-bold text-slate-900">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                      <StatusBadge :status="l.status" />
+                    </div>
+                    <p class="text-sm text-slate-500 mt-0.5">
+                      {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
+                    </p>
+                    <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
+                  </div>
+
+                  <div class="flex-shrink-0">
+                    <button v-if="l.status === 'scheduled'" @click="confirmPayment(l)" :disabled="payingId === l.id"
+                      class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
+                      {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
+                    </button>
+                    <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
+                      class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
+                      🎥 Unirse a la sala
+                    </button>
+                    <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">Disponible 15 min antes de empezar</p>
+                    <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
+                      class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+                      ★ Calificar
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div v-else class="bg-white rounded-2xl border border-gray-100 px-6 py-10 text-center text-slate-400">
+            <div class="text-4xl mb-2">📭</div>
+            <p class="text-sm">No hay clases próximas</p>
+            <Link :href="route('marketplace')" class="inline-block mt-3 text-sm text-brand-600 hover:underline font-medium">
+              Buscar un profesor →
+            </Link>
+          </div>
+        </div>
+
+        <!-- Historial reciente -->
+        <div v-if="recent_history.length">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-slate-900">Historial reciente</h3>
+            <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todo →</Link>
+          </div>
+          <div class="reveal-group grid gap-3 sm:grid-cols-2">
+            <div v-for="l in recent_history" :key="l.id"
+              class="reveal-item bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                  <p class="text-xs text-slate-400 mt-0.5">{{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}</p>
+                  <p class="text-xs text-slate-400">{{ fmtDateShort(l.start_time) }}</p>
+                </div>
+                <div v-if="l.teacher_review" class="flex-shrink-0 flex items-center gap-0.5">
+                  <span v-for="n in 5" :key="n" class="text-sm" :class="n <= l.teacher_review.rating ? 'text-amber-400' : 'text-gray-200'">★</span>
+                </div>
+                <p v-else class="flex-shrink-0 text-xs text-slate-300 italic">Sin calificar</p>
               </div>
-              <div class="min-w-0">
-                <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                <p class="text-xs text-slate-400">
-                  {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }} · {{ fmtDate(l.start_time) }}
-                </p>
-                <p v-if="l.zoom_password" class="text-xs text-slate-400 mt-0.5">🔑 Contraseña: {{ l.zoom_password }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Last learning report -->
+        <div v-if="last_report" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900">Último reporte de aprendizaje</h3>
+            <Link :href="route('parent.reports')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
+          </div>
+          <div class="p-5 sm:p-6 space-y-3">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ last_report.subject }}</span>
+              <span class="text-xs text-slate-400">{{ last_report.student_name }} · Prof. {{ last_report.teacher_name }}</span>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div class="bg-slate-50 rounded-xl p-3">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">📚 Tema</p>
+                <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.topic_covered }}</p>
+              </div>
+              <div class="bg-slate-50 rounded-xl p-3">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">⭐ Desempeño</p>
+                <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.student_performance }}</p>
+              </div>
+              <div v-if="last_report.next_step" class="sm:col-span-2 bg-green-50 rounded-xl p-3">
+                <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">🎯 Próximo paso</p>
+                <p class="text-sm text-slate-800">{{ last_report.next_step }}</p>
               </div>
             </div>
-            <a v-if="l.zoom_link" :href="l.zoom_link" target="_blank"
-              class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/30 self-start sm:self-auto">
-              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/><path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
-              Entrar a Zoom
-            </a>
           </div>
         </div>
-        <div v-else class="px-6 py-10 text-center text-slate-400">
-          <div class="text-4xl mb-2">📭</div>
-          <p class="text-sm">No hay clases próximas</p>
-          <Link :href="route('marketplace')" class="inline-block mt-3 text-sm text-brand-600 hover:underline font-medium">
-            Buscar un profesor →
-          </Link>
-        </div>
-      </div>
 
-      <!-- Last learning report -->
-      <div v-if="last_report" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 class="font-bold text-slate-900">Último reporte de aprendizaje</h3>
-          <Link :href="route('parent.reports')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
-        </div>
-        <div class="p-5 sm:p-6 space-y-3">
-          <div class="flex flex-wrap items-center gap-2 mb-1">
-            <span class="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ last_report.subject }}</span>
-            <span class="text-xs text-slate-400">{{ last_report.student_name }} · Prof. {{ last_report.teacher_name }}</span>
+        <!-- Students list -->
+        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900">Mis hijos</h3>
+            <Link :href="route('students.index')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
           </div>
-          <div class="grid sm:grid-cols-2 gap-3">
-            <div class="bg-slate-50 rounded-xl p-3">
-              <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">📚 Tema</p>
-              <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.topic_covered }}</p>
-            </div>
-            <div class="bg-slate-50 rounded-xl p-3">
-              <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">⭐ Desempeño</p>
-              <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.student_performance }}</p>
-            </div>
-            <div v-if="last_report.next_step" class="sm:col-span-2 bg-green-50 rounded-xl p-3">
-              <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">🎯 Próximo paso</p>
-              <p class="text-sm text-slate-800">{{ last_report.next_step }}</p>
+          <div class="divide-y divide-gray-50">
+            <div v-for="s in students" :key="s.id" class="px-5 sm:px-6 py-3.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+              <div class="w-9 h-9 bg-gradient-to-br from-green-400 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                {{ s.first_name?.charAt(0) }}
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-slate-900">{{ s.first_name }} {{ s.last_name }}</p>
+                <p class="text-xs text-slate-400 capitalize">{{ s.grade_level ?? 'Sin nivel asignado' }}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Quick actions — 1 col mobile, 2 desktop -->
-      <div>
-        <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link :href="route('marketplace')"
-            class="group bg-brand-600 rounded-2xl p-5 hover:bg-brand-700 transition-all shadow-lg shadow-brand-600/25">
-            <div class="text-3xl mb-3">🔍</div>
-            <p class="font-bold text-white">Buscar profesor</p>
-            <p class="text-sm text-brand-200 mt-0.5">Explora el marketplace</p>
-          </Link>
-          <Link :href="route('students.index')"
-            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="text-3xl mb-3">🎒</div>
-            <p class="font-bold text-slate-900">Gestionar hijos</p>
-            <p class="text-sm text-slate-400 mt-0.5">Añade o edita sus datos</p>
-          </Link>
-          <Link :href="route('parent.reports')"
-            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="text-3xl mb-3">📋</div>
-            <p class="font-bold text-slate-900">Reportes</p>
-            <p class="text-sm text-slate-400 mt-0.5">Historial de aprendizaje</p>
-          </Link>
+        <!-- Quick actions -->
+        <div>
+          <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
+          <div class="reveal-group grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Link :href="route('marketplace')"
+              class="reveal-item group bg-brand-600 rounded-2xl p-5 hover:bg-brand-700 transition-all shadow-lg shadow-brand-600/25">
+              <div class="text-3xl mb-3">🔍</div>
+              <p class="font-bold text-white">Buscar profesor</p>
+              <p class="text-sm text-brand-200 mt-0.5">Explora el marketplace</p>
+            </Link>
+            <Link :href="route('students.index')"
+              class="reveal-item group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+              <div class="text-3xl mb-3">🎒</div>
+              <p class="font-bold text-slate-900">Gestionar hijos</p>
+              <p class="text-sm text-slate-400 mt-0.5">Añade o edita sus datos</p>
+            </Link>
+            <Link :href="route('parent.reports')"
+              class="reveal-item group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+              <div class="text-3xl mb-3">📋</div>
+              <p class="font-bold text-slate-900">Reportes</p>
+              <p class="text-sm text-slate-400 mt-0.5">Historial de aprendizaje</p>
+            </Link>
+          </div>
         </div>
-      </div>
 
+      </template>
     </div>
+
+    <!-- Modal Sala Virtual (Jitsi) -->
+    <Modal :show="showingJitsiModal" max-width="7xl" @close="closeJitsi">
+      <div v-if="joinError" class="p-8 text-center">
+        <div class="text-4xl mb-3">⚠️</div>
+        <p class="text-slate-700 font-semibold">{{ joinError }}</p>
+      </div>
+      <div v-else id="jitsi-container" class="w-full h-[80vh]" allow="camera; microphone; fullscreen; display-capture"></div>
+    </Modal>
   </AppLayout>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { computed, onMounted, ref } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import StatusBadge from '@/Components/StatusBadge.vue'
+import Modal from '@/Components/Modal.vue'
+import { useJitsiMeet } from '@/Composables/useJitsiMeet'
+import gsap from 'gsap'
 
-defineProps({ students: Array, upcoming: Array, pending_approval: Number, last_report: Object })
+const props = defineProps({
+  students: { type: Array, default: () => [] },
+  upcoming: { type: Array, default: () => [] },
+  next_lesson: { type: Object, default: null },
+  recent_history: { type: Array, default: () => [] },
+  stats: {
+    type: Object,
+    default: () => ({ class_requests_total: 0, classes_completed: 0, avg_teacher_rating: null }),
+  },
+  pending_approval: { type: Number, default: 0 },
+  last_report: { type: Object, default: null },
+})
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
+const payingId = ref(null)
+const { showingJitsiModal, joinError, openJitsi, closeJitsi } = useJitsiMeet()
+
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
+function fmtDateShort(d) {
+  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function dotColor(status) {
+  return {
+    scheduled: 'bg-blue-400',
+    paid: 'bg-indigo-400',
+    pending_parent_confirmation: 'bg-amber-400',
+  }[status] ?? 'bg-slate-300'
+}
+
+function canJoinJitsi(l) {
+  if (!l.has_jitsi_room) return false
+  if (l.status !== 'paid') return false
+  const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
+  return minutesToStart <= 15
+}
+
+function confirmPayment(l) {
+  payingId.value = l.id
+  router.post(route('lessons.confirm-payment', l.id), {}, {
+    preserveScroll: true,
+    onFinish: () => { payingId.value = null },
+  })
+}
+
+onMounted(() => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (prefersReducedMotion) return
+
+  // A diferencia de Welcome.vue (landing, scroll largo, ScrollTrigger tiene
+  // sentido), el dashboard es una pantalla de una sola vista donde el padre
+  // necesita ver acciones pendientes (pagar/calificar) de inmediato. Gatear
+  // la opacidad detrás de un ScrollTrigger deja el contenido bajo el pliegue
+  // en opacity:0 hasta que alguien haga scroll — inaceptable para un botón
+  // de "pagar clase". Se anima todo al montar, en cascada por sección.
+  document.querySelectorAll('.reveal-group').forEach((group, groupIndex) => {
+    const items = group.querySelectorAll('.reveal-item')
+    if (!items.length) return
+
+    gsap.from(items, {
+      opacity: 0,
+      y: 16,
+      duration: 0.5,
+      ease: 'power2.out',
+      delay: groupIndex * 0.06,
+      stagger: { amount: Math.min(items.length * 0.06, 0.4) },
+    })
+  })
+})
 </script>

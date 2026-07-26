@@ -99,14 +99,35 @@ class DashboardController extends Controller
         }
 
         $studentIds = $user->students()->pluck('id');
+
+        $avgTeacherRating = TeacherReview::where('parent_id', $user->id)->avg('rating');
+
         return Inertia::render('Dashboard/Parent', [
             'students' => $user->students()->get(),
+            // Estados "activos": incluye pending_parent_confirmation (ya ocurrió,
+            // espera calificación) además de scheduled/paid, para que el timeline
+            // del dashboard pueda ofrecer la acción contextual correcta en cada caso.
             'upcoming' => Lesson::whereIn('student_id', $studentIds)
-                ->where('status', 'scheduled')
-                ->where('start_time', '>=', now())
+                ->whereIn('status', ['scheduled', 'paid', 'pending_parent_confirmation'])
                 ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
                 ->orderBy('start_time')
                 ->take(5)->get(),
+            'next_lesson' => Lesson::whereIn('student_id', $studentIds)
+                ->whereIn('status', ['scheduled', 'paid'])
+                ->where('start_time', '>=', now())
+                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->orderBy('start_time')
+                ->first(),
+            'recent_history' => Lesson::whereIn('student_id', $studentIds)
+                ->where('status', 'completed')
+                ->with(['teacherProfile.user', 'student', 'classRequest.subject', 'teacherReview'])
+                ->orderByDesc('start_time')
+                ->take(5)->get(),
+            'stats' => [
+                'class_requests_total' => ClassRequest::whereIn('student_id', $studentIds)->count(),
+                'classes_completed'    => Lesson::whereIn('student_id', $studentIds)->where('status', 'completed')->count(),
+                'avg_teacher_rating'   => $avgTeacherRating ? round($avgTeacherRating, 1) : null,
+            ],
             'pending_approval' => ClassRequest::whereIn('student_id', $studentIds)
                 ->where('status', 'pending_parent_approval')
                 ->count(),

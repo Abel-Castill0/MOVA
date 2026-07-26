@@ -1,11 +1,15 @@
 <template>
   <AppLayout title="Mis creditos">
     <div class="space-y-6">
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 class="text-xl font-black text-slate-900">Mis creditos MOVA</h2>
           <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
         </div>
+        <a href="#recargas"
+          class="flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
+          💳 Recargar créditos (Yape/Plin)
+        </a>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
@@ -22,10 +26,10 @@
         </section>
       </div>
 
-      <section class="space-y-3">
+      <section id="recargas" class="space-y-3 scroll-mt-24">
         <div>
           <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
-          <p v-if="!rechargesEnabled" class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          <p v-if="!rechargesEnabled" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
             Las recargas se habilitarán próximamente.
           </p>
           <p v-else class="text-sm text-slate-500">Realiza el pago al destino indicado y registra el número de operación para revisión administrativa.</p>
@@ -131,14 +135,14 @@
             <h3 class="text-lg font-black text-slate-900">Recargar paquete {{ selectedPackage?.name }}</h3>
             <p class="mt-1 text-sm text-slate-500">Realiza el pago exacto y registra el número de operación.</p>
           </div>
-          <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" @click="closeRecharge">
+          <button type="button" class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" @click="closeRecharge">
             <span class="sr-only">Cerrar</span>
             x
           </button>
         </div>
 
         <div class="mt-5">
-          <div class="rounded-lg border border-gray-100 bg-slate-50 p-4">
+          <div class="rounded-xl border border-gray-100 bg-slate-50 p-4">
             <p class="text-sm font-semibold text-slate-700">Destino de pago</p>
             <p class="mt-2 text-lg font-black text-slate-900">{{ paymentDestination }}</p>
             <p class="mt-2 text-sm text-slate-500">
@@ -153,7 +157,7 @@
           <select
             id="payment_method"
             v-model="form.payment_method"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+            class="mt-1 block w-full rounded-xl border-gray-200 shadow-sm focus:border-brand-500 focus:ring-brand-500"
             required
           >
             <option value="" disabled>Selecciona un método</option>

@@ -1,42 +1,42 @@
 <template>
   <AppLayout title="Añadir hijo">
     <div class="max-w-lg">
-      <h2 class="text-2xl font-bold text-gray-900 mb-6">Añadir hijo/a</h2>
-      <form @submit.prevent="submit" class="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <h2 class="text-2xl font-black text-slate-900 mb-6">Añadir hijo/a</h2>
+      <form @submit.prevent="submit" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-            <input v-model="form.first_name" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre</label>
+            <input v-model="form.first_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
             <p v-if="form.errors.first_name" class="text-xs text-red-500 mt-1">{{ form.errors.first_name }}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Apellidos</label>
-            <input v-model="form.last_name" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Apellidos</label>
+            <input v-model="form.last_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
             <p v-if="form.errors.last_name" class="text-xs text-red-500 mt-1">{{ form.errors.last_name }}</p>
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento</label>
-          <input v-model="form.birth_date" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Fecha de nacimiento</label>
+          <input v-model="form.birth_date" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nivel educativo</label>
-          <select v-model="form.grade_level" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nivel educativo</label>
+          <select v-model="form.grade_level" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition">
             <option value="primaria">Primaria</option>
             <option value="secundaria">Secundaria</option>
             <option value="universidad">Universidad</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Centro educativo</label>
-          <input v-model="form.school" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">Centro educativo</label>
+          <input v-model="form.school" type="text" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
         </div>
         <div class="flex gap-3 pt-2">
           <button type="submit" :disabled="form.processing"
-            class="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            class="px-6 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 disabled:opacity-50 transition-all shadow-sm shadow-brand-600/20">
             Guardar
           </button>
-          <Link :href="route('dashboard')" class="px-5 py-2 text-sm text-gray-600 hover:text-gray-900">Omitir</Link>
+          <Link :href="route('dashboard')" class="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Omitir</Link>
         </div>
       </form>
     </div>

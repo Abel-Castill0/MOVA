@@ -71,15 +71,8 @@
               <div class="min-w-0">
                 <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
                 <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
-                <p v-if="l.zoom_password" class="text-xs text-slate-400 mt-0.5">🔑 {{ l.zoom_password }}</p>
               </div>
             </div>
-            <a v-if="l.zoom_link" :href="l.zoom_link" target="_blank"
-              class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/30">
-              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/><path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
-              Entrar a Zoom
-            </a>
-            <span v-else class="flex-shrink-0 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-xl">Sin enlace</span>
           </div>
         </div>
         <div v-else class="px-6 py-10 text-center text-slate-400">
@@ -117,10 +110,10 @@
         </div>
       </div>
 
-      <!-- Quick actions — 1 col mobile, 3 desktop -->
+      <!-- Quick actions — 1 col mobile, 2 tablet, 4 desktop -->
       <div>
         <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link :href="route('teacher.requests')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
             <div class="w-11 h-11 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📋</div>
@@ -132,6 +125,12 @@
             <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📚</div>
             <p class="font-bold text-slate-900">Mis ofertas</p>
             <p class="text-sm text-slate-400 mt-0.5">Gestiona tus anuncios</p>
+          </Link>
+          <Link :href="route('teacher.credits.index')"
+            class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
+            <div class="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">💳</div>
+            <p class="font-bold text-slate-900">Recargar créditos</p>
+            <p class="text-sm text-slate-400 mt-0.5">Yape / Plin</p>
           </Link>
           <Link :href="route('teacher.profile')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
