@@ -55,4 +55,15 @@ return [
         'from_name'     => env('GMAIL_FROM_NAME', 'MOVA'),
     ],
 
+    // "Continuar con Google" (login social) — distinto del bloque 'gmail' de
+    // arriba, que es para el envío de correos vía Gmail API. Registrar en
+    // Google Cloud Console > APIs & Services > Credentials, tipo "OAuth
+    // client ID / Web application", con esta redirect URI autorizada:
+    // {APP_URL}/auth/google/callback
+    'google' => [
+        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect'      => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/auth/google/callback'),
+    ],
+
 ];
