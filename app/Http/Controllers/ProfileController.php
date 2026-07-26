@@ -6,6 +6,7 @@ use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
 use App\Models\User;
+use App\Services\CloudinaryService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,20 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
         ]);
+    }
+
+    public function updateAvatar(Request $request, CloudinaryService $cloudinary): RedirectResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+
+        $user = $request->user();
+        $url = $cloudinary->uploadAvatar($request->file('avatar'), $user->id);
+
+        $user->update(['avatar_url' => $url]);
+
+        return Redirect::route('profile.edit');
     }
 
     /**
