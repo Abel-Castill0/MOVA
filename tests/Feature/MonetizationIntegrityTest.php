@@ -256,7 +256,7 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('accepted', $request->fresh()->status);
         $this->assertSame(1, Lesson::count());
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:reservation")->count());
-        $this->assertSame(3, $profile->fresh()->credits_available);
+        $this->assertSame(5 - Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_available);
         $this->assertNotNull($lesson->jitsi_room);
         $this->assertStringStartsWith("mova-lesson-{$lesson->id}-", $lesson->jitsi_room);
     }
@@ -331,7 +331,7 @@ class MonetizationIntegrityTest extends TestCase
             ->assertStatus(422);
 
         $this->assertSame('scheduled', $lesson->fresh()->status);
-        $this->assertSame(2, $profile->fresh()->credits_reserved);
+        $this->assertSame(Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_reserved);
         $this->assertSame(0, $profile->fresh()->completed_classes_count);
     }
 
@@ -346,6 +346,42 @@ class MonetizationIntegrityTest extends TestCase
 
         $this->assertSame('paid', $lesson->fresh()->status);
         $this->assertSame(1, ClassEvent::where('event_type', 'payment_confirmed')->count());
+    }
+
+    public function test_confirm_payment_time_gate_has_no_http_reachable_bypass(): void
+    {
+        [, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+
+        // Common backdoor shapes an attacker (or a careless future PR) might try:
+        // query param, form field, header. None of them should move the needle —
+        // confirmPayment() has no time-check bypass of any kind, in any environment.
+        $this->actingAs($parent)
+            ->post(route('lessons.confirm-payment', $lesson).'?bypass_time_check=1')
+            ->assertStatus(422);
+
+        $this->actingAs($parent)
+            ->post(route('lessons.confirm-payment', $lesson), ['bypass_time_check' => true])
+            ->assertStatus(422);
+
+        $this->assertSame('scheduled', $lesson->fresh()->status);
+        $this->assertSame(Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_reserved);
+    }
+
+    public function test_testing_backdate_lesson_command_unblocks_confirm_payment(): void
+    {
+        [, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+
+        // Before backdating: the real-time gate still applies.
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
+            ->assertStatus(422);
+
+        $this->artisan('mova:testing-backdate-lesson', ['lesson_id' => $lesson->id])
+            ->assertExitCode(0);
+
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
+            ->assertRedirect();
+
+        $this->assertSame('paid', $lesson->fresh()->status);
     }
 
     public function test_report_requires_a_paid_lesson(): void
@@ -538,6 +574,92 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('classes', 0);
     }
 
+    public function test_lesson_join_allows_owner_parent_and_assigned_teacher(): void
+    {
+        [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+        $this->actingAs($parent)->get(route('lessons.join', $lesson))
+            ->assertOk()
+            ->assertJson(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+        $this->actingAs($teacher)->get(route('lessons.join', $lesson))
+            ->assertOk()
+            ->assertJson(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+    }
+
+    public function test_lesson_join_rejects_unrelated_parent_and_teacher(): void
+    {
+        [, , $lesson] = $this->lesson('scheduled', now()->addHour());
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+        $unrelatedParent = $this->userWithRole('parent');
+        $this->actingAs($unrelatedParent)->get(route('lessons.join', $lesson))->assertForbidden();
+
+        [$unrelatedTeacher] = $this->teacher();
+        $this->actingAs($unrelatedTeacher)->get(route('lessons.join', $lesson))->assertForbidden();
+    }
+
+    public function test_lesson_join_rejects_guest(): void
+    {
+        [, , $lesson] = $this->lesson('scheduled', now()->addHour());
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+        $this->get(route('lessons.join', $lesson))->assertRedirect(route('login'));
+    }
+
+    public function test_lesson_join_rejects_invalid_lesson_status(): void
+    {
+        // 'cancelled' y 'completed' no están en la lista de estados permitidos
+        // para unirse — ni siquiera el dueño legítimo puede entrar a una sala
+        // de una clase cancelada o ya finalizada.
+        foreach (['cancelled', 'completed'] as $status) {
+            [$teacher, , $lesson, $parent] = $this->lesson($status, now()->subHours(2));
+            $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+            $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertForbidden();
+            $this->actingAs($teacher)->get(route('lessons.join', $lesson))->assertForbidden();
+        }
+    }
+
+    public function test_lesson_join_allows_scheduled_paid_and_pending_parent_confirmation(): void
+    {
+        foreach (['scheduled', 'paid', 'pending_parent_confirmation'] as $status) {
+            [$teacher, , $lesson, $parent] = $this->lesson($status, now()->addHour());
+            $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+            $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertOk();
+            $this->actingAs($teacher)->get(route('lessons.join', $lesson))->assertOk();
+        }
+    }
+
+    public function test_lesson_join_returns_not_found_when_room_was_never_created(): void
+    {
+        [, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+        // El helper lesson() no fija jitsi_room — simula una clase legacy o un
+        // registro inconsistente donde nunca se generó la sala.
+
+        $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertNotFound();
+    }
+
+    public function test_lesson_listings_never_expose_jitsi_credentials(): void
+    {
+        [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+
+        $this->actingAs($parent)->get(route('parent.lessons'))->assertInertia(fn ($page) => $page
+            ->where('lessons.0.has_jitsi_room', true)
+            ->missing('lessons.0.jitsi_room')
+            ->missing('lessons.0.jitsi_password')
+        );
+
+        $this->actingAs($teacher)->get(route('teacher.lessons'))->assertInertia(fn ($page) => $page
+            ->where('lessons.0.has_jitsi_room', true)
+            ->missing('lessons.0.jitsi_room')
+            ->missing('lessons.0.jitsi_password')
+        );
+    }
+
     public function test_monetization_migration_aborts_before_schema_changes_for_legacy_duplicates(): void
     {
         [, $profile] = $this->teacher();
@@ -645,7 +767,7 @@ class MonetizationIntegrityTest extends TestCase
         ]);
     }
 
-    private function lesson(string $status, Carbon $startTime, int $reservedCredits = 2): array
+    private function lesson(string $status, Carbon $startTime, int $reservedCredits = Lesson::CLASS_CREDIT_COST_PER_CLASS): array
     {
         [$teacher, $profile, $subject] = $this->teacher();
         $profile->update(['credits_reserved' => $reservedCredits]);
@@ -664,7 +786,7 @@ class MonetizationIntegrityTest extends TestCase
             'lesson_id' => $lesson->id,
             'idempotency_key' => "lesson:{$lesson->id}:reservation",
             'type' => 'reservation',
-            'amount' => 2,
+            'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
             'description' => 'Reserva por aceptación de clase',
         ]);
 
