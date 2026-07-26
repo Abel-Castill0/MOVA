@@ -10,7 +10,6 @@ use App\Models\TeacherProfile;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\ClassRescheduledNotification;
 use App\Notifications\PaymentConfirmedNotification;
-use App\Services\ZoomService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +19,7 @@ use Inertia\Inertia;
 
 class LessonController extends Controller
 {
-    private const CLASS_CREDIT_COST = Lesson::CLASS_CREDIT_COST;
+    private const CLASS_CREDIT_COST_PER_CLASS = Lesson::CLASS_CREDIT_COST_PER_CLASS;
 
     public function store(Request $request)
     {
@@ -36,13 +35,7 @@ class LessonController extends Controller
 
         abort_unless($profile, 403, 'No tienes perfil de profesor.');
         abort_if($classRequest->status !== 'open', 403, 'Esta solicitud ya no está disponible.');
-
-        // Verify this request belongs to this teacher (via offer or matching subject)
-        $offerIds = $profile->classOffers()->pluck('id');
-        $subjectIds = $profile->subjects()->pluck('subjects.id');
-        $ownedViaOffer = $classRequest->class_offer_id && $offerIds->contains($classRequest->class_offer_id);
-        $ownedViaSubject = ! $classRequest->class_offer_id && $subjectIds->contains($classRequest->subject_id);
-        abort_unless($ownedViaOffer || $ownedViaSubject, 403, 'Esta solicitud no pertenece a tus ofertas.');
+        $this->authorize('accept', $classRequest);
 
         if ($this->hasScheduleOverlap($profile->id, $data['start_time'], $data['duration_minutes'])) {
             return back()->withErrors(['start_time' => 'Ya tienes una clase en ese horario.']);
@@ -72,7 +65,7 @@ class LessonController extends Controller
                 ->firstOrFail();
 
             abort_if(
-                $teacherProfile->credits_available < self::CLASS_CREDIT_COST,
+                $teacherProfile->credits_available < self::CLASS_CREDIT_COST_PER_CLASS,
                 422,
                 'Créditos insuficientes. Por favor, recargue su saldo para aceptar esta clase.'
             );
@@ -93,14 +86,18 @@ class LessonController extends Controller
                 'class_offer_id' => $classRequest->class_offer_id,
                 'start_time' => $data['start_time'],
                 'duration_minutes' => $data['duration_minutes'],
+                'price_frozen_pen' => round($teacherProfile->hourly_rate * $data['duration_minutes'] / 60, 2),
                 'status' => 'scheduled',
             ]);
 
-            $lesson->update(['jitsi_room' => "mova-lesson-{$lesson->id}-".Str::random(8)]);
+            $lesson->update([
+                'jitsi_room' => "mova-lesson-{$lesson->id}-".Str::random(32),
+                'jitsi_password' => Str::random(10),
+            ]);
 
             $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST,
-                'credits_reserved' => $teacherProfile->credits_reserved + self::CLASS_CREDIT_COST,
+                'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_reserved' => $teacherProfile->credits_reserved + self::CLASS_CREDIT_COST_PER_CLASS,
             ];
 
             if ($classRequest->is_mentorship) {
@@ -113,7 +110,7 @@ class LessonController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:reservation",
                 'lesson_id' => $lesson->id,
                 'type' => 'reservation',
-                'amount' => self::CLASS_CREDIT_COST,
+                'amount' => self::CLASS_CREDIT_COST_PER_CLASS,
                 'description' => 'Reserva por aceptación de clase',
             ]);
 
@@ -153,12 +150,39 @@ class LessonController extends Controller
         ]);
     }
 
+    // Único punto de la app que revela jitsi_room/jitsi_password (ocultos por
+    // defecto en el modelo — ver Lesson::$hidden). El frontend los pide aquí
+    // justo antes de abrir la sala, en vez de recibirlos en el listado de
+    // clases; así reducimos la ventana de exposición y evitamos que alguien
+    // con la URL/room adivinada pueda entrar sin haber pasado por esta
+    // verificación de autorización + estado.
+    public function join(Lesson $lesson)
+    {
+        $this->authorize('view', $lesson);
+
+        abort_unless(
+            in_array($lesson->status, ['scheduled', 'paid', 'pending_parent_confirmation'], true),
+            403,
+            'Esta clase no está disponible para unirse en este momento.'
+        );
+
+        abort_unless($lesson->jitsi_room, 404, 'Esta clase todavía no tiene una sala virtual asignada.');
+
+        return response()->json([
+            'jitsi_room' => $lesson->jitsi_room,
+            'jitsi_password' => $lesson->jitsi_password,
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
     public function confirmPayment(Lesson $lesson)
     {
         $user = auth()->user();
-        abort_unless($user->hasRole('parent'), 403);
-        abort_unless($user->students()->where('id', $lesson->student_id)->exists(), 403);
+        $this->authorize('confirmPayment', $lesson);
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se puede confirmar el pago de clases programadas.');
+        // Sin bypass por query param ni por entorno: en PHPUnit, now() ya respeta
+        // Carbon::setTestNow(); para E2E (Playwright), usar el comando de consola
+        // `mova:testing-backdate-lesson` para sembrar la clase ya vencida en BD,
+        // en vez de debilitar esta validación en runtime.
         abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
 
         $lesson = DB::transaction(function () use ($lesson, $user) {
@@ -182,16 +206,16 @@ class LessonController extends Controller
         return back()->with('success', 'Pago confirmado. El profesor podrá subir el reporte de la clase.');
     }
 
-    public function cancel(Lesson $lesson, ZoomService $zoom)
+    public function cancel(Lesson $lesson)
     {
         $user = auth()->user();
         $profile = $user->teacherProfile;
+        $this->authorize('cancel', $lesson);
 
-        // Authorization: teacher (own lesson), parent (own student), or admin
+        // Used below to route notifications to the other party.
         $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
         $isParent = $user->hasRole('parent') && $user->students()->where('id', $lesson->student_id)->exists();
         $isAdmin = $user->hasRole('admin');
-        abort_unless($isTeacher || $isParent || $isAdmin, 403);
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
 
         $data = request()->validate([
@@ -211,14 +235,14 @@ class LessonController extends Controller
                 ->firstOrFail();
 
             abort_if(
-                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST,
+                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST_PER_CLASS,
                 422,
                 'No hay créditos reservados suficientes para devolver esta clase.'
             );
 
             $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST,
-                'credits_reserved' => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
+                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_reserved' => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST_PER_CLASS,
             ];
 
             if ($lesson->classRequest?->is_mentorship) {
@@ -234,7 +258,7 @@ class LessonController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:release",
                 'lesson_id' => $lesson->id,
                 'type' => 'refund',
-                'amount' => self::CLASS_CREDIT_COST,
+                'amount' => self::CLASS_CREDIT_COST_PER_CLASS,
                 'description' => 'Devolución por clase cancelada',
             ]);
 
@@ -249,10 +273,6 @@ class LessonController extends Controller
 
             return $lesson;
         });
-
-        if ($lesson->zoom_meeting_id) {
-            $zoom->deleteMeeting($lesson->zoom_meeting_id);
-        }
 
         $notification = new ClassCancelledNotification($lesson);
 
@@ -276,10 +296,10 @@ class LessonController extends Controller
     {
         $user = auth()->user();
         $profile = $user->teacherProfile;
+        $this->authorize('reschedule', $lesson);
 
+        // Used below to word the notification from the right party's perspective.
         $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
-        $isParent = $user->hasRole('parent') && $user->students()->where('id', $lesson->student_id)->exists();
-        abort_unless($isTeacher || $isParent, 403);
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden reprogramar clases programadas.');
 
         $data = request()->validate([

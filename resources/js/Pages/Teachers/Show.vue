@@ -68,7 +68,7 @@
               <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
               <path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/>
             </svg>
-            Clases online por Zoom — link generado automáticamente al confirmar
+            Clases online por videollamada — link generado automáticamente al confirmar
           </div>
         </div>
       </div>
@@ -178,7 +178,7 @@
           <div class="flex items-start gap-3">
             <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center text-brand-600 flex-shrink-0 text-sm">📹</div>
             <div>
-              <p class="text-sm font-semibold text-slate-900">Zoom automático</p>
+              <p class="text-sm font-semibold text-slate-900">Videollamada automática</p>
               <p class="text-xs text-slate-500 mt-0.5">El enlace de videollamada se genera solo al confirmar la clase.</p>
             </div>
           </div>

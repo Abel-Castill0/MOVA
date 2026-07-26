@@ -16,7 +16,7 @@ use Inertia\Inertia;
 
 class AdminController extends Controller
 {
-    private const CLASS_CREDIT_COST = 2;
+    private const CLASS_CREDIT_COST_PER_CLASS = Lesson::CLASS_CREDIT_COST_PER_CLASS;
 
     public function users()
     {
@@ -152,14 +152,14 @@ class AdminController extends Controller
                 ->firstOrFail();
 
             abort_if(
-                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST,
+                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST_PER_CLASS,
                 422,
                 'No hay créditos reservados suficientes para devolver esta clase.'
             );
 
             $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST,
-                'credits_reserved'  => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST,
+                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_reserved'  => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST_PER_CLASS,
             ];
 
             if ($lesson->classRequest?->is_mentorship) {
@@ -175,7 +175,7 @@ class AdminController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:release",
                 'lesson_id'   => $lesson->id,
                 'type'        => 'refund',
-                'amount'      => self::CLASS_CREDIT_COST,
+                'amount'      => self::CLASS_CREDIT_COST_PER_CLASS,
                 'description' => 'Devolución por clase cancelada',
             ]);
 

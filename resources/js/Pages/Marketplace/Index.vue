@@ -5,7 +5,7 @@
       <!-- Header -->
       <div>
         <h2 class="text-2xl font-black text-slate-900">Encuentra tu profesor ideal</h2>
-        <p class="text-sm text-slate-500 mt-1">Profesores verificados por MOVA, clases online con Zoom incluido</p>
+        <p class="text-sm text-slate-500 mt-1">Profesores verificados por MOVA, clases online con videollamada incluida</p>
       </div>
 
       <!-- Filters -->
@@ -171,7 +171,7 @@
                 <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
                 <path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/>
               </svg>
-              Clase online por Zoom
+              Clase online por videollamada
             </div>
 
             <!-- Mentorship slots -->

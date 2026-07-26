@@ -9,7 +9,7 @@
           Volver a solicitudes
         </Link>
         <h2 class="text-2xl font-black text-slate-900">Programar clase</h2>
-        <p class="text-slate-500 text-sm mt-1">Elige la fecha y duración. Se creará una reunión Zoom automáticamente.</p>
+        <p class="text-slate-500 text-sm mt-1">Elige la fecha y duración. Se creará una Sala Virtual (Jitsi) automáticamente.</p>
       </div>
 
       <!-- Request summary card -->
@@ -19,16 +19,6 @@
           <p class="font-bold text-brand-900">{{ classRequest.subject?.name }}</p>
           <p class="text-sm text-brand-700">Alumno: <strong>{{ classRequest.student?.first_name }} {{ classRequest.student?.last_name }}</strong></p>
           <p v-if="classRequest.help_needed" class="text-xs text-slate-500 mt-1 line-clamp-2">{{ classRequest.help_needed }}</p>
-        </div>
-      </div>
-
-      <!-- Zoom error banner -->
-      <div v-if="form.errors.zoom" class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
-        <span class="text-xl flex-shrink-0">❌</span>
-        <div>
-          <p class="font-semibold text-red-900 text-sm">Error al crear la reunión de Zoom</p>
-          <p class="text-red-700 text-sm mt-0.5">{{ form.errors.zoom }}</p>
-          <p class="text-red-500 text-xs mt-2">Asegúrate de que las credenciales ZOOM_* en el archivo .env sean correctas y que la app Zoom tenga el scope <code class="bg-red-100 px-1 rounded">meeting:write:admin</code>.</p>
         </div>
       </div>
 
@@ -60,10 +50,10 @@
           </div>
         </div>
 
-        <!-- Zoom info note -->
+        <!-- Jitsi info note -->
         <div class="bg-slate-50 rounded-xl p-3 flex items-center gap-3 text-sm text-slate-600">
           <svg class="w-5 h-5 text-brand-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/><path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
-          Se creará una reunión Zoom automáticamente con enlace y contraseña únicos.
+          Se creará una Sala Virtual (Jitsi) automáticamente con enlace y contraseña únicos.
         </div>
 
         <!-- Submit -->
@@ -74,7 +64,7 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <span>{{ form.processing ? 'Creando reunión Zoom...' : 'Confirmar y crear clase' }}</span>
+            <span>{{ form.processing ? 'Creando sala virtual...' : 'Confirmar y crear clase' }}</span>
           </button>
           <Link :href="route('teacher.requests')"
             class="px-6 py-3 text-sm font-semibold text-slate-600 hover:text-slate-900 rounded-xl border border-gray-200 hover:bg-slate-50 transition-colors text-center">

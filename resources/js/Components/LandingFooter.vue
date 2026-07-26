@@ -12,7 +12,7 @@
             <span class="font-black text-xl">MOVA</span>
           </div>
           <p class="text-slate-400 text-sm leading-relaxed mb-4">
-            Plataforma educativa creada por dos socios apasionados por la educación. Conectamos estudiantes con los mejores profesores particulares para aprender en vivo por Zoom.
+            Plataforma educativa creada por dos socios apasionados por la educación. Conectamos estudiantes con los mejores profesores particulares para aprender en vivo por videollamada.
           </p>
           <p class="text-slate-500 text-xs mb-4">Fundada por Abel Castillo & Elias Paz</p>
           <p class="text-slate-500 text-xs mt-1">Próximamente en redes sociales.</p>

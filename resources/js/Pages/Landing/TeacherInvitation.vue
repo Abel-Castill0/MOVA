@@ -126,13 +126,13 @@ import { Head, Link } from '@inertiajs/vue3'
 const features = [
   { icon: '🗓️', title: 'Elige tu horario', desc: 'Tú decides cuándo y cuánto enseñas. Total flexibilidad para compatibilizar con tu vida.' },
   { icon: '💰', title: 'Gana dinero enseñando', desc: 'Establece tu propia tarifa por hora y recibe pagos de forma segura. Sin intermediarios.' },
-  { icon: '🎥', title: 'Clases 1 a 1 por Zoom', desc: 'Todas las clases son en vivo, individuales y por Zoom. El enlace se genera automáticamente.' },
+  { icon: '🎥', title: 'Clases 1 a 1 por videollamada', desc: 'Todas las clases son en vivo, individuales y por videollamada. El enlace se genera automáticamente.' },
 ]
 
 const steps = [
   { title: 'Crea tu perfil', desc: 'Regístrate, añade tu bio, materias que impartes y tu tarifa por hora.' },
   { title: 'Espera solicitudes o publica ofertas', desc: 'Los estudiantes te contactan directamente o tú puedes publicar anuncios de clases disponibles.' },
-  { title: 'Da tu primera clase', desc: 'Acepta la solicitud, acuerda el horario y conéctate por Zoom. ¡Así de fácil!' },
+  { title: 'Da tu primera clase', desc: 'Acepta la solicitud, acuerda el horario y conéctate por videollamada. ¡Así de fácil!' },
 ]
 </script>
 

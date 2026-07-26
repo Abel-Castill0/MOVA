@@ -98,19 +98,19 @@
 
     <!-- ── Modal cancelación ──────────────────────────────────────────────────── -->
     <div v-if="cancelTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Cancelar clase</h3>
-        <p class="text-sm text-gray-500 mb-4">{{ fmtDate(cancelTarget.start_time) }}</p>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-lg p-6 w-full max-w-sm">
+        <h3 class="font-bold text-slate-900 mb-1">Cancelar clase</h3>
+        <p class="text-sm text-slate-500 mb-4">{{ fmtDate(cancelTarget.start_time) }}</p>
         <textarea v-model="cancelReason" rows="3"
           placeholder="Motivo (opcional)"
-          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-1" />
+          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition mb-1" />
         <div class="flex gap-2 mt-3">
           <button @click="cancelTarget = null; cancelReason = ''"
-            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
             Volver
           </button>
           <button @click="submitCancel"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg">
+            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl transition-all">
             Confirmar cancelación
           </button>
         </div>
@@ -119,35 +119,35 @@
 
     <!-- ── Modal reprogramación ───────────────────────────────────────────────── -->
     <div v-if="rescheduleTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Reprogramar clase</h3>
-        <p class="text-sm text-gray-500 mb-3">Original: {{ fmtDate(rescheduleTarget.start_time) }}</p>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-lg p-6 w-full max-w-sm">
+        <h3 class="font-bold text-slate-900 mb-1">Reprogramar clase</h3>
+        <p class="text-sm text-slate-500 mb-3">Original: {{ fmtDate(rescheduleTarget.start_time) }}</p>
         <div class="space-y-3">
           <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Nueva fecha y hora</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Nueva fecha y hora</label>
             <input v-model="rescheduleForm.start_time" type="datetime-local"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Duración (minutos)</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Duración (minutos)</label>
             <input v-model.number="rescheduleForm.duration_minutes" type="number" min="30" max="240" step="15"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Motivo (opcional)</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Motivo (opcional)</label>
             <input v-model="rescheduleForm.reason" type="text" maxlength="500"
               placeholder="Ej: Por disponibilidad del alumno"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
           </div>
           <p v-if="rescheduleError" class="text-xs text-red-500">{{ rescheduleError }}</p>
         </div>
         <div class="flex gap-2 mt-4">
           <button @click="rescheduleTarget = null"
-            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
             Volver
           </button>
           <button @click="submitReschedule"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg">
+            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl transition-all">
             Reprogramar
           </button>
         </div>
@@ -156,8 +156,11 @@
 
     <!-- ── Modal Sala Virtual (Jitsi) ─────────────────────────────────────────── -->
     <Modal :show="showingJitsiModal" max-width="7xl" @close="closeJitsi">
-      <iframe :src="currentJitsiUrl" allow="camera; microphone; fullscreen; display-capture"
-        class="w-full h-[80vh] border-0"></iframe>
+      <div v-if="joinError" class="p-8 text-center">
+        <div class="text-4xl mb-3">⚠️</div>
+        <p class="text-slate-700 font-semibold">{{ joinError }}</p>
+      </div>
+      <div v-else id="jitsi-container" class="w-full h-[80vh]" allow="camera; microphone; fullscreen; display-capture"></div>
     </Modal>
   </AppLayout>
 </template>
@@ -168,6 +171,7 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import Modal from '@/Components/Modal.vue'
+import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 
 defineProps({ lessons: Array })
 
@@ -176,25 +180,14 @@ const cancelReason   = ref('')
 const rescheduleTarget = ref(null)
 const rescheduleError  = ref('')
 const rescheduleForm   = ref({ start_time: '', duration_minutes: 60, reason: '' })
-const showingJitsiModal = ref(false)
-const currentJitsiUrl   = ref('')
+const { showingJitsiModal, joinError, openJitsi, closeJitsi } = useJitsiMeet()
 
 function canJoinJitsi(l) {
-  if (!l.jitsi_room) return false
+  if (!l.has_jitsi_room) return false
   if (l.status === 'paid') return true
   if (l.status !== 'scheduled') return false
   const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
   return minutesToStart <= 15
-}
-
-function openJitsi(l) {
-  currentJitsiUrl.value = `https://meet.jit.si/${l.jitsi_room}`
-  showingJitsiModal.value = true
-}
-
-function closeJitsi() {
-  showingJitsiModal.value = false
-  currentJitsiUrl.value = ''
 }
 
 function openCancel(l) {
@@ -252,10 +245,6 @@ function fmtDate(d) {
 
 function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
-
-function zoomId(url) {
-  return url?.match(/\/j\/(\d+)/)?.[1] ?? '—'
 }
 
 function statusStripe(s) {

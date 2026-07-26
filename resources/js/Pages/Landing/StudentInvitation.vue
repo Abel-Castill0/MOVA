@@ -127,7 +127,7 @@ import { Head, Link } from '@inertiajs/vue3'
 const steps = [
   { icon: '🔍', title: 'Elige tu materia', desc: 'Explora nuestro catálogo de materias y niveles. Filtra por precio, disponibilidad y valoraciones.' },
   { icon: '📝', title: 'Solicita un profesor', desc: 'Envía una solicitud explicando lo que necesitas. El profesor propone un horario y lo confirmas.' },
-  { icon: '🎥', title: 'Aprende por Zoom', desc: 'Entra a la videollamada con un clic. El enlace de Zoom se genera automáticamente para cada clase.' },
+  { icon: '🎥', title: 'Aprende por videollamada', desc: 'Entra a la videollamada con un clic. El enlace se genera automáticamente para cada clase.' },
 ]
 
 const benefits = [

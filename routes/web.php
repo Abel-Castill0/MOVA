@@ -51,6 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1')->name('profile.avatar');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
@@ -70,9 +71,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->name('class-requests.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
-        Route::post('/lessons/{lesson}/confirm-payment', [LessonController::class, 'confirmPayment'])->name('lessons.confirm-payment');
+        Route::post('/lessons/{lesson}/confirm-payment', [LessonController::class, 'confirmPayment'])->middleware('throttle:10,1')->name('lessons.confirm-payment');
         Route::get('/lessons/{lesson}/review/create', [TeacherReviewController::class, 'create'])->name('reviews.create');
-        Route::post('/lessons/{lesson}/review', [TeacherReviewController::class, 'store'])->name('reviews.store');
+        Route::post('/lessons/{lesson}/review', [TeacherReviewController::class, 'store'])->middleware('throttle:10,1')->name('reviews.store');
         Route::get('/my-reports', [LessonReportController::class, 'parentIndex'])->name('parent.reports');
         Route::patch('/settings/parental-control', [ParentSettingsController::class, 'update'])->name('parent.settings.update');
     });
@@ -84,7 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/teacher/profile', [TeacherProfileController::class, 'edit'])->name('teacher.profile');
         Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->name('teacher.profile.update');
         Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
-        Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->name('teacher.credits.recharge');
+        Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->middleware('throttle:10,1')->name('teacher.credits.recharge');
 
         Route::resource('class-offers', ClassOfferController::class)->except(['show']);
         Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->name('class-offers.toggle');
@@ -100,13 +101,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
     });
 
-    // ── Shared: cancel & reschedule (parent, teacher, admin) ─────────────────
+    // ── Shared: cancel, reschedule & join (parent, teacher, admin) ────────────
     Route::middleware('not.suspended')->group(function () {
-        Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->name('lessons.cancel');
+        Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->middleware('throttle:10,1')->name('lessons.cancel');
         Route::post('/lessons/{lesson}/reschedule', [LessonController::class, 'reschedule'])->name('lessons.reschedule');
+        Route::get('/lessons/{lesson}/join', [LessonController::class, 'join'])->name('lessons.join');
     });
 
     // ── Admin ────────────────────────────────────────────────────────────────
+    // Deliberadamente SIN 'not.suspended': a diferencia de parent/teacher, un admin
+    // suspendido debe conservar acceso. Si se le aplicara la misma restricción, un
+    // admin suspendido (por error o por otro admin) quedaría sin forma de
+    // revertir su propia suspensión, dejando la plataforma sin administrador activo.
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
         Route::get('/pending-teachers', [AdminController::class, 'pendingTeachers'])->name('admin.teachers.pending');
@@ -116,9 +122,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->name('admin.users.unsuspend');
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
-        Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->name('admin.lessons.cancel');
+        Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware('throttle:10,1')->name('admin.lessons.cancel');
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
-        Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->name('admin.recharges.approve');
+        Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
         Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->name('admin.recharges.reject');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->name('admin.reviews.hide');

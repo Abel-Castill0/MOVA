@@ -11,12 +11,12 @@ class Lesson extends Model
 
     protected $table = 'classes';
 
-    public const CLASS_CREDIT_COST = 2;
+    public const CLASS_CREDIT_COST_PER_CLASS = 1;
 
     protected $fillable = [
         'teacher_profile_id', 'student_id', 'class_request_id', 'class_offer_id',
-        'start_time', 'duration_minutes', 'zoom_meeting_id',
-        'jitsi_room', 'status', 'reminder_sent',
+        'start_time', 'duration_minutes', 'price_frozen_pen', 'zoom_meeting_id',
+        'jitsi_room', 'jitsi_password', 'status', 'reminder_sent',
         'reminder_24h_sent_at', 'reminder_2h_sent_at', 'report_reminder_sent_at',
         'cancelled_at', 'cancelled_by', 'cancel_reason',
         'original_start_time', 'rescheduled_at', 'rescheduled_by', 'reschedule_reason',
@@ -32,6 +32,19 @@ class Lesson extends Model
         'cancelled_at'            => 'datetime',
         'rescheduled_at'          => 'datetime',
     ];
+
+    // La sala de Jitsi funciona como un token de acceso: quien la conoce puede
+    // unirse (y, si llega primero, fijar o saltarse el password). Nunca deben
+    // salir en un listado — solo LessonController::join() los expone, tras
+    // pasar por LessonPolicy::view() y validar el estado de la clase.
+    protected $hidden = ['jitsi_room', 'jitsi_password'];
+
+    protected $appends = ['has_jitsi_room'];
+
+    public function getHasJitsiRoomAttribute(): bool
+    {
+        return $this->jitsi_room !== null;
+    }
 
     public function teacherProfile()
     {
