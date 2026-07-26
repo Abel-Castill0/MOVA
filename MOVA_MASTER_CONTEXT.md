@@ -180,9 +180,9 @@ Videollamada: el botón **"🎥 Ingresar a la Sala Virtual"** aparece en las tar
 ```
 credit_minutes    = 60      // 1 crédito ≈ 60 minutos (referencia)
 credit_price_pen  = 2.00    // 1 crédito = S/ 2.00
-fixed_class_cost  = 2       // costo fijo por clase (Fase 1)
+fixed_class_cost  = 1       // costo fijo por clase (Fase 1): 1 crédito por hora de clase dictada
 ```
-El costo por clase también está centralizado como constante de dominio: `Lesson::CLASS_CREDIT_COST = 2`.
+El costo por clase también está centralizado como constante de dominio: `Lesson::CLASS_CREDIT_COST_PER_CLASS = 1`.
 
 #### Paquetes de recarga
 
@@ -732,7 +732,7 @@ Mismo patrón en `DiagnosticAiEnrichmentService`: `env('OPENAI_API_KEY')` y `env
 Detallado en §4.1. Re-ejecutarlo duplica clases y usuarios de relleno.
 
 #### M5. `credit_minutes` sin usar
-`config/credits.php` define `credit_minutes = 60` sugiriendo facturación por duración, pero el sistema cobra `fixed_class_cost = 2` sin importar `duration_minutes` (que acepta 30–240 min). El propio comentario lo admite: *"Phase 1 keeps the existing fixed reservation until duration billing is introduced."* **Consecuencia de negocio:** una clase de 240 min cuesta lo mismo que una de 30 min.
+`config/credits.php` define `credit_minutes = 60` sugiriendo facturación por duración, pero el sistema cobra `fixed_class_cost = 1` sin importar `duration_minutes` (que acepta 30–240 min). El propio comentario lo admite: *"Phase 1 keeps the existing fixed reservation until duration billing is introduced."* **Consecuencia de negocio:** una clase de 240 min cuesta lo mismo que una de 30 min.
 
 #### M6. Cálculo de monto a pagar duplicado en el frontend
 `amountToPay(l)` en `ParentIndex.vue` calcula `hourly_rate × duration/60` **en JavaScript**. El backend nunca valida ni persiste ese monto. Si cambia la tarifa del profesor entre el agendamiento y el pago, el padre ve un monto distinto al pactado. **Sugerencia:** congelar el precio en la `Lesson` al agendar.
