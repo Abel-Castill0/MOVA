@@ -128,6 +128,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Production Admin Seed Credentials
+    |--------------------------------------------------------------------------
+    |
+    | Used exclusively by ProductionSeeder to create the initial admin user.
+    |
+    */
+
+    'admin_email' => env('ADMIN_EMAIL'),
+
+    'admin_password' => env('ADMIN_PASSWORD'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Maintenance Mode Driver
     |--------------------------------------------------------------------------
     |

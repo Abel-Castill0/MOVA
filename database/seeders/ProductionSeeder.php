@@ -11,8 +11,8 @@ class ProductionSeeder extends Seeder
 {
     public function run(): void
     {
-        $email    = env('ADMIN_EMAIL');
-        $password = env('ADMIN_PASSWORD');
+        $email    = config('app.admin_email');
+        $password = config('app.admin_password');
         $name     = env('ADMIN_NAME', 'Admin MOVA');
 
         if (! $email || ! $password) {

@@ -196,7 +196,7 @@ class DiagnosticAiEnrichmentService
 
     private function callOpenAi(string $systemPrompt, string $userPrompt, int $diagnosticId): ?array
     {
-        $apiKey = env('OPENAI_API_KEY');
+        $apiKey = config('diagnostic.openai_api_key');
         if (!$apiKey) {
             Log::warning('DiagnosticAI: OPENAI_API_KEY not configured', ['diagnostic_id' => $diagnosticId]);
             return null;
@@ -239,7 +239,7 @@ class DiagnosticAiEnrichmentService
 
     private function callGemini(string $systemPrompt, string $userPrompt, int $diagnosticId): ?array
     {
-        $apiKey = env('GEMINI_API_KEY');
+        $apiKey = config('diagnostic.gemini_api_key');
         if (!$apiKey) {
             Log::warning('DiagnosticAI: GEMINI_API_KEY not configured', ['diagnostic_id' => $diagnosticId]);
             return null;

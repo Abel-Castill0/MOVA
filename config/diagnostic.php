@@ -26,4 +26,7 @@ return [
     'monthly_limit'          => (int) env('DIAGNOSTIC_AI_MONTHLY_LIMIT', 500),
     // If true, auto-disables AI after 3 consecutive errors in one hour
     'auto_disable_on_error'  => (bool) env('DIAGNOSTIC_AI_AUTO_DISABLE_ON_ERROR', false),
+
+    'gemini_api_key'         => env('GEMINI_API_KEY'),
+    'openai_api_key'         => env('OPENAI_API_KEY'),
 ];
