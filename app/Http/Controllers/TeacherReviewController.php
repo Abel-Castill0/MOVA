@@ -15,7 +15,7 @@ class TeacherReviewController extends Controller
     // GET /lessons/{lesson}/review/create
     public function create(Lesson $lesson)
     {
-        $this->authorizeParentOwnership($lesson);
+        $this->authorize('createReview', $lesson);
         abort_unless($lesson->status === 'pending_parent_confirmation', 403, 'Solo se puede calificar una clase con el reporte del profesor listo.');
         abort_if($lesson->teacherReview()->exists(), 422, 'Ya existe una reseña para esta clase.');
 
@@ -35,7 +35,7 @@ class TeacherReviewController extends Controller
     // POST /lessons/{lesson}/review
     public function store(Request $request, Lesson $lesson)
     {
-        $this->authorizeParentOwnership($lesson);
+        $this->authorize('createReview', $lesson);
         abort_unless($lesson->status === 'pending_parent_confirmation', 403, 'Solo se puede calificar una clase con el reporte del profesor listo.');
         abort_if($lesson->teacherReview()->exists(), 422, 'Ya enviaste una reseña para esta clase.');
 
@@ -55,7 +55,7 @@ class TeacherReviewController extends Controller
                 ->firstOrFail();
 
             abort_if(
-                $teacherProfile->credits_reserved < Lesson::CLASS_CREDIT_COST,
+                $teacherProfile->credits_reserved < Lesson::CLASS_CREDIT_COST_PER_CLASS,
                 422,
                 'No hay créditos reservados suficientes para cerrar esta clase.'
             );
@@ -71,7 +71,7 @@ class TeacherReviewController extends Controller
             ]);
 
             $teacherProfile->update([
-                'credits_reserved' => $teacherProfile->credits_reserved - Lesson::CLASS_CREDIT_COST,
+                'credits_reserved' => $teacherProfile->credits_reserved - Lesson::CLASS_CREDIT_COST_PER_CLASS,
                 'completed_classes_count' => $teacherProfile->completed_classes_count + 1,
                 'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
             ]);
@@ -80,7 +80,7 @@ class TeacherReviewController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:consumption",
                 'lesson_id' => $lesson->id,
                 'type' => 'consumption',
-                'amount' => Lesson::CLASS_CREDIT_COST,
+                'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
                 'description' => 'Consumo por clase completada',
             ]);
 
@@ -120,6 +120,7 @@ class TeacherReviewController extends Controller
     // POST /admin/reviews/{review}/hide
     public function hide(Request $request, TeacherReview $review)
     {
+        $this->authorize('moderate', $review);
         $data = $request->validate([
             'reason' => 'nullable|string|max:500',
         ]);
@@ -137,6 +138,7 @@ class TeacherReviewController extends Controller
     // POST /admin/reviews/{review}/show
     public function showReview(TeacherReview $review)
     {
+        $this->authorize('moderate', $review);
         $review->update([
             'is_visible'        => true,
             'moderated_at'      => now(),
@@ -145,14 +147,5 @@ class TeacherReviewController extends Controller
         ]);
 
         return back()->with('success', 'Reseña visible de nuevo.');
-    }
-
-    private function authorizeParentOwnership(Lesson $lesson): void
-    {
-        $user = auth()->user();
-        if ($user->hasRole('admin')) return;
-        abort_unless($user->hasRole('parent'), 403);
-        $ownedStudentIds = $user->students()->pluck('id');
-        abort_unless($ownedStudentIds->contains($lesson->student_id), 403);
     }
 }

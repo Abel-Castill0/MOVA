@@ -13,8 +13,7 @@ class LessonReportController extends Controller
 {
     public function create(Lesson $lesson)
     {
-        $profile = auth()->user()->teacherProfile;
-        abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
+        $this->authorize('createReport', $lesson);
         abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson);
@@ -36,8 +35,8 @@ class LessonReportController extends Controller
 
     public function store(Request $request, Lesson $lesson)
     {
+        $this->authorize('createReport', $lesson);
         $profile = auth()->user()->teacherProfile;
-        abort_unless($profile && $lesson->teacher_profile_id === $profile->id, 403);
         abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
 
         if ($lesson->lessonReport()->exists()) {
@@ -85,14 +84,7 @@ class LessonReportController extends Controller
 
     public function show(Lesson $lesson)
     {
-        $user    = auth()->user();
-        $profile = $user->teacherProfile;
-
-        // Teacher can see their own reports; parent can see reports of their children
-        $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
-        $isParent  = $lesson->student && $lesson->student->parent_user_id === $user->id;
-
-        abort_unless($isTeacher || $isParent || $user->hasRole('admin'), 403);
+        $this->authorize('view', $lesson);
 
         $lesson->load(['student', 'classRequest.subject', 'teacherProfile.user', 'lessonReport']);
 

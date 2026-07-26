@@ -155,16 +155,7 @@ class ClassRequestController extends Controller
 
     public function teacherReject(ClassRequest $classRequest)
     {
-        $profile = auth()->user()->teacherProfile;
-        abort_unless($profile, 403);
-
-        // Only requests linked to this teacher's offers or matching subjects
-        $offerIds   = $profile->classOffers()->pluck('id');
-        $subjectIds = $profile->subjects()->pluck('subjects.id');
-        $ownedViaOffer   = $classRequest->class_offer_id && $offerIds->contains($classRequest->class_offer_id);
-        $ownedViaSubject = !$classRequest->class_offer_id && $subjectIds->contains($classRequest->subject_id);
-        abort_unless($ownedViaOffer || $ownedViaSubject, 403);
-
+        $this->authorize('reject', $classRequest);
         abort_unless($classRequest->status === 'open', 422, 'Solo se pueden rechazar solicitudes abiertas.');
 
         $data = request()->validate([
@@ -189,6 +180,8 @@ class ClassRequestController extends Controller
 
     public function accept(ClassRequest $classRequest)
     {
+        $this->authorize('accept', $classRequest);
+
         return Inertia::render('ClassRequests/Accept', [
             'classRequest' => $classRequest->load(['student', 'subject']),
         ]);
