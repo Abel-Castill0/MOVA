@@ -1,9 +1,26 @@
 # MOVA — Handoff Final
 
-**Fecha:** 26 de julio de 2026
+**Fecha:** 27 de julio de 2026
 **Estado:** listo para desplegar en un entorno de staging/producción real, pendiente de credenciales de terceros y revisión legal (ver abajo).
 
 Este documento es el punto de partida para quien retome el proyecto — dev, otro agente, o el propio equipo tras una pausa. No repite el detalle de auditorías anteriores en `docs/` (algunas datan de junio 2026 y ya no reflejan el estado actual); este es el resumen vigente.
+
+---
+
+## ⚠️ Acción de seguridad pendiente antes de desplegar
+
+Los specs `qa/tests/16` al `25` (eliminados en esta sesión, ver §8) tenían
+hardcodeada la **contraseña real de admin de producción** (`familiawuarthon123`,
+para la cuenta `abelcastillotrabajo@gmail.com`) como valor por defecto,
+apuntando a `mova-production-8750.up.railway.app`. Esa contraseña sigue
+en el historial de git aunque los archivos ya no existan en el working tree.
+
+**Antes de desplegar o de que esa cuenta vuelva a operar en producción:**
+1. Cambiar `ADMIN_PASSWORD` en el `.env` real de producción (Railway/Fly/Oracle) por una contraseña nueva.
+2. Iniciar sesión con la cuenta admin y confirmar el cambio.
+3. Si esa contraseña se reutiliza en cualquier otro servicio (Gmail, etc.), rotarla ahí también.
+
+En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesión y aplicada a `admin@mova.test` en la BD local vía `ProductionSeeder` + actualización directa del hash).
 
 ---
 
@@ -14,11 +31,12 @@ Este documento es el punto de partida para quien retome el proyecto — dev, otr
 | Check | Resultado |
 |---|---|
 | `php artisan test` | **74/74** ✅ |
-| `npx playwright test --config=qa/playwright.local.config.js` | **2/2** ✅ |
+| `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **2/2** ✅ |
 | `npm run build` | limpio, sin errores ✅ |
-| Secretos hardcodeados en código versionado | ninguno encontrado ✅ |
+| Secretos hardcodeados en código versionado | ninguno encontrado en `app/`/`resources/`; sí en 10 specs QA ya eliminados (ver advertencia arriba) |
 | Rate limiting en rutas financieras | completo (ver §Auditoría de seguridad) ✅ |
 | `jitsi_room`/`jitsi_password` ocultos en listados | ✅ (`Lesson::$hidden`) |
+| Policies cubriendo autorización | `LessonPolicy`, `ClassRequestPolicy`, `TeacherReviewPolicy`, `RechargeRequestPolicy`, `ClassOfferPolicy`, `StudentPolicy`, `StudentDiagnosticPolicy` — 0 `abort_unless` de ownership sueltos en controladores |
 
 ### Features completadas
 
@@ -53,6 +71,20 @@ Rediseñadas al estándar premium. Incluyen cláusula de resolución de disputas
 - `jitsi_room`/`jitsi_password` expuestos en texto plano en cualquier listado de clases, sin importar si la clase era hoy o en 5 días.
 - Dos rutas de cancelación de clase (`lessons.cancel`, `admin.lessons.cancel`) que reembolsan créditos reales sin rate limiting — corregido en esta misma sesión (ver §Auditoría de seguridad).
 - Inconsistencia visual entre el dashboard del padre/profesor (ya premium) y sus páginas secundarias (estilo antiguo `indigo`/`gray`/`rounded-xl`).
+
+### Bugs encontrados y corregidos en la sesión de auditoría en browser (27 jul 2026)
+
+- **Precios en euros (€)** en vez de soles (S/) en `Welcome.vue` y en el formulario de tarifa del profesor.
+- **Botón "Ya pagué" visible para clases futuras**: el backend siempre exigió que la clase ya haya terminado para confirmar el pago, pero el botón se mostraba igual y el clic fallaba en silencio (sin mensaje de error). Causa raíz: `Lesson::end_time` es un accessor que nunca estaba en `$appends`, así que el frontend no podía saber si la clase había terminado. Corregido en ambos frentes.
+- **Admin > Solicitudes** mostraba "Sin asignar" para solicitudes ya aceptadas cuando venían del flujo de solicitud genérica (sin `class_offer`) — solo miraba esa relación y no la `lesson` asociada.
+- **Disponibilidad horaria** del alumno mostrada en inglés crudo ("morning weekday") en la bandeja del profesor.
+- **Marketplace vacío en local**: `LocalTestDataSeeder` nunca creaba `ClassOffer`, así que ningún profesor aparecía pese a estar verificado y con materias asignadas.
+- **Notificaciones mostrando el `type` crudo** ("class confirmed") en vez del mensaje en español ya generado por cada clase de notificación.
+- **Ownership checks sin Policy**: `ClassOfferController`, `StudentController`, `DiagnosticsController` y el lado padre de `ClassRequestController` usaban `abort_unless` ad-hoc en vez del sistema de Policies ya establecido — se crearon `ClassOfferPolicy`, `StudentPolicy`, `StudentDiagnosticPolicy` y se agregó la habilidad `view()` a `ClassRequestPolicy`.
+- **`Route::resource('students', ...)` registraba una ruta `show` para un método inexistente** en `StudentController` — 500 garantizado si alguien la visitaba. Excluida con `->except(['show'])`.
+- **`qa/tests/` tenía 24 specs históricos** nombrados por fase de desarrollo (no la suite real, que es solo `flujo-completo.spec.js`), rompían el comando documentado de Playwright y 10 de ellos tenían la contraseña real de admin de producción hardcodeada — eliminados (ver advertencia de seguridad arriba).
+- Columna `zoom_meeting_id` residual eliminada de la tabla `classes` y de `Lesson::$fillable`.
+- `ADMIN_NAME` usaba `env()` fuera de `config/`, inconsistente con `ADMIN_EMAIL`/`ADMIN_PASSWORD` que ya habían sido migrados a `config('app.*')` — alineado.
 
 ---
 
