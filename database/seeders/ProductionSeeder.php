@@ -13,7 +13,7 @@ class ProductionSeeder extends Seeder
     {
         $email    = config('app.admin_email');
         $password = config('app.admin_password');
-        $name     = env('ADMIN_NAME', 'Admin MOVA');
+        $name     = config('app.admin_name');
 
         if (! $email || ! $password) {
             $this->command->error('ADMIN_EMAIL and ADMIN_PASSWORD must be set in environment variables.');

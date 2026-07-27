@@ -13,7 +13,7 @@ return new class extends Migration
         }
 
         // Assign admin role to the env-configured admin user
-        $email = env('ADMIN_EMAIL');
+        $email = config('app.admin_email');
         if (! $email) {
             return;
         }

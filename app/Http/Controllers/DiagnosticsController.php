@@ -70,7 +70,7 @@ class DiagnosticsController extends Controller
 
     public function results(StudentDiagnostic $diagnostic)
     {
-        abort_if($diagnostic->parent_user_id !== auth()->id(), 403);
+        $this->authorize('view', $diagnostic);
 
         return Inertia::render('Diagnostics/Results', [
             'diagnostic' => [

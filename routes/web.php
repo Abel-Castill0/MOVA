@@ -64,7 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/diagnostics/{diagnostic}/results', [DiagnosticsController::class, 'results'])->name('diagnostics.results');
         Route::post('/diagnostics/{diagnostic}/request/{classOffer}', [DiagnosticsController::class, 'requestClass'])->name('diagnostics.request');
 
-        Route::resource('students', StudentController::class);
+        Route::resource('students', StudentController::class)->except(['show']);
         Route::get('/class-requests', [ClassRequestController::class, 'index'])->name('class-requests.index');
         Route::get('/class-requests/create', [ClassRequestController::class, 'create'])->name('class-requests.create');
         Route::post('/class-requests', [ClassRequestController::class, 'store'])->middleware('throttle:10,1')->name('class-requests.store');

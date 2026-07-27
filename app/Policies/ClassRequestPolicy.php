@@ -12,6 +12,13 @@ class ClassRequestPolicy
         return $user->hasRole('admin') ? true : null;
     }
 
+    // Parent approving/rejecting their own child's request (matches routes
+    // class-requests.approve / class-requests.reject).
+    public function view(User $user, ClassRequest $classRequest): bool
+    {
+        return $user->students()->whereKey($classRequest->student_id)->exists();
+    }
+
     // Teacher accepting an open request (matches route teacher.requests.accept).
     public function accept(User $user, ClassRequest $classRequest): bool
     {

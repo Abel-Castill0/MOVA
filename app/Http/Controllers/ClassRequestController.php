@@ -73,15 +73,14 @@ class ClassRequestController extends Controller
 
     public function approve(ClassRequest $classRequest)
     {
-        $studentIds = auth()->user()->students()->pluck('id');
-        abort_unless($studentIds->contains($classRequest->student_id), 403);
+        $this->authorize('view', $classRequest);
 
-        DB::transaction(function () use ($classRequest, $studentIds) {
+        DB::transaction(function () use ($classRequest) {
             $classRequest = ClassRequest::whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($studentIds->contains($classRequest->student_id), 403);
+            $this->authorize('view', $classRequest);
             abort_unless(
                 $classRequest->status === 'pending_parent_approval',
                 422,
@@ -96,15 +95,14 @@ class ClassRequestController extends Controller
 
     public function reject(ClassRequest $classRequest)
     {
-        $studentIds = auth()->user()->students()->pluck('id');
-        abort_unless($studentIds->contains($classRequest->student_id), 403);
+        $this->authorize('view', $classRequest);
 
-        DB::transaction(function () use ($classRequest, $studentIds) {
+        DB::transaction(function () use ($classRequest) {
             $classRequest = ClassRequest::whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($studentIds->contains($classRequest->student_id), 403);
+            $this->authorize('view', $classRequest);
             abort_unless(
                 $classRequest->status === 'pending_parent_approval',
                 422,

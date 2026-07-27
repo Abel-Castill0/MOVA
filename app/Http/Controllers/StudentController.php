@@ -37,13 +37,13 @@ class StudentController extends Controller
 
     public function edit(Student $student)
     {
-        abort_unless($student->parent_user_id === auth()->id(), 403);
+        $this->authorize('update', $student);
         return Inertia::render('Students/Edit', ['student' => $student]);
     }
 
     public function update(Request $request, Student $student)
     {
-        abort_unless($student->parent_user_id === auth()->id(), 403);
+        $this->authorize('update', $student);
 
         $data = $request->validate([
             'first_name' => 'required|string|max:100',
@@ -60,7 +60,7 @@ class StudentController extends Controller
 
     public function destroy(Student $student)
     {
-        abort_unless($student->parent_user_id === auth()->id(), 403);
+        $this->authorize('delete', $student);
         $student->delete();
         return redirect()->route('students.index')->with('success', 'Estudiante eliminado.');
     }

@@ -53,7 +53,7 @@ class ClassOfferController extends Controller
 
     public function edit(ClassOffer $classOffer)
     {
-        abort_unless($classOffer->teacher_profile_id === auth()->user()->teacherProfile->id, 403);
+        $this->authorize('update', $classOffer);
         return Inertia::render('ClassOffers/Edit', [
             'offer' => $classOffer,
             'subjects' => Subject::orderBy('name')->get(),
@@ -62,7 +62,7 @@ class ClassOfferController extends Controller
 
     public function update(Request $request, ClassOffer $classOffer)
     {
-        abort_unless($classOffer->teacher_profile_id === auth()->user()->teacherProfile->id, 403);
+        $this->authorize('update', $classOffer);
         $maxRate = auth()->user()->teacherProfile->maxAllowedRate();
 
         $data = $request->validate([
@@ -89,7 +89,7 @@ class ClassOfferController extends Controller
 
     public function toggleActive(ClassOffer $classOffer)
     {
-        abort_unless($classOffer->teacher_profile_id === auth()->user()->teacherProfile->id, 403);
+        $this->authorize('update', $classOffer);
         $classOffer->update(['is_active' => !$classOffer->is_active]);
         return back();
     }
@@ -131,7 +131,7 @@ class ClassOfferController extends Controller
 
     public function destroy(ClassOffer $classOffer)
     {
-        abort_unless($classOffer->teacher_profile_id === auth()->user()->teacherProfile->id, 403);
+        $this->authorize('delete', $classOffer);
         $classOffer->delete();
         return redirect()->route('class-offers.index')->with('success', 'Oferta eliminada.');
     }
