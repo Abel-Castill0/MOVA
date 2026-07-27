@@ -83,10 +83,11 @@
                   El profesor aún no registró un número de Yape/Plin.
                 </p>
               </div>
-              <button @click="confirmPayment(l)" :disabled="payingId === l.id"
+              <button v-if="hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
                 class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
                 {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
               </button>
+              <p v-else class="text-xs text-slate-400">Podrás confirmar el pago cuando la clase finalice.</p>
               <p v-if="paymentErrorId === l.id" class="text-xs text-red-500 mt-2">{{ paymentError }}</p>
             </div>
 
@@ -212,6 +213,10 @@ function canJoinJitsi(l) {
   if (l.status !== 'scheduled') return false
   const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
   return minutesToStart <= 15
+}
+
+function hasClassEnded(l) {
+  return Date.now() >= new Date(l.end_time).getTime()
 }
 
 function amountToPay(l) {

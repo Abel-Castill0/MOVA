@@ -15,7 +15,7 @@ class Lesson extends Model
 
     protected $fillable = [
         'teacher_profile_id', 'student_id', 'class_request_id', 'class_offer_id',
-        'start_time', 'duration_minutes', 'price_frozen_pen', 'zoom_meeting_id',
+        'start_time', 'duration_minutes', 'price_frozen_pen',
         'jitsi_room', 'jitsi_password', 'status', 'reminder_sent',
         'reminder_24h_sent_at', 'reminder_2h_sent_at', 'report_reminder_sent_at',
         'cancelled_at', 'cancelled_by', 'cancel_reason',
@@ -39,7 +39,7 @@ class Lesson extends Model
     // pasar por LessonPolicy::view() y validar el estado de la clase.
     protected $hidden = ['jitsi_room', 'jitsi_password'];
 
-    protected $appends = ['has_jitsi_room'];
+    protected $appends = ['has_jitsi_room', 'end_time'];
 
     public function getHasJitsiRoomAttribute(): bool
     {

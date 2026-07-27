@@ -101,7 +101,7 @@ class AdminController extends Controller
     {
         $status = request()->query('status');
 
-        $query = ClassRequest::with(['student.parent', 'subject', 'classOffer.teacherProfile.user'])
+        $query = ClassRequest::with(['student.parent', 'subject', 'classOffer.teacherProfile.user', 'lesson.teacherProfile.user'])
             ->latest();
 
         if ($status) {

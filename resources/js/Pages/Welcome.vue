@@ -209,7 +209,7 @@
                   </span>
                 </div>
                 <div class="flex items-center justify-between pt-4 border-t border-gray-50">
-                  <span class="font-black text-brand-700 text-lg">€{{ parseFloat(t.hourly_rate).toFixed(0) }}<span class="text-sm font-normal text-slate-400">/h</span></span>
+                  <span class="font-black text-brand-700 text-lg">S/{{ parseFloat(t.hourly_rate).toFixed(0) }}<span class="text-sm font-normal text-slate-400">/h</span></span>
                   <Link :href="`/marketplace`"
                     class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors group-hover:shadow-md group-hover:shadow-brand-600/20">
                     Ver perfil

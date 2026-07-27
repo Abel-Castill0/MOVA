@@ -58,6 +58,19 @@ class LocalTestDataSeeder extends Seeder
             collect([$mathSubject, $engSubject])->filter()->pluck('id')
         );
 
+        // Sin esto el marketplace queda vacío: MarketplaceController lista
+        // class_offers, no basta con ser profesor verificado con materias.
+        \App\Models\ClassOffer::updateOrCreate(
+            ['teacher_profile_id' => $teacherProfile->id, 'subject_id' => $mathSubject->id],
+            ['title' => 'Clases de Matemáticas', 'description' => 'Refuerzo escolar personalizado, todos los niveles.', 'is_active' => true]
+        );
+        if ($engSubject && $engSubject->id !== $mathSubject->id) {
+            \App\Models\ClassOffer::updateOrCreate(
+                ['teacher_profile_id' => $teacherProfile->id, 'subject_id' => $engSubject->id],
+                ['title' => 'Clases de Inglés', 'description' => 'Conversación y gramática para todos los niveles.', 'is_active' => true]
+            );
+        }
+
         // ── Padre principal + 2 hijos ─────────────────────────────────────
         $parentUser = User::updateOrCreate(
             ['email' => 'padre@mova.test'],

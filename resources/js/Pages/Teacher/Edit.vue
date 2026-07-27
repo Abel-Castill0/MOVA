@@ -8,7 +8,7 @@
           <textarea v-model="form.bio" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa por hora (€)</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa por hora (S/)</label>
           <input v-model="form.hourly_rate" type="number" min="0" step="0.5" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

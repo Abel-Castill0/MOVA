@@ -10,7 +10,7 @@
           <textarea v-model="form.bio" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Describe tu experiencia y metodología..."></textarea>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa por hora (€)</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa por hora (S/)</label>
           <input v-model="form.hourly_rate" type="number" min="0" step="0.5" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <p v-if="form.errors.hourly_rate" class="text-xs text-red-500 mt-1">{{ form.errors.hourly_rate }}</p>
         </div>

@@ -116,10 +116,11 @@
                   </div>
 
                   <div class="flex-shrink-0">
-                    <button v-if="l.status === 'scheduled'" @click="confirmPayment(l)" :disabled="payingId === l.id"
+                    <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
                       class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
                       {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
                     </button>
+                    <p v-else-if="l.status === 'scheduled'" class="text-xs text-slate-400 text-right max-w-[10rem]">Podrás confirmar el pago cuando la clase finalice</p>
                     <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
                       class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
                       🎥 Unirse a la sala
@@ -303,6 +304,10 @@ function canJoinJitsi(l) {
   if (l.status !== 'paid') return false
   const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
   return minutesToStart <= 15
+}
+
+function hasClassEnded(l) {
+  return Date.now() >= new Date(l.end_time).getTime()
 }
 
 function confirmPayment(l) {

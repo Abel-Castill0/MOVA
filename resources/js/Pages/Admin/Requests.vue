@@ -40,7 +40,7 @@
                 <p class="text-xs text-gray-400">{{ r.student?.parent?.name ?? '—' }}</p>
               </td>
               <td class="px-4 py-3 text-gray-600 text-xs">
-                {{ r.class_offer?.teacher_profile?.user?.name ?? 'Sin asignar' }}
+                {{ r.class_offer?.teacher_profile?.user?.name ?? r.lesson?.teacher_profile?.user?.name ?? 'Sin asignar' }}
               </td>
               <td class="px-4 py-3">
                 <span :class="['text-xs font-semibold px-2 py-0.5 rounded', badgeClass(r.status)]">

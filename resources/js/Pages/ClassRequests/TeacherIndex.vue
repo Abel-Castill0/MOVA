@@ -24,7 +24,7 @@
                 <div v-if="r.preferred_times?.length" class="mt-2 flex flex-wrap gap-1">
                   <span v-for="t in r.preferred_times" :key="t"
                     class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                    {{ t.replace(/_/g, ' ') }}
+                    {{ timeSlotLabel(t) }}
                   </span>
                 </div>
               </div>
@@ -105,6 +105,19 @@ defineProps({
 const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
+
+const TIME_SLOT_LABELS = {
+  morning_weekday:   '🌅 Mañana (L-V)',
+  afternoon_weekday: '☀️ Tarde (L-V)',
+  evening_weekday:   '🌆 Noche (L-V)',
+  morning_weekend:   '🌅 Mañana (S-D)',
+  afternoon_weekend: '☀️ Tarde (S-D)',
+  flexible:          '🔄 Flexible',
+}
+
+function timeSlotLabel(t) {
+  return TIME_SLOT_LABELS[t] ?? t.replace(/_/g, ' ')
+}
 
 function openRejectModal(r) {
   rejectTarget.value = r
