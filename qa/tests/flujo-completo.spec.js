@@ -181,9 +181,13 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // Replicamos el mismo orderBy('start_time','desc') que usa
       // LessonController::parentIndex() para calcular en qué posición del
       // listado cae nuestra lesson, en vez de adivinar por texto/fecha.
+      // El botón "Ya pagué" solo se renderiza para clases cuyo end_time ya
+      // pasó (ver ParentIndex.vue::hasClassEnded) — filtramos igual que el
+      // frontend, no basta con status='scheduled'.
       const ids = tinker(
         `echo App\\Models\\Lesson::where('student_id', App\\Models\\Student::where('first_name','Mateo')->where('last_name','Prueba')->first()->id)` +
-          `->where('status','scheduled')->orderBy('start_time','desc')->pluck('id')->implode(',');`
+          `->where('status','scheduled')->orderBy('start_time','desc')->get()` +
+          `->filter(fn($l) => now()->gte($l->end_time))->pluck('id')->implode(',');`
       )
         .split(',')
         .map(Number);
