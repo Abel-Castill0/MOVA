@@ -45,6 +45,7 @@ class NewRechargeRequestNotification extends Notification implements ShouldQueue
             'recharge_request_id' => $this->recharge->id,
             'credits' => $this->recharge->credits,
             'amount_pen' => $this->recharge->amount_pen,
+            'message' => 'Nueva solicitud de recarga de ' . $this->recharge->credits . ' créditos.',
         ];
     }
 }

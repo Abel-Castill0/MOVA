@@ -43,6 +43,7 @@ class RechargeRejectedNotification extends Notification implements ShouldQueue
             'recharge_request_id' => $this->recharge->id,
             'credits' => $this->recharge->credits,
             'reason' => $this->reason,
+            'message' => 'Hubo un problema con su solicitud de recarga de ' . $this->recharge->credits . ' créditos.',
         ];
     }
 }

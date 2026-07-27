@@ -43,6 +43,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             'request_id' => $this->classRequest->id,
             'subject'    => $this->classRequest->subject->name,
             'student'    => $this->classRequest->student->full_name,
+            'message'    => 'Nueva solicitud de ' . $this->classRequest->subject->name . ' de ' . $this->classRequest->student->full_name . '.',
         ];
     }
 }

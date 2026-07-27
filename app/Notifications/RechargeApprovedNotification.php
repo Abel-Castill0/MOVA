@@ -39,6 +39,7 @@ class RechargeApprovedNotification extends Notification implements ShouldQueue
             'type' => 'recharge_approved',
             'recharge_request_id' => $this->recharge->id,
             'credits' => $this->recharge->credits,
+            'message' => 'Su recarga de ' . $this->recharge->credits . ' créditos fue aprobada.',
         ];
     }
 }
