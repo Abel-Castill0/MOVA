@@ -193,7 +193,9 @@ php artisan schedule:list    # ver próxima ejecución de cada job registrado
 
 # Tests
 php artisan test                                                    # 74 tests
-npx playwright test --config=qa/playwright.local.config.js          # 2 tests E2E (requiere server + seed local corriendo)
+cd qa && npx playwright test --config=playwright.local.config.js && cd ..   # 2 tests E2E (requiere server + seed local corriendo)
+# Debe ejecutarse DESDE qa/ — la instalación de Playwright vive en qa/node_modules;
+# invocarlo desde la raíz del repo falla con "No tests found" al no resolver el mismo paquete.
 
 # Build de producción
 npm run build
