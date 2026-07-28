@@ -17,8 +17,8 @@
       <div v-else class="space-y-3">
         <div v-for="o in offers" :key="o.id"
           class="bg-white rounded-2xl border border-gray-100 p-5 hover:border-brand-300 hover:shadow-md transition-all">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex-1">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
                 <p class="font-semibold text-slate-900">{{ o.title }}</p>
                 <span :class="['text-xs px-2 py-0.5 rounded-full font-bold', o.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500']">
@@ -28,7 +28,7 @@
               <p class="text-sm text-brand-600 font-medium">{{ o.subject?.name }}</p>
               <p class="text-sm text-slate-500 mt-1">{{ o.description }}</p>
             </div>
-            <div class="flex gap-2 flex-shrink-0">
+            <div class="flex gap-2 flex-wrap sm:flex-shrink-0">
               <Link :href="route('class-offers.edit', o.id)"
                 class="px-3 py-1.5 text-sm font-medium text-brand-600 border border-brand-200 rounded-xl hover:bg-brand-50 transition-colors">Editar</Link>
               <Link :href="route('class-offers.toggle', o.id)" method="post" as="button"

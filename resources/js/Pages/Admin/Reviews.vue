@@ -3,7 +3,7 @@
     <div class="space-y-5">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <h2 class="text-2xl font-bold text-gray-900">Moderación de reseñas</h2>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <button v-for="f in visibilityFilters" :key="f.value ?? 'all'"
             @click="setFilter(f.value)"
             :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',

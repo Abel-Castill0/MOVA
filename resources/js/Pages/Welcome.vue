@@ -396,7 +396,8 @@ onMounted(() => {
 
 /* Swiper — paginación sutil acorde a la paleta de marca */
 .teachers-swiper {
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 .teachers-pagination :deep(.swiper-pagination-bullet) {
   width: 6px;
