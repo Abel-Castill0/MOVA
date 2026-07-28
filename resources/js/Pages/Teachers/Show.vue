@@ -1,4 +1,7 @@
 <template>
+  <Head>
+    <meta name="description" :content="`Clases particulares con ${teacher.name} en MOVA` + (teacher.subjects?.length ? `: ${teacher.subjects.map(s => s.name).join(', ')}.` : '.') + ' Profesor verificado, clases en vivo por videollamada.'" />
+  </Head>
   <component :is="layout" :title="teacher.name + ' — MOVA'">
     <div class="max-w-3xl mx-auto space-y-6">
 
@@ -198,7 +201,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 

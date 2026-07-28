@@ -1,5 +1,11 @@
 <template>
-  <Head title="MOVA – Conectamos estudiantes con profesores" />
+  <Head>
+    <title>MOVA – Conectamos estudiantes con profesores</title>
+    <meta name="description" content="Encuentra profesores particulares verificados para clases en vivo por videollamada. Matemáticas, inglés, ciencias y más. Solicita tu clase gratis en minutos." />
+    <meta property="og:title" content="MOVA – Conectamos estudiantes con profesores" />
+    <meta property="og:description" content="Encuentra profesores particulares verificados para clases en vivo por videollamada. Solicita tu clase gratis en minutos." />
+    <meta property="og:type" content="website" />
+  </Head>
 
   <div class="min-h-screen bg-white">
     <LandingNavbar />

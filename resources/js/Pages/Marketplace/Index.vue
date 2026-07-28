@@ -1,4 +1,7 @@
 <template>
+  <Head>
+    <meta name="description" content="Explora profesores particulares verificados por MOVA. Filtra por materia, nivel y precio, y solicita tu clase en línea hoy mismo." />
+  </Head>
   <component :is="layout" title="Buscar profesor">
     <div class="space-y-6">
 
@@ -257,7 +260,7 @@
 
 <script setup>
 import { reactive, computed } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
 
