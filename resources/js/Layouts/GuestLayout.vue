@@ -1,4 +1,5 @@
 <template>
+  <Head :title="title" />
   <div class="min-h-screen bg-slate-50">
     <!-- Top bar -->
     <header class="bg-white border-b border-gray-100 px-4 sm:px-8 py-3 flex items-center justify-between sticky top-0 z-10">
@@ -46,7 +47,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 
 defineProps({ title: String })
 

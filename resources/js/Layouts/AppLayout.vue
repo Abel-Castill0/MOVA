@@ -1,4 +1,5 @@
 <template>
+  <Head :title="title" />
   <div class="min-h-screen bg-slate-50">
 
     <!-- Mobile overlay -->
@@ -108,7 +109,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
 
 defineProps({ title: String })
