@@ -42,9 +42,7 @@
               <td class="px-4 py-3 text-gray-600">{{ l.teacher_profile?.user?.name ?? '—' }}</td>
               <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ fmtDate(l.start_time) }}</td>
               <td class="px-4 py-3">
-                <span :class="['text-xs font-semibold px-2 py-0.5 rounded', badgeClass(l.status)]">
-                  {{ statusLabel(l.status) }}
-                </span>
+                <StatusBadge :status="l.status" />
                 <div v-if="l.cancel_reason" class="text-xs text-red-500 mt-0.5 max-w-[140px] truncate" :title="l.cancel_reason">
                   {{ l.cancel_reason }}
                 </div>
@@ -100,6 +98,7 @@
 import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import StatusBadge from '@/Components/StatusBadge.vue'
 
 const props = defineProps({
   lessons:      { type: Object, required: true },
@@ -145,15 +144,4 @@ function fmtDate(d) {
   })
 }
 
-function statusLabel(s) {
-  return { scheduled: 'Programada', completed: 'Completada', cancelled: 'Cancelada' }[s] ?? s
-}
-
-function badgeClass(s) {
-  return {
-    scheduled: 'bg-blue-50 text-blue-700',
-    completed: 'bg-green-50 text-green-700',
-    cancelled: 'bg-red-50 text-red-700',
-  }[s] ?? 'bg-gray-100 text-gray-600'
-}
 </script>
