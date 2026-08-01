@@ -129,11 +129,14 @@ function showRealtimeToast(message) {
 }
 
 let channel
-onMounted(() => {
+onMounted(async () => {
   const userId = user.value?.id
-  if (!userId || !window.Echo) return
+  if (!userId) return
 
-  channel = window.Echo.private(`App.Models.User.${userId}`)
+  const { initEcho } = await import('@/echo.js')
+  const echo = initEcho()
+
+  channel = echo.private(`App.Models.User.${userId}`)
   channel.notification((notification) => {
     router.reload({ only: ['lessons', 'notifications', 'auth'], preserveScroll: true })
     window.dispatchEvent(new CustomEvent('mova:notification', { detail: notification }))
