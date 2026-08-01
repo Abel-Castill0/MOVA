@@ -49,62 +49,62 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:10,1')->name('profile.destroy');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1')->name('profile.avatar');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware('throttle:60,1')->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware('throttle:20,1')->name('notifications.readAll');
 
     // ── Parent ──────────────────────────────────────────────────────────────
     Route::middleware(['role:parent', 'not.suspended'])->group(function () {
         Route::get('/diagnostics/create', [DiagnosticsController::class, 'create'])->name('diagnostics.create');
         Route::post('/diagnostics', [DiagnosticsController::class, 'store'])->middleware('throttle:5,1')->name('diagnostics.store');
         Route::get('/diagnostics/{diagnostic}/results', [DiagnosticsController::class, 'results'])->name('diagnostics.results');
-        Route::post('/diagnostics/{diagnostic}/request/{classOffer}', [DiagnosticsController::class, 'requestClass'])->name('diagnostics.request');
+        Route::post('/diagnostics/{diagnostic}/request/{classOffer}', [DiagnosticsController::class, 'requestClass'])->middleware('throttle:20,1')->name('diagnostics.request');
 
-        Route::resource('students', StudentController::class)->except(['show']);
+        Route::resource('students', StudentController::class)->except(['show'])->middleware('throttle:20,1');
         Route::get('/class-requests', [ClassRequestController::class, 'index'])->name('class-requests.index');
         Route::get('/class-requests/create', [ClassRequestController::class, 'create'])->name('class-requests.create');
         Route::post('/class-requests', [ClassRequestController::class, 'store'])->middleware('throttle:10,1')->name('class-requests.store');
-        Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->name('class-requests.approve');
-        Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->name('class-requests.reject');
+        Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->middleware('throttle:20,1')->name('class-requests.approve');
+        Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->middleware('throttle:20,1')->name('class-requests.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
         Route::post('/lessons/{lesson}/confirm-payment', [LessonController::class, 'confirmPayment'])->middleware('throttle:10,1')->name('lessons.confirm-payment');
         Route::get('/lessons/{lesson}/review/create', [TeacherReviewController::class, 'create'])->name('reviews.create');
         Route::post('/lessons/{lesson}/review', [TeacherReviewController::class, 'store'])->middleware('throttle:10,1')->name('reviews.store');
         Route::get('/my-reports', [LessonReportController::class, 'parentIndex'])->name('parent.reports');
-        Route::patch('/settings/parental-control', [ParentSettingsController::class, 'update'])->name('parent.settings.update');
+        Route::patch('/settings/parental-control', [ParentSettingsController::class, 'update'])->middleware('throttle:20,1')->name('parent.settings.update');
     });
 
     // ── Teacher ─────────────────────────────────────────────────────────────
     Route::middleware(['role:teacher', 'not.suspended'])->group(function () {
         Route::get('/teacher/setup', [TeacherProfileController::class, 'setup'])->name('teacher.setup');
-        Route::post('/teacher/setup', [TeacherProfileController::class, 'storeSetup'])->name('teacher.setup.store');
+        Route::post('/teacher/setup', [TeacherProfileController::class, 'storeSetup'])->middleware('throttle:10,1')->name('teacher.setup.store');
         Route::get('/teacher/profile', [TeacherProfileController::class, 'edit'])->name('teacher.profile');
-        Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->name('teacher.profile.update');
+        Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->middleware('throttle:20,1')->name('teacher.profile.update');
         Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
         Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->middleware('throttle:10,1')->name('teacher.credits.recharge');
 
-        Route::resource('class-offers', ClassOfferController::class)->except(['show']);
-        Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->name('class-offers.toggle');
+        Route::resource('class-offers', ClassOfferController::class)->except(['show'])->middleware('throttle:20,1');
+        Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->middleware('throttle:20,1')->name('class-offers.toggle');
 
         Route::get('/teacher/requests', [ClassRequestController::class, 'teacherIndex'])->name('teacher.requests');
         Route::get('/teacher/requests/{classRequest}/accept', [ClassRequestController::class, 'accept'])->name('teacher.requests.accept');
-        Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->name('teacher.requests.reject');
+        Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->middleware('throttle:20,1')->name('teacher.requests.reject');
         Route::post('/lessons', [LessonController::class, 'store'])->middleware('throttle:10,1')->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
         Route::get('/lessons/{lesson}/report/create', [LessonReportController::class, 'create'])->name('lesson-reports.create');
-        Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->name('lesson-reports.store');
+        Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->middleware('throttle:20,1')->name('lesson-reports.store');
         Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
     });
 
     // ── Shared: cancel, reschedule & join (parent, teacher, admin) ────────────
     Route::middleware('not.suspended')->group(function () {
         Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->middleware('throttle:10,1')->name('lessons.cancel');
-        Route::post('/lessons/{lesson}/reschedule', [LessonController::class, 'reschedule'])->name('lessons.reschedule');
+        Route::post('/lessons/{lesson}/reschedule', [LessonController::class, 'reschedule'])->middleware('throttle:20,1')->name('lessons.reschedule');
         Route::get('/lessons/{lesson}/join', [LessonController::class, 'join'])->name('lessons.join');
     });
 
@@ -116,19 +116,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
         Route::get('/pending-teachers', [AdminController::class, 'pendingTeachers'])->name('admin.teachers.pending');
-        Route::post('/teachers/{teacher}/verify', [AdminController::class, 'verifyTeacher'])->name('admin.teachers.verify');
-        Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->name('admin.teachers.reject');
-        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->name('admin.users.suspend');
-        Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->name('admin.users.unsuspend');
+        Route::post('/teachers/{teacher}/verify', [AdminController::class, 'verifyTeacher'])->middleware('throttle:20,1')->name('admin.teachers.verify');
+        Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->middleware('throttle:20,1')->name('admin.teachers.reject');
+        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->middleware('throttle:20,1')->name('admin.users.suspend');
+        Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->middleware('throttle:20,1')->name('admin.users.unsuspend');
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware('throttle:10,1')->name('admin.lessons.cancel');
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
         Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
-        Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->name('admin.recharges.reject');
+        Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware('throttle:20,1')->name('admin.recharges.reject');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
-        Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->name('admin.reviews.hide');
-        Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->name('admin.reviews.show');
+        Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->middleware('throttle:20,1')->name('admin.reviews.hide');
+        Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->middleware('throttle:20,1')->name('admin.reviews.show');
         Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('admin.ai-usage');
     });
 });

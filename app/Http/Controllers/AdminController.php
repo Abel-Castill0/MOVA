@@ -210,11 +210,13 @@ class AdminController extends Controller
             return back()->with('error', 'No se puede suspender a un administrador.');
         }
 
-        $reason = request()->input('reason', 'Suspensión por incumplimiento de términos.');
+        $data = request()->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
 
         $user->update([
             'suspended_at'      => now(),
-            'suspension_reason' => $reason,
+            'suspension_reason' => $data['reason'] ?? 'Suspensión por incumplimiento de términos.',
         ]);
 
         return back()->with('success', "Usuario {$user->name} suspendido.");
