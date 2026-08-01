@@ -10,10 +10,13 @@ Este documento es el punto de partida para quien retome el proyecto — dev, otr
 ## ⚠️ Acción de seguridad pendiente antes de desplegar
 
 Los specs `qa/tests/16` al `25` (eliminados en esta sesión, ver §8) tenían
-hardcodeada la **contraseña real de admin de producción** (`familiawuarthon123`,
-para la cuenta `abelcastillotrabajo@gmail.com`) como valor por defecto,
+hardcodeada la **contraseña real de admin de producción** (redactada — ver
+`git log` de commits previos a esta corrección si necesitas confirmarla),
+para la cuenta `abelcastillotrabajo@gmail.com`, como valor por defecto,
 apuntando a `mova-production-8750.up.railway.app`. Esa contraseña sigue
-en el historial de git aunque los archivos ya no existan en el working tree.
+en el historial de git en texto plano (los specs eliminados **y** una
+versión previa de este mismo documento la citaban directamente) aunque
+los archivos ya no existan en el working tree.
 
 **Antes de desplegar o de que esa cuenta vuelva a operar en producción:**
 1. Cambiar `ADMIN_PASSWORD` en el `.env` real de producción (Railway/Fly/Oracle) por una contraseña nueva.
@@ -30,7 +33,7 @@ En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesió
 
 | Check | Resultado |
 |---|---|
-| `php artisan test` | **74/74** ✅ |
+| `php artisan test` | **78/78** ✅ |
 | `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **2/2** ✅ |
 | `npm run build` | limpio, sin errores ✅ |
 | Secretos hardcodeados en código versionado | ninguno encontrado en `app/`/`resources/`; sí en 10 specs QA ya eliminados (ver advertencia arriba) |
@@ -224,7 +227,7 @@ php artisan schedule:work    # loop de desarrollo — llama a schedule:run cada 
 php artisan schedule:list    # ver próxima ejecución de cada job registrado
 
 # Tests
-php artisan test                                                    # 74 tests
+php artisan test                                                    # 78 tests
 cd qa && npx playwright test --config=playwright.local.config.js && cd ..   # 2 tests E2E (requiere server + seed local corriendo)
 # Debe ejecutarse DESDE qa/ — la instalación de Playwright vive en qa/node_modules;
 # invocarlo desde la raíz del repo falla con "No tests found" al no resolver el mismo paquete.
@@ -259,4 +262,4 @@ php artisan db:seed --class=LocalTestDataSeeder
 1. **Revisión legal profesional** de Términos y Privacidad (ver §1) — obligatorio antes de que un usuario real acepte estos términos, dado que MOVA maneja datos de menores.
 2. Credenciales reales de Google OAuth2, Cloudinary, Gmail/Resend, Sentry.
 3. Decidir `RECHARGE_PAYMENT_DESTINATION` real (número de Yape/Plin de MOVA) antes de `RECHARGES_ENABLED=true`.
-4. `qa/node_modules/` está versionado en git por un `.gitignore` que solo excluye `/node_modules` en la raíz, no rutas anidadas — no es una fuga de secretos (se verificó), pero conviene limpiarlo (`git rm -r --cached qa/node_modules` + agregar `node_modules` a `qa/.gitignore` o al `.gitignore` raíz sin el `/` inicial) antes de que el repo siga creciendo.
+4. Si se configura un webhook de Resend (`resend.com/webhooks`), completar `RESEND_WEBHOOK_SECRET` en `.env` — sin esa variable el endpoint de webhook queda inactivo (no verifica firma), lo cual es seguro pero no procesa eventos de bounce/queja.
