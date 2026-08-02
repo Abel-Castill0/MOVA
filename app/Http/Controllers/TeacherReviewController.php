@@ -80,6 +80,10 @@ class TeacherReviewController extends Controller
                 'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
             ]);
 
+            // avgRating() consulta visibleReviews() en vivo, así que ya incluye la
+            // reseña recién creada — el nivel se recalcula con datos actualizados.
+            $teacherProfile->update(['hourly_rate' => $teacherProfile->maxAllowedRate()]);
+
             $teacherProfile->creditTransactions()->create([
                 'idempotency_key' => "lesson:{$lesson->id}:consumption",
                 'lesson_id' => $lesson->id,

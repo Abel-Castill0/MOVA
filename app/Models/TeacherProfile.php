@@ -30,9 +30,23 @@ class TeacherProfile extends Model
         'reviewed_at'  => 'datetime',
     ];
 
+    /**
+     * Nivel de tarifa automático: Base (20) / Experto (25) / Élite (30).
+     * También limita specific_rate en ofertas de clase (ver ClassOfferController).
+     */
     public function maxAllowedRate(): int
     {
-        return $this->completed_classes_count >= 5 || $this->is_experienced ? 25 : 20;
+        $avgRating = $this->avgRating();
+
+        if ($this->completed_classes_count >= 20 && $avgRating !== null && $avgRating >= 4.5) {
+            return 30;
+        }
+
+        if ($this->completed_classes_count >= 5 && $avgRating !== null && $avgRating >= 4.0) {
+            return 25;
+        }
+
+        return 20;
     }
 
     public function hasAvailableMentorshipSlots(): bool

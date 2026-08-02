@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Services\SubjectNormalizer;
 use App\Notifications\WelcomeParentNotification;
 use App\Notifications\WelcomeTeacherNotification;
 use Illuminate\Auth\Events\Registered;
@@ -50,13 +51,13 @@ class RegisteredUserController extends Controller
         $user->assignRole($request->role);
 
         if ($request->role === 'teacher') {
-            $profile = TeacherProfile::create(['user_id' => $user->id, 'hourly_rate' => 0]);
+            $profile = TeacherProfile::create(['user_id' => $user->id, 'hourly_rate' => 20]);
 
             $subjectIds = collect($request->input('teacher_subject_names', []))
                 ->map(fn($name) => trim((string) $name))
                 ->filter()
-                ->unique(fn($name) => mb_strtolower($name))
-                ->map(fn($name) => Subject::firstOrCreate(['name' => $name], ['level' => 'todos'])->id);
+                ->unique(fn($name) => SubjectNormalizer::normalize($name))
+                ->map(fn($name) => Subject::firstOrCreateByName($name)->id);
 
             abort_if($subjectIds->isEmpty(), 422, 'Agrega al menos una materia o curso especializado.');
 

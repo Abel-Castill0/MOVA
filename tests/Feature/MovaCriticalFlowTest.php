@@ -66,8 +66,13 @@ class MovaCriticalFlowTest extends TestCase
             ])
             ->assertRedirect(route('class-offers.index'));
 
+        // El nivel 25 exige AMBOS umbrales: clases completadas y calificación
+        // promedio — no solo el conteo de clases. Sin reseñas, avg_rating es
+        // null y el profesor se queda en el nivel Base (ver
+        // TeacherProfile::maxAllowedRate() y el test dedicado de progresión
+        // de nivel en MonetizationIntegrityTest).
         $profile->update(['completed_classes_count' => 5, 'is_experienced' => true]);
-        $this->assertSame(25, $profile->fresh()->maxAllowedRate());
+        $this->assertSame(20, $profile->fresh()->maxAllowedRate());
     }
 
     public function test_diagnostic_creates_generic_class_request(): void

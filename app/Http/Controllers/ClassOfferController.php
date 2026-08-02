@@ -41,7 +41,7 @@ class ClassOfferController extends Controller
             'availability_schedule.days.*.*.end'   => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
             'specific_rate'                      => 'nullable|numeric|min:0|max:' . $maxRate,
         ], [
-            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate}. Complete 5 clases para desbloquear S/ 25.",
+            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate} según su nivel actual (clases completadas y calificación promedio).",
         ]);
 
         $data = $this->normalizeAvailability($data);
@@ -77,7 +77,7 @@ class ClassOfferController extends Controller
             'availability_schedule.days.*.*.end'   => ['nullable', 'string', 'regex:/^\d{2}:\d{2}$/'],
             'specific_rate'                      => 'nullable|numeric|min:0|max:' . $maxRate,
         ], [
-            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate}. Complete 5 clases para desbloquear S/ 25.",
+            'specific_rate.max' => "Por ahora puede ofertar hasta S/ {$maxRate} según su nivel actual (clases completadas y calificación promedio).",
         ]);
 
         $data = $this->normalizeAvailability($data);

@@ -787,6 +787,44 @@ class MonetizationIntegrityTest extends TestCase
         }
     }
 
+    public function test_hourly_rate_auto_upgrades_through_tiers_as_reviews_come_in(): void
+    {
+        [, $profile, $subject] = $this->teacher();
+        $profile->update(['credits_reserved' => 100]);
+
+        $this->assertSame('0.00', $profile->fresh()->hourly_rate);
+
+        // 5 clases calificadas con 5 estrellas cruzan el umbral de Experto (25).
+        for ($i = 0; $i < 5; $i++) {
+            $this->reviewedLesson($profile, $subject, 5);
+        }
+        $profile->refresh();
+        $this->assertSame(5, $profile->completed_classes_count);
+        $this->assertSame('25.00', $profile->hourly_rate);
+
+        // 15 clases más (20 en total), siempre con 5 estrellas, cruzan Élite (30).
+        for ($i = 0; $i < 15; $i++) {
+            $this->reviewedLesson($profile, $subject, 5);
+        }
+        $profile->refresh();
+        $this->assertSame(20, $profile->completed_classes_count);
+        $this->assertSame('30.00', $profile->hourly_rate);
+    }
+
+    public function test_hourly_rate_stays_at_base_tier_without_enough_average_rating(): void
+    {
+        [, $profile, $subject] = $this->teacher();
+        $profile->update(['credits_reserved' => 100]);
+
+        // 5 clases completadas pero con calificación baja: no alcanza Experto (25).
+        for ($i = 0; $i < 5; $i++) {
+            $this->reviewedLesson($profile, $subject, 3);
+        }
+        $profile->refresh();
+        $this->assertSame(5, $profile->completed_classes_count);
+        $this->assertSame('20.00', $profile->hourly_rate);
+    }
+
     private function teacher(int $availableCredits = 0): array
     {
         $teacher = $this->userWithRole('teacher');
@@ -873,6 +911,35 @@ class MonetizationIntegrityTest extends TestCase
         ]);
 
         return [$teacher, $profile, $lesson, $parent];
+    }
+
+    private function reviewedLesson(TeacherProfile $profile, Subject $subject, int $rating): Lesson
+    {
+        [$parent, $student, $request] = $this->parentRequest($subject, 'accepted');
+
+        $lesson = Lesson::create([
+            'teacher_profile_id' => $profile->id,
+            'student_id' => $student->id,
+            'class_request_id' => $request->id,
+            'start_time' => now()->subHour(),
+            'duration_minutes' => 60,
+            'status' => 'pending_parent_confirmation',
+        ]);
+
+        CreditTransaction::create([
+            'teacher_profile_id' => $profile->id,
+            'lesson_id' => $lesson->id,
+            'idempotency_key' => "lesson:{$lesson->id}:reservation",
+            'type' => 'reservation',
+            'amount' => 1,
+            'description' => 'Reserva por aceptación de clase',
+        ]);
+
+        $this->actingAs($parent)
+            ->post(route('reviews.store', $lesson), ['rating' => $rating])
+            ->assertRedirect(route('parent.lessons'));
+
+        return $lesson->fresh();
     }
 
     private function reportPayload(): array
