@@ -55,14 +55,20 @@ class PhoneVerificationController extends Controller
 
         $sent = $this->sendWhatsAppCode($normalized, $code, $user->name);
 
-        if (!$sent) {
-            if (app()->environment('local', 'testing')) {
-                return back()->with([
-                    'status'    => 'phone-verification-sent',
-                    'debugCode' => $code,
-                ]);
-            }
+        // En local/testing mostramos el código siempre, sin depender de $sent:
+        // Twilio puede "aceptar" el mensaje (create() no lanza excepción) y
+        // aun así fallar la entrega de forma asíncrona (visto en este entorno
+        // como status=failed, error_code 63015) — si dependiéramos de $sent,
+        // el fallback nunca se activaría en ese caso. Solo producción confía
+        // en la respuesta de Twilio.
+        if (app()->environment('local', 'testing')) {
+            return back()->with([
+                'status'    => 'phone-verification-sent',
+                'debugCode' => $code,
+            ]);
+        }
 
+        if (!$sent) {
             return back()->withErrors(['phone' =>
                 'No se pudo enviar el código por WhatsApp. Si tu número no está unido al Sandbox de Twilio, ' .
                 'envía "join <sandbox-code>" al número de Twilio desde tu WhatsApp.'

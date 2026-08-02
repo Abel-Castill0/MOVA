@@ -10,8 +10,9 @@
         Código enviado. Revisa tu WhatsApp.
       </div>
       <div v-if="$page.props.flash?.debugCode" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-        <p class="font-semibold mb-1">Modo desarrollo — WhatsApp no está configurado</p>
+        <p class="font-semibold mb-1">Modo desarrollo</p>
         <p>Tu código de verificación es: <span class="font-mono text-lg tracking-widest">{{ $page.props.flash.debugCode }}</span></p>
+        <p class="text-xs text-amber-700 mt-1">También se intentó enviar por WhatsApp, pero en este entorno la entrega no está garantizada — usa este código si no te llega.</p>
       </div>
       <div v-if="$page.props.flash?.status === 'phone-already-verified'" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
         Tu número ya está verificado.
