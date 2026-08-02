@@ -153,7 +153,7 @@ MAIL_MAILER=gmail_api
 GMAIL_CLIENT_ID=        ← de Google Cloud Console
 GMAIL_CLIENT_SECRET=    ← de Google Cloud Console (secreto)
 GMAIL_REFRESH_TOKEN=    ← del comando mova:gmail-exchange-code (secreto)
-GMAIL_FROM_ADDRESS=     ← tu cuenta Gmail (ej. abelwuarthon3@gmail.com)
+GMAIL_FROM_ADDRESS=     ← tu cuenta Gmail (ej. m0v4class@gmail.com)
 GMAIL_FROM_NAME=MOVA
 ```
 

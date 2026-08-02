@@ -77,6 +77,16 @@ Rediseñadas al estándar premium. Incluyen cláusula de resolución de disputas
 - Dos rutas de cancelación de clase (`lessons.cancel`, `admin.lessons.cancel`) que reembolsan créditos reales sin rate limiting — corregido en esta misma sesión (ver §Auditoría de seguridad).
 - Inconsistencia visual entre el dashboard del padre/profesor (ya premium) y sus páginas secundarias (estilo antiguo `indigo`/`gray`/`rounded-xl`).
 
+### Correo remitente cambiado a cuenta dedicada (01 ago 2026)
+
+El remitente de los correos transaccionales de MOVA (verificación, notificaciones de clase, etc.) pasó de la cuenta personal `abelwuarthon3@gmail.com` a la cuenta dedicada **`m0v4class@gmail.com`**, con `MAIL_FROM_NAME="MOVA"` (antes `"Equipo MOVA"`). Alcance del cambio:
+
+- `.env`: `MAIL_USERNAME`/`MAIL_FROM_ADDRESS`/`GMAIL_FROM_ADDRESS` actualizados. De paso se eliminó un bloque `MAIL_*` duplicado que había quedado suelto al final del archivo — `phpdotenv` resolvía silenciosamente la última definición, así que no cambiaba el comportamiento, pero confundía a quien leyera el archivo. Ahora hay un solo bloque, sin duplicados.
+- `qa/check-gmail-inbox.mjs`: el filtro `from:(...)` del script que verifica que los correos llegaron se actualizó a la nueva dirección.
+- `docs/DEPLOY_RAILWAY.md`: ejemplo de `GMAIL_FROM_ADDRESS` actualizado.
+- **Deliberadamente NO se tocó:** `qa/.env.qa` (`QA_ADMIN_EMAIL`) y las direcciones `abelwuarthon3+...@gmail.com` en `qa/end-to-end-welcome-email.mjs`/`qa/search-verify-emails.mjs`. Esas son la cuenta de **login de admin en producción** y el **buzón que los scripts de QA leen** (vía `GMAIL_READONLY_REFRESH_TOKEN`, todavía autorizado contra `abelwuarthon3@gmail.com`) — no son el remitente, y cambiarlas sin una cuenta/token nuevos habría roto la verificación de QA. Tampoco se tocó `abelcastillotrabajo@gmail.com` (correo de soporte/contacto real, mostrado en Terms/Privacy/footer) — es un correo distinto y a propósito.
+- `GMAIL_REFRESH_TOKEN` (usado solo si `MAIL_MAILER=gmail_api`, hoy es `smtp`) sigue autorizado contra la cuenta vieja — queda documentado en el propio `.env` que hay que regenerarlo si alguna vez se activa esa opción.
+
 ### Bugs encontrados y corregidos en la sesión de auditoría en browser (27 jul 2026)
 
 - **Precios en euros (€)** en vez de soles (S/) en `Welcome.vue` y en el formulario de tarifa del profesor.

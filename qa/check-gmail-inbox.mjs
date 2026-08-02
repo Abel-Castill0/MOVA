@@ -66,7 +66,7 @@ const movaSubjects = [
   'MOVA',
 ];
 
-const query = 'from:(abelwuarthon3@gmail.com) subject:MOVA newer_than:1d';
+const query = 'from:(m0v4class@gmail.com) subject:MOVA newer_than:1d';
 const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=20`;
 
 const searchRes = await fetch(searchUrl, {
