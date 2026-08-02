@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\VerifyEmailRequest;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 
 class VerifyEmailController extends Controller
 {
-    public function __invoke(EmailVerificationRequest $request): RedirectResponse
+    public function __invoke(VerifyEmailRequest $request): RedirectResponse
     {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->intended(RouteServiceProvider::HOME . '?verified=1');

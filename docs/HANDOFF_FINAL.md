@@ -77,6 +77,12 @@ Rediseñadas al estándar premium. Incluyen cláusula de resolución de disputas
 - Dos rutas de cancelación de clase (`lessons.cancel`, `admin.lessons.cancel`) que reembolsan créditos reales sin rate limiting — corregido en esta misma sesión (ver §Auditoría de seguridad).
 - Inconsistencia visual entre el dashboard del padre/profesor (ya premium) y sus páginas secundarias (estilo antiguo `indigo`/`gray`/`rounded-xl`).
 
+### Fix: 403 "Acceso no permitido" al verificar correo con otra cuenta abierta (02 ago 2026)
+
+**Reporte real:** un usuario se registró con `abelcastillotrabajo@gmail.com`, recibió el correo de verificación, y al hacer clic obtuvo un 403. Se investigó a fondo antes de tocar nada — `APP_URL` ya estaba correcto (`http://localhost:8000`, coincidía con el puerto real), así que **no era un problema de configuración**. Causa real: `Illuminate\Foundation\Auth\EmailVerificationRequest::authorize()` de Laravel devuelve `false` (→ 403 genérico) cuando el `{id}` del enlace no coincide con el usuario autenticado en esa sesión del navegador — típico cuando alguien tiene otra cuenta abierta al hacer clic en su correo. Reproducido de forma controlada (generando el mismo enlace firmado que el correo real contendría, y visitándolo mientras había otra cuenta logueada) antes de escribir cualquier fix.
+
+**Fix:** `app/Http/Requests/Auth/VerifyEmailRequest.php` (nuevo) extiende el `EmailVerificationRequest` de Laravel y sobreescribe `failedAuthorization()` — en vez de lanzar el 403 sin explicación, cierra la sesión equivocada y redirige a `/login` con un mensaje claro ("Ese enlace de verificación es de otra cuenta..."). `VerifyEmailController` ahora usa esta clase. Verificado en vivo de punta a punta: usuario A logueado + enlace de usuario B → logout + mensaje en login (no 403); luego login como B + mismo enlace → verificación exitosa. Test de regresión en `tests/Feature/Auth/EmailVerificationTest.php`. Es el único route con middleware `signed` en toda la app — no hay otro punto con este mismo riesgo.
+
 ### Correo remitente cambiado a cuenta dedicada (01 ago 2026)
 
 El remitente de los correos transaccionales de MOVA (verificación, notificaciones de clase, etc.) pasó de la cuenta personal `abelwuarthon3@gmail.com` a la cuenta dedicada **`m0v4class@gmail.com`**, con `MAIL_FROM_NAME="MOVA"` (antes `"Equipo MOVA"`). Alcance del cambio:
