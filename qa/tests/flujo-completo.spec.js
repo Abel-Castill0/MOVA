@@ -95,7 +95,8 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
   test('flujo de 8 pasos: solicitud → agendar → pago → reporte → calificación', async ({ page }) => {
     await test.step('0. Recargar créditos del profesor de prueba', async () => {
-      // LessonController::store() descuenta CLASS_CREDIT_COST_PER_CLASS del
+      // LessonController::store() descuenta Lesson::creditCostForMinutes()
+      // (1 crédito por hora o fracción; este flujo agenda 1h = 1 crédito) del
       // credits_available del profesor en cada aceptación y nunca lo
       // reembolsa (consumption es el estado final normal, no una
       // devolución). Sin este top-up, tras un puñado de corridas el

@@ -1,14 +1,15 @@
 <?php
 
 return [
-    // Reservado para la Fase 2 (facturación por duración real de la clase).
-    // Actualmente NO se usa: el costo por clase es fijo (ver fixed_class_cost /
-    // Lesson::CLASS_CREDIT_COST_PER_CLASS) sin importar duration_minutes.
+    // 1 crédito = 60 minutos de clase. Usado por Lesson::creditCostForMinutes()
+    // para calcular cuántos créditos consume una clase: ceil(duration_minutes / credit_minutes).
     'credit_minutes' => 60,
     'credit_price_pen' => '2.00',
 
-    // Phase 1 keeps the existing fixed reservation until duration billing is introduced.
-    'fixed_class_cost' => 1,
+    // Créditos consumidos por cada hora (o fracción) de clase dictada.
+    // El costo mínimo es 1 crédito, incluso para clases de menos de 1 hora
+    // (ej. 30 min = 1 crédito, igual que 60 min). Ver Lesson::creditCostForMinutes().
+    'cost_per_hour' => 1,
 
     'packages' => [
         'inicio' => [

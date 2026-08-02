@@ -178,11 +178,13 @@ Videollamada: el botón **"🎥 Ingresar a la Sala Virtual"** aparece en las tar
 
 `config/credits.php`:
 ```
-credit_minutes    = 60      // 1 crédito ≈ 60 minutos (referencia)
-credit_price_pen  = 2.00    // 1 crédito = S/ 2.00
-fixed_class_cost  = 1       // costo fijo por clase (Fase 1): 1 crédito por hora de clase dictada
+credit_minutes    = 60      // 1 crédito = 60 minutos
+credit_price_pen  = 2.00    // 1 crédito = S/ 2.00 (precio de recarga)
+cost_per_hour     = 1       // créditos consumidos por cada hora (o fracción) de clase
 ```
-El costo por clase también está centralizado como constante de dominio: `Lesson::CLASS_CREDIT_COST_PER_CLASS = 1`.
+El cobro es por hora o fracción, no fijo por clase: `Lesson::creditCostForMinutes($minutos) = max(1, ceil($minutos / 60)) × cost_per_hour`. Ej: 30 min = 1 crédito, 60 min = 1 crédito, 90 min = 2 créditos, 150 min (2h30) = 3 créditos. El pago congelado del profesor (`price_frozen_pen`) usa la misma base redondeada: `hourly_rate × créditos_necesarios` (no se prorratea la fracción — con tarifa S/20/h, una clase de 2h30 paga S/60, no S/50).
+
+Reservas/devoluciones/consumos de créditos siempre usan el monto que quedó registrado en el ledger para esa clase (`Lesson::reservedCreditAmount()`), no un recálculo desde `duration_minutes` en el momento — así una clase reprogramada con otra duración no descuadra un refund posterior. **Gap conocido:** `reschedule()` no ajusta `credits_reserved` si cambia la duración (ver `docs/HANDOFF_FINAL.md`).
 
 #### Paquetes de recarga
 
@@ -731,8 +733,8 @@ Mismo patrón en `DiagnosticAiEnrichmentService`: `env('OPENAI_API_KEY')` y `env
 #### M4. `LocalTestDataSeeder` parcialmente no idempotente
 Detallado en §4.1. Re-ejecutarlo duplica clases y usuarios de relleno.
 
-#### M5. `credit_minutes` sin usar
-`config/credits.php` define `credit_minutes = 60` sugiriendo facturación por duración, pero el sistema cobra `fixed_class_cost = 1` sin importar `duration_minutes` (que acepta 30–240 min). El propio comentario lo admite: *"Phase 1 keeps the existing fixed reservation until duration billing is introduced."* **Consecuencia de negocio:** una clase de 240 min cuesta lo mismo que una de 30 min.
+#### M5. ~~`credit_minutes` sin usar~~ — RESUELTO
+Implementada la facturación por hora/fracción: `Lesson::creditCostForMinutes()` usa `credit_minutes`/`cost_per_hour` de `config/credits.php`. Ver §Unidad de cuenta arriba.
 
 #### M6. Cálculo de monto a pagar duplicado en el frontend
 `amountToPay(l)` en `ParentIndex.vue` calcula `hourly_rate × duration/60` **en JavaScript**. El backend nunca valida ni persiste ese monto. Si cambia la tarifa del profesor entre el agendamiento y el pago, el padre ve un monto distinto al pactado. **Sugerencia:** congelar el precio en la `Lesson` al agendar.
@@ -759,7 +761,7 @@ La credencial autentica pero devuelve `429 insufficient_quota`. Si alguien cambi
 | WhatsApp (notificaciones) | ✅ Canal implementado, ⚠️ **apagado** por `WHATSAPP_ENABLED=false` (falta salir del sandbox de Twilio) |
 | IA de diagnóstico | ✅ Activada con Gemini en local, ⚠️ pendiente de activar y validar en producción |
 | Tiempo real (Pusher) | ✅ Verificado en local, ⚠️ credenciales pendientes de configurar en Railway |
-| Facturación por duración | ❌ No implementada (`credit_minutes` sin uso) |
+| Facturación por duración | ✅ Implementada — 1 crédito por hora o fracción (`Lesson::creditCostForMinutes()`) |
 | Pasarela de pago online | ❌ No existe — **por diseño** (modelo offline Yape/Plin) |
 | Tests E2E | ❌ Playwright instalado, sin specs |
 

@@ -41,13 +41,25 @@
           <div class="grid grid-cols-4 gap-2">
             <button v-for="opt in durationOptions" :key="opt.value" type="button"
               @click="form.duration_minutes = opt.value"
-              :class="['py-2.5 rounded-xl text-sm font-semibold border transition-all',
+              :class="['py-2.5 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center gap-0.5',
                 form.duration_minutes === opt.value
                   ? 'bg-brand-600 text-white border-brand-600 shadow-md shadow-brand-600/25'
                   : 'bg-white text-slate-600 border-gray-200 hover:border-brand-300 hover:text-brand-700']">
-              {{ opt.label }}
+              <span>{{ opt.label }}</span>
+              <span :class="['text-[11px] font-normal', form.duration_minutes === opt.value ? 'text-brand-100' : 'text-slate-400']">
+                {{ creditsFor(opt.value) }} crédito{{ creditsFor(opt.value) === 1 ? '' : 's' }}
+              </span>
             </button>
           </div>
+          <p v-if="!canAffordSelected" class="text-xs text-red-500 mt-2">
+            No tienes créditos suficientes para esta duración ({{ selectedCredits }} necesarios, {{ creditsAvailable }} disponibles).
+          </p>
+        </div>
+
+        <!-- Resumen de créditos y ganancia -->
+        <div class="bg-brand-50 border border-brand-200 rounded-xl p-3 flex items-center justify-between text-sm">
+          <span class="text-brand-800">Costo: <strong>{{ selectedCredits }} crédito{{ selectedCredits === 1 ? '' : 's' }}</strong></span>
+          <span v-if="hourlyRate > 0" class="text-brand-800">Ganas: <strong>S/ {{ projectedEarnings.toFixed(2) }}</strong></span>
         </div>
 
         <!-- Jitsi info note -->
@@ -58,7 +70,7 @@
 
         <!-- Submit -->
         <div class="flex flex-col sm:flex-row gap-3 pt-2">
-          <button type="submit" :disabled="form.processing || !form.start_time"
+          <button type="submit" :disabled="form.processing || !form.start_time || !canAffordSelected"
             class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-600/30">
             <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -82,7 +94,11 @@ import { computed } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
-const props = defineProps({ classRequest: Object })
+const props = defineProps({
+  classRequest: Object,
+  creditsAvailable: { type: Number, default: 0 },
+  hourlyRate: { type: Number, default: 0 },
+})
 
 const form = useForm({
   class_request_id: props.classRequest.id,
@@ -96,6 +112,16 @@ const durationOptions = [
   { value: 90,  label: '1:30 h' },
   { value: 120, label: '2 h' },
 ]
+
+// 1 crédito por cada hora (o fracción) de clase — mismo cálculo que
+// Lesson::creditCostForMinutes() en el backend (ceil(minutos / 60)).
+function creditsFor(durationMinutes) {
+  return Math.ceil(durationMinutes / 60)
+}
+
+const selectedCredits = computed(() => creditsFor(form.duration_minutes))
+const canAffordSelected = computed(() => selectedCredits.value <= props.creditsAvailable)
+const projectedEarnings = computed(() => props.hourlyRate * selectedCredits.value)
 
 // Minimum selectable time = now + 5 min
 const minDateTime = computed(() => {

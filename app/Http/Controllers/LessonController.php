@@ -19,8 +19,6 @@ use Inertia\Inertia;
 
 class LessonController extends Controller
 {
-    private const CLASS_CREDIT_COST_PER_CLASS = Lesson::CLASS_CREDIT_COST_PER_CLASS;
-
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -64,8 +62,10 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $creditsNeeded = Lesson::creditCostForMinutes($data['duration_minutes']);
+
             abort_if(
-                $teacherProfile->credits_available < self::CLASS_CREDIT_COST_PER_CLASS,
+                $teacherProfile->credits_available < $creditsNeeded,
                 422,
                 'Créditos insuficientes. Por favor, recargue su saldo para aceptar esta clase.'
             );
@@ -86,7 +86,7 @@ class LessonController extends Controller
                 'class_offer_id' => $classRequest->class_offer_id,
                 'start_time' => $data['start_time'],
                 'duration_minutes' => $data['duration_minutes'],
-                'price_frozen_pen' => round($teacherProfile->hourly_rate * $data['duration_minutes'] / 60, 2),
+                'price_frozen_pen' => round($teacherProfile->hourly_rate * $creditsNeeded, 2),
                 'status' => 'scheduled',
             ]);
 
@@ -96,8 +96,8 @@ class LessonController extends Controller
             ]);
 
             $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available - self::CLASS_CREDIT_COST_PER_CLASS,
-                'credits_reserved' => $teacherProfile->credits_reserved + self::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_available' => $teacherProfile->credits_available - $creditsNeeded,
+                'credits_reserved' => $teacherProfile->credits_reserved + $creditsNeeded,
             ];
 
             if ($classRequest->is_mentorship) {
@@ -110,7 +110,7 @@ class LessonController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:reservation",
                 'lesson_id' => $lesson->id,
                 'type' => 'reservation',
-                'amount' => self::CLASS_CREDIT_COST_PER_CLASS,
+                'amount' => $creditsNeeded,
                 'description' => 'Reserva por aceptación de clase',
             ]);
 
@@ -234,15 +234,20 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            // Se devuelve exactamente lo reservado en su momento (ledger), no lo
+            // que costaría hoy — protege contra una reprogramación posterior que
+            // haya cambiado duration_minutes. Ver Lesson::reservedCreditAmount().
+            $creditsToRefund = $lesson->reservedCreditAmount();
+
             abort_if(
-                $teacherProfile->credits_reserved < self::CLASS_CREDIT_COST_PER_CLASS,
+                $teacherProfile->credits_reserved < $creditsToRefund,
                 422,
                 'No hay créditos reservados suficientes para devolver esta clase.'
             );
 
             $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available + self::CLASS_CREDIT_COST_PER_CLASS,
-                'credits_reserved' => $teacherProfile->credits_reserved - self::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_available' => $teacherProfile->credits_available + $creditsToRefund,
+                'credits_reserved' => $teacherProfile->credits_reserved - $creditsToRefund,
             ];
 
             if ($lesson->classRequest?->is_mentorship) {
@@ -258,7 +263,7 @@ class LessonController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:release",
                 'lesson_id' => $lesson->id,
                 'type' => 'refund',
-                'amount' => self::CLASS_CREDIT_COST_PER_CLASS,
+                'amount' => $creditsToRefund,
                 'description' => 'Devolución por clase cancelada',
             ]);
 

@@ -256,9 +256,76 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('accepted', $request->fresh()->status);
         $this->assertSame(1, Lesson::count());
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:reservation")->count());
-        $this->assertSame(5 - Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_available);
+        $this->assertSame(5 - Lesson::creditCostForMinutes(60), $profile->fresh()->credits_available);
         $this->assertNotNull($lesson->jitsi_room);
         $this->assertStringStartsWith("mova-lesson-{$lesson->id}-", $lesson->jitsi_room);
+    }
+
+    /**
+     * @dataProvider durationCreditCases
+     */
+    public function test_lesson_credit_cost_scales_with_duration(int $durationMinutes, int $expectedCredits): void
+    {
+        [$teacher, $profile, $subject] = $this->teacher(10);
+        $profile->update(['hourly_rate' => 20]);
+        [, , $request] = $this->parentRequest($subject, 'open');
+
+        $this->actingAs($teacher)->post(route('lessons.store'), [
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'duration_minutes' => $durationMinutes,
+        ])->assertRedirect(route('teacher.lessons'));
+
+        $lesson = Lesson::firstOrFail();
+
+        $this->assertSame($expectedCredits, $lesson->credit_cost);
+        $this->assertSame(10 - $expectedCredits, $profile->fresh()->credits_available);
+        $this->assertSame($expectedCredits, $profile->fresh()->credits_reserved);
+        $this->assertDatabaseHas('credit_transactions', [
+            'lesson_id' => $lesson->id,
+            'type' => 'reservation',
+            'amount' => $expectedCredits,
+        ]);
+        // hourly_rate=20, ej. 2h30 (150 min) → 3 créditos → S/60, no S/50 (proporcional exacto).
+        $this->assertEquals(20 * $expectedCredits, $lesson->price_frozen_pen);
+    }
+
+    public static function durationCreditCases(): array
+    {
+        return [
+            '30 min = 1 crédito' => [30, 1],
+            '1h = 1 crédito' => [60, 1],
+            '2h = 2 créditos' => [120, 2],
+            '2h30 = 3 créditos' => [150, 3],
+        ];
+    }
+
+    public function test_cancelling_a_multi_hour_lesson_refunds_the_full_reserved_amount(): void
+    {
+        [$teacher, $profile, $subject] = $this->teacher(10);
+        [, , $request] = $this->parentRequest($subject, 'open');
+
+        $this->actingAs($teacher)->post(route('lessons.store'), [
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'duration_minutes' => 150,
+        ]);
+
+        $lesson = Lesson::firstOrFail();
+        $this->assertSame(3, $lesson->credit_cost);
+        $this->assertSame(7, $profile->fresh()->credits_available);
+        $this->assertSame(3, $profile->fresh()->credits_reserved);
+
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
+            ->assertRedirect();
+
+        $this->assertSame(10, $profile->fresh()->credits_available);
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
+        $this->assertDatabaseHas('credit_transactions', [
+            'lesson_id' => $lesson->id,
+            'type' => 'refund',
+            'amount' => 3,
+        ]);
     }
 
     public function test_lesson_start_with_timezone_offset_is_stored_and_guarded_in_utc(): void
@@ -331,7 +398,7 @@ class MonetizationIntegrityTest extends TestCase
             ->assertStatus(422);
 
         $this->assertSame('scheduled', $lesson->fresh()->status);
-        $this->assertSame(Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_reserved);
+        $this->assertSame(Lesson::creditCostForMinutes(60), $profile->fresh()->credits_reserved);
         $this->assertSame(0, $profile->fresh()->completed_classes_count);
     }
 
@@ -364,7 +431,7 @@ class MonetizationIntegrityTest extends TestCase
             ->assertStatus(422);
 
         $this->assertSame('scheduled', $lesson->fresh()->status);
-        $this->assertSame(Lesson::CLASS_CREDIT_COST_PER_CLASS, $profile->fresh()->credits_reserved);
+        $this->assertSame(Lesson::creditCostForMinutes(60), $profile->fresh()->credits_reserved);
     }
 
     public function test_testing_backdate_lesson_command_unblocks_confirm_payment(): void
@@ -424,6 +491,21 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame(1, $profile->completed_classes_count);
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:consumption")->count());
         $this->assertSame(1, \App\Models\TeacherReview::where('lesson_id', $lesson->id)->count());
+    }
+
+    public function test_review_consumes_the_full_reserved_amount_for_a_multi_hour_lesson(): void
+    {
+        [, $profile, $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subHours(2), 3);
+
+        $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5])
+            ->assertRedirect(route('parent.lessons'));
+
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
+        $this->assertDatabaseHas('credit_transactions', [
+            'lesson_id' => $lesson->id,
+            'type' => 'consumption',
+            'amount' => 3,
+        ]);
     }
 
     public function test_approved_deposit_has_idempotency_key(): void
@@ -767,7 +849,7 @@ class MonetizationIntegrityTest extends TestCase
         ]);
     }
 
-    private function lesson(string $status, Carbon $startTime, int $reservedCredits = Lesson::CLASS_CREDIT_COST_PER_CLASS): array
+    private function lesson(string $status, Carbon $startTime, int $reservedCredits = 1): array
     {
         [$teacher, $profile, $subject] = $this->teacher();
         $profile->update(['credits_reserved' => $reservedCredits]);
@@ -786,7 +868,7 @@ class MonetizationIntegrityTest extends TestCase
             'lesson_id' => $lesson->id,
             'idempotency_key' => "lesson:{$lesson->id}:reservation",
             'type' => 'reservation',
-            'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
+            'amount' => $reservedCredits,
             'description' => 'Reserva por aceptación de clase',
         ]);
 

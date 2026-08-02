@@ -145,7 +145,7 @@ class LocalTestDataSeeder extends Seeder
                     'teacher_profile_id' => $teacherProfile->id,
                     'lesson_id' => $lesson->id,
                     'type' => 'reservation',
-                    'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                    'amount' => $lesson->credit_cost,
                     'description' => 'Reserva por aceptación de clase (dato de prueba)',
                 ]
             );
@@ -175,7 +175,7 @@ class LocalTestDataSeeder extends Seeder
                 'teacher_profile_id' => $teacherProfile->id,
                 'lesson_id' => $pastLesson->id,
                 'type' => 'consumption',
-                'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                'amount' => $pastLesson->credit_cost,
                 'description' => 'Consumo por clase completada (dato de prueba)',
             ]
         );
@@ -231,7 +231,7 @@ class LocalTestDataSeeder extends Seeder
                 'teacher_profile_id' => $teacherProfile->id,
                 'lesson_id' => $pastLesson2->id,
                 'type' => 'consumption',
-                'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                'amount' => $pastLesson2->credit_cost,
                 'description' => 'Consumo por clase completada (dato de prueba)',
             ]
         );

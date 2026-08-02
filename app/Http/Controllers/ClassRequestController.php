@@ -180,8 +180,12 @@ class ClassRequestController extends Controller
     {
         $this->authorize('accept', $classRequest);
 
+        $profile = auth()->user()->teacherProfile;
+
         return Inertia::render('ClassRequests/Accept', [
             'classRequest' => $classRequest->load(['student', 'subject']),
+            'creditsAvailable' => $profile->credits_available ?? 0,
+            'hourlyRate' => (float) ($profile->hourly_rate ?? 0),
         ]);
     }
 }

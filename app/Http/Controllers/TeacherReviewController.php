@@ -54,8 +54,12 @@ class TeacherReviewController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            // Se consume exactamente lo reservado en su momento (ledger), no lo
+            // que costaría hoy — ver Lesson::reservedCreditAmount().
+            $creditsToConsume = $lesson->reservedCreditAmount();
+
             abort_if(
-                $teacherProfile->credits_reserved < Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                $teacherProfile->credits_reserved < $creditsToConsume,
                 422,
                 'No hay créditos reservados suficientes para cerrar esta clase.'
             );
@@ -71,7 +75,7 @@ class TeacherReviewController extends Controller
             ]);
 
             $teacherProfile->update([
-                'credits_reserved' => $teacherProfile->credits_reserved - Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                'credits_reserved' => $teacherProfile->credits_reserved - $creditsToConsume,
                 'completed_classes_count' => $teacherProfile->completed_classes_count + 1,
                 'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
             ]);
@@ -80,7 +84,7 @@ class TeacherReviewController extends Controller
                 'idempotency_key' => "lesson:{$lesson->id}:consumption",
                 'lesson_id' => $lesson->id,
                 'type' => 'consumption',
-                'amount' => Lesson::CLASS_CREDIT_COST_PER_CLASS,
+                'amount' => $creditsToConsume,
                 'description' => 'Consumo por clase completada',
             ]);
 

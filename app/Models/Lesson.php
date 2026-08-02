@@ -11,8 +11,6 @@ class Lesson extends Model
 
     protected $table = 'classes';
 
-    public const CLASS_CREDIT_COST_PER_CLASS = 1;
-
     protected $fillable = [
         'teacher_profile_id', 'student_id', 'class_request_id', 'class_offer_id',
         'start_time', 'duration_minutes', 'price_frozen_pen',
@@ -39,11 +37,38 @@ class Lesson extends Model
     // pasar por LessonPolicy::view() y validar el estado de la clase.
     protected $hidden = ['jitsi_room', 'jitsi_password'];
 
-    protected $appends = ['has_jitsi_room', 'end_time'];
+    protected $appends = ['has_jitsi_room', 'end_time', 'credit_cost'];
 
     public function getHasJitsiRoomAttribute(): bool
     {
         return $this->jitsi_room !== null;
+    }
+
+    // Cobro por hora (o fracción): 1 crédito por cada hora iniciada, mínimo 1.
+    // Ej: 30 min = 1 crédito, 60 min = 1 crédito, 90 min = 2 créditos.
+    public static function creditCostForMinutes(int $durationMinutes): int
+    {
+        $hours = (int) ceil($durationMinutes / config('credits.credit_minutes', 60));
+
+        return max(1, $hours) * (int) config('credits.cost_per_hour', 1);
+    }
+
+    public function getCreditCostAttribute(): int
+    {
+        return static::creditCostForMinutes($this->duration_minutes);
+    }
+
+    // Créditos realmente reservados/consumidos según el ledger, en vez de
+    // recalcular desde duration_minutes — así un refund/consumption siempre
+    // devuelve exactamente lo que se reservó, incluso si la clase fue
+    // reprogramada con otra duración después de aceptarse.
+    public function reservedCreditAmount(): int
+    {
+        $reserved = CreditTransaction::where('lesson_id', $this->id)
+            ->where('type', 'reservation')
+            ->value('amount');
+
+        return (int) ($reserved ?? $this->credit_cost);
     }
 
     public function teacherProfile()
