@@ -6,8 +6,12 @@
         Enviamos un código de 6 dígitos a tu número terminado en <strong>{{ phone }}</strong>.
       </p>
 
-      <div v-if="$page.props.flash?.status === 'phone-verification-sent'" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+      <div v-if="$page.props.flash?.status === 'phone-verification-sent' && !$page.props.flash?.debugCode" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
         Código enviado. Revisa tu WhatsApp.
+      </div>
+      <div v-if="$page.props.flash?.debugCode" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <p class="font-semibold mb-1">Modo desarrollo — WhatsApp no está configurado</p>
+        <p>Tu código de verificación es: <span class="font-mono text-lg tracking-widest">{{ $page.props.flash.debugCode }}</span></p>
       </div>
       <div v-if="$page.props.flash?.status === 'phone-already-verified'" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
         Tu número ya está verificado.

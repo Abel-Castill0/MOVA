@@ -56,6 +56,13 @@ class PhoneVerificationController extends Controller
         $sent = $this->sendWhatsAppCode($normalized, $code, $user->name);
 
         if (!$sent) {
+            if (app()->environment('local', 'testing')) {
+                return back()->with([
+                    'status'    => 'phone-verification-sent',
+                    'debugCode' => $code,
+                ]);
+            }
+
             return back()->withErrors(['phone' =>
                 'No se pudo enviar el código por WhatsApp. Si tu número no está unido al Sandbox de Twilio, ' .
                 'envía "join <sandbox-code>" al número de Twilio desde tu WhatsApp.'
