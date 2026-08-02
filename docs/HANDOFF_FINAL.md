@@ -275,3 +275,23 @@ php artisan db:seed --class=LocalTestDataSeeder
 2. Credenciales reales de Google OAuth2, Cloudinary, Gmail/Resend, Sentry.
 3. Decidir `RECHARGE_PAYMENT_DESTINATION` real (número de Yape/Plin de MOVA) antes de `RECHARGES_ENABLED=true`.
 4. Si se configura un webhook de Resend (`resend.com/webhooks`), completar `RESEND_WEBHOOK_SECRET` en `.env` — sin esa variable el endpoint de webhook queda inactivo (no verifica firma), lo cual es seguro pero no procesa eventos de bounce/queja.
+
+---
+
+## 8. Herramientas de testing automatizado
+
+Herramientas para verificar el sistema end-to-end sin depender de revisión manual (leer WhatsApp/correo a mano, etc.). Todas usan credenciales ya presentes en `.env` / `qa/.env.qa` — ninguna requiere instalar software adicional.
+
+| Herramienta | Qué verifica | Estado | Comando |
+|---|---|---|---|
+| **Playwright E2E** (`qa/tests/flujo-completo.spec.js`) | Flujo completo solicitud→pago→reporte→reseña en el navegador real (Chromium propio de Playwright, sin depender de Chrome del sistema) | ✅ Funcional | `cd qa && npx playwright test --config=playwright.local.config.js` |
+| **Playwright — modo visible** | Igual que arriba, pero con ventana de navegador visible (útil para depurar a mano en esta laptop; no aplica en un servidor sin pantalla) | ✅ Funcional | `cd qa && HEADFUL=1 npx playwright test --config=playwright.local.config.js` |
+| **Gmail API (lectura de bandeja)** (`qa/check-gmail-inbox.mjs`) | Confirma que un correo transaccional (verificación, notificación) realmente llegó a la bandeja, buscando por remitente/asunto | ⚠️ Requiere `GMAIL_READONLY_REFRESH_TOKEN` vigente en `qa/.env.qa` — regenerar con `php artisan mova:gmail-auth-url` → autorizar en el navegador → `php artisan mova:gmail-exchange-code {codigo}` → copiar el token impreso a `.env` (`GMAIL_REFRESH_TOKEN`) y `qa/.env.qa` (`GMAIL_READONLY_REFRESH_TOKEN`) | `node qa/check-gmail-inbox.mjs` |
+| **Twilio Messages API** | Lee el `status` real de un WhatsApp enviado (`queued`/`sent`/`delivered`/`failed`) y su `error_code` — más confiable que confiar en que la app no haya lanzado una excepción, porque Twilio puede aceptar el envío y fallar la entrega de forma asíncrona | ✅ Funcional, sin configuración adicional | `curl -s -u "$TWILIO_SID:$TWILIO_AUTH_TOKEN" "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_SID/Messages.json?PageSize=5"` |
+| **Enlace de verificación firmado** (sin script, vía `php artisan tinker`) | Permite completar el flujo de verificación de email en pruebas sin acceso a la bandeja real — genera el mismo enlace firmado que el correo contendría | ✅ Funcional | `URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => $user->id, 'hash' => sha1($user->email)])` desde tinker |
+| `mova:testing-backdate-lesson` | Retrocede `start_time` de una clase para poder probar `confirmPayment()` sin esperar a que termine de verdad | ✅ Funcional | `php artisan mova:testing-backdate-lesson {lesson_id}` |
+| `mova:testing-verify-phone` | Marca un teléfono como verificado sin pasar por WhatsApp (mismo criterio que el bypass en pantalla de `PhoneVerificationController`) | ✅ Funcional | `php artisan mova:testing-verify-phone {user_id}` |
+
+**Nota sobre error_code de Twilio:** los mensajes de verificación por WhatsApp en este entorno vienen consistentemente con `status: failed` y `error_code: 63015`. Vale la pena revisar ese código específico en la [documentación de errores de Twilio](https://www.twilio.com/docs/api/errors) antes de asumir que es un problema de sandbox — no se confirmó la causa raíz exacta en esta sesión.
+
+**Deliberadamente no se instaló un MCP de Playwright de terceros** (pedido en una sesión anterior): esta sesión de Claude Code ya tiene control de navegador completo vía sus herramientas nativas (`mcp__Claude_Browser__*` — navegar, clickear, leer consola/red, etc.), así que un MCP adicional sería redundante. Instalar paquetes de terceros no verificados desde GitHub de forma autónoma tampoco es algo que deba hacerse sin revisión — si en el futuro se necesita un MCP de Playwright específico (por ejemplo para usarlo fuera de Claude Code), instalarlo y revisarlo manualmente.

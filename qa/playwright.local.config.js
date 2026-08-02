@@ -15,7 +15,10 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    headless: true,
+    // Headless por defecto (rápido, sin ventana) — pon HEADFUL=1 para ver el
+    // navegador real durante una corrida local puntual, ej:
+    // HEADFUL=1 npx playwright test --config=playwright.local.config.js
+    headless: process.env.HEADFUL !== '1',
     viewport: { width: 1280, height: 720 },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
