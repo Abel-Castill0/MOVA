@@ -300,4 +300,149 @@ Herramientas para verificar el sistema end-to-end sin depender de revisión manu
 
 **Nota sobre error_code de Twilio:** los mensajes de verificación por WhatsApp en este entorno vienen consistentemente con `status: failed` y `error_code: 63015`. Vale la pena revisar ese código específico en la [documentación de errores de Twilio](https://www.twilio.com/docs/api/errors) antes de asumir que es un problema de sandbox — no se confirmó la causa raíz exacta en esta sesión.
 
+---
+
+## 9. Tarifa automática, materias dinámicas y acompañamiento continuo (2026-08-02)
+
+### Tarifa por hora — ahora 100% automática
+
+El profesor ya no fija su `hourly_rate`; se asigna solo al crear el perfil (S/20) y
+se recalcula tras cada reseña, dentro de la misma transacción con
+`lockForUpdate()` que ya usaba `TeacherReviewController::store()`:
+
+| Nivel | Umbral | Tarifa |
+|---|---|---|
+| Base | por defecto | S/20 |
+| Experto | ≥5 clases completadas Y calificación promedio ≥4.0 | S/25 |
+| Élite | ≥20 clases completadas Y calificación promedio ≥4.5 | S/30 |
+
+`TeacherProfile::maxAllowedRate()` es ahora la única fuente de verdad para este
+cálculo — sigue usándose también para limitar `specific_rate` en
+`ClassOfferController` (tope de precio por oferta individual, que sí sigue
+siendo editable por el profesor). `Teacher/Edit.vue` y `Teacher/Setup.vue` ya
+no tienen input de tarifa: muestran la tarifa actual + badge de nivel (Edit) o
+un texto informativo fijo (Setup).
+
+Cobertura de test: `MonetizationIntegrityTest::test_hourly_rate_auto_upgrades_through_tiers_as_reviews_come_in`
+y `test_hourly_rate_stays_at_base_tier_without_enough_average_rating` ejercitan
+el flujo real (`POST /lessons/{lesson}/review`), no solo el método aislado.
+
+### Materias dinámicas con normalización
+
+Los profesores ya podían escribir materias libres al registrarse, pero la
+detección de duplicados solo comparaba dentro del mismo envío (`mb_strtolower`
+en memoria) — dos profesores escribiendo "Física" y "fisica" en sesiones
+distintas creaban dos filas. `App\Services\SubjectNormalizer` (minúsculas, sin
+tildes, sin espacios repetidos) más la columna `subjects.normalized_name`
+(única, migración `2026_08_02_000001`) cierran ese hueco:
+`Subject::firstOrCreateByName()` es ahora el único punto de entrada para crear
+materias por texto libre, usado en `RegisteredUserController` (registro) y
+`TeacherProfileController::resolveSubjectIds()` (edición de perfil). El modelo
+normaliza automáticamente en `saving()` como red de seguridad para cualquier
+otro punto de creación futuro.
+
+`SubjectSeeder` se redujo de 25 a 6 materias de ejemplo — el catálogo real lo
+construyen los profesores. Marketplace y landing ya consultaban
+`Subject::orderBy('name')->get()` en vivo, así que las materias nuevas
+aparecen ahí sin cambios adicionales.
+
+### Cupos de acompañamiento continuo — ocultos solo del lado del profesor
+
+⚠️ **Corrección importante respecto al pedido original:** el acompañamiento
+continuo **no es una funcionalidad sin implementar** — ya está vivo en
+`Marketplace/Index.vue` (botón "Solicitar acompañamiento", visible cuando
+`mentorship_slots_total > mentorship_slots_taken`) y en el ciclo de vida de
+la clase (`LessonController::store()`/`cancel()` incrementan/decrementan
+`mentorship_slots_taken` al aceptar/cancelar una solicitud marcada
+`is_mentorship`). Lo único que se ocultó, tal como se pidió, es el **input
+para que el profesor configure `mentorship_slots_total`/`taken`** en
+`Teacher/Edit.vue` y `Teacher/Setup.vue` — los campos siguen en
+`TeacherProfile::$fillable` y en la base de datos, y el backend sigue
+leyéndolos y escribiéndolos con normalidad.
+
+**Consecuencia práctica de ocultar el input:** cualquier profesor cuyo
+`mentorship_slots_total` sea 0 — es decir, todo profesor que se registre de
+aquí en adelante, porque ya no hay forma en la UI de subirlo de 0 — nunca
+mostrará el botón "Solicitar acompañamiento" en el marketplace, porque
+`hasAvailableMentorshipSlots()` siempre será `false`. Los profesores que ya
+tenían un total mayor a 0 antes de este cambio no se ven afectados. Si se
+quiere mantener el acompañamiento como una funcionalidad realmente
+disponible para profesores nuevos, hace falta reintroducir el campo en la UI
+(o fijar el total vía un flujo distinto, ej. aprobación de admin) — no se
+hizo porque el pedido explícito de esta sesión fue ocultarlo, pero vale la
+pena confirmarlo con el equipo antes de que el marketplace empiece a mostrar
+menos ofertas de acompañamiento de las esperadas.
+
 **Deliberadamente no se instaló un MCP de Playwright de terceros** (pedido en una sesión anterior): esta sesión de Claude Code ya tiene control de navegador completo vía sus herramientas nativas (`mcp__Claude_Browser__*` — navegar, clickear, leer consola/red, etc.), así que un MCP adicional sería redundante. Instalar paquetes de terceros no verificados desde GitHub de forma autónoma tampoco es algo que deba hacerse sin revisión — si en el futuro se necesita un MCP de Playwright específico (por ejemplo para usarlo fuera de Claude Code), instalarlo y revisarlo manualmente.
+
+---
+
+## 10. Videollamada (Jitsi) y flujo post-clase (2026-08-02)
+
+### Modal de Jitsi rediseñado
+
+`Lessons/ParentIndex.vue`, `Lessons/TeacherIndex.vue` y `Dashboard/Parent.vue`
+ya no envuelven la sala en el `Modal.vue` genérico (pensado para diálogos
+centrados, no para videollamada a pantalla completa). Ahora usan
+`resources/js/Components/JitsiModal.vue`, un componente nuevo y compartido:
+overlay `fixed inset-0 z-[9999]` sobre fondo `slate-950`, barra superior con
+el nombre de la materia (o "Sala Virtual" si no hay clase asociada) + botón
+"Cerrar sala y volver a MOVA", y el iframe en `h-[85vh]` (móvil) /
+`h-[90vh]` (desktop), `w-full`. `Dashboard/Teacher.vue` no lo usa porque
+nunca tuvo un punto de entrada a Jitsi — solo se le agregó la acción
+"Escribir reporte" (ver más abajo), no la sala virtual.
+
+### "Powered by Jitsi" en el free tier
+
+El servidor público `meet.jit.si` que usa MOVA (`useJitsiMeet.js`, carga
+`external_api.js` desde ese dominio) puede mostrar branding de Jitsi
+("Powered by Jitsi Meet" u overlays similares) dentro del iframe de la
+videollamada — **no hay forma de quitarlo usando el servicio gratuito**, es
+parte de los términos de uso de `meet.jit.si`. La única forma de eliminarlo
+por completo es dejar de depender del servidor público:
+
+- **Self-hosting** — levantar la propia instancia de Jitsi Meet (Docker
+  oficial: `jitsi/docker-jitsi-meet`). Requiere infraestructura propia
+  (mínimo un VPS con recursos para STUN/TURN/videobridge) y mantenimiento.
+- **JaaS (Jitsi as a Service, jaas.8x8.vc)** — la opción manejada de 8x8
+  (la empresa detrás de Jitsi): sin branding, SLA, requiere cuenta de pago y
+  cambiar `useJitsiMeet.js` para autenticar con JWT contra `8x8.vc` en vez
+  de `meet.jit.si` sin autenticación como ahora.
+
+Si en el futuro se decide quitar el branding, **la ruta recomendada es
+migrar a JaaS** (no self-hosting) — evita operar infraestructura de
+videollamada propia, que es no trivial de mantener con buena calidad (NAT
+traversal, escalado del videobridge, etc.) para el tamaño actual de MOVA.
+
+### Flujo post-clase
+
+Antes, cerrar el modal de Jitsi (`api.dispose()` o el botón de cerrar) no
+hacía nada más — la persona se quedaba mirando la lista de clases sin ningún
+indicio de qué hacer a continuación. Ahora, `useJitsiMeet.js` centraliza el
+cierre: tanto el botón "Cerrar sala y volver a MOVA" como el evento
+`readyToClose` de Jitsi (se dispara cuando alguien cuelga desde los propios
+controles de la videollamada) pasan por la misma función `closeJitsi()`,
+que redirige a `route('dashboard', { post_class: lesson.id })` — **excepto**
+si el modal se cerró por un error de acceso (`joinError`), porque ahí nunca
+hubo clase real a la que "volver".
+
+`Dashboard/Parent.vue` y `Dashboard/Teacher.vue` leen `?post_class=<id>` en
+`onMounted()`, muestran un banner (limpian el query string con
+`history.replaceState` para que un refresh no lo repita) y lo quitan del
+todo si se cierra manualmente:
+- Padre: "La clase ha terminado. Confirma tu pago para continuar." → botón
+  a `route('parent.lessons')`.
+- Profesor: "La clase ha terminado. Escribe el reporte pedagógico." → botón
+  directo a `route('lesson-reports.create', post_class)` (ruta ya protegida:
+  redirige a `lesson-reports.show` si el reporte ya existe, aborta 422 si la
+  clase ya no está en estado `paid`).
+
+Además, `DashboardController::__invoke()` (rama profesor) ahora incluye
+lecciones en estado `paid` en `upcoming` (antes solo `scheduled` con
+`start_time >= now()`, así que una clase recién pagada nunca aparecía ahí) y
+`Dashboard/Teacher.vue` muestra el botón "📝 Escribir reporte" en línea para
+esas — así el botón de acción está visible de inmediato al volver del modal,
+sin depender únicamente del banner. El lado del padre no necesitó cambios de
+query porque `upcoming` ya incluía `scheduled`/`paid`/`pending_parent_confirmation`
+sin filtro de `start_time`, y el botón "✓ Ya pagué" ya se gateaba solo por
+`hasClassEnded(l)`.
