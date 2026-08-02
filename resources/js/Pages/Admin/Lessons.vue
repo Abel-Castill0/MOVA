@@ -50,7 +50,7 @@
               <td class="px-4 py-3">
                 <button v-if="l.status === 'scheduled'"
                   @click="openCancelModal(l)"
-                  class="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition-colors">
+                  class="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-2 rounded transition-colors">
                   Cancelar
                 </button>
                 <span v-else class="text-xs text-gray-300">—</span>

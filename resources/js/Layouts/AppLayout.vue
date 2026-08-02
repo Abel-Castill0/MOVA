@@ -22,7 +22,8 @@
           </div>
           <span class="font-black text-lg text-brand-900">MOVA</span>
         </Link>
-        <button @click="sidebarOpen = false" class="lg:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600">
+        <button @click="sidebarOpen = false" aria-label="Cerrar menú"
+          class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-lg text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -56,7 +57,7 @@
           <NotificationBell class="flex-shrink-0" />
         </div>
         <Link :href="route('logout')" method="post" as="button"
-          class="w-full text-left px-3 py-2 text-sm text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors mt-1">
+          class="w-full flex items-center min-h-[44px] text-left px-3 py-2 text-sm text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 active:bg-red-100 transition-colors mt-1">
           Cerrar sesión
         </Link>
       </div>
@@ -68,8 +69,8 @@
       <!-- Top bar -->
       <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3 sticky top-0 z-10 flex items-center gap-3">
         <!-- Hamburger (mobile only) -->
-        <button @click="sidebarOpen = true"
-          class="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors flex-shrink-0">
+        <button @click="sidebarOpen = true" aria-label="Abrir menú"
+          class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
           </svg>

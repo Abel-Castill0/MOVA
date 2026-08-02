@@ -1,9 +1,10 @@
 <template>
   <div class="relative">
-    <button @click="open = !open" class="relative p-1 text-gray-500 hover:text-gray-700">
+    <button @click="open = !open" aria-label="Notificaciones"
+      class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       🔔
       <span v-if="unread > 0"
-        class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+        class="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
         {{ unread > 9 ? '9+' : unread }}
       </span>
     </button>

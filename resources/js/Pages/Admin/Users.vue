@@ -41,7 +41,7 @@
                       :href="route('admin.users.suspend', u.id)"
                       method="post"
                       as="button"
-                      class="text-xs font-semibold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-lg transition-colors"
+                      class="text-xs font-semibold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
                       @click.prevent="confirmSuspend(u)">
                       Suspender
                     </Link>
@@ -49,7 +49,7 @@
                       :href="route('admin.users.unsuspend', u.id)"
                       method="post"
                       as="button"
-                      class="text-xs font-semibold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-lg transition-colors">
+                      class="text-xs font-semibold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-lg transition-colors">
                       Reactivar
                     </Link>
                   </template>
