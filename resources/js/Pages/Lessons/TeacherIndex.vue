@@ -155,13 +155,7 @@
     </div>
 
     <!-- ── Modal Sala Virtual (Jitsi) ─────────────────────────────────────────── -->
-    <Modal :show="showingJitsiModal" max-width="7xl" @close="closeJitsi">
-      <div v-if="joinError" class="p-8 text-center">
-        <div class="text-4xl mb-3">⚠️</div>
-        <p class="text-slate-700 font-semibold">{{ joinError }}</p>
-      </div>
-      <div v-else id="jitsi-container" class="w-full h-[80vh]" allow="camera; microphone; fullscreen; display-capture"></div>
-    </Modal>
+    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" @close="closeJitsi" />
   </AppLayout>
 </template>
 
@@ -171,6 +165,7 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import Modal from '@/Components/Modal.vue'
+import JitsiModal from '@/Components/JitsiModal.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 
 defineProps({ lessons: Array })
@@ -180,7 +175,7 @@ const cancelReason   = ref('')
 const rescheduleTarget = ref(null)
 const rescheduleError  = ref('')
 const rescheduleForm   = ref({ start_time: '', duration_minutes: 60, reason: '' })
-const { showingJitsiModal, joinError, openJitsi, closeJitsi } = useJitsiMeet()
+const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
 function canJoinJitsi(l) {
   if (!l.has_jitsi_room) return false

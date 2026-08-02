@@ -57,7 +57,6 @@ class DashboardController extends Controller
                     'bio'            => !empty($profile->bio),
                     'subjects'       => $hasSubjects,
                     'active_offer'   => $hasActiveOffer,
-                    'hourly_rate'    => $profile->hourly_rate > 0,
                     'phone_verified' => !is_null($user->phone_verified_at),
                     'email_verified' => !is_null($user->email_verified_at),
                     'is_verified'    => $profile->is_verified,
@@ -67,9 +66,15 @@ class DashboardController extends Controller
             }
 
             return Inertia::render('Dashboard/Teacher', [
+                // 'paid' (pago confirmado, reporte pendiente) no tiene filtro de
+                // start_time porque ya ocurrió — es la acción "Escribir reporte"
+                // que debe verse de inmediato al volver del modal de Jitsi.
                 'upcoming' => $profile ? Lesson::where('teacher_profile_id', $profile->id)
-                    ->where('status', 'scheduled')
-                    ->where('start_time', '>=', now())
+                    ->where(function ($q) {
+                        $q->where(function ($scheduled) {
+                            $scheduled->where('status', 'scheduled')->where('start_time', '>=', now());
+                        })->orWhere('status', 'paid');
+                    })
                     ->with(['student', 'classRequest.subject'])
                     ->orderBy('start_time')
                     ->take(5)->get() : [],

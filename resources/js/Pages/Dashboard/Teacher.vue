@@ -12,6 +12,32 @@
         <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍🏫</div>
       </div>
 
+      <!-- Banner post-clase: recién salió de la videollamada -->
+      <div v-if="postClassLessonId && postClassEnded" class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📝</div>
+        <div class="flex-1">
+          <p class="font-semibold text-indigo-900">La clase ha terminado.</p>
+          <p class="text-sm text-indigo-700 mt-0.5">Escribe el reporte pedagógico.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
+          <Link :href="route('lesson-reports.create', postClassLessonId)"
+            class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors">
+            Escribir reporte
+          </Link>
+          <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
+            class="px-2 py-2 text-indigo-500 hover:text-indigo-700 transition-colors">✕</button>
+        </div>
+      </div>
+      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🕐</div>
+        <div class="flex-1">
+          <p class="font-semibold text-slate-800">La clase está en curso.</p>
+          <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
+        </div>
+        <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+      </div>
+
       <!-- Phone verification incentive banner -->
       <div v-if="!user?.phone_verified" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🎁</div>
@@ -73,6 +99,10 @@
                 <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
               </div>
             </div>
+            <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
+              class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
+              📝 Escribir reporte
+            </Link>
           </div>
         </div>
         <div v-else class="px-6 py-10 text-center text-slate-400">
@@ -146,7 +176,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
@@ -161,11 +191,27 @@ defineProps({
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
+const postClassLessonId = ref(null)
+const postClassEnded = ref(true)
+
+onMounted(() => {
+  // Llega aquí justo después de cerrar el modal de Jitsi (ver useJitsiMeet →
+  // closeJitsi), que redirige con ?post_class=<id>&post_class_ends_at=<iso>.
+  // Se limpia de la URL para que un refresh no vuelva a mostrar el banner.
+  const params = new URLSearchParams(window.location.search)
+  const postClass = params.get('post_class')
+  if (postClass) {
+    postClassLessonId.value = postClass
+    const endsAt = params.get('post_class_ends_at')
+    postClassEnded.value = endsAt ? Date.now() >= new Date(endsAt).getTime() : true
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+})
+
 const checklistLabels = {
   bio:            'Biografía completa',
   subjects:       'Materias asignadas',
   active_offer:   'Al menos una oferta activa',
-  hourly_rate:    'Tarifa por hora definida',
   phone_verified: 'Teléfono verificado',
   email_verified: 'Email verificado',
   is_verified:    'Verificado por el equipo MOVA',

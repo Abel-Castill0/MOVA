@@ -12,6 +12,32 @@
         <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍👩‍👧</div>
       </div>
 
+      <!-- Banner post-clase: recién salió de la videollamada -->
+      <div v-if="postClassLessonId && postClassEnded" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">✅</div>
+        <div class="flex-1">
+          <p class="font-semibold text-emerald-900">La clase ha terminado.</p>
+          <p class="text-sm text-emerald-700 mt-0.5">Confirma tu pago para continuar.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
+          <Link :href="route('parent.lessons')"
+            class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors">
+            Ir a la clase
+          </Link>
+          <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
+            class="px-2 py-2 text-emerald-500 hover:text-emerald-700 transition-colors">✕</button>
+        </div>
+      </div>
+      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🕐</div>
+        <div class="flex-1">
+          <p class="font-semibold text-slate-800">La clase está en curso.</p>
+          <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
+        </div>
+        <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+      </div>
+
       <!-- Empty state: sin hijos registrados -->
       <div v-if="!students.length" class="reveal-group">
         <div class="reveal-item bg-white rounded-2xl border border-gray-100 px-6 py-16 sm:py-20 text-center max-w-xl mx-auto">
@@ -245,13 +271,7 @@
     </div>
 
     <!-- Modal Sala Virtual (Jitsi) -->
-    <Modal :show="showingJitsiModal" max-width="7xl" @close="closeJitsi">
-      <div v-if="joinError" class="p-8 text-center">
-        <div class="text-4xl mb-3">⚠️</div>
-        <p class="text-slate-700 font-semibold">{{ joinError }}</p>
-      </div>
-      <div v-else id="jitsi-container" class="w-full h-[80vh]" allow="camera; microphone; fullscreen; display-capture"></div>
-    </Modal>
+    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" @close="closeJitsi" />
   </AppLayout>
 </template>
 
@@ -260,7 +280,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
-import Modal from '@/Components/Modal.vue'
+import JitsiModal from '@/Components/JitsiModal.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import gsap from 'gsap'
 
@@ -281,7 +301,9 @@ const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
 const payingId = ref(null)
-const { showingJitsiModal, joinError, openJitsi, closeJitsi } = useJitsiMeet()
+const postClassLessonId = ref(null)
+const postClassEnded = ref(true)
+const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -319,6 +341,18 @@ function confirmPayment(l) {
 }
 
 onMounted(() => {
+  // Llega aquí justo después de cerrar el modal de Jitsi (ver useJitsiMeet →
+  // closeJitsi), que redirige con ?post_class=<id>&post_class_ends_at=<iso>.
+  // Se limpia de la URL para que un refresh no vuelva a mostrar el banner.
+  const params = new URLSearchParams(window.location.search)
+  const postClass = params.get('post_class')
+  if (postClass) {
+    postClassLessonId.value = postClass
+    const endsAt = params.get('post_class_ends_at')
+    postClassEnded.value = endsAt ? Date.now() >= new Date(endsAt).getTime() : true
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (prefersReducedMotion) return
 
