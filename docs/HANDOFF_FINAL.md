@@ -843,3 +843,127 @@ inyecta instrucciones en el contexto del agente en cada sesión.
 - Verificado en vivo a 1280px y 375px: cero errores de consola, sin scroll
   horizontal, h1 sin desbordar, `bg-clip-text` restantes = 0, eyebrows
   restantes = 0, `--rot` resolviendo a 20/45/15/-30deg.
+
+---
+
+## 16. Cierre del proyecto (2026-08-03)
+
+### Estado actual
+
+- **Tests:** 87/87 PHPUnit (399 assertions) · **2/2 E2E Playwright**
+  (`qa/tests/flujo-completo.spec.js` — flujo completo de 8 pasos: solicitud
+  → agendar → pago → reporte → calificación; y UI de recargas de créditos).
+- **Build:** `npm run build` limpio, sin warnings.
+- **Git:** working tree limpio, 137 commits.
+
+**Features completas:**
+
+- **Roles y auth:** padre, profesor, admin con Spatie Permission. Login por
+  email/password y Google OAuth2 (Socialite). Verificación de teléfono.
+  Suspensión de cuentas por admin.
+- **Marketplace y solicitudes:** catálogo de profesores verificados con
+  filtros, solicitud de clase por materia/nivel, aceptación/rechazo por el
+  profesor, ofertas de clase publicadas por profesores.
+- **Clases en vivo:** integración JaaS (8x8.vc, JWT firmado) para
+  videollamada — enlace generado server-side vía `GET /lessons/{id}/join`,
+  nunca expuesto en el payload de Inertia (`jitsi_room`/`jitsi_password` en
+  `$hidden` del modelo `Lesson`). Reprogramación y cancelación de clases.
+  Recordatorios automáticos 10 min antes (`classmate:send-reminders` vía
+  scheduler).
+- **Créditos y pagos:** sistema de créditos del profesor con ledger
+  append-only (`credit_transactions`, `idempotency_key` único,
+  `lockForUpdate()` en toda mutación). Recarga manual vía Yape/Plin con
+  aprobación de admin. Confirmación de pago por el padre ("Ya pagué").
+- **Reportes y reseñas:** reporte de clase por el profesor tras cada
+  sesión, calificación y reseña por el padre, moderación de reseñas por
+  admin (ocultar/mostrar).
+- **Diagnóstico de nivel:** cuestionario que recomienda profesores según
+  respuestas del padre.
+- **Notificaciones:** in-app (con dropdown click-outside + Escape) y
+  tiempo real vía Laravel Echo/Reverb. Toast de notificación en vivo en
+  `AppLayout`.
+- **Legal y cumplimiento:** Términos y Privacidad redactados para D.L. 822
+  (Perú), arbitraje opcional, banner de consentimiento de cookies
+  (localStorage, sin bloquear interacción con el resto de la página).
+- **Identidad de marca:** paleta azul #1F5AA6/#0D409A + acento ámbar
+  #F59E0B, tipografía Plus Jakarta Sans auto-hospedada, logos en WebP,
+  landing con animaciones GSAP (con guard de `prefers-reduced-motion`),
+  auth con panel dividido premium, menú móvil full-screen inmersivo.
+- **Admin:** gestión de usuarios, verificación de profesores pendientes,
+  moderación de solicitudes/clases/recargas/reseñas, panel de uso de IA.
+
+### Lo que falta para producción
+
+1. **Hosting real.** Hoy corre en `php artisan serve` + XAMPP local. Elegir
+   entre Railway, Fly.io u Oracle Cloud (ver guía rápida abajo) — los tres
+   soportan PHP+MySQL+queue worker en el tier gratuito/económico.
+2. **WhatsApp Cloud API.** El código actual usa el sandbox de Twilio
+   (`join <código>` manual, no apto para usuarios reales sin onboarding
+   previo). Migrar a WhatsApp Cloud API (Meta) para envío directo sin ese
+   paso, o aceptar el sandbox solo como demo.
+3. **Revisión legal.** Términos y Privacidad fueron redactados por el
+   asistente con foco en D.L. 822 y datos de menores, pero **no han sido
+   revisados por un abogado**. Antes de operar con usuarios reales
+   (especialmente menores de edad y pagos), un profesional debe validar
+   ambos documentos.
+4. **Credenciales de producción.** Zoom/JaaS, Twilio, Gmail App Password,
+   Google OAuth2, Cloudinary — todas configuradas hoy con credenciales de
+   desarrollo/sandbox en `.env` local (nunca versionado). Se necesitan
+   credenciales de producción propias antes de lanzar.
+5. **Dominio y HTTPS.** `APP_URL` sigue apuntando a `localhost:8000`.
+
+### Despliegue rápido (Railway / Fly.io / Oracle Cloud)
+
+**Railway** (más simple, buena opción para el primer despliegue):
+```bash
+railway login
+railway init
+railway add --database mysql
+railway up
+railway run php artisan migrate --force
+railway run php artisan db:seed --force   # opcional, solo si se quieren datos demo
+```
+Configurar en el dashboard de Railway: todas las variables de `.env`
+(menos `DB_*`, que Railway inyecta automáticamente al conectar el plugin
+MySQL), `APP_URL` con el dominio que asigne Railway, `APP_ENV=production`,
+`APP_DEBUG=false`. Agregar un segundo servicio para
+`php artisan queue:work` y un cron/Railway Scheduled Job para
+`php artisan schedule:run` cada minuto.
+
+**Fly.io** (más control, requiere `Dockerfile`):
+```bash
+fly launch                    # detecta Laravel, genera fly.toml + Dockerfile
+fly mysql create               # o conectar una MySQL externa (PlanetScale, etc.)
+fly secrets set APP_KEY=... DB_HOST=... ZOOM_... TWILIO_... GMAIL_...
+fly deploy
+fly ssh console -C "php artisan migrate --force"
+```
+El worker de colas y el scheduler necesitan procesos separados en
+`fly.toml` (sección `[processes]`) o una segunda app.
+
+**Oracle Cloud** (VM gratuita permanente, más trabajo manual):
+Aprovisionar una instancia Always Free (Ampere A1), instalar PHP 8.1+,
+Composer, Node, MySQL/MariaDB vía el gestor de paquetes de la distro,
+clonar el repo, `composer install --no-dev`, `npm ci && npm run build`,
+configurar Nginx + PHP-FPM, `supervisord` para `queue:work`, y un entry en
+crontab del sistema para `php artisan schedule:run` (ver sección "Scheduler
+(recordatorios automáticos)" en `SETUP.md`).
+
+En los tres casos, después del primer deploy:
+```bash
+php artisan key:generate --force   # si APP_KEY no se generó antes
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Usuarios de prueba
+
+| Usuario | Email | Contraseña | Rol |
+|---|---|---|---|
+| Padre de prueba | `padre@mova.test` | `password123` | parent |
+| Profesor de prueba | `profesor@mova.test` | `password123` | teacher |
+
+(Usados por el propio suite E2E en `qa/tests/flujo-completo.spec.js`. Ver
+`SETUP.md` para el resto de usuarios de `db:seed`, con contraseña
+`password`.)
