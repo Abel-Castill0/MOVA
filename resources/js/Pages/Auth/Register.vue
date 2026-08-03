@@ -1,14 +1,15 @@
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-    <div class="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-      <div class="mb-6">
-        <p class="text-sm font-semibold text-brand-600">MOVA</p>
-        <h1 class="text-2xl font-black text-slate-900">Crear cuenta</h1>
-        <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
-          <div class="h-full rounded-full bg-brand-600 transition-all duration-300" :style="{ width: `${(step / totalSteps) * 100}%` }" />
-        </div>
-        <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Paso {{ step }} de {{ totalSteps }}</p>
+  <GuestLayout max-width="max-w-xl">
+    <Head title="Crear cuenta – MOVA" />
+
+    <div class="mb-6">
+      <h1 class="text-2xl font-black text-slate-900">Crear cuenta</h1>
+      <p class="text-sm text-slate-500 mt-1">Únete a MOVA en unos minutos.</p>
+      <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div class="h-full rounded-full bg-brand-600 transition-all duration-300" :style="{ width: `${(step / totalSteps) * 100}%` }" />
       </div>
+      <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Paso {{ step }} de {{ totalSteps }}</p>
+    </div>
 
       <template v-if="step === 1">
         <a :href="route('auth.google')"
@@ -136,17 +137,17 @@
         </div>
       </form>
 
-      <p class="mt-5 text-center text-sm text-gray-500">
-        ¿Ya tienes cuenta?
-        <Link :href="route('login')" class="text-brand-600 hover:underline">Inicia sesión</Link>
-      </p>
-    </div>
-  </div>
+    <p class="mt-5 text-center text-sm text-gray-500">
+      ¿Ya tienes cuenta?
+      <Link :href="route('login')" class="text-brand-600 hover:underline">Inicia sesión</Link>
+    </p>
+  </GuestLayout>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Link, useForm } from '@inertiajs/vue3'
+import { Head, Link, useForm } from '@inertiajs/vue3'
+import GuestLayout from '@/Layouts/GuestLayout.vue'
 import InputError from '@/Components/InputError.vue'
 import TextInput from '@/Components/TextInput.vue'
 

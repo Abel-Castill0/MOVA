@@ -33,6 +33,11 @@ const submit = () => {
     <GuestLayout>
         <Head title="Iniciar sesión – MOVA" />
 
+        <div class="mb-6">
+            <h1 class="text-2xl font-black text-slate-900">Bienvenido de vuelta</h1>
+            <p class="text-sm text-slate-500 mt-1">Inicia sesión para continuar en MOVA.</p>
+        </div>
+
         <div v-if="status" class="mb-4 font-medium text-sm text-green-600">
             {{ status }}
         </div>
@@ -93,19 +98,24 @@ const submit = () => {
                 </label>
             </div>
 
-            <div class="flex items-center justify-end mt-4">
+            <div class="flex items-center justify-between mt-2">
                 <Link
                     v-if="canResetPassword"
                     :href="route('password.request')"
-                    class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500"
+                    class="text-sm text-brand-600 hover:text-brand-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500"
                 >
                     ¿Olvidaste tu contraseña?
                 </Link>
-
-                <PrimaryButton class="ms-4" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
-                    Iniciar sesión
-                </PrimaryButton>
             </div>
+
+            <PrimaryButton class="w-full mt-5" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
+                Iniciar sesión
+            </PrimaryButton>
         </form>
+
+        <p class="mt-6 text-center text-sm text-gray-500">
+            ¿Aún no tienes cuenta?
+            <Link :href="route('register')" class="text-brand-600 hover:underline font-medium">Regístrate gratis</Link>
+        </p>
     </GuestLayout>
 </template>
