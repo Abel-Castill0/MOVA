@@ -9,7 +9,7 @@
       </span>
     </button>
 
-    <div v-if="open" class="absolute right-0 bottom-full mb-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+    <div v-if="open" class="absolute left-0 bottom-full mb-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
         <button v-if="unread > 0" @click="markAll" class="text-xs text-indigo-600 hover:underline">Marcar todas</button>
