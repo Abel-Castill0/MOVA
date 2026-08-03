@@ -9,7 +9,7 @@
       <p class="text-sm text-gray-500 mb-6">
         Tu cuenta ha sido suspendida temporalmente. Contacta a soporte para más información.
       </p>
-      <a href="mailto:abelcastillotrabajo@gmail.com"
+      <a href="mailto:m0v4class@gmail.com"
         class="inline-block bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors mb-4">
         Contactar soporte
       </a>

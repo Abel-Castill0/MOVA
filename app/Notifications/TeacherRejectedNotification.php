@@ -37,7 +37,7 @@ class TeacherRejectedNotification extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->line('Si tiene preguntas o considera que hay un error, puede escribirnos a: abelcastillotrabajo@gmail.com')
+            ->line('Si tiene preguntas o considera que hay un error, puede escribirnos a: m0v4class@gmail.com')
             ->action('Ver mi cuenta', $this->appUrl('/dashboard'))
             ->salutation('El equipo de MOVA');
     }

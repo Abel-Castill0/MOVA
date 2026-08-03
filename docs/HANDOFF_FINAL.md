@@ -699,3 +699,66 @@ WebP con respaldo PNG, que a estos tamaños pesa 8–22KB y se ve nítido.
 nitidez perfecta a cualquier tamaño y peso ~2–4KB, y se podría colorear por
 CSS (útil para estados hover/activo). Mientras tanto el PNG/WebP funciona
 correctamente en todos los tamaños que la UI usa hoy (máx. 100×32 px).
+
+---
+
+## 14. Páginas legales redactadas (2026-08-03)
+
+> ⚠️ **Este texto sigue sin ser un documento legal validado por un abogado
+> colegiado en Perú.** Se redactó a partir del borrador de trabajo en
+> `docs/LEGAL_REQUIREMENTS_DRAFT.md`, adaptado a los datos reales de MOVA,
+> pero antes de considerarse definitivo requiere revisión legal — sobre
+> todo por tratarse de datos de menores de edad.
+
+**Contexto real usado para redactar el contenido:** Perú, padres↔profesores,
+datos de menores (nombre/edad/grado), IA (Google Gemini) para enriquecer
+diagnósticos, notificaciones por email y WhatsApp (Twilio), videollamadas
+por JaaS (8x8) con acceso vía JWT, pagos externos Yape/Plin (MOVA no los
+procesa), fotos de perfil y archivos de reporte subidos por profesores.
+
+**[Privacy.vue](../resources/js/Pages/Legal/Privacy.vue)** — 13 secciones:
+responsable del tratamiento, datos recopilados (incluye foto de perfil y
+datos del menor), finalidad, datos de menores con consentimiento explícito
+(Ley N° 29733), uso de IA (Google Gemini, sin decisiones automatizadas sin
+supervisión humana), reseñas, terceros (Gmail, Twilio, JaaS/8x8, Railway,
+Gemini — con nota explícita de que **no** se usa Meta Pixel ni Google
+Analytics hoy), pagos (MOVA no almacena datos bancarios), seguridad,
+derechos ARCO, retención, cookies/almacenamiento local, contacto.
+
+**[Terms.vue](../resources/js/Pages/Legal/Terms.vue)** — 17 secciones:
+se agregaron explícitamente los roles (padre/profesor/administrador) con
+sus obligaciones, y una sección de créditos (no reembolsables, no
+transferibles). El resto del contenido de clases/reseñas/IA/videollamadas
+(JaaS) ya existía de una sesión anterior y se ajustó para nombrar JaaS en
+vez de "Jitsi Meet" y reflejar la app real.
+
+**Cláusula de arbitraje:** se mantuvo **opcional** para padres/apoderados
+(consumidores) — nunca sustituye su derecho a acudir a INDECOPI o al Poder
+Judicial — y solo aplicable de mutuo acuerdo para profesores (relación de
+prestación de servicios independiente). No se hizo obligatorio para
+consumidores, siguiendo la advertencia de riesgo INDECOPI del borrador.
+
+**Retiro de contenido:** se usó "Política de Retiro de Contenido" citando
+el **Decreto Legislativo N° 822** (Ley sobre el Derecho de Autor peruana),
+en vez de "DMCA" (ley federal de EE.UU. que no aplica a una plataforma
+peruana sin presencia legal en EE.UU.).
+
+**Cambio de correo de contacto:** todos los correos de soporte/quejas/avisos
+en código (páginas legales, footer, `GuestLayout.vue`, `Suspended.vue`,
+`TeacherRejectedNotification.php`) se cambiaron de `abelcastillotrabajo@gmail.com`
+a **`m0v4class@gmail.com`**. Quedan referencias históricas al correo anterior
+solo en documentación (`HANDOFF_FINAL.md` §§1-13, `PROFESSIONAL_POLISH_AUDIT.md`),
+que no afectan la app en producción.
+
+**Register.vue:** el checkbox de aceptación de términos ya enlazaba
+correctamente a `route('legal.terms')` y `route('legal.privacy')` — no
+requirió cambios.
+
+**Verificación:**
+- `php artisan test` → 87/87 (399 assertions).
+- `npm run build` → sin errores.
+- `/terminos` y `/privacidad` verificados en navegador — contenido completo,
+  17 y 13 secciones respectivamente, correo `m0v4class@gmail.com` visible.
+- `/register` no se pudo probar con sesión anónima en este entorno (había
+  una sesión de prueba activa que redirige a `/dashboard`); se verificó por
+  código que el checkbox enlaza correctamente.
