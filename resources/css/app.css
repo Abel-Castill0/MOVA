@@ -57,3 +57,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Movimiento reducido, a nivel de toda la app ──────────────────────────
+   PRODUCT.md lo declara obligatorio en toda animación. Cubrirlo aquí, una
+   sola vez, evita depender de que cada componente se acuerde: alcanza a las
+   utilidades de Tailwind (`animate-pulse`, `transition-*`), a los keyframes
+   propios y al scroll suave.
+
+   En Android de gama media el sistema suele activar esta preferencia junto
+   con el ahorro de batería, así que además de accesibilidad es rendimiento
+   real para buena parte de los usuarios de MOVA en Perú.
+
+   Nota: GSAP anima vía JS y NO se ve afectado por esta regla — cada
+   `onMounted` con GSAP necesita su propio guard con matchMedia. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

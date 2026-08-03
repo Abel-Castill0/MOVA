@@ -22,8 +22,8 @@
         <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-full text-white/90 text-sm font-medium mb-8">
           👨‍🏫 Para profesores
         </div>
-        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
-          Enseña en línea y <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-300">gana dinero</span> desde casa
+        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight text-balance">
+          Enseña en línea y <span class="text-accent-400">gana dinero</span> desde casa
         </h1>
         <p class="text-xl text-white/80 max-w-2xl mx-auto mb-10 leading-relaxed">
           Únete a MOVA como profesor particular. Tú pones el precio, el horario y las materias. Nosotros te conectamos con estudiantes que te necesitan.

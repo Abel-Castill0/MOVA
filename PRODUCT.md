@@ -45,8 +45,8 @@ cuidada, cercana.
    próximo paso) sin que tenga que preguntar o navegar a buscarlo.
 2. **Consistencia entre roles.** Padre, profesor y landing comparten el mismo
    lenguaje visual (paleta `brand` azul, `rounded-2xl`, `border-gray-100`,
-   Inter, sombras suaves) — un cambio de rol no debe sentirse como otro
-   producto.
+   Plus Jakarta Sans, sombras suaves) — un cambio de rol no debe sentirse
+   como otro producto.
 3. **Acción contextual sobre navegación.** Cuando una clase necesita una
    acción (pagar, calificar, unirse), el botón vive junto al estado, no
    detrás de un enlace a otra página.

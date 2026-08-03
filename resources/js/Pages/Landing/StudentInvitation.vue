@@ -21,8 +21,8 @@
         <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-full text-white/90 text-sm font-medium mb-8">
           🎓 Para estudiantes y familias
         </div>
-        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight">
-          Aprende con el profesor <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-cyan-300">perfecto para ti</span>
+        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight text-balance">
+          Aprende con el profesor <span class="text-accent-400">perfecto para ti</span>
         </h1>
         <p class="text-xl text-white/80 max-w-2xl mx-auto mb-10 leading-relaxed">
           Encuentra tu profesor particular ideal, reserva clases online 1 a 1 y aprende a tu ritmo por videollamada.

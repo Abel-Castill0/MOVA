@@ -55,7 +55,7 @@ Cobro por hora (o fracción): 1 crédito por cada hora iniciada de clase, mínim
 ⚠️ **Gap conocido, no bloqueante:** `LessonController::reschedule()` permite cambiar `duration_minutes` sin ajustar `credits_reserved` — hoy es inofensivo porque el refund/consumo usa el monto original del ledger, pero un profesor podría reprogramar una clase de 30 min (1 crédito reservado) a 4h sin pagar créditos extra. No se corrigió en esta ronda porque la solución correcta (¿bloquear el cambio de duración al reprogramar? ¿cobrar la diferencia?) es una decisión de producto, no un bug de implementación.
 
 **Diseño premium (Spatial UI):**
-Dashboard del padre y del profesor, páginas secundarias (`Students`, `ClassRequests`, `Lessons`, `ClassOffers`, `Teacher/Credits`), landing (`Welcome.vue`) y páginas legales, todas alineadas al mismo lenguaje visual: paleta `brand` (azul), `rounded-2xl`, sombras con tinte de marca, tipografía Inter, animaciones GSAP con guard de `prefers-reduced-motion`.
+Dashboard del padre y del profesor, páginas secundarias (`Students`, `ClassRequests`, `Lessons`, `ClassOffers`, `Teacher/Credits`), landing (`Welcome.vue`) y páginas legales, todas alineadas al mismo lenguaje visual: paleta `brand` (azul), `rounded-2xl`, sombras con tinte de marca, tipografía Plus Jakarta Sans, animaciones GSAP con guard de `prefers-reduced-motion`.
 
 **Landing con datos reales:**
 `WelcomeController` ya conectaba `subjects`/`featuredTeachers`/`stats` a la BD; se completó con `avg_rating` real por profesor (badge "Nuevo en MOVA" si aún no tiene reseñas, en vez de 5★ falsas) y testimonios reales desde `teacher_reviews` (filtrando ruido de corridas E2E locales) en lugar de los 3 testimonios inventados que había antes.
@@ -762,3 +762,84 @@ requirió cambios.
 - `/register` no se pudo probar con sesión anónima en este entorno (había
   una sesión de prueba activa que redirige a `/dashboard`); se verificó por
   código que el checkbox enlaza correctamente.
+
+---
+
+## 15. Auditoría de diseño de la landing (2026-08-03)
+
+Auditoría de `Welcome.vue` contra la skill `impeccable` (register `product`,
+declarado en `PRODUCT.md`) y contra las Web Interface Guidelines de Vercel,
+descargadas a `docs/WEB_INTERFACE_GUIDELINES.md`.
+
+### Bugs reales encontrados
+
+**1. Sección en blanco permanente (el más grave).** Los `.reveal-item` usaban
+`gsap.from()` + ScrollTrigger sin `immediateRender: false`. GSAP aplica
+`opacity: 0` **al montar**, no cuando dispara el trigger — así que si el
+trigger no llegaba a dispararse (posiciones recalculadas tarde por las
+webfonts, render headless, JS lento en gama baja), la sección quedaba
+invisible para siempre. Verificado en vivo: elementos con `visible: true` y
+`opacity: 0` simultáneamente. Corregido con `immediateRender: false`,
+`once: true` y `ScrollTrigger.refresh()` tras `document.fonts.ready`.
+Post-fix verificado: los 8 elementos aún sin disparar están en `opacity: 1`.
+
+**2. Sin guard de `prefers-reduced-motion` en la landing.** `PRODUCT.md:62`
+lo declara obligatorio y `Dashboard/Parent.vue` sí lo tenía, pero
+`Welcome.vue` — la página más visitada — no. Se resolvió en dos capas:
+regla global en `app.css` (cubre utilidades Tailwind como `animate-pulse`,
+todas las transiciones y los keyframes propios) más el guard explícito con
+`matchMedia` en el `onMounted` de GSAP, porque **GSAP anima por JS y la
+media query de CSS no lo alcanza**.
+
+**3. Variable CSS nunca definida.** `@keyframes floatShape` leía
+`var(--rot, 20deg)` con `--rot` sin declarar en ningún lado: las cuatro
+formas del hero caían al fallback de 20deg y pisaban su `transform`
+individual, así que los ángulos 45/15/-30 no se veían nunca. Cada forma
+declara ahora su propia `--rot`.
+
+### Violaciones de bans de diseño corregidas
+
+| Ban | Dónde | Corrección |
+|---|---|---|
+| Gradient text | `Welcome.vue` h1, `StudentInvitation.vue`, `TeacherInvitation.vue` | Ámbar sólido `accent-400` (#FBBF24), que es el naranja del propio logo MOVA — 7.4:1 de contraste sobre el azul del hero |
+| Eyebrow uppercase en cada sección | 4 secciones ("Proceso simple", "Catálogo", "Expertos", "Testimonios") | Eliminados. La numeración 1/2/3 de "Cómo funciona" se mantiene porque ahí **sí** es una secuencia real |
+| Hero-metric template | 4 tiles idénticos de números gigantes | Reescrito como línea de evidencia en prosa, precedida de la frase de confianza que de verdad le importa al padre |
+| Glassmorphism decorativo | `backdrop-blur-sm` en testimonios | Quitado (desenfocaba un degradado estático: puro costo de GPU, cero ganancia visual). Se conservó el `backdrop-blur` de la tarjeta del hero: es una sola instancia, con propósito, y sólo se renderiza en desktop (`hidden lg:flex`) |
+
+### Colores fuera de marca corregidos
+
+Tras el rebrand quedaron restos del azul genérico de Tailwind: las cuatro
+formas del hero usaban `#60A5FA`/`#3B82F6`/`#93C5FD`/`#BFDBFE`/`#1D4ED8`/
+`#2563EB` hardcodeados, más `cyan-100` en el CTA final y `yellow-400` en
+todas las estrellas. Todo migrado a `theme('colors.brand.*')` y
+`accent-*`. La forma 3 usa ámbar como eco del logo.
+
+### Documentación corregida
+
+`PRODUCT.md` y `HANDOFF_FINAL.md:58` seguían diciendo "Inter" cuando la app
+ya usa Plus Jakarta Sans. Además `HANDOFF_FINAL.md:58` afirmaba que la
+landing tenía guard de `prefers-reduced-motion` — era **falso** hasta este
+cambio; ahora la afirmación es correcta.
+
+### Decisión sobre herramientas de terceros
+
+Se evaluó una lista de ~150 herramientas/repos/skills propuestos. **No se
+instaló ninguna dependencia de terceros.** Lo único incorporado fue el
+markdown de las guías de Vercel (`docs/WEB_INTERFACE_GUIDELINES.md`),
+descargado directamente en vez de ejecutar su `install.sh` (que escribe en
+`~/.config/`, `~/.cursor/` y `~/.gemini/` además de `~/.claude/`).
+
+Descartado explícitamente: todo lo React-only (21st.dev/magic MCP, React
+Bits, cult-ui, shadcn/ui, Sonner, Vaul) por ser MOVA Vue; y todo lo de
+3D/WebGL/three.js/aurora UI porque el registro de MOVA es confianza para
+padres en Android de gama media, no portafolio de agencia. Skills de autor
+desconocido descartadas por riesgo de inyección de prompt: una skill
+inyecta instrucciones en el contexto del agente en cada sesión.
+
+### Verificación
+
+- `npm run build` → sin errores.
+- `php artisan test` → 87/87 (399 assertions).
+- Verificado en vivo a 1280px y 375px: cero errores de consola, sin scroll
+  horizontal, h1 sin desbordar, `bg-clip-text` restantes = 0, eyebrows
+  restantes = 0, `--rot` resolviendo a 20/45/15/-30deg.

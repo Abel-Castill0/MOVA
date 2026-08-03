@@ -29,9 +29,12 @@
               <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
               Plataforma educativa en vivo
             </div>
-            <h1 class="hero-reveal text-5xl sm:text-6xl lg:text-7xl font-black leading-none mb-6">
+            <!-- El énfasis usa el ámbar del propio logo MOVA (accent-500 =
+                 #F59E0B), no un degradado: ata el titular a la marca y
+                 mantiene 7.4:1 de contraste sobre el azul del hero. -->
+            <h1 class="hero-reveal text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.95] tracking-tight text-balance mb-6">
               <span class="block">Aprende con</span>
-              <span class="block text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-cyan-300">los mejores</span>
+              <span class="block text-accent-400">los mejores</span>
               <span class="block">profesores</span>
             </h1>
             <p class="hero-reveal text-xl text-white/80 leading-relaxed mb-10 max-w-lg">
@@ -48,23 +51,30 @@
               </Link>
             </div>
 
-            <div class="hero-reveal grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4 mt-12 pt-8 border-t border-white/10">
-              <div class="text-center sm:text-left">
-                <p class="text-3xl font-black text-white">{{ stats.teachers }}+</p>
-                <p class="text-sm text-white/60">Profesores</p>
-              </div>
-              <div class="text-center sm:text-left">
-                <p class="text-3xl font-black text-white">{{ subjects.length }}</p>
-                <p class="text-sm text-white/60">Materias</p>
-              </div>
-              <div class="text-center sm:text-left">
-                <p class="text-3xl font-black text-white">{{ stats.students }}+</p>
-                <p class="text-sm text-white/60">Familias</p>
-              </div>
-              <div class="text-center sm:text-left">
-                <p class="text-3xl font-black text-white">{{ stats.completed }}+</p>
-                <p class="text-sm text-white/60">Clases dictadas</p>
-              </div>
+            <!-- Evidencia, no panel de métricas. La cifra existe para bajarle
+                 la incertidumbre al padre ("¿esto es serio?"), así que se lee
+                 como un dato en prosa y no como el bloque de números gigantes
+                 típico de SaaS. -->
+            <div class="hero-reveal mt-12 pt-8 border-t border-white/10">
+              <p class="text-sm text-white/70 mb-4">Cada profesor pasa por verificación antes de dictar su primera clase.</p>
+              <ul class="flex flex-wrap items-baseline gap-x-6 gap-y-2.5">
+                <li class="flex items-baseline gap-1.5">
+                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.teachers }}</span>
+                  <span class="text-sm text-white/60">profesores</span>
+                </li>
+                <li class="flex items-baseline gap-1.5">
+                  <span class="text-lg font-bold text-white tabular-nums">{{ subjects.length }}</span>
+                  <span class="text-sm text-white/60">materias</span>
+                </li>
+                <li class="flex items-baseline gap-1.5">
+                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.students }}</span>
+                  <span class="text-sm text-white/60">familias</span>
+                </li>
+                <li class="flex items-baseline gap-1.5">
+                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.completed }}</span>
+                  <span class="text-sm text-white/60">clases dictadas</span>
+                </li>
+              </ul>
             </div>
           </div>
 
@@ -83,7 +93,7 @@
                   </div>
                 </div>
                 <div class="flex gap-1">
-                  <span v-for="i in 5" :key="i" class="text-yellow-400 text-lg">★</span>
+                  <span v-for="i in 5" :key="i" class="text-accent-400 text-lg">★</span>
                 </div>
                 <p class="text-white/70 text-sm leading-relaxed">"Las clases con MOVA son increíbles. Mejoro mi nivel cada semana con mi profesor personalizado."</p>
                 <div class="mt-auto bg-white/10 rounded-xl p-4">
@@ -113,9 +123,8 @@
     <section id="como-funciona" class="py-24 bg-white reveal-group">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item text-center mb-16">
-          <span class="text-sm font-semibold text-brand-600 uppercase tracking-widest">Proceso simple</span>
-          <h2 class="text-4xl font-black text-brand-900 mt-2">¿Cómo funciona MOVA?</h2>
-          <p class="text-slate-500 mt-3 max-w-xl mx-auto">En tres pasos sencillos estás aprendiendo con tu profesor ideal</p>
+          <h2 class="text-4xl font-black text-brand-900 text-balance">¿Cómo funciona MOVA?</h2>
+          <p class="text-slate-600 mt-3 max-w-xl mx-auto text-pretty">En tres pasos sencillos estás aprendiendo con tu profesor ideal</p>
         </div>
         <div class="grid md:grid-cols-3 gap-8">
           <div v-for="(step, i) in steps" :key="i"
@@ -137,9 +146,8 @@
     <section id="materias" class="py-24 bg-slate-50 reveal-group">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item text-center mb-16">
-          <span class="text-sm font-semibold text-brand-600 uppercase tracking-widest">Catálogo</span>
-          <h2 class="text-4xl font-black text-brand-900 mt-2">Materias disponibles</h2>
-          <p class="text-slate-500 mt-3">Encuentra un experto en cualquier área de conocimiento</p>
+          <h2 class="text-4xl font-black text-brand-900 text-balance">Materias disponibles</h2>
+          <p class="text-slate-600 mt-3 text-pretty">Encuentra un experto en cualquier área de conocimiento</p>
         </div>
         <div class="reveal-item grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <Link v-for="s in subjects" :key="s.id"
@@ -164,9 +172,8 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item flex flex-wrap items-end justify-between gap-6 mb-16">
           <div>
-            <span class="text-sm font-semibold text-brand-600 uppercase tracking-widest">Expertos</span>
-            <h2 class="text-4xl font-black text-brand-900 mt-2">Profesores destacados</h2>
-            <p class="text-slate-500 mt-3">Todos verificados y con experiencia comprobada</p>
+            <h2 class="text-4xl font-black text-brand-900 text-balance">Profesores destacados</h2>
+            <p class="text-slate-600 mt-3 text-pretty">Todos verificados y con experiencia comprobada</p>
           </div>
           <div v-if="featuredTeachers.length" class="hidden sm:flex items-center gap-2">
             <button class="teachers-prev w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
@@ -198,7 +205,7 @@
                     <p class="font-bold text-slate-900 truncate">{{ t.user?.name }}</p>
                     <div v-if="t.avg_rating" class="flex items-center gap-1 mt-0.5">
                       <div class="flex gap-0.5">
-                        <span v-for="i in 5" :key="i" class="text-sm" :class="i <= Math.round(t.avg_rating) ? 'text-yellow-400' : 'text-gray-200'">★</span>
+                        <span v-for="i in 5" :key="i" class="text-sm" :class="i <= Math.round(t.avg_rating) ? 'text-accent-400' : 'text-gray-200'">★</span>
                       </div>
                       <span class="text-xs text-slate-400">{{ Number(t.avg_rating).toFixed(1) }}</span>
                     </div>
@@ -237,14 +244,13 @@
       <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px); background-size: 30px 30px;"></div>
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item text-center mb-16">
-          <span class="text-sm font-semibold text-brand-300 uppercase tracking-widest">Testimonios</span>
-          <h2 class="text-4xl font-black text-white mt-2">Lo que dicen nuestros usuarios</h2>
+          <h2 class="text-4xl font-black text-white text-balance">Lo que dicen nuestros usuarios</h2>
         </div>
         <div class="grid md:grid-cols-3 gap-6">
           <div v-for="(t, i) in testimonials" :key="i"
-            class="reveal-item bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10 shadow-lg shadow-black/10">
+            class="reveal-item bg-white/10 rounded-2xl p-6 border border-white/10 shadow-lg shadow-black/10">
             <div class="flex gap-0.5 mb-4">
-              <span v-for="i in 5" :key="i" class="text-yellow-400">★</span>
+              <span v-for="i in 5" :key="i" class="text-accent-400">★</span>
             </div>
             <p class="text-white/80 text-sm leading-relaxed mb-5">"{{ t.quote }}"</p>
             <div class="flex items-center gap-3">
@@ -266,7 +272,7 @@
       <div class="max-w-4xl mx-auto px-4">
         <div class="reveal-item relative overflow-hidden bg-white rounded-3xl border border-gray-100 shadow-xl shadow-brand-900/5 px-8 py-16 text-center">
           <div class="absolute -top-24 -right-24 w-64 h-64 bg-brand-100 rounded-full opacity-40 blur-3xl"></div>
-          <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-cyan-100 rounded-full opacity-40 blur-3xl"></div>
+          <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-accent-100 rounded-full opacity-40 blur-3xl"></div>
           <div class="relative">
             <h2 class="text-4xl font-black text-brand-900 mb-4">¿Listo para empezar?</h2>
             <p class="text-slate-500 text-lg mb-10">Únete a MOVA hoy y transforma tu manera de aprender o enseñar.</p>
@@ -329,13 +335,19 @@ function levelColor(level) {
 gsap.registerPlugin(ScrollTrigger)
 
 onMounted(() => {
+  // La regla global de `prefers-reduced-motion` en app.css sólo alcanza a CSS.
+  // GSAP anima por JS, así que necesita este guard explícito. Se usa `.from()`
+  // a propósito: el estado final es el natural del elemento, de modo que si
+  // salimos temprano (o si el JS nunca corre) el contenido queda visible.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
   // Hero: entrada inmediata al cargar, sin depender de scroll.
   gsap.from('.hero-reveal', {
     opacity: 0,
     y: 24,
-    duration: 0.8,
-    ease: 'power2.out',
-    stagger: 0.12,
+    duration: 0.7,
+    ease: 'power3.out',
+    stagger: 0.1,
   })
 
   // Resto de secciones: fade-in-up con stagger sutil al entrar en viewport.
@@ -346,58 +358,80 @@ onMounted(() => {
     gsap.from(items, {
       opacity: 0,
       y: 28,
-      duration: 0.7,
-      ease: 'power2.out',
+      duration: 0.6,
+      ease: 'power3.out',
       stagger: { amount: Math.min(items.length * 0.08, 0.6) },
+      // Sin `immediateRender: false`, GSAP aplica opacity:0 al montar y no
+      // cuando dispara el trigger. Si el trigger no llega a dispararse nunca
+      // (posiciones recalculadas tarde, render headless, JS lento en gama
+      // baja) la sección se queda en blanco de forma permanente. La animación
+      // debe realzar contenido ya visible, no ser la condición para verlo.
+      immediateRender: false,
       scrollTrigger: {
         trigger: group,
         start: 'top 82%',
+        once: true,
       },
     })
   })
+
+  // Las webfonts cambian la altura del contenido después de que ScrollTrigger
+  // calculó los puntos de disparo; sin este refresh los triggers quedan
+  // corridos respecto de dónde terminó realmente cada sección.
+  document.fonts?.ready.then(() => ScrollTrigger.refresh())
 })
 </script>
 
 <style scoped>
+/* Formas decorativas del hero.
+   Cada forma declara su propia rotación en `--rot` y el keyframe la reutiliza.
+   Antes el keyframe leía `var(--rot, 20deg)` con la variable sin definir en
+   ningún lado: las cuatro caían al fallback de 20deg y pisaban el `transform`
+   individual, así que la variación de ángulos no se veía nunca.
+
+   Los colores usan la rampa `brand` real (antes eran azules genéricos de
+   Tailwind, que quedaron fuera de marca tras el rebrand). La forma 3 usa el
+   ámbar del logo como eco de marca. */
 .shape {
   position: absolute;
   border-radius: 12px;
   opacity: 0.15;
+  transform: rotate(var(--rot));
   animation: floatShape 8s ease-in-out infinite;
 }
 .shape-1 {
+  --rot: 20deg;
   width: 120px; height: 120px;
-  background: linear-gradient(135deg, #60A5FA, #3B82F6);
+  background: linear-gradient(135deg, theme('colors.brand.400'), theme('colors.brand.600'));
   top: 15%; right: 15%;
   animation-delay: 0s;
-  transform: rotate(20deg);
 }
 .shape-2 {
+  --rot: 45deg;
   width: 80px; height: 80px;
-  background: linear-gradient(135deg, #93C5FD, #60A5FA);
+  background: linear-gradient(135deg, theme('colors.brand.300'), theme('colors.brand.400'));
   top: 60%; right: 8%;
   animation-delay: 2s;
   border-radius: 50%;
-  transform: rotate(45deg);
 }
 .shape-3 {
+  --rot: 15deg;
   width: 60px; height: 60px;
-  background: linear-gradient(135deg, #BFDBFE, #93C5FD);
+  background: linear-gradient(135deg, theme('colors.accent.300'), theme('colors.accent.500'));
   top: 30%; left: 5%;
   animation-delay: 4s;
-  transform: rotate(15deg);
 }
 .shape-4 {
+  --rot: -30deg;
   width: 150px; height: 150px;
-  background: linear-gradient(135deg, #1D4ED8, #2563EB);
+  background: linear-gradient(135deg, theme('colors.brand.700'), theme('colors.brand.500'));
   bottom: 20%; left: 10%;
   animation-delay: 1s;
   border-radius: 30px;
-  transform: rotate(-30deg);
 }
 @keyframes floatShape {
-  0%, 100% { transform: translateY(0) rotate(var(--rot, 20deg)); }
-  50% { transform: translateY(-25px) rotate(calc(var(--rot, 20deg) + 10deg)); }
+  0%, 100% { transform: translateY(0) rotate(var(--rot)); }
+  50%      { transform: translateY(-25px) rotate(calc(var(--rot) + 10deg)); }
 }
 
 /* Swiper — paginación sutil acorde a la paleta de marca */
