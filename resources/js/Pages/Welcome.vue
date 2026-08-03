@@ -89,7 +89,10 @@
                     <p class="text-white/60 text-sm">Profesora de Matemáticas</p>
                   </div>
                   <div class="ml-auto">
-                    <span class="px-2 py-1 bg-green-400/20 text-green-300 text-xs rounded-full font-medium">Verificada ✓</span>
+                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-400/20 text-green-300 text-xs rounded-full font-medium whitespace-nowrap">
+                      <span>Verificada</span>
+                      <span>✓</span>
+                    </span>
                   </div>
                 </div>
                 <div class="flex gap-1">
