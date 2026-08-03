@@ -48,7 +48,7 @@
               <p class="text-xs text-slate-400">por hora</p>
             </div>
             <div v-if="teacher.avg_rating" class="text-center">
-              <p class="text-xl font-black text-amber-500">{{ teacher.avg_rating }} ★</p>
+              <p class="text-xl font-black text-amber-500">★ {{ teacher.avg_rating }} <span class="text-sm font-bold text-slate-400">de 5</span></p>
               <p class="text-xs text-slate-400">{{ teacher.review_count }} {{ teacher.review_count === 1 ? 'reseña' : 'reseñas' }}</p>
             </div>
             <div v-if="teacher.classes_completed > 0" class="text-center">
@@ -146,7 +146,7 @@
 
         <div v-else class="space-y-3">
           <div v-if="teacher.avg_rating" class="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center gap-4">
-            <p class="text-4xl font-black text-amber-500">{{ teacher.avg_rating }}</p>
+            <p class="text-4xl font-black text-amber-500">{{ teacher.avg_rating }}<span class="text-lg text-slate-400">/5</span></p>
             <div>
               <div class="flex gap-0.5">
                 <span v-for="n in 5" :key="n" :class="['text-xl', n <= Math.round(teacher.avg_rating) ? 'text-amber-400' : 'text-gray-200']">★</span>

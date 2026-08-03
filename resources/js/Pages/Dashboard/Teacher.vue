@@ -88,23 +88,52 @@
           <h3 class="font-bold text-slate-900">Próximas clases</h3>
           <Link :href="route('teacher.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todas →</Link>
         </div>
-        <div v-if="upcoming.length" class="divide-y divide-gray-50">
-          <div v-for="l in upcoming" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0 text-brand-600 font-bold text-sm">
-                {{ l.student?.first_name?.charAt(0) }}
+        <template v-if="upcoming.length">
+          <div class="px-5 sm:px-6 pt-4">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wide">📅 Esta semana</p>
+          </div>
+          <div v-if="upcomingThisWeek.length" class="divide-y divide-gray-50">
+            <div v-for="l in upcomingThisWeek" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0 text-brand-600 font-bold text-sm">
+                  {{ l.student?.first_name?.charAt(0) }}
+                </div>
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                  <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                </div>
               </div>
-              <div class="min-w-0">
-                <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+              <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
+                class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
+                📝 Escribir reporte
+              </Link>
+            </div>
+          </div>
+          <p v-else class="px-5 sm:px-6 pb-4 pt-2 text-sm text-slate-400">No tienes clases esta semana.</p>
+
+          <template v-if="upcomingPast.length">
+            <div class="px-5 sm:px-6 pt-4 border-t border-gray-50">
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide">📚 Pasadas</p>
+            </div>
+            <div class="divide-y divide-gray-50">
+              <div v-for="l in upcomingPast" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0 text-brand-600 font-bold text-sm">
+                    {{ l.student?.first_name?.charAt(0) }}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="font-semibold text-slate-900 truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                    <p class="text-xs text-slate-400">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                  </div>
+                </div>
+                <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
+                  class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
+                  📝 Escribir reporte
+                </Link>
               </div>
             </div>
-            <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
-              class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
-              📝 Escribir reporte
-            </Link>
-          </div>
-        </div>
+          </template>
+        </template>
         <div v-else class="px-6 py-10 text-center text-slate-400">
           <div class="text-4xl mb-2">📭</div>
           <p class="text-sm">No tienes clases próximas</p>
@@ -179,9 +208,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { splitByWeek } from '@/utils/weekGrouping'
 
-defineProps({
-  upcoming: Array,
+const props = defineProps({
+  upcoming: { type: Array, default: () => [] },
   pending_requests: Number,
   pending_reports: Number,
   profile_score: { type: Number, default: 0 },
@@ -190,6 +220,12 @@ defineProps({
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+
+// `upcoming` ya viene ordenado start_time asc desde DashboardController —
+// ambos baldes conservan ese orden tal cual.
+const upcomingGrouped  = computed(() => splitByWeek(props.upcoming))
+const upcomingThisWeek = computed(() => upcomingGrouped.value.thisWeek)
+const upcomingPast     = computed(() => upcomingGrouped.value.past)
 
 const postClassLessonId = ref(null)
 const postClassEnded = ref(true)

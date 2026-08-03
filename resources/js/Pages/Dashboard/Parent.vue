@@ -119,47 +119,91 @@
             <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-medium hover:underline">Ver todas →</Link>
           </div>
 
-          <div v-if="upcoming.length" class="reveal-group bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
-            <ol class="relative">
-              <li v-for="(l, i) in upcoming" :key="l.id"
-                class="reveal-item relative pl-9 pb-6 last:pb-0">
-                <!-- Connecting line -->
-                <span v-if="i < upcoming.length - 1" class="absolute left-[7px] top-4 bottom-0 w-px bg-gray-100"></span>
-                <!-- Status dot -->
-                <span class="absolute left-0 top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100"
-                  :class="dotColor(l.status)"></span>
+          <div v-if="upcoming.length" class="reveal-group bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 space-y-6">
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">📅 Esta semana</p>
+              <ol v-if="upcomingThisWeek.length" class="relative">
+                <li v-for="(l, i) in upcomingThisWeek" :key="l.id"
+                  class="reveal-item relative pl-9 pb-6 last:pb-0">
+                  <!-- Connecting line -->
+                  <span v-if="i < upcomingThisWeek.length - 1" class="absolute left-[7px] top-4 bottom-0 w-px bg-gray-100"></span>
+                  <!-- Status dot -->
+                  <span class="absolute left-0 top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100"
+                    :class="dotColor(l.status)"></span>
 
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <p class="font-bold text-slate-900">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                      <StatusBadge :status="l.status" />
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="font-bold text-slate-900">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                        <StatusBadge :status="l.status" />
+                      </div>
+                      <p class="text-sm text-slate-500 mt-0.5">
+                        {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
+                      </p>
+                      <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
                     </div>
-                    <p class="text-sm text-slate-500 mt-0.5">
-                      {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
-                    </p>
-                    <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
-                  </div>
 
-                  <div class="flex-shrink-0">
-                    <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
-                      class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-                      {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
-                    </button>
-                    <p v-else-if="l.status === 'scheduled'" class="text-xs text-slate-400 text-right max-w-[10rem]">Podrás confirmar el pago cuando la clase finalice</p>
-                    <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
-                      class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
-                      🎥 Unirse a la sala
-                    </button>
-                    <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">Disponible 15 min antes de empezar</p>
-                    <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
-                      class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
-                      ★ Calificar
-                    </Link>
+                    <div class="flex-shrink-0">
+                      <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
+                        class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
+                        {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
+                      </button>
+                      <p v-else-if="l.status === 'scheduled'" class="text-xs text-slate-400 text-right max-w-[10rem]">Podrás confirmar el pago cuando la clase finalice</p>
+                      <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
+                        class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
+                        🎥 Unirse a la sala
+                      </button>
+                      <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">Disponible 15 min antes de empezar</p>
+                      <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
+                        class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+                        ★ Calificar
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              </li>
-            </ol>
+                </li>
+              </ol>
+              <p v-else class="text-sm text-slate-400">No tienes clases esta semana.</p>
+            </div>
+
+            <div v-if="upcomingPast.length" class="pt-5 border-t border-gray-50">
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">📚 Pasadas</p>
+              <ol class="relative">
+                <li v-for="(l, i) in upcomingPast" :key="l.id"
+                  class="reveal-item relative pl-9 pb-6 last:pb-0">
+                  <span v-if="i < upcomingPast.length - 1" class="absolute left-[7px] top-4 bottom-0 w-px bg-gray-100"></span>
+                  <span class="absolute left-0 top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100"
+                    :class="dotColor(l.status)"></span>
+
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="font-bold text-slate-900">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                        <StatusBadge :status="l.status" />
+                      </div>
+                      <p class="text-sm text-slate-500 mt-0.5">
+                        {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
+                      </p>
+                      <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
+                    </div>
+
+                    <div class="flex-shrink-0">
+                      <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
+                        class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
+                        {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
+                      </button>
+                      <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
+                        class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
+                        🎥 Unirse a la sala
+                      </button>
+                      <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
+                        class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+                        ★ Calificar
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+              </ol>
+            </div>
           </div>
 
           <div v-else class="bg-white rounded-2xl border border-gray-100 px-6 py-10 text-center text-slate-400">
@@ -282,6 +326,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
+import { splitByWeek } from '@/utils/weekGrouping'
 import gsap from 'gsap'
 
 const props = defineProps({
@@ -304,6 +349,12 @@ const payingId = ref(null)
 const postClassLessonId = ref(null)
 const postClassEnded = ref(true)
 const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
+
+// `upcoming` ya viene ordenado start_time asc (próxima primero) desde
+// DashboardController — ambos baldes conservan ese orden tal cual.
+const upcomingGrouped  = computed(() => splitByWeek(props.upcoming))
+const upcomingThisWeek = computed(() => upcomingGrouped.value.thisWeek)
+const upcomingPast     = computed(() => upcomingGrouped.value.past)
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })

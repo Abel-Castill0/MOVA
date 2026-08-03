@@ -16,84 +16,37 @@
         </Link>
       </div>
 
-      <div v-else class="space-y-3">
-        <div v-for="l in lessons" :key="l.id"
-          class="bg-white rounded-2xl border border-gray-100 hover:border-brand-200 transition-all hover:shadow-md overflow-hidden">
-          <div :class="['h-1', statusStripe(l.status)]"></div>
-
-          <div class="p-5">
-            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div class="flex-1 min-w-0">
-                <div class="flex flex-wrap items-center gap-2 mb-2">
-                  <p class="font-bold text-slate-900">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                  <StatusBadge :status="l.status" />
-                </div>
-                <p class="text-sm text-slate-600">
-                  <span class="font-medium">Alumno:</span> {{ l.student?.first_name }} {{ l.student?.last_name }}
-                </p>
-                <p class="text-sm text-slate-500 mt-0.5">
-                  📅 {{ fmtDate(l.start_time) }} · {{ l.duration_minutes }} min
-                </p>
-                <div v-if="l.status === 'cancelled' && l.cancel_reason"
-                  class="mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1">
-                  Motivo de cancelación: {{ l.cancel_reason }}
-                </div>
-                <div v-if="l.rescheduled_at && l.original_start_time"
-                  class="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
-                  Reprogramada (original: {{ fmtDateShort(l.original_start_time) }})
-                </div>
-              </div>
-
-              <div v-if="canJoinJitsi(l)" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px] flex items-center">
-                <button @click="openJitsi(l)"
-                  class="flex items-center gap-2 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow shadow-brand-600/25">
-                  🎥 Ingresar a la Sala Virtual
-                </button>
-              </div>
-
-              <div v-else-if="l.status !== 'scheduled'" class="flex-shrink-0 text-center px-4 py-3 bg-slate-50 rounded-xl">
-                <p class="text-sm text-slate-400 capitalize">{{ statusLabel(l.status) }}</p>
-              </div>
-            </div>
-
-            <div v-if="l.status === 'paid' && !l.lesson_report" class="mt-3 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-              <p class="text-xs font-medium text-indigo-700">
-                💰 El padre/tutor confirmó el pago de esta clase. Ya puedes escribir el reporte pedagógico.
-              </p>
-            </div>
-
-            <div class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2">
-              <template v-if="l.lesson_report">
-                <Link :href="route('lesson-reports.show', l.id)"
-                  class="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
-                  Ver reporte enviado ✓
-                </Link>
-              </template>
-
-              <template v-else-if="l.status === 'paid'">
-                <Link :href="route('lesson-reports.create', l.id)"
-                  class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm">
-                  📝 Escribir reporte pedagógico
-                </Link>
-              </template>
-
-              <template v-else-if="l.status === 'scheduled'">
-                <span class="text-xs text-slate-400">Pendiente de confirmación de pago</span>
-                <div class="flex gap-2">
-                  <button @click="openReschedule(l)"
-                    class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
-                    Reprogramar
-                  </button>
-                  <button @click="openCancel(l)"
-                    class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
-                    Cancelar clase
-                  </button>
-                </div>
-              </template>
-            </div>
+      <template v-else>
+        <!-- ── Esta semana ─────────────────────────────────────────────────── -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-slate-900">📅 Esta semana</h3>
+            <span class="text-sm text-slate-400">{{ thisWeek.length }}</span>
+          </div>
+          <div v-if="thisWeek.length" class="space-y-3">
+            <TeacherLessonCard v-for="l in thisWeek" :key="l.id" :lesson="l"
+              @join="openJitsi" @reschedule="openReschedule" @cancel="openCancel" />
+          </div>
+          <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
+            <p class="text-sm">No tienes clases esta semana.</p>
           </div>
         </div>
-      </div>
+
+        <!-- ── Clases pasadas ──────────────────────────────────────────────── -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-slate-900">📚 Clases pasadas</h3>
+            <span class="text-sm text-slate-400">{{ past.length }}</span>
+          </div>
+          <div v-if="past.length" class="space-y-3">
+            <TeacherLessonCard v-for="l in past" :key="l.id" :lesson="l"
+              @join="openJitsi" @reschedule="openReschedule" @cancel="openCancel" />
+          </div>
+          <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
+            <p class="text-sm">Aún no hay clases pasadas.</p>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- ── Modal cancelación ──────────────────────────────────────────────────── -->
@@ -160,15 +113,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import StatusBadge from '@/Components/StatusBadge.vue'
-import Modal from '@/Components/Modal.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
+import TeacherLessonCard from '@/Components/Lessons/TeacherLessonCard.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
+import { splitByWeek } from '@/utils/weekGrouping'
 
-defineProps({ lessons: Array })
+const props = defineProps({ lessons: Array })
 
 const cancelTarget   = ref(null)
 const cancelReason   = ref('')
@@ -177,13 +130,12 @@ const rescheduleError  = ref('')
 const rescheduleForm   = ref({ start_time: '', duration_minutes: 60, reason: '' })
 const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
-function canJoinJitsi(l) {
-  if (!l.has_jitsi_room) return false
-  if (l.status === 'paid') return true
-  if (l.status !== 'scheduled') return false
-  const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
-  return minutesToStart <= 15
-}
+const grouped  = computed(() => splitByWeek(props.lessons))
+// El backend ordena `lessons` por start_time desc (historial arriba) — para
+// "Esta semana" queremos la más próxima primero, así que se invierte solo
+// ese balde.
+const thisWeek = computed(() => [...grouped.value.thisWeek].reverse())
+const past     = computed(() => grouped.value.past)
 
 function openCancel(l) {
   cancelTarget.value = l
@@ -236,29 +188,5 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
-}
-
-function fmtDateShort(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
-
-function statusStripe(s) {
-  return {
-    scheduled: 'bg-brand-500',
-    paid: 'bg-indigo-500',
-    pending_parent_confirmation: 'bg-amber-500',
-    completed: 'bg-green-500',
-    cancelled: 'bg-red-400',
-  }[s] ?? 'bg-slate-300'
-}
-
-function statusLabel(s) {
-  return {
-    scheduled: 'Programada',
-    paid: 'Pagada',
-    pending_parent_confirmation: 'Esperando calificación',
-    completed: 'Completada',
-    cancelled: 'Cancelada',
-  }[s] ?? s
 }
 </script>

@@ -25,3 +25,9 @@ yarn-error.log
 
 .vercel
 .env*
+
+# Entregables crudos de diseño (fuente de la identidad de marca, ya
+# extraídos/convertidos a public/images/brand/ y public/fonts/)
+/Logos-*/
+/Tipografía-*/
+/MOVA MINI MANUAL DE MARCA.pdf
