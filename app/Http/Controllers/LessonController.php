@@ -10,6 +10,7 @@ use App\Models\TeacherProfile;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\ClassRescheduledNotification;
 use App\Notifications\PaymentConfirmedNotification;
+use App\Services\JaasService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -150,13 +151,14 @@ class LessonController extends Controller
         ]);
     }
 
-    // Único punto de la app que revela jitsi_room/jitsi_password (ocultos por
-    // defecto en el modelo — ver Lesson::$hidden). El frontend los pide aquí
-    // justo antes de abrir la sala, en vez de recibirlos en el listado de
-    // clases; así reducimos la ventana de exposición y evitamos que alguien
-    // con la URL/room adivinada pueda entrar sin haber pasado por esta
-    // verificación de autorización + estado.
-    public function join(Lesson $lesson)
+    // Único punto de la app que revela jitsi_room (oculto por defecto en el
+    // modelo — ver Lesson::$hidden) y emite el JWT de JaaS. El frontend los
+    // pide aquí, justo antes de abrir la sala, en vez de recibirlos en el
+    // listado de clases; así reducimos la ventana de exposición y evitamos
+    // que alguien con la URL/room adivinada pueda entrar sin haber pasado
+    // por esta verificación de autorización + estado. El JWT se firma con
+    // la private key de JaaS (nunca sale del backend) y expira en 24h.
+    public function join(Lesson $lesson, JaasService $jaas)
     {
         $this->authorize('view', $lesson);
 
@@ -168,9 +170,16 @@ class LessonController extends Controller
 
         abort_unless($lesson->jitsi_room, 404, 'Esta clase todavía no tiene una sala virtual asignada.');
 
+        $user = auth()->user();
+        $isModerator = $lesson->teacherProfile?->user_id === $user->id;
+
         return response()->json([
             'jitsi_room' => $lesson->jitsi_room,
-            'jitsi_password' => $lesson->jitsi_password,
+            'jitsi_token' => $jaas->generateToken($lesson->jitsi_room, $user->name, $isModerator),
+            // App ID de JaaS — no es secreto (aparece en cada URL/script tag
+            // de la llamada), el frontend lo necesita para construir el room
+            // name con prefijo de tenant y la URL de external_api.js.
+            'jaas_app_id' => config('jaas.app_id'),
         ])->header('Cache-Control', 'no-store, private');
     }
 

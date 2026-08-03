@@ -661,13 +661,37 @@ class MonetizationIntegrityTest extends TestCase
         [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
         $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
 
-        $this->actingAs($parent)->get(route('lessons.join', $lesson))
+        $parentResponse = $this->actingAs($parent)->get(route('lessons.join', $lesson))
             ->assertOk()
-            ->assertJson(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+            ->assertJsonStructure(['jitsi_room', 'jitsi_token', 'jaas_app_id'])
+            ->assertJson(['jitsi_room' => 'mova-lesson-test-room']);
 
-        $this->actingAs($teacher)->get(route('lessons.join', $lesson))
+        $teacherResponse = $this->actingAs($teacher)->get(route('lessons.join', $lesson))
             ->assertOk()
-            ->assertJson(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+            ->assertJsonStructure(['jitsi_room', 'jitsi_token', 'jaas_app_id'])
+            ->assertJson(['jitsi_room' => 'mova-lesson-test-room']);
+
+        // El JWT debe reflejar quién es moderador (el profesor asignado) y
+        // quién no (el padre) — JaaS decide permisos por este claim, no por
+        // el password legacy que ya no se usa para el embed.
+        $publicKey = openssl_pkey_get_details(openssl_pkey_get_private(config('jaas.private_key')))['key'];
+
+        $parentPayload = (array) \Firebase\JWT\JWT::decode($parentResponse->json('jitsi_token'), new \Firebase\JWT\Key($publicKey, 'RS256'));
+        $teacherPayload = (array) \Firebase\JWT\JWT::decode($teacherResponse->json('jitsi_token'), new \Firebase\JWT\Key($publicKey, 'RS256'));
+
+        $this->assertSame('mova-lesson-test-room', $parentPayload['room']);
+        $this->assertSame('jitsi', $parentPayload['aud']);
+        $this->assertSame('chat', $parentPayload['iss']);
+        $this->assertFalse($parentPayload['context']->user->moderator);
+        $this->assertTrue($teacherPayload['context']->user->moderator);
+
+        // JaaS rechaza el JWT con "Missing Key ID (kid)" si el header no lo
+        // trae, aunque la firma sea válida — se verifica el header crudo
+        // (JWT::decode() solo devuelve el payload, no el header).
+        [$rawHeader] = explode('.', $parentResponse->json('jitsi_token'));
+        $header = json_decode(base64_decode(strtr($rawHeader, '-_', '+/')), true);
+        $this->assertSame(config('jaas.key_id'), $header['kid']);
+        $this->assertSame('RS256', $header['alg']);
     }
 
     public function test_lesson_join_rejects_unrelated_parent_and_teacher(): void
