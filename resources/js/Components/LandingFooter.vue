@@ -5,11 +5,9 @@
 
         <!-- Brand -->
         <div class="lg:col-span-1">
-          <div class="flex items-center gap-2 mb-4">
-            <div class="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center shadow">
-              <span class="text-white font-black text-sm">M</span>
-            </div>
-            <span class="font-black text-xl">MOVA</span>
+          <!-- Footer sobre brand-900 → versión blanca del imagotipo -->
+          <div class="flex items-center mb-4">
+            <MovaLogo theme="blanco" class="h-9 w-auto" />
           </div>
           <p class="text-slate-400 text-sm leading-relaxed mb-4">
             Plataforma educativa creada por dos socios apasionados por la educación. Conectamos estudiantes con los mejores profesores particulares para aprender en vivo por videollamada.
@@ -69,6 +67,8 @@
 </template>
 
 <script setup>
+import MovaLogo from '@/Components/MovaLogo.vue'
+
 const year = new Date().getFullYear()
 
 const quickLinks = [

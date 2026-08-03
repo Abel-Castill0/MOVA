@@ -4,11 +4,8 @@
     <!-- Minimal navbar -->
     <nav class="fixed top-0 inset-x-0 z-50 bg-white border-b border-gray-100">
       <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/" class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-gradient-to-br from-brand-600 to-brand-800 rounded-lg flex items-center justify-center">
-            <span class="text-white font-black text-xs">M</span>
-          </div>
-          <span class="font-black text-lg text-brand-900">MOVA</span>
+        <Link href="/" class="flex items-center">
+          <MovaLogo class="h-7 w-auto" />
         </Link>
         <Link :href="route('login')" class="text-sm text-slate-500 hover:text-brand-600 transition-colors">¿Ya tienes cuenta? Inicia sesión</Link>
       </div>
@@ -123,6 +120,7 @@
 
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
+import MovaLogo from '@/Components/MovaLogo.vue'
 
 const steps = [
   { icon: '🔍', title: 'Elige tu materia', desc: 'Explora nuestro catálogo de materias y niveles. Filtra por precio, disponibilidad y valoraciones.' },

@@ -1,3 +1,59 @@
+/* ── Plus Jakarta Sans (tipografía corporativa MOVA) ─────────────────────────
+   Auto-hospedada desde public/fonts/ en vez del CDN de Google: la tipografía
+   es un archivo de marca que ya tenemos, y evitar la petición a
+   fonts.gstatic.com elimina una transferencia de datos a un tercero — algo
+   que importa en una plataforma que maneja datos de menores de edad.
+   El manual de marca especifica ExtraBold / Medium / Light; se incluyen
+   además Regular, SemiBold y Bold porque la UI los usa.
+   font-display: swap → nunca texto invisible mientras carga la fuente.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* Plus Jakarta Sans no tiene peso 900. La UI usa `font-black` (900) en muchos
+   títulos: se declara ExtraBold también para 900 para que el navegador use el
+   archivo real en vez de sintetizar una negrita falsa (que se ve deformada). */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-ExtraBold.woff2') format('woff2');
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

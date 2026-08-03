@@ -16,11 +16,8 @@
 
       <!-- Logo -->
       <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <Link href="/" class="flex items-center gap-2">
-          <div class="w-8 h-8 bg-gradient-to-br from-brand-600 to-brand-800 rounded-lg flex items-center justify-center shadow">
-            <span class="text-white font-black text-sm">M</span>
-          </div>
-          <span class="font-black text-lg text-brand-900">MOVA</span>
+        <Link href="/" class="flex items-center">
+          <MovaLogo class="h-8 w-auto" />
         </Link>
         <button @click="sidebarOpen = false" aria-label="Cerrar menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-lg text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
@@ -112,6 +109,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
+import MovaLogo from '@/Components/MovaLogo.vue'
 
 defineProps({ title: String })
 

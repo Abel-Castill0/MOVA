@@ -551,3 +551,151 @@ key) y verifica `room`, `aud`, `iss`, que `context.user.moderator` sea
 `true` para el profesor y `false` para el padre, y que el header (no solo
 el payload — `JWT::decode()` no lo expone, se decodifica el primer segmento
 a mano) traiga el `kid` correcto — no solo que la respuesta sea 200.
+
+---
+
+## 12. Auditoría de consola + reseñas visibles + clases por semana (2026-08-03)
+
+### Auditoría de errores de consola
+
+Navegado landing, login, ambos dashboards y una sala de Jitsi real (JaaS,
+con JWT firmado) revisando la consola en cada uno. **Cero errores propios
+de MOVA** — todas las peticiones al backend (`/notifications`,
+`/broadcasting/auth`, `/lessons/{id}/join`, HMR de Vite) devolvieron 200.
+No se pudo inspeccionar la consola *interna* del iframe de 8x8.vc (cross-
+origin, fuera del alcance de las herramientas de este entorno) — el pedido
+explícitamente excluía esos errores (Amplitude/localStorage/speaker-
+selection) por venir del lado de JaaS, no de MOVA.
+
+### Perfil público del profesor y marketplace
+
+`TeacherPublicController::show()` y `Teachers/Show.vue` ya traían y
+mostraban `avg_rating`, `review_count`, `classes_completed` y una lista de
+reseñas recientes con estrellas + comentario — no faltaba nada estructural.
+Único ajuste: se agregó "de 5" / "/5" junto al número (antes solo mostraba
+"4.8 ★" sin la escala explícita).
+
+El marketplace (`Marketplace/Index.vue`) ya calculaba el rating real por
+oferta desde `teacher_profile.visible_reviews` (eager-loaded en
+`MarketplaceController`) — verificado en vivo con un profesor con 2 reseñas
+de 5★: la card muestra "★ 5.0 (2 reseñas)" correctamente. No se tocó esta
+lógica porque ya usa datos reales, no simulados.
+
+### Clases por semana (Esta semana / Clases pasadas)
+
+Nuevo `resources/js/utils/weekGrouping.js`: `splitByWeek(items, dateField)`
+separa una lista en "esta semana o después" (lunes 00:00 en adelante) vs
+"pasadas", sin tercer balde para clases más allá de esta semana — caen en
+"esta semana" también, porque lo relevante para el usuario es "pendiente"
+vs. "historial", no la semana calendario exacta. La función NO reordena —
+`Lessons/*Index.vue` reciben `lessons` en `start_time desc` del backend
+(pasadas queda tal cual, "esta semana" se invierte para mostrar la más
+próxima primero) mientras que `Dashboard/*.vue` reciben `upcoming` en
+`start_time asc` (ambos baldes se mantienen tal cual llegan).
+
+`Lessons/ParentIndex.vue` y `Lessons/TeacherIndex.vue` extrajeron su card de
+clase a `resources/js/Components/Lessons/{Parent,Teacher}LessonCard.vue` —
+con dos secciones (`v-for` sobre `thisWeek` y `past`) habría significado
+duplicar ~100 líneas de markup+lógica por página; con el componente, cada
+sección es una sola línea. `Dashboard/Parent.vue` y `Dashboard/Teacher.vue`
+mantienen su markup de timeline/lista inline (más corto, un solo uso cada
+uno) pero con las mismas dos secciones con encabezado y estado vacío
+independiente por sección.
+
+---
+
+## 13. Identidad de marca aplicada (2026-08-03)
+
+Hasta esta sesión la UI usaba un placeholder (una "M" blanca dentro de una
+caja con gradiente) y la paleta `brand` era **el azul genérico de Tailwind**
+(`#2563EB`…), sin relación con MOVA. Se aplicaron los archivos de marca
+reales que llegaron al repo.
+
+### Archivos fuente encontrados
+
+| Ruta | Contenido |
+|---|---|
+| `Logos-*/Logos/Imagotipo/Imagotipo-{1..5}.png` | Logo horizontal (isotipo + "Mova") |
+| `Logos-*/Logos/Isotipos/Isotipo-{1..5}.png` | Solo la "M" (dos personas dándose la mano) |
+| `Tipografía-*/Tipografía/Letras/*.otf` | Plus Jakarta Sans, 14 archivos (7 pesos × normal/itálica) |
+| `MOVA MINI MANUAL DE MARCA.pdf` | Hex de marca + pesos tipográficos |
+
+Las variantes numeradas resultaron ser: **-1** color completo · **-2/-3**
+monocromo azul/naranja · **-4** todo blanco (fondos oscuros) · **-5** todo
+negro. Se clasificaron analizando la composición de píxeles de cada PNG, no
+abriéndolos uno por uno.
+
+### Discrepancia de azul (manual vs. logo) — resuelta
+
+El manual declara `#1f5aa6`; los píxeles reales del logo son `#0D409A`. El
+naranja sí coincide exacto (`#F59E0B` en ambos). Al pasar los tres colores
+reales a HSL se vio que **no se contradicen**:
+
+| Color | Origen | HSL | Contraste vs. blanco |
+|---|---|---|---|
+| `#1F5AA6` | manual PDF | H 214 · S 69% · L 39% | 6.84:1 |
+| `#0D409A` | píxel del logo | H 218 · S 84% · L 33% | 9.47:1 |
+| `#0D346D` | navy del apretón de manos | H 216 · S 79% · L 24% | 12.14:1 |
+
+Mismo tono (H≈215), tres luminosidades consecutivas → son pasos de una
+misma rampa. Se asignaron a `brand-600` / `brand-700` / `brand-800`
+respectivamente, así que **ambas fuentes oficiales se respetan** en el rol
+que les corresponde (600 = botones, 700 = hover y superficies que tocan al
+logo, 800 = fondos profundos). Los pasos 50–500 y 900–950 se extrapolaron
+manteniendo H≈215. Todos los pasos interactivos pasan WCAG AA o AAA con
+texto blanco encima (500 = 5.2:1 AA … 900 = 15.1:1 AAA).
+
+El naranja `#F59E0B` **es exactamente `amber-500` de Tailwind**, así que
+`accent` reutiliza la escala amber completa en vez de inventar pasos nuevos.
+
+### Tipografía
+
+Plus Jakarta Sans pasó de `.otf` a `.woff2` (fontTools) — 6 pesos, ~36KB
+c/u, en `public/fonts/`. Se **auto-hospeda** en vez de usar el CDN de Google
+(que era lo que había para Inter): además de ser el archivo de marca que ya
+teníamos, elimina una petición a `fonts.gstatic.com`, o sea una
+transferencia de datos a un tercero — relevante para la política de
+privacidad de una plataforma con datos de menores.
+
+Detalle: Plus Jakarta Sans **no tiene peso 900** y la UI usa `font-black` en
+muchos títulos. El `@font-face` de ExtraBold se declara con
+`font-weight: 800 900` para que el navegador use el archivo real en vez de
+sintetizar una negrita falsa. Solo se precargan Regular y ExtraBold (los dos
+pesos sobre el pliegue); precargar los 6 desperdiciaría ancho de banda móvil.
+
+### Logo en la app
+
+Nuevo `resources/js/Components/MovaLogo.vue` con props `variant`
+(imagotipo/isotipo) y `theme` (color/blanco), `<picture>` con WebP + PNG de
+respaldo, y `width`/`height` reales para evitar CLS. Reemplaza el
+placeholder en los 6 sitios: `AppLayout`, `GuestLayout`, `LandingNavbar`,
+`LandingFooter`, `StudentInvitation`, `TeacherInvitation`.
+
+`LandingNavbar` alterna `theme` según `scrolled` — versión blanca sobre el
+hero azul, versión color cuando el navbar se vuelve blanco. Verificado en
+vivo: el `src` cambia de `mova-imagotipo-blanco.webp` a `mova-imagotipo.webp`
+al pasar de scrollY 0 a 400.
+
+Assets generados en `public/images/brand/` (WebP + PNG): imagotipo color /
+blanco / negro, isotipo color / blanco, más `favicon.ico` multi-resolución
+(16→256), `apple-touch-icon` 180, e iconos 192/512 para el manifest.
+
+### Meta y PWA
+
+`app.blade.php`: fuera el `<link>` a Google Fonts, dentro los favicons,
+`<meta name="theme-color" content="#0D409A">` y el preload de fuentes. Se
+creó `public/manifest.json` (no existía) con los iconos y colores de marca.
+
+### Limitación conocida: no hay SVG
+
+Los logos llegaron **solo como PNG**. Convertir PNG→SVG de verdad requiere
+vectorización (potrace/inkscape), que no está instalado en este entorno; y
+aunque lo estuviera, un trazado automático sobre un logo de curvas limpias
+da peor resultado que el vector original. Lo que se hizo fue optimizar a
+WebP con respaldo PNG, que a estos tamaños pesa 8–22KB y se ve nítido.
+
+**Pendiente para el diseñador:** pedir el archivo vectorial original
+(`.ai`, `.eps` o `.svg`) del imagotipo e isotipo. Con el SVG se ganaría
+nitidez perfecta a cualquier tamaño y peso ~2–4KB, y se podría colorear por
+CSS (útil para estados hover/activo). Mientras tanto el PNG/WebP funciona
+correctamente en todos los tamaños que la UI usa hoy (máx. 100×32 px).

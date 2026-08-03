@@ -4,11 +4,10 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
         <!-- Logo -->
-        <Link href="/" class="flex items-center gap-2">
-          <div class="w-8 h-8 bg-gradient-to-br from-brand-600 to-brand-800 rounded-lg flex items-center justify-center">
-            <span class="text-white font-black text-sm">M</span>
-          </div>
-          <span :class="['font-black text-xl tracking-tight', scrolled ? 'text-brand-900' : 'text-white']">MOVA</span>
+        <!-- El navbar es transparente sobre el hero azul y se vuelve blanco al
+             hacer scroll — el logo cambia de versión blanca a color en sincronía. -->
+        <Link href="/" class="flex items-center">
+          <MovaLogo :theme="scrolled ? 'color' : 'blanco'" class="h-8 w-auto transition-opacity duration-300" />
         </Link>
 
         <!-- Desktop nav -->
@@ -71,6 +70,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
+import MovaLogo from '@/Components/MovaLogo.vue'
 
 const scrolled = ref(false)
 const mobileOpen = ref(false)
