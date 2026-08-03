@@ -446,3 +446,108 @@ sin depender únicamente del banner. El lado del padre no necesitó cambios de
 query porque `upcoming` ya incluía `scheduled`/`paid`/`pending_parent_confirmation`
 sin filtro de `start_time`, y el botón "✓ Ya pagué" ya se gateaba solo por
 `hasClassEnded(l)`.
+
+---
+
+## 11. Migración a JaaS — sin límite de 5 minutos (2026-08-02)
+
+### El problema con meet.jit.si público
+
+El dominio público `meet.jit.si` que se usaba hasta ahora muestra un banner
+("Embedding meet.jit.si is only meant for demo purposes...") y **corta el
+embed a los 5 minutos** cuando se usa desde un dominio ajeno en producción —
+es una limitación deliberada del servicio gratuito, no un bug. Esta sección
+implementa la migración a **JaaS (Jitsi as a Service, 8x8.vc)**, la opción
+recomendada en la sección 10 de este documento para eliminar ese límite sin
+pasar a self-hosting.
+
+### Configuración
+
+- `.env` (nunca `.env.example`): `JAAS_APP_ID` (App ID de JaaS, no es
+  secreto) y `JAAS_PRIVATE_KEY` (private key del keypair RSA subido en
+  jaas.8x8.vc, **en base64 de una sola línea** — evita el problema de
+  parsear un PEM multilínea dentro de un archivo `.env`; se genera con
+  `base64 -w0 tu-private-key.pem`). `config/jaas.php` decodifica el base64
+  de vuelta a PEM al leerlo.
+- **Nota de seguridad de esta sesión:** al empezar esta tarea, `.env.example`
+  (archivo versionado en git) ya tenía un App ID y una private key RSA reales
+  pegados al final — no estaban committeados todavía (cambio local sin
+  confirmar), pero de haberse hecho `git add`/commit habrían quedado
+  expuestos permanentemente en el historial. Se movieron a `.env`
+  (gitignored) antes de tocar nada más, y `.env.example` quedó con los
+  placeholders vacíos que pide este flujo. Si esa private key llegó a
+  circular fuera de esta máquina (compartida por chat, capturas, etc.),
+  conviene rotarla de todos modos desde jaas.8x8.vc — normalmente para 30
+  días no aplica ni "vale la pena" pero acá no hay forma de saber cuánto
+  circuló ese archivo.
+
+### `JaasService` y el JWT
+
+`app/Services/JaasService.php::generateToken(roomName, userName, isModerator)`
+firma un JWT RS256 con la private key (nunca sale del backend). Payload:
+`aud=jitsi`, `iss=chat`, `sub=<App ID>`, `room=<jitsi_room sin prefijo>`,
+`exp` a 24h, `context.user.name`/`context.user.moderator`. El `room` claim
+lleva el nombre de sala SIN el prefijo de tenant (a diferencia del
+`roomName` que sí lo necesita en el External API) para que el token quede
+acotado a esa sala específica, no a cualquier sala del tenant.
+
+`sub` usa el App ID configurado, no un valor literal fijo — un JWT firmado
+con `sub` distinto al App ID real es rechazado por JaaS, así que hardcodear
+un placeholder ahí lo habría dejado no funcional.
+
+### `LessonController`
+
+- `store()`: el formato de `jitsi_room` (`mova-lesson-{id}-{random32}`) no
+  cambió — ya era válido como segmento de URL para JaaS, el prefijo de
+  tenant se añade al usarlo, no al guardarlo.
+- `join()`: además de `jitsi_room`, ahora devuelve `jitsi_token` (el JWT,
+  generado en cada llamada — no se persiste) y `jaas_app_id` (público, se
+  necesita en el frontend para el `roomName` con prefijo y para cargar
+  `external_api.js`). `jitsi_password` dejó de usarse — JaaS controla acceso
+  y rol de moderador vía el JWT, no vía el mecanismo de password ad-hoc del
+  free tier.
+- El moderador es quien tiene `teacherProfile.user_id === auth()->id()` en
+  esa lección — el profesor asignado, nunca el padre.
+
+### El header `kid` (Key ID)
+
+Primera versión del JWT firmaba solo con `sub` = App ID y sin `kid` en el
+header — JaaS lo rechazaba con **"Missing Key ID (kid)"** al entrar a la
+sala, aunque la firma en sí fuera válida. JaaS necesita el `kid` para saber
+CUÁL public key (de las que el App ID puede tener varias subidas) usar para
+verificar; sin él no sabe con qué comparar la firma, sea o no correcta.
+
+`JAAS_KEY_ID` (jaas.8x8.vc > la misma API key de la que salió el App ID y
+la private key — el Key ID es un tercer valor, no el App ID ni parte de la
+private key) se agregó a `config('jaas.key_id')` y `JaasService::generateToken()`
+ahora firma con:
+
+```php
+JWT::encode($payload, $privateKey, 'RS256', null, [
+    'kid' => $keyId,
+    'typ' => 'JWT',
+    'alg' => 'RS256',
+]);
+```
+
+### Frontend
+
+`useJitsiMeet.js` carga `https://8x8.vc/{appId}/external_api.js` (no el
+`meet.jit.si/external_api.js` de antes) e instancia
+`JitsiMeetExternalAPI('8x8.vc', { roomName: '{appId}/{jitsi_room}', jwt,
+userInfo, ... })`. `JitsiModal.vue` no cambió de forma — sigue siendo el
+mismo overlay a pantalla completa (`z-[9999]`, barra superior, iframe
+`h-[85vh] sm:h-[90vh]`) de la sección 10; solo cambió qué servidor hay
+detrás del iframe.
+
+### Tests
+
+`phpunit.xml` fuerza `JAAS_APP_ID`/`JAAS_PRIVATE_KEY`/`JAAS_KEY_ID` con un
+keypair RSA + Key ID de prueba (sin relación con la cuenta real de JaaS) —
+así el suite no depende de que el `.env` local tenga credenciales reales.
+`MonetizationIntegrityTest::test_lesson_join_allows_owner_parent_and_assigned_teacher`
+decodifica el JWT devuelto (con la public key derivada de esa misma test
+key) y verifica `room`, `aud`, `iss`, que `context.user.moderator` sea
+`true` para el profesor y `false` para el padre, y que el header (no solo
+el payload — `JWT::decode()` no lo expone, se decodifica el primer segmento
+a mano) traiga el `kid` correcto — no solo que la respuesta sea 200.
