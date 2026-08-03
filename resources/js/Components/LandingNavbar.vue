@@ -20,22 +20,28 @@
 
         <!-- Auth buttons -->
         <div class="flex items-center gap-3">
-          <template v-if="user">
-            <Link :href="route('dashboard')"
-              class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">
-              Mi dashboard
-            </Link>
-          </template>
-          <template v-else>
-            <Link :href="route('login')"
-              :class="['text-sm font-medium transition-colors', scrolled ? 'text-slate-700 hover:text-brand-600' : 'text-white/90 hover:text-white']">
-              Iniciar sesión
-            </Link>
-            <Link :href="route('register')"
-              class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors shadow-lg shadow-brand-600/25">
-              Registrarse
-            </Link>
-          </template>
+          <!-- Solo desktop: en móvil estos mismos enlaces ya viven en el menú
+               colapsable de abajo. Antes no tenían hidden md:flex, así que se
+               dibujaban también en móvil apretados junto al logo y el botón
+               de hamburguesa. -->
+          <div class="hidden md:flex items-center gap-3">
+            <template v-if="user">
+              <Link :href="route('dashboard')"
+                class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">
+                Mi dashboard
+              </Link>
+            </template>
+            <template v-else>
+              <Link :href="route('login')"
+                :class="['text-sm font-medium transition-colors', scrolled ? 'text-slate-700 hover:text-brand-600' : 'text-white/90 hover:text-white']">
+                Iniciar sesión
+              </Link>
+              <Link :href="route('register')"
+                class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors shadow-lg shadow-brand-600/25">
+                Registrarse
+              </Link>
+            </template>
+          </div>
 
           <!-- Mobile menu button -->
           <button @click="mobileOpen = !mobileOpen" class="md:hidden p-2 rounded-lg"

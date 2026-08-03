@@ -9,7 +9,7 @@
       </span>
     </button>
 
-    <div v-if="open" class="absolute left-0 bottom-full mb-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+    <div v-if="open" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
         <button v-if="unread > 0" @click="markAll" class="text-xs text-indigo-600 hover:underline">Marcar todas</button>
@@ -30,6 +30,20 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+
+// El componente vive en dos lugares con geometría opuesta: al fondo del
+// sidebar (el botón está abajo-izquierda, así que el panel debe abrirse
+// hacia arriba anclado a la izquierda) y en la topbar móvil (el botón está
+// arriba-derecha, así que el panel debe abrirse hacia abajo anclado a la
+// derecha). Anclar siempre a la izquierda rompía el caso de la topbar: el
+// panel de 320px se dibujaba mayormente fuera del viewport a la derecha.
+const props = defineProps({
+  placement: { type: String, default: 'up-left', validator: v => ['up-left', 'down-right'].includes(v) },
+})
+
+const placementClasses = computed(() => props.placement === 'down-right'
+  ? 'right-0 top-full mt-2 origin-top-right'
+  : 'left-0 bottom-full mb-2 origin-bottom-left')
 
 const open = ref(false)
 const notifications = ref([])

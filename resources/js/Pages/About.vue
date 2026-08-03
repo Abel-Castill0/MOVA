@@ -15,11 +15,14 @@
           MOVA nació de la convicción de que cada estudiante merece acceso a un profesor experto, sin importar dónde esté. Somos un equipo pequeño con grandes metas.
         </p>
       </div>
-      <!-- -mb-px + block: el <svg> es inline por defecto, lo que deja un hueco
-           de subpíxel entre su borde inferior y la sección blanca siguiente.
-           Ese hueco, sumado al antialiasing de la curva contra el azul,
-           dibujaba una línea gris finísima en la costura. -->
-      <div class="absolute -bottom-px left-0 right-0 leading-none">
+      <!-- -bottom-1 + block: el <svg> es inline por defecto, lo que deja un
+           hueco de subpíxel entre su borde inferior y la sección blanca
+           siguiente. Ese hueco, sumado al antialiasing de la curva contra el
+           azul, podía dibujar una línea gris finísima en la costura,
+           especialmente notoria en pantallas de alta densidad (Retina). Se
+           solapa 4px en vez de 1px porque el solape cae sobre blanco-sobre-
+           blanco: no hay downside visual y da margen en cualquier DPR. -->
+      <div class="absolute -bottom-1 left-0 right-0 leading-none">
         <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full block"><path d="M0 60L1440 60L1440 30C1200 10 960 0 720 10C480 20 240 50 0 30Z" fill="white"/></svg>
       </div>
     </section>

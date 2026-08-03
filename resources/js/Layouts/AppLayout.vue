@@ -73,9 +73,10 @@
           </svg>
         </button>
         <h1 class="text-base font-bold text-slate-900 flex-1">{{ title }}</h1>
-        <!-- Mobile notification bell -->
+        <!-- Mobile notification bell: botón arriba-derecha, el panel se abre
+             hacia abajo-izquierda (placement distinto al del sidebar). -->
         <div class="lg:hidden">
-          <NotificationBell />
+          <NotificationBell placement="down-right" />
         </div>
       </header>
 
