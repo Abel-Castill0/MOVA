@@ -1,5 +1,5 @@
 <template>
-  <div class="relative">
+  <div class="relative" ref="root">
     <button @click="open = !open" aria-label="Notificaciones"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       🔔
@@ -46,8 +46,19 @@ const placementClasses = computed(() => props.placement === 'down-right'
   : 'left-0 bottom-full mb-2 origin-bottom-left')
 
 const open = ref(false)
+const root = ref(null)
 const notifications = ref([])
 const unread = computed(() => notifications.value.filter(n => !n.read_at).length)
+
+// Click-outside estándar: el listener de document es bubble-phase, así que
+// el @click del propio botón ya alternó `open` para cuando este corre. Como
+// el botón vive dentro de `root`, contains() lo protege de auto-cerrarse en
+// el mismo click que lo abre — no hace falta capture ni setTimeout.
+function onDocumentClick(event) {
+  if (open.value && root.value && !root.value.contains(event.target)) {
+    open.value = false
+  }
+}
 
 async function load() {
   try {
@@ -71,14 +82,22 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+function onEscape(event) {
+  if (event.key === 'Escape') open.value = false
+}
+
 let interval
 onMounted(() => {
   load()
   interval = setInterval(load, 30000)
   window.addEventListener('mova:notification', load)
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onEscape)
 })
 onUnmounted(() => {
   clearInterval(interval)
   window.removeEventListener('mova:notification', load)
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onEscape)
 })
 </script>

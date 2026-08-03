@@ -114,10 +114,11 @@
         </div>
       </div>
 
-      <!-- Wave: -bottom-1 + block + leading-none evita la línea gris de
-           costura que deja el hueco de subpíxel del <svg> inline contra la
-           sección blanca siguiente (ver About.vue para el detalle). -->
-      <div class="absolute -bottom-1 left-0 right-0 leading-none">
+      <!-- Wave: -bottom-1 + block + leading-none + scale-y-[1.02] evita la
+           línea gris de costura que deja el hueco de subpíxel del <svg>
+           inline contra la sección blanca siguiente (ver About.vue para el
+           detalle completo). -->
+      <div class="absolute -bottom-1 left-0 right-0 leading-none scale-y-[1.02] origin-top">
         <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full block">
           <path d="M0 80L60 72C120 64 240 48 360 44C480 40 600 48 720 52C840 56 960 56 1080 50C1200 44 1320 32 1380 26L1440 20V80H0Z" fill="white"/>
         </svg>
