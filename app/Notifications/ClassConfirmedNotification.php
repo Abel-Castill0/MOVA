@@ -28,9 +28,13 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
         return $channels;
     }
 
-    private function jitsiUrl(): ?string
+    // Ver ClassReminderNotification: la sala nunca viaja en la notificación.
+    // El destino depende del rol porque esta notificación llega a ambas partes.
+    private function classListUrl($notifiable): string
     {
-        return $this->lesson->jitsi_room ? 'https://meet.jit.si/'.$this->lesson->jitsi_room : null;
+        return $notifiable->hasRole('teacher')
+            ? $this->appRoute('teacher.lessons')
+            : $this->appRoute('parent.lessons');
     }
 
     public function toMail($notifiable): MailMessage
@@ -43,8 +47,8 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             ->line('Su clase ha sido **confirmada** correctamente.')
             ->line('**Fecha:** ' . $date)
             ->line('**Duración:** ' . $this->lesson->duration_minutes . ' minutos')
-            ->action('Entrar a la Sala Virtual', $this->jitsiUrl() ?? $this->appUrl('/dashboard'))
-            ->line('Conserve este enlace. Recibirá un recordatorio 10 minutos antes de la clase.')
+            ->action('Ver mi clase en MOVA', $this->classListUrl($notifiable))
+            ->line('Entre a la sala desde MOVA el día de la clase. Recibirá un recordatorio 10 minutos antes.')
             ->salutation('El equipo de MOVA');
     }
 
@@ -56,7 +60,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             . "Hola {$notifiable->name},\n"
             . "Fecha: {$date}\n"
             . "Duración: {$this->lesson->duration_minutes} min\n"
-            . "Sala Virtual: " . ($this->jitsiUrl() ?? 'No disponible') . "\n\n"
+            . "Entre a la sala desde MOVA: " . $this->classListUrl($notifiable) . "\n\n"
             . "Recibirá un recordatorio 10 minutos antes.";
     }
 
@@ -66,7 +70,6 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             'type'       => 'class_confirmed',
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'jitsi_url'  => $this->jitsiUrl(),
             'message'    => 'Su clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido confirmada.',
         ];
     }

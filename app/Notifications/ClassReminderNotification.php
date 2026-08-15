@@ -45,9 +45,17 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         };
     }
 
-    private function jitsiUrl(): ?string
+    // Nunca enlazamos la sala directamente: jitsi_room es un token de acceso
+    // (ver Lesson::$hidden) y su único punto de revelación autorizado es
+    // LessonController::join(), que valida policy y estado. El correo lleva al
+    // listado de clases dentro de MOVA, donde el usuario ya autenticado entra
+    // por ese flujo. Esta notificación va tanto al padre como al profesor, así
+    // que el destino se resuelve por el rol del destinatario.
+    private function classListUrl($notifiable): string
     {
-        return $this->lesson->jitsi_room ? 'https://meet.jit.si/'.$this->lesson->jitsi_room : null;
+        return $notifiable->hasRole('teacher')
+            ? $this->appRoute('teacher.lessons')
+            : $this->appRoute('parent.lessons');
     }
 
     public function toMail($notifiable): MailMessage
@@ -57,7 +65,8 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Su clase comienza **{$this->label()}**.")
             ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
-            ->action('Entrar a la Sala Virtual', $this->jitsiUrl() ?? $this->appUrl('/dashboard'))
+            ->action('Ver mi clase en MOVA', $this->classListUrl($notifiable))
+            ->line('Entre a la sala desde MOVA unos minutos antes de empezar.')
             ->salutation('El equipo de MOVA');
     }
 
@@ -66,7 +75,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         return "MOVA — Recordatorio de clase\n\n"
             . "Hola {$notifiable->name}, su clase empieza {$this->label()}.\n"
             . "Hora: " . $this->lesson->start_time->format('d/m/Y H:i') . "\n"
-            . "Sala Virtual: " . ($this->jitsiUrl() ?? 'No disponible');
+            . "Entre a la sala desde MOVA: " . $this->classListUrl($notifiable);
     }
 
     public function toArray($notifiable): array
@@ -76,7 +85,6 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             'interval'   => $this->interval,
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'jitsi_url'  => $this->jitsiUrl(),
             'message'    => "Su clase empieza {$this->label()}.",
         ];
     }
