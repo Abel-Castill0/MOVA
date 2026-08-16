@@ -58,6 +58,21 @@ class LocalTestDataSeeder extends Seeder
             collect([$mathSubject, $engSubject])->filter()->pluck('id')
         );
 
+        // Depósito que respalda el saldo fijado arriba. Sin este asiento,
+        // credits_available=5 no sería explicable desde el ledger y la
+        // reconciliación contable de una BD sembrada quedaría incompleta.
+        // Aritmética: 9 depositados − 4 reservados (2 clases programadas aún
+        // abiertas + 2 clases pasadas ya consumidas) = 5 disponibles.
+        CreditTransaction::firstOrCreate(
+            ['idempotency_key' => "teacher:{$teacherProfile->id}:seed-deposit"],
+            [
+                'teacher_profile_id' => $teacherProfile->id,
+                'type' => 'deposit',
+                'amount' => 9,
+                'description' => 'Recarga inicial (dato de prueba)',
+            ]
+        );
+
         // Sin esto el marketplace queda vacío: MarketplaceController lista
         // class_offers, no basta con ser profesor verificado con materias.
         \App\Models\ClassOffer::updateOrCreate(
@@ -152,22 +167,47 @@ class LocalTestDataSeeder extends Seeder
         }
 
         // ── Clases completadas, con reporte y reseña ────────────────────────
-        $pastRequest = ClassRequest::create([
-            'student_id' => $student2->id,
-            'subject_id' => $engSubject->id,
-            'help_needed' => 'Clase histórica completada de prueba',
-            'status' => 'accepted',
-        ]);
+        // firstOrCreate (no create) para que reejecutar el seeder no duplique
+        // clases ni asientos contables — mismo patrón que las clases
+        // programadas de arriba.
+        $pastRequest = ClassRequest::firstOrCreate(
+            [
+                'student_id' => $student2->id,
+                'subject_id' => $engSubject->id,
+                'help_needed' => 'Clase histórica completada de prueba',
+            ],
+            ['status' => 'accepted']
+        );
 
-        $pastLesson = Lesson::create([
-            'teacher_profile_id' => $teacherProfile->id,
-            'student_id' => $student2->id,
-            'class_request_id' => $pastRequest->id,
-            'start_time' => now()->subDays(3),
-            'duration_minutes' => 60,
-            'jitsi_room' => 'mova-lesson-test-'.uniqid(),
-            'status' => 'completed',
-        ]);
+        $pastLesson = Lesson::firstOrCreate(
+            [
+                'teacher_profile_id' => $teacherProfile->id,
+                'student_id' => $student2->id,
+                'class_request_id' => $pastRequest->id,
+            ],
+            [
+                'start_time' => now()->subDays(3),
+                'duration_minutes' => 60,
+                'jitsi_room' => 'mova-lesson-test-'.uniqid(),
+                'status' => 'completed',
+            ]
+        );
+
+        // Una clase consumida SIEMPRE tuvo antes una reserva: el flujo real es
+        // LessonController::store() (reservation) → TeacherReviewController::store()
+        // (consumption). Sembrar solo el consumo dejaba un asiento huérfano que
+        // rompe la invariante contable (reserva sin cierre ↔ credits_reserved) y
+        // haría fallar los tests de invariantes contra cualquier BD sembrada.
+        CreditTransaction::firstOrCreate(
+            ['idempotency_key' => "lesson:{$pastLesson->id}:reservation"],
+            [
+                'teacher_profile_id' => $teacherProfile->id,
+                'lesson_id' => $pastLesson->id,
+                'type' => 'reservation',
+                'amount' => $pastLesson->credit_cost,
+                'description' => 'Reserva por aceptación de clase (dato de prueba)',
+            ]
+        );
 
         CreditTransaction::firstOrCreate(
             ['idempotency_key' => "lesson:{$pastLesson->id}:consumption"],
@@ -208,22 +248,40 @@ class LocalTestDataSeeder extends Seeder
         // ── 2da clase completada con reseña — la landing (Welcome.vue) muestra
         // testimonios reales desde teacher_reviews; con solo 1 reseña limpia el
         // grid de 3 columnas se ve incompleto en local.
-        $pastRequest2 = ClassRequest::create([
-            'student_id' => $student1->id,
-            'subject_id' => $mathSubject->id,
-            'help_needed' => 'Clase histórica completada de prueba #2',
-            'status' => 'accepted',
-        ]);
+        $pastRequest2 = ClassRequest::firstOrCreate(
+            [
+                'student_id' => $student1->id,
+                'subject_id' => $mathSubject->id,
+                'help_needed' => 'Clase histórica completada de prueba #2',
+            ],
+            ['status' => 'accepted']
+        );
 
-        $pastLesson2 = Lesson::create([
-            'teacher_profile_id' => $teacherProfile->id,
-            'student_id' => $student1->id,
-            'class_request_id' => $pastRequest2->id,
-            'start_time' => now()->subDays(5),
-            'duration_minutes' => 60,
-            'jitsi_room' => 'mova-lesson-test-'.uniqid(),
-            'status' => 'completed',
-        ]);
+        $pastLesson2 = Lesson::firstOrCreate(
+            [
+                'teacher_profile_id' => $teacherProfile->id,
+                'student_id' => $student1->id,
+                'class_request_id' => $pastRequest2->id,
+            ],
+            [
+                'start_time' => now()->subDays(5),
+                'duration_minutes' => 60,
+                'jitsi_room' => 'mova-lesson-test-'.uniqid(),
+                'status' => 'completed',
+            ]
+        );
+
+        // Ver comentario en pastLesson: reserva antes del consumo, siempre.
+        CreditTransaction::firstOrCreate(
+            ['idempotency_key' => "lesson:{$pastLesson2->id}:reservation"],
+            [
+                'teacher_profile_id' => $teacherProfile->id,
+                'lesson_id' => $pastLesson2->id,
+                'type' => 'reservation',
+                'amount' => $pastLesson2->credit_cost,
+                'description' => 'Reserva por aceptación de clase (dato de prueba)',
+            ]
+        );
 
         CreditTransaction::firstOrCreate(
             ['idempotency_key' => "lesson:{$pastLesson2->id}:consumption"],
@@ -286,6 +344,19 @@ class LocalTestDataSeeder extends Seeder
             );
             $extraProfile->subjects()->syncWithoutDetaching(
                 $subjects->random(min(2, $subjects->count()))->pluck('id')
+            );
+
+            // Igual que el profesor principal: el saldo debe tener un asiento
+            // que lo respalde. Estos profesores no tienen clases, así que el
+            // depósito coincide exactamente con credits_available.
+            CreditTransaction::firstOrCreate(
+                ['idempotency_key' => "teacher:{$extraProfile->id}:seed-deposit"],
+                [
+                    'teacher_profile_id' => $extraProfile->id,
+                    'type' => 'deposit',
+                    'amount' => 5,
+                    'description' => 'Recarga inicial (dato de prueba)',
+                ]
             );
         }
 
