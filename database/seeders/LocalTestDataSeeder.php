@@ -126,16 +126,37 @@ class LocalTestDataSeeder extends Seeder
         }
 
         // ── 2 clases programadas/aceptadas ─────────────────────────────────
+        // La identidad de cada fixture NO puede depender de now(): dos
+        // ejecuciones del seeder que caigan en minutos distintos generaban
+        // start_time distintos y firstOrCreate() creaba una lección nueva en
+        // vez de encontrar la existente (bug real, detectado al reejecutar
+        // el seeder separado por más de un minuto de diferencia).
+        //
+        // La identidad estable es la ClassRequest: "Clase programada de
+        // prueba #{i}" ya es, por texto, el nombre lógico de este fixture —
+        // el mismo patrón que ya usan las 3 solicitudes pendientes de arriba
+        // y las 2 clases completadas de abajo (student_id + subject_id +
+        // help_needed). Se crea/busca la ClassRequest primero, y la Lesson
+        // se busca por class_request_id (estable una vez creada), no por
+        // start_time. start_time sigue siendo un atributo del fixture — se
+        // fija la primera vez y no se reevalúa en ejecuciones posteriores,
+        // como ya ocurre con el resto del seeder.
         for ($i = 1; $i <= 2; $i++) {
-            $startTime = now()->addDays($i)->startOfMinute();
+            $request = ClassRequest::firstOrCreate(
+                [
+                    'student_id' => $student1->id,
+                    'subject_id' => $mathSubject->id,
+                    'help_needed' => "Clase programada de prueba #{$i}",
+                ],
+                ['status' => 'accepted']
+            );
 
             $lesson = Lesson::firstOrCreate(
+                ['class_request_id' => $request->id],
                 [
                     'teacher_profile_id' => $teacherProfile->id,
                     'student_id' => $student1->id,
-                    'start_time' => $startTime,
-                ],
-                [
+                    'start_time' => now()->addDays($i)->startOfMinute(),
                     'duration_minutes' => 60,
                     'jitsi_room' => 'mova-lesson-test-'.uniqid(),
                     'status' => 'scheduled',
@@ -145,14 +166,6 @@ class LocalTestDataSeeder extends Seeder
             if (! $lesson->wasRecentlyCreated) {
                 continue;
             }
-
-            $request = ClassRequest::create([
-                'student_id' => $student1->id,
-                'subject_id' => $mathSubject->id,
-                'help_needed' => "Clase programada de prueba #{$i}",
-                'status' => 'accepted',
-            ]);
-            $lesson->update(['class_request_id' => $request->id]);
 
             CreditTransaction::firstOrCreate(
                 ['idempotency_key' => "lesson:{$lesson->id}:reservation"],
