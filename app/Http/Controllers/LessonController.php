@@ -306,6 +306,12 @@ class LessonController extends Controller
         return back()->with('success', 'Clase cancelada correctamente.');
     }
 
+    // C-2 v1: reschedule() solo mueve start_time. Antes también aceptaba
+    // duration_minutes sin recalcular price_frozen_pen ni los créditos ya
+    // reservados — un padre podía ampliar una clase de 30min a 4h pagando y
+    // consumiendo lo de 30min. Cambiar la duración de forma segura requiere
+    // recalcular costo, créditos y ledger con aceptación explícita de ambas
+    // partes; ese flujo económico queda fuera de esta v1 (ver v2 futura).
     public function reschedule(Lesson $lesson)
     {
         $user = auth()->user();
@@ -316,41 +322,66 @@ class LessonController extends Controller
         $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
         abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden reprogramar clases programadas.');
 
+        // Rechazo explícito, no silencioso: si el campo llega (con cualquier
+        // valor, incluso igual al actual) se informa por qué no se aplicó, en
+        // vez de ignorarlo y dejar que el cliente crea que sí tuvo efecto.
+        abort_if(
+            request()->has('duration_minutes'),
+            422,
+            'No puedes cambiar la duración de una clase agendada. Contacta al profesor.'
+        );
+
         $data = request()->validate([
             'start_time' => 'required|date|after:now',
-            'duration_minutes' => 'required|integer|min:30|max:240',
             'reason' => 'nullable|string|max:500',
         ]);
         $data['start_time'] = Carbon::parse($data['start_time'])->utc()->toIso8601String();
 
-        // Overlap check for teacher
-        $overlap = Lesson::where('teacher_profile_id', $lesson->teacher_profile_id)
-            ->where('id', '!=', $lesson->id)
-            ->where('status', 'scheduled')
-            ->whereRaw('start_time < DATE_ADD(?, INTERVAL ? MINUTE)', [$data['start_time'], $data['duration_minutes']])
-            ->whereRaw('DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) > ?', [$data['start_time']])
-            ->exists();
+        $lesson = DB::transaction(function () use ($lesson, $user, $data) {
+            // No confiamos en la instancia cargada antes de la transacción:
+            // otra petición pudo cancelarla o reprogramarla mientras esta
+            // request estaba en vuelo.
+            $lesson = Lesson::with(['student.parent', 'teacherProfile.user'])
+                ->whereKey($lesson->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($overlap) {
-            return back()->withErrors(['start_time' => 'El profesor ya tiene una clase en ese horario.']);
-        }
+            abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden reprogramar clases programadas.');
 
-        $originalStart = $lesson->original_start_time ?? $lesson->start_time;
+            // Reutiliza el mismo chequeo de solapamiento (con lock) que usa
+            // store() para aceptar clases nuevas, en vez de una segunda query
+            // inline independiente — así ambos flujos protegen la agenda del
+            // profesor con la misma estrategia. duration_minutes es el de la
+            // propia lesson (inmutable en v1), no un valor del request.
+            if ($this->hasScheduleOverlap(
+                $lesson->teacher_profile_id,
+                $data['start_time'],
+                $lesson->duration_minutes,
+                true,
+                $lesson->id
+            )) {
+                throw ValidationException::withMessages([
+                    'start_time' => 'El profesor ya tiene una clase en ese horario.',
+                ]);
+            }
 
-        $lesson->load(['student.parent', 'teacherProfile.user']);
-        $lesson->update([
-            'start_time' => $data['start_time'],
-            'duration_minutes' => $data['duration_minutes'],
-            'original_start_time' => $originalStart,
-            'rescheduled_at' => now(),
-            'rescheduled_by' => $user->id,
-            'reschedule_reason' => $data['reason'] ?? null,
-        ]);
+            $originalStart = $lesson->original_start_time ?? $lesson->start_time;
 
-        ClassEvent::log('class_rescheduled', $user->id, $lesson->id, $lesson->class_request_id, $data['reason'] ?? null, [
-            'new_start_time' => $data['start_time'],
-            'original_start' => $originalStart,
-        ]);
+            $lesson->update([
+                'start_time' => $data['start_time'],
+                'original_start_time' => $originalStart,
+                'rescheduled_at' => now(),
+                'rescheduled_by' => $user->id,
+                'reschedule_reason' => $data['reason'] ?? null,
+            ]);
+
+            ClassEvent::log('class_rescheduled', $user->id, $lesson->id, $lesson->class_request_id, $data['reason'] ?? null, [
+                'new_start_time' => $data['start_time'],
+                'original_start' => $originalStart,
+            ]);
+
+            return $lesson;
+        });
 
         $changedByName = $isTeacher ? 'el profesor' : 'el padre/tutor';
         $notification = new ClassRescheduledNotification($lesson, $changedByName);
@@ -362,17 +393,23 @@ class LessonController extends Controller
         return back()->with('success', 'Clase reprogramada correctamente.');
     }
 
+    // $excludeLessonId: al reprogramar una clase, su propia fila candidatea
+    // contra su horario ACTUAL (aún no actualizado dentro de la transacción),
+    // así que debe excluirse o se detectaría como solapada consigo misma.
+    // store() no lo necesita (la lesson todavía no existe al chequear).
     private function hasScheduleOverlap(
         int $teacherProfileId,
         string $startTime,
         int $durationMinutes,
-        bool $lock = false
+        bool $lock = false,
+        ?int $excludeLessonId = null
     ): bool {
         $requestedStart = Carbon::parse($startTime);
         $requestedEnd = $requestedStart->copy()->addMinutes($durationMinutes);
         $query = Lesson::where('teacher_profile_id', $teacherProfileId)
             ->where('status', 'scheduled')
-            ->where('start_time', '<', $requestedEnd);
+            ->where('start_time', '<', $requestedEnd)
+            ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId));
 
         if ($lock) {
             $query->lockForUpdate();

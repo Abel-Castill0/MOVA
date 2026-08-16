@@ -82,11 +82,10 @@
             <label class="block text-xs font-semibold text-slate-700 mb-1">Nueva fecha y hora</label>
             <input v-model="rescheduleForm.start_time" type="datetime-local"
               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Duración (minutos)</label>
-            <input v-model.number="rescheduleForm.duration_minutes" type="number" min="30" max="240" step="15"
-              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
+            <!-- La duración no es editable aquí: cambiarla exige recalcular
+                 price_frozen_pen y los créditos ya reservados, un flujo
+                 económico que no existe todavía (ver LessonController::
+                 reschedule — C-2 v1 solo mueve la fecha/hora). -->
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Motivo (opcional)</label>
@@ -129,7 +128,7 @@ const cancelTarget     = ref(null)
 const cancelReason     = ref('')
 const rescheduleTarget = ref(null)
 const rescheduleError  = ref('')
-const rescheduleForm   = ref({ start_time: '', duration_minutes: 60, reason: '' })
+const rescheduleForm   = ref({ start_time: '', reason: '' })
 const payingId         = ref(null)
 const paymentError     = ref('')
 const paymentErrorId   = ref(null)
@@ -173,7 +172,6 @@ function openReschedule(l) {
   rescheduleError.value  = ''
   rescheduleForm.value = {
     start_time: toDatetimeLocal(l.start_time),
-    duration_minutes: l.duration_minutes,
     reason: '',
   }
 }
