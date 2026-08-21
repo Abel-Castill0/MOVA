@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Carbon;
 
 class Lesson extends Model
 {
@@ -20,7 +22,13 @@ class Lesson extends Model
         'original_start_time', 'rescheduled_at', 'rescheduled_by', 'reschedule_reason',
     ];
 
+    // credits_settled_at NO está en $fillable a propósito: es un marcador
+    // financiero derivado del ledger. $fillable ya tiene 21 campos y varios
+    // controladores hacen update() con arrays construidos desde el request;
+    // dejarlo asignable en masa permitiría modificarlo sin pasar por la capa
+    // de settlement. Solo esa capa debe escribirlo.
     protected $casts = [
+        'credits_settled_at'      => 'datetime',
         'start_time'              => 'datetime',
         'original_start_time'     => 'datetime',
         'reminder_sent'           => 'boolean',
@@ -104,5 +112,35 @@ class Lesson extends Model
     public function getEndTimeAttribute()
     {
         return $this->start_time->copy()->addMinutes($this->duration_minutes);
+    }
+
+    /**
+     * Filtra clases cuya hora de fin real (start_time + duration_minutes) es
+     * anterior a $moment.
+     *
+     * end_time es un accesor calculado, NO una columna: no se puede usar en un
+     * where(). Esta expresión SQL vive aquí y solo aquí — duplicarla por
+     * comandos, controladores y tests generaría exactamente la misma deuda que
+     * encontramos en C-2, donde store() y reschedule() tenían dos
+     * implementaciones divergentes del mismo chequeo de solapamiento.
+     *
+     * MySQL y SQLite no comparten sintaxis de aritmética de fechas, así que se
+     * ramifica por driver: producción usa MySQL, la suite de tests usa SQLite.
+     */
+    public function scopeEndedBefore(Builder $query, $moment): Builder
+    {
+        $moment = Carbon::parse($moment)->toDateTimeString();
+
+        if ($query->getConnection()->getDriverName() === 'sqlite') {
+            return $query->whereRaw(
+                "datetime(start_time, '+' || duration_minutes || ' minutes') < ?",
+                [$moment]
+            );
+        }
+
+        return $query->whereRaw(
+            'DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) < ?',
+            [$moment]
+        );
     }
 }
