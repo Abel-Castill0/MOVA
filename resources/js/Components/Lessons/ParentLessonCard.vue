@@ -16,7 +16,7 @@
             <span class="font-medium">Profesor:</span> {{ lesson.teacher_profile?.user?.name }}
             <span v-if="lesson.teacher_profile?.referral_code"
               class="ml-1 text-xs font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded"
-              title="Código del profesor">{{ lesson.teacher_profile.referral_code }}</span>
+              title="Pega este código en tu próxima solicitud para volver a elegir a este profesor">{{ lesson.teacher_profile.referral_code }}</span>
           </p>
           <p class="text-sm text-slate-500 mt-0.5">
             📅 {{ fmtDate(lesson.start_time) }} · {{ lesson.duration_minutes }} min

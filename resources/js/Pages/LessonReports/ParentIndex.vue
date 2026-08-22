@@ -11,8 +11,8 @@
         <div class="text-5xl mb-3">📋</div>
         <p class="font-semibold text-slate-700">Aún no hay reportes</p>
         <p class="text-slate-400 text-sm mt-1">Los reportes aparecerán aquí después de cada clase.</p>
-        <Link :href="route('marketplace')" class="inline-block mt-4 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors">
-          Buscar profesor →
+        <Link :href="route('class-requests.create')" class="inline-block mt-4 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors">
+          Solicitar una clase →
         </Link>
       </div>
 

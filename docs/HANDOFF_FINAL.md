@@ -1308,3 +1308,107 @@ enrutamiento de solicitudes por código todavía no.
   validación por paso, avatar/iniciales, código de profesor en historial —
   sin errores de consola nuevos.
 - **Sin commit** — pendiente de tu revisión.
+
+## 19. Marketplace informativo y flujo de solicitudes por código de confianza (2026-08-22)
+
+### Decisión de producto
+
+El marketplace deja de ser un buscador de profesores. El padre ya no elige,
+filtra ni contacta a un profesor específico desde ahí — envía una solicitud
+abierta (materia + descripción + disponibilidad) y el primer profesor de esa
+materia que la acepte se queda con la clase. El código de referido (ver
+sección 18, "Diseño — futuro de `ClassOffer`") deja de ser un atajo público
+del marketplace y pasa a ser un mecanismo de **confianza post-clase**: el
+padre lo consigue de un profesor con el que ya tuvo clase, y lo usa
+opcionalmente para dirigirle una solicitud futura sin pasar por otros
+profesores.
+
+`ClassOffer` y `DiagnosticRecommendationService` **no se tocaron** — la
+decisión de la sección 18 (código como vía adicional, no reemplazo) sigue
+vigente. Este cambio es puramente de superficie: qué ve el padre y dónde.
+
+### `MarketplaceController` reescrito sobre `TeacherProfile`, no `ClassOffer`
+
+Antes consultaba `ClassOffer` (título, tarifa específica, cupos de mentoría,
+filtros por materia/nivel/precio/búsqueda, botones "Solicitar clase" y
+"Solicitar acompañamiento" por oferta). Ahora consulta
+`TeacherProfile::where('is_verified', true)` directamente, sin filtros: solo
+foto/inicial, nombre, materias, rating, verificado y un botón "Ver perfil".
+Es la única forma de quitar "elegir profesor" de raíz sin dejar UI muerta
+colgando de una ruta que ya no filtra nada.
+
+### Dónde vive el código de referido ahora (auditado con grep, no de memoria)
+
+Exactamente 5 lugares, cada uno con su propia condición de visibilidad:
+
+1. **Modal de Jitsi** (`JitsiModal.vue`), durante la clase — se lee del
+   mismo objeto `lesson` que ya trae el listado del padre
+   (`teacher_profile.referral_code`). **No se tocó**
+   `LessonController::join()` — es el endpoint más sensible de seguridad del
+   proyecto (revela `jitsi_room`/JWT), añadir un campo no relacionado ahí
+   habría sido innecesario y fuera de su responsabilidad.
+2. **Historial del padre** (`ParentLessonCard.vue`) — ya existía de la
+   sección 18, solo se mejoró el texto del tooltip.
+3. **Perfil público del profesor** (`Teachers/Show.vue` +
+   `TeacherPublicController::referralCodeVisibleTo()`) — el backend solo lo
+   envía si el visitante es el dueño del perfil, o un padre con al menos una
+   `Lesson` `completed` con ese `teacher_profile_id` (columna real, no
+   depende de que la solicitud original haya usado un código). Para
+   cualquier otro visitante (incluidos invitados), el campo llega `null`.
+4. **Formulario de solicitud** (`ClassRequests/Create.vue`) — input opcional
+   ya existente de la sección 18, con lookup en vivo. Se añadió una nota
+   dinámica cuando el campo está vacío: "tu solicitud quedará visible para
+   todos los profesores de [materia]".
+5. **Perfil propio del profesor** (`Teacher/Edit.vue`) — **hallazgo nuevo de
+   esta ronda**: el profesor no tenía forma de ver su propio código en
+   ningún lugar de la app (existía en la BD, invisible para su dueño). Se
+   añadió un bloque "Tu código de profesor" con botón copiar — sin esto, la
+   función completa no era usable en la práctica (el profesor no podía
+   compartir lo que no podía ver).
+
+`ClassOffer` sigue existiendo en `class_offers` sin cambios — el profesor lo
+sigue usando para fijar tarifa específica y cupos de mentoría, pero ninguna
+pantalla pública lo expone ya.
+
+### Correcciones colaterales encontradas al auditar el resto de la app
+
+- **Landing** (`Welcome.vue`): las tarjetas de profesores destacados
+  enlazaban todas a `/marketplace` genérico en vez de al perfil de cada
+  profesor — bug preexistente, no introducido por esta ronda. Corregido a
+  `route('teachers.show', t.id)`. Las tarjetas de "Materias disponibles"
+  enlazaban a `/marketplace?subject_id=N`, un filtro que ya no existe en el
+  controlador — redirigidas a `/class-requests/create?subject_id=N`
+  (`ClassRequestController::create()` ahora acepta ese query param y
+  prellena la materia, mismo patrón que `?code=` para el código).
+- **Copy de "Buscar profesor"** en 5 lugares (sidebar, dos empty-states,
+  tarjeta de acciones rápidas del dashboard, pasos de
+  `Landing/StudentInvitation.vue`) apuntaba o describía el flujo de
+  búsqueda/filtrado eliminado. Cambiado a "Solicitar una clase" /
+  "Cuéntanos qué necesitas", apuntando al formulario en vez del marketplace.
+
+### Pendiente explícito — `is_mentorship` sin punto de entrada
+
+El campo `is_mentorship` de `ClassRequest` (acompañamiento continuo) solo se
+activaba antes desde una `ClassOffer` con cupos disponibles
+(`?is_mentorship=1&offer_id=N` en el formulario). Con las ofertas fuera del
+marketplace, **ninguna pantalla activa ese flujo ya** — el backend
+(`ClassRequestController::store()`, validación de cupos vía
+`hasAvailableMentorshipSlots()`) y la ruta siguen intactos y funcionando si
+se invocan directamente, pero no hay UI que los invoque. No implementado en
+esta ronda a propósito (fuera del alcance aprobado). Opción más limpia para
+una ronda futura: un checkbox en `ClassRequests/Create.vue` ("Busco
+acompañamiento continuo"), independiente de `ClassOffer` — se validaría
+contra el profesor que acepte la solicitud abierta y sus propios cupos, no
+contra una oferta preexistente.
+
+### Verificación (2026-08-22)
+
+- `php artisan test` → **167/167**, sin regresión.
+- `npm run build` → limpio.
+- `mova:reconcile-ledger` → GREEN (nada financiero tocado en esta ronda).
+- Navegador real, los 4 roles/estados de visibilidad del código: invitado
+  (nada), padre sin historial (nada — no probado explícitamente pero cubierto
+  por la misma condición backend que el padre con historial), padre con
+  clase completada (código visible), profesor dueño (código visible, copy
+  distinto), y el modal de Jitsi mostrando el código durante una clase real.
+- `git diff --check` → limpio.

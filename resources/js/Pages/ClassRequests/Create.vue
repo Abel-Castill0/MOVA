@@ -43,6 +43,13 @@
             Código de profesor no encontrado.
           </p>
           <p v-if="form.errors.teacher_referral_code" class="text-xs text-red-500 mt-1">{{ form.errors.teacher_referral_code }}</p>
+
+          <!-- Solo cuando el campo está vacío: aclara qué pasa por defecto,
+               sin repetir el mensaje mientras el padre está escribiendo o
+               ya tiene un resultado (found/not-found/checking). -->
+          <p v-if="codeLookup.status === 'idle' && !referralCodeInput" class="text-xs text-slate-400 mt-2 bg-slate-50 rounded-lg px-3 py-2">
+            Sin código: tu solicitud quedará visible para todos los profesores de{{ subjectName ? ' ' + subjectName : ' la materia elegida' }}. El primero disponible la aceptará.
+          </p>
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">¿En qué necesita ayuda?</label>
@@ -66,7 +73,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -78,17 +85,20 @@ const props = defineProps({
   offer: Object,
   isMentorship: Boolean,
   prefillReferralCode: { type: String, default: null },
+  prefillSubjectId: { type: Number, default: null },
 })
 
 const form = useForm({
   student_id: '',
-  subject_id: props.offer?.subject_id ?? '',
+  subject_id: props.offer?.subject_id ?? props.prefillSubjectId ?? '',
   class_offer_id: props.offer?.id ?? null,
   teacher_referral_code: '',
   is_mentorship: props.isMentorship ?? false,
   help_needed: '',
   preferred_times: [],
 })
+
+const subjectName = computed(() => props.subjects?.find(s => String(s.id) === String(form.subject_id))?.name ?? null)
 
 const referralCodeInput = ref(props.prefillReferralCode ?? '')
 // status: 'idle' | 'checking' | 'found' | 'not-found'

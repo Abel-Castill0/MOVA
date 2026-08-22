@@ -18,7 +18,9 @@
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 flex flex-col sm:flex-row gap-5 sm:gap-8">
         <!-- Avatar -->
         <div class="flex-shrink-0 flex flex-col items-center gap-2">
-          <div class="w-20 h-20 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-brand-500/25">
+          <img v-if="teacher.avatar_url" :src="teacher.avatar_url" :alt="teacher.name"
+            class="w-20 h-20 rounded-2xl object-cover shadow-lg shadow-brand-500/25" />
+          <div v-else class="w-20 h-20 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-brand-500/25">
             {{ teacher.name?.charAt(0)?.toUpperCase() }}
           </div>
           <span v-if="teacher.is_verified" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg border border-emerald-200">
@@ -55,10 +57,6 @@
               <p class="text-xl font-black text-slate-900">{{ teacher.classes_completed }}</p>
               <p class="text-xs text-slate-400">clases dictadas</p>
             </div>
-            <div class="text-center">
-              <p class="text-xl font-black text-slate-900">{{ teacher.offers?.length ?? 0 }}</p>
-              <p class="text-xs text-slate-400">{{ teacher.offers?.length === 1 ? 'oferta activa' : 'ofertas activas' }}</p>
-            </div>
           </div>
 
           <!-- Bio -->
@@ -73,63 +71,30 @@
             </svg>
             Clases online por videollamada — link generado automáticamente al confirmar
           </div>
-        </div>
-      </div>
 
-      <!-- Offers -->
-      <div>
-        <h2 class="text-lg font-black text-slate-900 mb-4">Ofertas disponibles</h2>
+          <!-- Código de referido: solo llega en el payload si el visitante
+               es el propio profesor o un padre con historial (ver
+               TeacherPublicController::referralCodeVisibleTo). No hay v-if
+               que ocultar aquí más allá de "¿vino el dato?" — el backend ya
+               decidió la visibilidad. -->
+          <div v-if="teacher.referral_code" class="mt-4 inline-flex items-center gap-2 bg-brand-50 border border-brand-100 rounded-xl px-3 py-2">
+            <span class="text-xs text-brand-700">
+              {{ isOwnProfile ? 'Tu código — compártelo para que un alumno pueda volver a elegirte:' : 'Tu código con este profesor:' }}
+            </span>
+            <span class="font-mono tracking-widest text-sm font-bold text-brand-800">{{ teacher.referral_code }}</span>
+          </div>
 
-        <!-- Empty offers -->
-        <div v-if="!teacher.offers?.length" class="bg-white rounded-2xl border border-gray-100 p-10 text-center text-slate-400">
-          <div class="text-4xl mb-3">📚</div>
-          <p class="text-sm font-medium">Este profesor no tiene ofertas activas en este momento.</p>
-          <Link :href="route('marketplace')" class="inline-block mt-4 text-sm text-brand-600 hover:underline font-medium">
-            Ver otros profesores →
-          </Link>
-        </div>
-
-        <!-- Offer cards -->
-        <div v-else class="space-y-4">
-          <div v-for="offer in teacher.offers" :key="offer.id"
-            class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-brand-200 hover:shadow-md transition-all p-5 flex flex-col sm:flex-row sm:items-start gap-4">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="px-2 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">
-                  {{ offer.subject?.name }}
-                </span>
-              </div>
-              <p class="font-bold text-slate-900">{{ offer.title }}</p>
-              <p v-if="offer.description" class="text-sm text-slate-500 mt-1 line-clamp-3">{{ offer.description }}</p>
-            </div>
-            <div class="flex flex-col items-start sm:items-end gap-3 flex-shrink-0">
-              <div class="text-right">
-                <p class="text-xl font-black text-slate-900">S/ {{ parseFloat(offer.specific_rate ?? teacher.hourly_rate ?? 0).toFixed(0) }}</p>
-                <p class="text-xs text-slate-400">/hora</p>
-              </div>
-              <template v-if="authUser">
-                <template v-if="isParent">
-                  <Link :href="route('class-requests.create', { offer_id: offer.id })"
-                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20 whitespace-nowrap">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Solicitar clase
-                  </Link>
-                </template>
-                <template v-else>
-                  <span class="px-5 py-2.5 bg-slate-100 text-slate-400 text-sm font-medium rounded-xl cursor-default whitespace-nowrap">
-                    Solo padres pueden solicitar
-                  </span>
-                </template>
-              </template>
-              <template v-else>
-                <Link :href="route('login')"
-                  class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors whitespace-nowrap">
-                  Iniciar sesión para solicitar
-                </Link>
-              </template>
-            </div>
+          <!-- CTA: siempre al formulario general, nunca preselecciona a
+               este profesor — el padre elige materia, no profesor. -->
+          <div class="mt-5">
+            <Link v-if="authUser && isParent" :href="route('class-requests.create')"
+              class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20 whitespace-nowrap">
+              Solicitar una clase →
+            </Link>
+            <Link v-else-if="!authUser" :href="route('login')"
+              class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors whitespace-nowrap">
+              Iniciar sesión para solicitar
+            </Link>
           </div>
         </div>
       </div>
@@ -214,6 +179,11 @@ const isParent = computed(() => {
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
 const layout = computed(() => authUser.value ? AppLayout : GuestLayout)
+// El backend solo envía referral_code al dueño o a un padre con historial
+// (ver TeacherPublicController::referralCodeVisibleTo) — este flag solo
+// decide el TEXTO a mostrar, no la visibilidad del bloque en sí.
+const isOwnProfile = computed(() => authUser.value?.roles &&
+  (Array.isArray(authUser.value.roles) ? authUser.value.roles.includes('teacher') : Object.values(authUser.value.roles).includes('teacher')))
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })

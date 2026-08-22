@@ -24,12 +24,21 @@ class ClassRequestController extends Controller
         // la BD; esto es solo conveniencia de UI.
         $prefillCode = $request->filled('code') ? strtoupper(trim((string) $request->query('code'))) : null;
 
+        // ?subject_id=N desde las tarjetas de "Materias disponibles" de la
+        // landing (Welcome.vue) — antes enlazaban a un marketplace con
+        // filtro por materia que ya no existe; ahora abren directo el
+        // formulario con la materia elegida, sin preseleccionar profesor.
+        $prefillSubjectId = $request->filled('subject_id') && ! $offer
+            ? Subject::where('id', $request->query('subject_id'))->value('id')
+            : null;
+
         return Inertia::render('ClassRequests/Create', [
             'subjects' => Subject::orderBy('name')->get(),
             'students' => auth()->user()->students()->get(),
             'offer' => $offer,
             'isMentorship' => $request->boolean('is_mentorship'),
             'prefillReferralCode' => $prefillCode,
+            'prefillSubjectId' => $prefillSubjectId,
         ]);
     }
 

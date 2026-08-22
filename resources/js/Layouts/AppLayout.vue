@@ -186,7 +186,7 @@ const navItems = computed(() => {
     { href: '/dashboard',      icon: '🏠', label: 'Inicio' },
     { href: '/students',       icon: '🎒', label: 'Mis hijos' },
     { href: '/my-reports',     icon: '📝', label: 'Mis reportes' },
-    { href: '/marketplace',    icon: '🔍', label: 'Buscar profesor' },
+    { href: '/marketplace',    icon: '👩‍🏫', label: 'Profesores' },
     { href: '/class-requests', icon: '📋', label: 'Solicitudes' },
     { href: '/my-classes',     icon: '📅', label: 'Clases' },
   ]

@@ -2,6 +2,23 @@
   <AppLayout title="Mi perfil">
     <div class="max-w-2xl">
       <h2 class="text-2xl font-bold text-gray-900 mb-6">Editar perfil</h2>
+
+      <!-- Tu código de profesor: único lugar donde el profesor lo encuentra
+           para compartirlo (fuera de la app — WhatsApp, en persona, etc.)
+           con un alumno que quiere volver a elegirlo directamente. No es un
+           campo editable, así que vive fuera del <form> de abajo. -->
+      <div v-if="profile?.referral_code" class="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-5 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p class="text-sm font-semibold text-brand-900">Tu código de profesor</p>
+          <p class="text-xs text-brand-700 mt-0.5">Compártelo con un alumno después de su primera clase para que pueda pedirte directamente la próxima vez.</p>
+        </div>
+        <button type="button" @click="copyReferralCode"
+          class="flex items-center gap-2 px-4 py-2 bg-white border border-brand-200 text-brand-700 text-sm font-bold rounded-xl hover:bg-brand-100 transition-colors whitespace-nowrap">
+          <span v-if="copied">✓ Copiado</span>
+          <span v-else class="font-mono tracking-widest">{{ profile.referral_code }}</span>
+        </button>
+      </div>
+
       <form @submit.prevent="submit" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Bio</label>
@@ -93,6 +110,17 @@ const tier = computed(() => {
   if (rate >= 25) return { label: 'Experto', badgeClass: 'bg-indigo-100 text-indigo-700' }
   return { label: 'Base', badgeClass: 'bg-gray-200 text-gray-700' }
 })
+
+const copied = ref(false)
+async function copyReferralCode() {
+  try {
+    await navigator.clipboard.writeText(props.profile.referral_code)
+  } catch {
+    return // portapapeles no disponible — sin feedback falso
+  }
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 2000)
+}
 
 const subjectDraft = ref('')
 

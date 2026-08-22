@@ -2,51 +2,39 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ClassOffer;
-use App\Models\Subject;
-use Illuminate\Http\Request;
+use App\Models\TeacherProfile;
 use Inertia\Inertia;
 
 class MarketplaceController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Vista puramente informativa: lista de profesores verificados. El
+     * padre NO elige ni contacta a un profesor específico desde aquí — solo
+     * conoce quién enseña en MOVA. Solicitar una clase pasa siempre por el
+     * formulario abierto (ClassRequestController::create), sin profesor
+     * preseleccionado; el único atajo directo a un profesor es el código
+     * de referido, que se consigue fuera de esta pantalla (ver
+     * TeacherPublicController::show() y JitsiModal.vue).
+     *
+     * Antes esta vista listaba ClassOffer (con filtros de materia/nivel/
+     * precio y botones "Solicitar clase" por oferta) — eso es exactamente
+     * el "elegir profesor directamente" que se elimina aquí. ClassOffer
+     * sigue existiendo sin cambios (el profesor lo sigue usando para fijar
+     * su tarifa específica y sus cupos de mentoría); solo deja de ser la
+     * fuente de esta pantalla pública.
+     */
+    public function index()
     {
-        $request->validate([
-            'subject_id' => 'nullable|integer|exists:subjects,id',
-            'level'      => 'nullable|in:primaria,secundaria,universidad',
-            'max_rate'   => 'nullable|numeric|min:0|max:9999',
-            'search'     => 'nullable|string|max:100',
-        ]);
-
-        $query = ClassOffer::where('is_active', true)
-            ->whereHas('teacherProfile', fn($q) => $q->where('is_verified', true))
-            ->with(['teacherProfile.user', 'subject', 'teacherProfile.visibleReviews']);
-
-        if ($request->subject_id) {
-            $query->where('subject_id', $request->subject_id);
-        }
-        if ($request->level) {
-            $query->whereHas('subject', fn($q) => $q->where('level', $request->level)->orWhere('level', 'todos'));
-        }
-        if ($request->max_rate) {
-            $query->where(function ($q) use ($request) {
-                $q->whereNotNull('specific_rate')->where('specific_rate', '<=', $request->max_rate)
-                  ->orWhereNull('specific_rate')
-                    ->whereHas('teacherProfile', fn($q2) => $q2->where('hourly_rate', '<=', $request->max_rate));
-            });
-        }
-        if ($request->filled('search')) {
-            $search = '%' . $request->search . '%';
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', $search)
-                  ->orWhereHas('teacherProfile.user', fn($q2) => $q2->where('name', 'like', $search));
-            });
-        }
-
         return Inertia::render('Marketplace/Index', [
-            'offers'   => $query->latest()->paginate(12)->withQueryString(),
-            'subjects' => Subject::orderBy('name')->get(),
-            'filters'  => $request->only(['subject_id', 'level', 'max_rate', 'search']),
+            'teachers' => TeacherProfile::where('is_verified', true)
+                ->with(['user:id,name,avatar_url', 'subjects:id,name'])
+                ->withAvg('visibleReviews as avg_rating', 'rating')
+                ->withCount('visibleReviews as review_count')
+                ->orderByDesc('review_count')
+                // Columnas explícitas, sin 'referral_code': esta vista es
+                // pública y no requiere autenticación — el código nunca
+                // debe llegar a este payload.
+                ->paginate(24, ['id', 'user_id', 'bio', 'hourly_rate']),
         ]);
     }
 }

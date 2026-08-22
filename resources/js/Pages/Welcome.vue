@@ -157,7 +157,7 @@
         </div>
         <div class="reveal-item grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <Link v-for="s in subjects" :key="s.id"
-            :href="`/marketplace?subject_id=${s.id}`"
+            :href="`/class-requests/create?subject_id=${s.id}`"
             class="group bg-white border border-gray-100 hover:border-brand-300 rounded-xl p-4 text-center hover:shadow-md hover:shadow-brand-900/5 transition-all duration-200 hover:-translate-y-0.5">
             <div class="text-2xl mb-2">{{ subjectEmoji(s.name) }}</div>
             <p class="text-sm font-semibold text-slate-800 group-hover:text-brand-600 transition-colors">{{ s.name }}</p>
@@ -229,7 +229,7 @@
                 </div>
                 <div class="flex items-center justify-between pt-4 border-t border-gray-50">
                   <span class="font-black text-brand-700 text-lg">S/{{ parseFloat(t.hourly_rate).toFixed(0) }}<span class="text-sm font-normal text-slate-400">/h</span></span>
-                  <Link :href="`/marketplace`"
+                  <Link :href="route('teachers.show', t.id)"
                     class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors group-hover:shadow-md group-hover:shadow-brand-600/20">
                     Ver perfil
                   </Link>

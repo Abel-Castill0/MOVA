@@ -123,8 +123,8 @@ import { Head, Link } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
 
 const steps = [
-  { icon: '🔍', title: 'Elige tu materia', desc: 'Explora nuestro catálogo de materias y niveles. Filtra por precio, disponibilidad y valoraciones.' },
-  { icon: '📝', title: 'Solicita un profesor', desc: 'Envía una solicitud explicando lo que necesitas. El profesor propone un horario y lo confirmas.' },
+  { icon: '📝', title: 'Cuéntanos qué necesitas', desc: 'Elige la materia y describe lo que buscas, sin tener que elegir profesor. El primero disponible te contactará.' },
+  { icon: '🤝', title: 'Un profesor acepta tu solicitud', desc: 'Un profesor verificado la acepta y propone un horario. Después de tu primera clase, puedes pedirle su código para repetir con él.' },
   { icon: '🎥', title: 'Aprende por videollamada', desc: 'Entra a la videollamada con un clic. El enlace se genera automáticamente para cada clase.' },
 ]
 

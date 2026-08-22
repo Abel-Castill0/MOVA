@@ -24,9 +24,9 @@
       <div v-if="!lessons.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">
         <div class="text-5xl mb-3">📅</div>
         <p class="font-semibold text-slate-700">No hay clases registradas</p>
-        <p class="text-slate-400 text-sm mt-1">Busca un profesor y solicita la primera clase.</p>
-        <Link :href="route('marketplace')" class="inline-block mt-4 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors">
-          Buscar profesor →
+        <p class="text-slate-400 text-sm mt-1">Envía tu primera solicitud y un profesor te contactará.</p>
+        <Link :href="route('class-requests.create')" class="inline-block mt-4 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors">
+          Solicitar una clase →
         </Link>
       </div>
 

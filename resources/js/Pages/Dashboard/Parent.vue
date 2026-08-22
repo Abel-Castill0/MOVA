@@ -290,11 +290,11 @@
         <div>
           <h3 class="text-base font-bold text-slate-900 mb-3">Acciones rápidas</h3>
           <div class="reveal-group grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link :href="route('marketplace')"
+            <Link :href="route('class-requests.create')"
               class="reveal-item group bg-brand-600 rounded-2xl p-5 hover:bg-brand-700 transition-all shadow-lg shadow-brand-600/25">
-              <div class="text-3xl mb-3">🔍</div>
-              <p class="font-bold text-white">Buscar profesor</p>
-              <p class="text-sm text-brand-200 mt-0.5">Explora el marketplace</p>
+              <div class="text-3xl mb-3">✏️</div>
+              <p class="font-bold text-white">Solicitar una clase</p>
+              <p class="text-sm text-brand-200 mt-0.5">Sin elegir profesor — te contactará el primero disponible</p>
             </Link>
             <Link :href="route('students.index')"
               class="reveal-item group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
