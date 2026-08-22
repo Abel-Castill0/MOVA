@@ -326,4 +326,52 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       expect(page.url()).toContain('/teacher/credits');
     });
   });
+
+  // Independiente de los dos tests anteriores (no depende de classRequestId
+  // ni lessonId): usa las clases fijas que ya trae LocalTestDataSeeder para
+  // el padre de prueba, igual que el test de recargas usa datos fijos del
+  // profesor. Vive en este mismo archivo (en vez de uno nuevo) para no
+  // duplicar login/logout/BASE_URL — ya establecidos arriba.
+  test('Calendario semanal: pestañas, navegación de semana y bloque de clase', async ({ page }) => {
+    await test.step('1. Login del padre y llegar a Mis clases', async () => {
+      await login(page, PARENT_EMAIL, PARENT_PASSWORD);
+      await page.goto(`${BASE_URL}/my-classes`);
+      await expect(page.getByRole('tab', { name: 'Lista' })).toBeVisible();
+    });
+
+    await test.step('2. Cambiar a la pestaña Calendario', async () => {
+      await page.getByRole('tab', { name: 'Calendario' }).click();
+      await expect(page.getByRole('tab', { name: 'Calendario' })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByRole('tabpanel')).toBeVisible();
+    });
+
+    await test.step('3. El grid renderiza con al menos un bloque de clase (semana actual)', async () => {
+      // La semana actual (17-23 ago 2026) tiene la clase "scheduled" fija del
+      // seeder — ver ParentLessonCard ya visible en el test anterior.
+      // .first(): corridas repetidas de este archivo van acumulando clases
+      // "scheduled" en la semana actual (cada una con su propio bloque
+      // "Unirse →" — ver nota de idempotencia al inicio del archivo), así
+      // que puede haber más de una coincidencia. Basta con que exista una.
+      await expect(page.getByText('LUN')).toBeVisible();
+      await expect(page.getByText('Unirse →').first()).toBeVisible();
+    });
+
+    await test.step('4. Navegar a la semana anterior muestra "Volver a hoy" y otras clases', async () => {
+      await page.getByRole('button', { name: 'Semana anterior' }).click();
+      await expect(page.getByText('Volver a hoy')).toBeVisible();
+      // 10-16 ago 2026 tiene 2 clases "completed" fijas del seeder.
+      await expect(page.getByText('Matemáticas').first()).toBeVisible();
+    });
+
+    await test.step('5. "Volver a hoy" regresa a la semana actual', async () => {
+      await page.getByText('Volver a hoy').click();
+      await expect(page.getByText('Volver a hoy')).not.toBeVisible();
+    });
+
+    await test.step('6. Volver a la pestaña Lista conserva la vista de tarjetas', async () => {
+      await page.getByRole('tab', { name: 'Lista' }).click();
+      await expect(page.getByRole('tab', { name: 'Lista' })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.getByText('Esta semana')).toBeVisible();
+    });
+  });
 });

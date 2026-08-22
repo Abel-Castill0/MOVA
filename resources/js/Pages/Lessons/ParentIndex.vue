@@ -2,9 +2,23 @@
   <AppLayout title="Clases de mis hijos">
     <div class="space-y-5">
 
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
         <h2 class="text-xl font-black text-slate-900">Clases de mis hijos</h2>
-        <span class="text-sm text-slate-400">{{ lessons.length }} en total</span>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-slate-400">{{ lessons.length }} en total</span>
+          <div v-if="lessons.length" class="flex bg-slate-100 rounded-xl p-1 gap-1" role="tablist" aria-label="Modo de vista" @keydown="onTabsKeydown">
+            <button ref="tabListRef" type="button" id="tab-list-parent" role="tab" :aria-selected="viewMode === 'list'"
+              :tabindex="viewMode === 'list' ? 0 : -1" aria-controls="panel-lessons-parent" @click="viewMode = 'list'"
+              :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-colors', viewMode === 'list' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
+              Lista
+            </button>
+            <button ref="tabCalendarRef" type="button" id="tab-calendar-parent" role="tab" :aria-selected="viewMode === 'calendar'"
+              :tabindex="viewMode === 'calendar' ? 0 : -1" aria-controls="panel-lessons-parent" @click="viewMode = 'calendar'"
+              :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-colors', viewMode === 'calendar' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
+              Calendario
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-if="!lessons.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">
@@ -16,39 +30,43 @@
         </Link>
       </div>
 
-      <template v-else>
-        <!-- ── Esta semana ─────────────────────────────────────────────────── -->
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-bold text-slate-900">📅 Esta semana</h3>
-            <span class="text-sm text-slate-400">{{ thisWeek.length }}</span>
-          </div>
-          <div v-if="thisWeek.length" class="space-y-3">
-            <ParentLessonCard v-for="l in thisWeek" :key="l.id" :lesson="l"
-              :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
-              @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
-          </div>
-          <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
-            <p class="text-sm">No tienes clases esta semana.</p>
-          </div>
-        </div>
+      <div v-else id="panel-lessons-parent" role="tabpanel" :aria-labelledby="viewMode === 'list' ? 'tab-list-parent' : 'tab-calendar-parent'" tabindex="0" class="space-y-5">
+        <WeeklyCalendar v-if="viewMode === 'calendar'" :lessons="lessons" role="parent" @join="openJitsi" />
 
-        <!-- ── Clases pasadas ──────────────────────────────────────────────── -->
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-bold text-slate-900">📚 Clases pasadas</h3>
-            <span class="text-sm text-slate-400">{{ past.length }}</span>
+        <template v-else>
+          <!-- ── Esta semana ─────────────────────────────────────────────────── -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-base font-bold text-slate-900">📅 Esta semana</h3>
+              <span class="text-sm text-slate-400">{{ thisWeek.length }}</span>
+            </div>
+            <div v-if="thisWeek.length" class="space-y-3">
+              <ParentLessonCard v-for="l in thisWeek" :key="l.id" :lesson="l"
+                :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
+                @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
+            </div>
+            <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
+              <p class="text-sm">No tienes clases esta semana.</p>
+            </div>
           </div>
-          <div v-if="past.length" class="space-y-3">
-            <ParentLessonCard v-for="l in past" :key="l.id" :lesson="l"
-              :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
-              @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
+
+          <!-- ── Clases pasadas ──────────────────────────────────────────────── -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-base font-bold text-slate-900">📚 Clases pasadas</h3>
+              <span class="text-sm text-slate-400">{{ past.length }}</span>
+            </div>
+            <div v-if="past.length" class="space-y-3">
+              <ParentLessonCard v-for="l in past" :key="l.id" :lesson="l"
+                :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
+                @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
+            </div>
+            <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
+              <p class="text-sm">Aún no hay clases pasadas.</p>
+            </div>
           </div>
-          <div v-else class="bg-white rounded-2xl border border-gray-100 py-8 text-center text-slate-400">
-            <p class="text-sm">Aún no hay clases pasadas.</p>
-          </div>
-        </div>
-      </template>
+        </template>
+      </div>
     </div>
 
     <!-- ── Modal cancelación ──────────────────────────────────────────────────── -->
@@ -119,11 +137,14 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
 import ParentLessonCard from '@/Components/Lessons/ParentLessonCard.vue'
+import WeeklyCalendar from '@/Components/Lessons/WeeklyCalendar.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
+import { useLessonsViewMode } from '@/Composables/useLessonsViewMode'
 
 const props = defineProps({ lessons: Array })
 
+const { viewMode, tabListRef, tabCalendarRef, onTabsKeydown } = useLessonsViewMode()
 const cancelTarget     = ref(null)
 const cancelReason     = ref('')
 const rescheduleTarget = ref(null)

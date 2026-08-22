@@ -87,19 +87,12 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import { canJoinJitsi } from '@/utils/lessonJoin'
 
 defineProps({
   lesson: { type: Object, required: true },
 })
 defineEmits(['join', 'reschedule', 'cancel'])
-
-function canJoinJitsi(l) {
-  if (!l.has_jitsi_room) return false
-  if (l.status === 'paid') return true
-  if (l.status !== 'scheduled') return false
-  const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
-  return minutesToStart <= 15
-}
 
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', {
