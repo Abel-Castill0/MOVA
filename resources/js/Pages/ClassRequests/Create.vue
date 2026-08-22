@@ -51,6 +51,19 @@
             Sin código: tu solicitud quedará visible para todos los profesores de{{ subjectName ? ' ' + subjectName : ' la materia elegida' }}. El primero disponible la aceptará.
           </p>
         </div>
+        <!-- Acompañamiento continuo: el profesor que acepte necesita cupo
+             disponible (TeacherProfile::hasAvailableMentorshipSlots()) — el
+             backend ya valida esto al agendar (LessonController::store()),
+             independiente de si la solicitud llegó con o sin código. Este
+             checkbox solo marca la intención; no reserva nada por sí solo. -->
+        <div v-if="!offer" class="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-3">
+          <input id="is_mentorship" v-model="form.is_mentorship" type="checkbox"
+            class="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+          <label for="is_mentorship" class="text-sm text-emerald-800 cursor-pointer">
+            <span class="font-semibold">Busco acompañamiento continuo (mentoría)</span>
+            <span class="block text-xs text-emerald-600 mt-0.5">Seguimiento regular con el mismo profesor, no solo una clase suelta. Solo profesores con cupo disponible podrán aceptarla.</span>
+          </label>
+        </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">¿En qué necesita ayuda?</label>
           <textarea v-model="form.help_needed" rows="4" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"></textarea>

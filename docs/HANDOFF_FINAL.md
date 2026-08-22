@@ -1,6 +1,6 @@
 # MOVA — Handoff Final
 
-**Fecha:** 27 de julio de 2026
+**Fecha:** 27 de julio de 2026 (creado) — última actualización 22 de agosto de 2026, ver §21
 **Estado:** listo para desplegar en un entorno de staging/producción real, pendiente de credenciales de terceros y revisión legal (ver abajo).
 
 Este documento es el punto de partida para quien retome el proyecto — dev, otro agente, o el propio equipo tras una pausa. No repite el detalle de auditorías anteriores en `docs/` (algunas datan de junio 2026 y ya no reflejan el estado actual); este es el resumen vigente.
@@ -33,8 +33,8 @@ En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesió
 
 | Check | Resultado |
 |---|---|
-| `php artisan test` | **148/148** ✅ (ver §17 y §18, 2026-08-22) |
-| `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **2/2** ✅ |
+| `php artisan test` | **167/167** ✅ (ver §17, §18, §19 y §20, 2026-08-22) |
+| `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **3/3** ✅ (flujo de 8 pasos, recargas, calendario semanal — ver §20) |
 | `npm run build` | limpio, sin errores ✅ |
 | Secretos hardcodeados en código versionado | ninguno encontrado en `app/`/`resources/`; sí en 10 specs QA ya eliminados (ver advertencia arriba) |
 | Rate limiting en rutas financieras | completo (ver §Auditoría de seguridad) ✅ |
@@ -245,8 +245,8 @@ php artisan schedule:work    # loop de desarrollo — llama a schedule:run cada 
 php artisan schedule:list    # ver próxima ejecución de cada job registrado
 
 # Tests
-php artisan test                                                    # 78 tests
-cd qa && npx playwright test --config=playwright.local.config.js && cd ..   # 2 tests E2E (requiere server + seed local corriendo)
+php artisan test                                                    # 167 tests
+cd qa && npx playwright test --config=playwright.local.config.js && cd ..   # 3 tests E2E — flujo de 8 pasos, recargas, calendario (requiere server + seed local corriendo)
 # Debe ejecutarse DESDE qa/ — la instalación de Playwright vive en qa/node_modules;
 # invocarlo desde la raíz del repo falla con "No tests found" al no resolver el mismo paquete.
 
@@ -290,7 +290,7 @@ Herramientas para verificar el sistema end-to-end sin depender de revisión manu
 
 | Herramienta | Qué verifica | Estado | Comando |
 |---|---|---|---|
-| **Playwright E2E** (`qa/tests/flujo-completo.spec.js`) | Flujo completo solicitud→pago→reporte→reseña en el navegador real (Chromium propio de Playwright, sin depender de Chrome del sistema) | ✅ Funcional | `cd qa && npx playwright test --config=playwright.local.config.js` |
+| **Playwright E2E** (`qa/tests/flujo-completo.spec.js`, 3 tests) | Flujo completo solicitud→pago→reporte→reseña, UI de recargas de créditos, y el calendario semanal (tabs, navegación de semana, join de Jitsi) — todo en navegador real (Chromium propio de Playwright, sin depender de Chrome del sistema) | ✅ Funcional | `cd qa && npx playwright test --config=playwright.local.config.js` |
 | **Playwright — modo visible** | Igual que arriba, pero con ventana de navegador visible (útil para depurar a mano en esta laptop; no aplica en un servidor sin pantalla) | ✅ Funcional | `cd qa && HEADFUL=1 npx playwright test --config=playwright.local.config.js` |
 | **Gmail API (lectura de bandeja)** (`qa/check-gmail-inbox.mjs`) | Confirma que un correo transaccional (verificación, notificación) realmente llegó a la bandeja, buscando por remitente/asunto | ✅ Funcional — `GMAIL_READONLY_REFRESH_TOKEN` autorizado contra `m0v4class@gmail.com` (regenerado 2026-08-02). Si expira: `php artisan mova:gmail-auth-url` → autorizar en el navegador → `php artisan mova:gmail-exchange-code {codigo}` → copiar el token impreso a `.env` (`GMAIL_REFRESH_TOKEN`) y `qa/.env.qa` (`GMAIL_READONLY_REFRESH_TOKEN`) — **mismo token en ambos archivos**, no confundir con dejar uno desactualizado | `node qa/check-gmail-inbox.mjs` |
 | **Twilio Messages API** | Lee el `status` real de un WhatsApp enviado (`queued`/`sent`/`delivered`/`failed`) y su `error_code` — más confiable que confiar en que la app no haya lanzado una excepción, porque Twilio puede aceptar el envío y fallar la entrega de forma asíncrona | ✅ Funcional, sin configuración adicional | `curl -s -u "$TWILIO_SID:$TWILIO_AUTH_TOKEN" "https://api.twilio.com/2010-04-01/Accounts/$TWILIO_SID/Messages.json?PageSize=5"` |
@@ -1211,7 +1211,7 @@ saldos intactos y el pivote estable en 11 filas.
 
 ---
 
-## 18. Auditoría de fraude/abuso + ronda UX/negocio (2026-08-22)
+## 19. Auditoría de fraude/abuso + ronda UX/negocio (2026-08-22)
 
 ### Auditoría integral (todos los flujos, no solo lo financiero)
 
@@ -1291,25 +1291,102 @@ enrutamiento de solicitudes por código todavía no.
 
 ### Pendiente explícito de esta ronda
 
-- **Calendario semanal** (`WeeklyCalendar.vue`) — no implementado todavía,
-  amerita su propia pasada con `impeccable`/`ui-ux-pro-max` en vez de
-  apurarlo al final de una ronda ya larga.
-- Los hallazgos ALTO/MEDIO de la auditoría (ver arriba).
-- La decisión de diseño sobre `ClassOffer`/código de referido.
+- ~~**Calendario semanal** (`WeeklyCalendar.vue`) — no implementado todavía~~
+  — implementado y verificado en la ronda siguiente, ver §20.
+- Los hallazgos ALTO/MEDIO de la auditoría (ver arriba, tabla de hallazgos
+  de esta misma sección) — siguen sin corregir a la fecha de este documento.
+- La decisión de diseño sobre `ClassOffer`/código de referido — resuelta:
+  se implementó la Opción A (ver "Verificación" abajo, commit `0bd53d4`).
+  La superficie pública que la usa (marketplace, perfil del profesor) se
+  rediseñó después, ver §21.
 
 ### Verificación (2026-08-22)
 
-- `php artisan test` → **162/162** (148 previos + 14 nuevos: 3 del gate de
-  verificación, 1 de fraude de teléfono, 4 del código de referido, 5 del
-  filtro de malas palabras, 1 de Google en stand-by).
+- `php artisan test` → 162/162 en el momento de escribir esto (148 previos +
+  14 nuevos: 3 del gate de verificación, 1 de fraude de teléfono, 4 del
+  código de referido, 5 del filtro de malas palabras, 1 de Google en
+  stand-by); llegó a **167/167** tras sumar los 5 tests de
+  `TeacherReferralRequestTest` tras aprobar la Opción A (mismo día).
 - `mova:reconcile-ledger` → GREEN.
 - `npm run build` → limpio.
 - Verificado en navegador real: modal de Google, bloqueo de rol en registro,
   validación por paso, avatar/iniciales, código de profesor en historial —
   sin errores de consola nuevos.
-- **Sin commit** — pendiente de tu revisión.
+- **Commiteado** en 4 tandas temáticas: `269a39d` (seguridad — gate de
+  verificación + unicidad de teléfono), `5a6167e` (UX/auth — Google en
+  stand-by, registro por pasos, notificaciones), `ff5aa3a`
+  (integridad/referidos — código de profesor, filtro de malas palabras),
+  `aec0659` (deuda técnica — índice compuesto, seeder idempotente); y la
+  Opción A (código de referido enrutando solicitudes) en `0bd53d4`.
 
-## 19. Marketplace informativo y flujo de solicitudes por código de confianza (2026-08-22)
+## 20. Calendario semanal, corrección del E2E financiero y saneamiento del ledger de prueba (2026-08-22)
+
+### Calendario semanal (commit `20d7c16`)
+
+`WeeklyCalendar.vue`: grid de 7 columnas (lun–dom), bloques coloreados por
+estado (tinte completo, sin borde lateral — ban explícito de `impeccable`),
+botón "Unirse" reutilizando `useJitsiMeet`. Integrado en
+`Lessons/ParentIndex.vue`/`TeacherIndex.vue` vía tabs "Lista | Calendario"
+con accesibilidad ARIA completa (`role="tablist"`/`"tab"`/`"tabpanel"`,
+navegación por flechas con roving `tabindex`) y persistencia de la
+preferencia en `localStorage` (`useLessonsViewMode.js`, compuesto para no
+duplicar la lógica entre ambos roles). Reutiliza los props `lessons` ya
+existentes — cero queries nuevas al backend.
+
+### Fix del E2E financiero (commits `24c4b10`, `ca508ad`)
+
+El paso 7 de `qa/tests/flujo-completo.spec.js` ("Confirmar pago") fallaba de
+forma intermitente. Investigado con navegador real (el flujo manual
+funcionaba perfecto, descartando un bug de `confirmPayment()`) hasta aislar
+dos bugs reales, ambos **en el test, no en la app**:
+
+1. **Timing**: el test hacía click en el botón "Ya pagué" justo después de
+   `page.goto()`, sin esperar visibilidad — a diferencia de los demás pasos
+   del archivo, que sí confirman `expect(card).toBeVisible()` antes de
+   interactuar.
+2. **Índice de DOM incorrecto**: el test asumía que las tarjetas de
+   `/my-classes` siguen un `orderBy('start_time','desc')` plano, pero
+   `ParentIndex.vue` divide en dos baldes ("Esta semana"/"Clases pasadas") e
+   **invierte** el orden del primero — con una sola lección de por medio no
+   se notaba; con varias (como ocurre tras corridas repetidas en local) el
+   índice calculado dejaba de coincidir con la posición real del botón. Fix:
+   el test ahora importa `splitByWeek` del propio `weekGrouping.js` de la
+   app en vez de reimplementar la lógica aparte, para que no puedan
+   desincronizarse.
+
+Efecto colateral descubierto al depurar: el paso 0 del test ("recargar
+créditos del profesor de prueba") hacía
+`TeacherProfile::update(['credits_available' => 100000])` — una
+sobrescritura RAW sin respaldo en el ledger. Neutralizaba el guard real de
+`LessonController.php:69` (que sí lee esa columna) y dejó el saldo
+**derivado del ledger** de ese profesor en **-6** tras varias corridas.
+Corregido con el mismo patrón de `Admin/RechargeController::approve()`
+(`CreditTransaction` real + `credits_available += amount`, nunca una
+asignación absoluta).
+
+### Saneamiento del ledger de prueba (sin código — solo datos locales)
+
+Reparación puntual del profesor de prueba (depósito real de reconciliación
++ recálculo de `credits_available`/`credits_reserved` desde
+`LedgerReconciliation`), y luego `migrate:fresh --seed` +
+`db:seed --class=LocalTestDataSeeder` para dejar la BD local sin las
+lecciones acumuladas por corridas repetidas de Playwright.
+`mova:reconcile-ledger` → GREEN antes y después. No se tocó ningún archivo
+de código en este paso — no aplica a `git log`.
+
+### Verificación
+
+- `php artisan test` → 167/167 (sin tests nuevos; el calendario no requirió
+  cambios de backend).
+- Los 3 tests de `qa/tests/flujo-completo.spec.js` → verdes de forma
+  consistente en corridas repetidas (antes fallaba ~100% de las veces en el
+  paso 7).
+- `mova:reconcile-ledger` → GREEN.
+- `npm run build` → limpio.
+- Navegador real en 375px/1280px, ambos roles: tabs, navegación de semana,
+  join de Jitsi desde un bloque del calendario, scroll horizontal en móvil.
+
+## 21. Marketplace informativo y flujo de solicitudes por código de confianza (2026-08-22)
 
 ### Decisión de producto
 
@@ -1317,14 +1394,14 @@ El marketplace deja de ser un buscador de profesores. El padre ya no elige,
 filtra ni contacta a un profesor específico desde ahí — envía una solicitud
 abierta (materia + descripción + disponibilidad) y el primer profesor de esa
 materia que la acepte se queda con la clase. El código de referido (ver
-sección 18, "Diseño — futuro de `ClassOffer`") deja de ser un atajo público
+sección 19, "Diseño — futuro de `ClassOffer`") deja de ser un atajo público
 del marketplace y pasa a ser un mecanismo de **confianza post-clase**: el
 padre lo consigue de un profesor con el que ya tuvo clase, y lo usa
 opcionalmente para dirigirle una solicitud futura sin pasar por otros
 profesores.
 
 `ClassOffer` y `DiagnosticRecommendationService` **no se tocaron** — la
-decisión de la sección 18 (código como vía adicional, no reemplazo) sigue
+decisión de la sección 19 (código como vía adicional, no reemplazo) sigue
 vigente. Este cambio es puramente de superficie: qué ve el padre y dónde.
 
 ### `MarketplaceController` reescrito sobre `TeacherProfile`, no `ClassOffer`
@@ -1348,7 +1425,7 @@ Exactamente 5 lugares, cada uno con su propia condición de visibilidad:
    proyecto (revela `jitsi_room`/JWT), añadir un campo no relacionado ahí
    habría sido innecesario y fuera de su responsabilidad.
 2. **Historial del padre** (`ParentLessonCard.vue`) — ya existía de la
-   sección 18, solo se mejoró el texto del tooltip.
+   sección 19, solo se mejoró el texto del tooltip.
 3. **Perfil público del profesor** (`Teachers/Show.vue` +
    `TeacherPublicController::referralCodeVisibleTo()`) — el backend solo lo
    envía si el visitante es el dueño del perfil, o un padre con al menos una
@@ -1356,7 +1433,7 @@ Exactamente 5 lugares, cada uno con su propia condición de visibilidad:
    depende de que la solicitud original haya usado un código). Para
    cualquier otro visitante (incluidos invitados), el campo llega `null`.
 4. **Formulario de solicitud** (`ClassRequests/Create.vue`) — input opcional
-   ya existente de la sección 18, con lookup en vivo. Se añadió una nota
+   ya existente de la sección 19, con lookup en vivo. Se añadió una nota
    dinámica cuando el campo está vacío: "tu solicitud quedará visible para
    todos los profesores de [materia]".
 5. **Perfil propio del profesor** (`Teacher/Edit.vue`) — **hallazgo nuevo de
