@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Subject;
+use App\Rules\NotProfane;
 use App\Services\SubjectNormalizer;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -27,7 +28,7 @@ class TeacherProfileController extends Controller
             'subject_ids' => 'nullable|array',
             'subject_ids.*' => 'exists:subjects,id',
             'subject_names' => 'nullable|array',
-            'subject_names.*' => 'nullable|string|max:100',
+            'subject_names.*' => ['nullable', 'string', 'max:100', new NotProfane],
         ]);
 
         $profile->update([
@@ -65,7 +66,7 @@ class TeacherProfileController extends Controller
             'subject_ids' => 'nullable|array',
             'subject_ids.*' => 'exists:subjects,id',
             'subject_names' => 'nullable|array',
-            'subject_names.*' => 'nullable|string|max:100',
+            'subject_names.*' => ['nullable', 'string', 'max:100', new NotProfane],
         ]);
 
         $profile->update([

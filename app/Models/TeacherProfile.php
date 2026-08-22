@@ -4,11 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Str;
 
 class TeacherProfile extends Model
 {
     use HasFactory;
 
+    // Alfabeto del código de referido (ver migración
+    // 2026_08_22_000003_add_referral_code_to_teacher_profiles_table):
+    // - Sin vocales: un código de 6 consonantes/dígitos no puede deletrear
+    //   una palabra ofensiva por accidente.
+    // - Sin 0/O/1/I/L: ambiguos al leerlos o dictarlos en voz alta.
+    private const REFERRAL_CODE_ALPHABET = 'BCDFGHJKMNPQRSTVWXYZ23456789';
+
+    // referral_code NO está en $fillable: se genera SIEMPRE en booted(),
+    // nunca por asignación externa — mismo motivo que credits_settled_at en
+    // Lesson (una capa central es la única fuente, no cada caller).
     protected $fillable = [
         'user_id', 'bio', 'hourly_rate', 'yape_number', 'plin_number', 'is_verified',
         'credits_available', 'credits_reserved',
@@ -16,6 +27,26 @@ class TeacherProfile extends Model
         'mentorship_slots_total', 'mentorship_slots_taken',
         'rejected_at', 'rejection_reason', 'reviewed_by', 'reviewed_at',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (TeacherProfile $profile) {
+            if (! $profile->referral_code) {
+                $profile->referral_code = self::generateUniqueReferralCode();
+            }
+        });
+    }
+
+    private static function generateUniqueReferralCode(): string
+    {
+        do {
+            $code = Str::upper(collect(range(1, 6))
+                ->map(fn () => self::REFERRAL_CODE_ALPHABET[random_int(0, strlen(self::REFERRAL_CODE_ALPHABET) - 1)])
+                ->implode(''));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
+    }
 
     protected $casts = [
         'is_verified'  => 'boolean',

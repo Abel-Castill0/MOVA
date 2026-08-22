@@ -33,7 +33,7 @@ En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesió
 
 | Check | Resultado |
 |---|---|
-| `php artisan test` | **150/150** ✅ (ver §17 para el detalle de C-1, 2026-08-21) |
+| `php artisan test` | **148/148** ✅ (ver §17 y §18, 2026-08-22) |
 | `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **2/2** ✅ |
 | `npm run build` | limpio, sin errores ✅ |
 | Secretos hardcodeados en código versionado | ninguno encontrado en `app/`/`resources/`; sí en 10 specs QA ya eliminados (ver advertencia arriba) |
@@ -1108,11 +1108,23 @@ pasada explícita de `security-review`/`code-review`:
    si alguna vez apareciera una, `reservedCreditAmount()` lanza en vez de
    fabricar un monto — es una decisión deliberada de "fallar ruidoso", no un
    caso sin manejar.
-4. **Una decisión de negocio de la Fase 3B sigue sin cerrar** (documentado
-   ahí como pendiente, no decidido unilateralmente):
-   - Política de reintento si el scheduler falla repetidamente sobre la
-     misma lección — hoy simplemente la vuelve a intentar cada hora
-     indefinidamente, sin límite ni alerta.
+4. **Política de reintento del scheduler (Decisión #5) — resuelta como
+   "reintento automático, sin estado adicional".** Re-ejecutar
+   `mova:settle-lessons` es seguro cuantas veces se quiera: la idempotencia
+   la garantiza el índice UNIQUE sobre `credit_transactions.idempotency_key`
+   (`lesson:{id}:consumption` / `lesson:{id}:release`), no un contador de
+   intentos. Una lección ya liquidada simplemente no vuelve a aparecer en la
+   consulta del barrido (`credits_settled_at IS NULL` la excluye) y, aunque
+   apareciera por una carrera, el INSERT del asiento fallaría contra ese
+   UNIQUE y el servicio devolvería la lección sin mover nada. Por eso el
+   comando captura el error POR LECCIÓN y continúa: la que falló se reintenta
+   sola en la siguiente pasada horaria, sin backoff ni cola de reintentos.
+   **Límite conocido y aceptado:** una lección con una anomalía real (ej.
+   ledger inconsistente) reintentará indefinidamente cada hora, dejando un
+   `report()` por pasada. No hay alerta automática tras N fallos — la
+   detección es vía `mova:reconcile-ledger` (que sí sale con exit code 1) o
+   vía el monitoreo de errores. Si el volumen de clases crece, vale la pena
+   agregar un umbral de alerta; hoy sería complejidad sin beneficio medible.
 5. **Incidente de MySQL local (2026-08-21, no relacionado con C-1 en sí):**
    XAMPP/MariaDB se corrompió (`mysql.db`, tabla interna de privilegios, no
    los datos de `mova`) tras un corte abrupto durante esta misma sesión —
@@ -1146,3 +1158,153 @@ la lección y confirma su ausencia del payload.
   BD local).
 - `npm run build` → limpio.
 - Commit `5d72dcd` — sin push todavía.
+
+---
+
+## 18. Pasada de endurecimiento local (2026-08-22)
+
+Deuda técnica identificada en la auditoría de cierre de C-1/C-2/C-3. **Cero
+cambios a la lógica financiera** ya validada — solo índices, casts, deep
+links y limpieza.
+
+| # | Tarea | Archivo | Resultado |
+|---|---|---|---|
+| 1 | Índice compuesto `(teacher_profile_id, status, start_time)` | `2026_08_22_000001_...` | Aplicado a MySQL real; verificado con `SHOW INDEX` (orden igualdad→igualdad→rango) |
+| 2 | Cast `decimal:2` en `price_frozen_pen` | `Lesson.php` | Normaliza el tipo entre MySQL (string PDO) y SQLite (tipado dinámico) |
+| 3 | `reservedCreditAmount()` estricto | `Lesson.php` | **Ya estaba hecho en la Entrega 2** — lanza si no hay exactamente 1 reserva |
+| 4 | 13 notificaciones migradas de `appUrl('/ruta')` a `appRoute('nombre')` | `app/Notifications/*` | Cero `appUrl()` con string hardcodeado restantes (solo queda el del propio trait) |
+| 5 | Deep link por rol en cancelación y reprogramación | `ClassCancelledNotification`, `ClassRescheduledNotification` | Profesor → `teacher.lessons`, padre → `parent.lessons` (antes ambos a `/dashboard`) |
+| 6 | `needs_admin_review` en badges y helpers | `StatusBadge.vue`, ambos `*LessonCard.vue` | **Ya estaba hecho en la Entrega 2** — label, color y stripe presentes |
+| 7 | Idempotencia del pivote `teacher_subject` | `LocalTestDataSeeder.php` | `random()+syncWithoutDetaching` → `slice()+sync` determinista |
+| 8 | Eliminados los 2 `ExampleTest.php` de boilerplate | `tests/`, `phpunit.xml` | La suite `Unit` quedó vacía y se retiró de `phpunit.xml` (un `<testsuite>` a un directorio inexistente rompe PHPUnit; git no versiona directorios vacíos) |
+| 9 | Decisión #5 documentada | este archivo, §17 | Re-ejecutar `settle-lessons` es seguro por idempotencia |
+
+### Hallazgo extra: el seeder corrompía saldos financieros
+
+Encontrado al re-ejecutar el seeder durante esta misma pasada, no estaba en
+la lista. `LocalTestDataSeeder` fijaba `credits_available`/`credits_reserved`
+con valores hardcodeados vía `updateOrCreate` — es decir, los reescribía en
+CADA corrida. Reproducido en vivo: tras cancelar una clase (que devolvió 1
+crédito de `reserved` a `available`), un re-seed pisó los saldos reales con
+los hardcodeados y **`mova:reconcile-ledger` pasó de GREEN a RED**. El seeder
+corrompía un estado financiero que él mismo no había creado.
+
+Corregido moviendo los saldos a los valores de creación de un `firstOrCreate`
+(solo se fijan al crear el perfil, nunca al refrescarlo). `hourly_rate` quedó
+fuera del refresco por la misma razón: desde la tarifa automática por niveles
+es un valor derivado, y reescribirlo a 20 pisaría un ascenso legítimo a S/25
+o S/30.
+
+El saldo ya corrompido en la BD local se corrigió alineando la **caché
+derivada** (`teacher_profiles.credits_*`) con el ledger, que es la autoridad —
+sin crear ningún asiento nuevo, que sería fabricar historia financiera.
+
+Verificado: dos seeds consecutivos dejan `reconcile-ledger` en GREEN, los
+saldos intactos y el pivote estable en 11 filas.
+
+### Verificación (2026-08-22)
+
+- `php artisan test` → **148/148** (150 menos los 2 `ExampleTest` eliminados).
+- `mova:reconcile-ledger` → GREEN (exit 0), incluso tras dos re-seeds.
+- `mova:settle-lessons --dry-run` → 0 candidatas.
+- `npm run build` → limpio.
+
+---
+
+## 18. Auditoría de fraude/abuso + ronda UX/negocio (2026-08-22)
+
+### Auditoría integral (todos los flujos, no solo lo financiero)
+
+Se probaron en vivo (transacciones revertidas, sin tocar datos reales)
+escenarios de fraude en registro/cuentas, pagos, reseñas, admin y diagnóstico
+IA. Dos hallazgos **CRÍTICOS**, ambos corregidos con test de regresión:
+
+1. **Profesor sin verificar podía aceptar clases con menores.**
+   `ClassRequestPolicy::accept()` nunca comprobaba `is_verified` — probado
+   creando un profesor `is_verified=false` y confirmando que la policy
+   devolvía `true`. Corregido: `accept()` (y `reject()`, que delega en ella)
+   ahora exige `is_verified`. Test: `TeacherVerificationGateTest`.
+2. **Teléfono duplicado → bono de bienvenida infinito.** `users.phone` sin
+   restricción de unicidad — probado con 3 cuentas de profesor y el mismo
+   número: 15 créditos gratis (S/30), sin límite. Corregido con
+   `phone_verified_normalized` (columna nueva, `UNIQUE`, se escribe SOLO en
+   `PhoneVerificationController::verify()` — nunca en `send()`, para no
+   bloquear un número apenas tecleado/nunca verificado). Garantía real:
+   `UniqueConstraintViolationException`, mismo patrón que `idempotency_key`
+   en el ledger. Test:
+   `test_same_phone_cannot_verify_and_collect_the_welcome_bonus_on_a_second_teacher_account`.
+
+Hallazgos ALTO/MEDIO documentados pero no corregidos en esta ronda (decisión
+explícita del usuario, priorizando primero los dos críticos): confirmación
+de pago sin evidencia, 20 rutas autenticadas fuera de `not.suspended`
+(incluida `DELETE /profile` — un suspendido podría borrar su cuenta),
+reprogramación sin límite, auto-trato vía segunda cuenta.
+
+### Diseño (sin código) — futuro de `ClassOffer`
+
+Se investigó reemplazar el marketplace de ofertas por un "código de
+profesor" que el padre pega en su solicitud. Hallazgo clave: `specific_rate`
+de `ClassOffer` **ya no afecta el precio real** — `LessonController::store()`
+siempre cobra `teacherProfile.hourly_rate`, nunca el precio de la oferta.
+Pero `DiagnosticRecommendationService` (recomendación de IA) puntúa
+**ofertas**, no perfiles — eliminar `ClassOffer` de verdad implicaría
+reescribir ese servicio completo. Recomendación entregada: implementar el
+código de referido como vía **adicional** en paralelo al marketplace
+existente (no reemplazarlo), evitando tocar el diagnóstico IA. Decisión
+pendiente del usuario — infraestructura del código ya lista (ver abajo), el
+enrutamiento de solicitudes por código todavía no.
+
+### UX y negocio ejecutados
+
+- **Google "en stand by"**: `config('services.google.login_enabled')`
+  (`false` por defecto) — el botón muestra un modal en vez de navegar, Y la
+  ruta `/auth/google` responde 503 aunque se acceda directo.
+- **Registro**: validación por paso (botón "Continuar" deshabilitado hasta
+  completar el paso actual — nunca se avanza con campos vacíos); `?role=`
+  desde la landing preselecciona y BLOQUEA el rol en el paso 1.
+- **Avatar en el sidebar**: usa `auth.user.avatar_url` con fallback a
+  iniciales (antes siempre mostraba iniciales, sin importar si el usuario
+  tenía foto).
+- **"Mis reportes"** agregado al sidebar del padre (la ruta `parent.reports`
+  ya existía, solo faltaba el enlace).
+- **13 notificaciones** migradas de `appUrl('/ruta-hardcodeada')` a
+  `appRoute('nombre.de.ruta')`. `ClassCancelledNotification` y
+  `ClassRescheduledNotification` ahora enlazan por rol
+  (`teacher.lessons`/`parent.lessons`) en vez de un `/dashboard` genérico.
+- **Código de profesor** (`TeacherProfile.referral_code`): 6 caracteres,
+  sin vocales ni `0/O/1/I/L` (nunca deletrea una palabra por accidente, sin
+  ambigüedad al dictarlo), generado en `TeacherProfile::booted()`, `UNIQUE`.
+  Ya se muestra en el historial de clases del padre. El enrutamiento de
+  solicitudes por código queda pendiente de la decisión de diseño de arriba.
+- **Filtro de malas palabras en materias**: `App\Rules\NotProfane`, aplicado
+  como validación de Laravel ANTES de crear cualquier registro (evita dejar
+  un `User`/`TeacherProfile` a medio crear si el nombre se rechaza — ninguno
+  de los dos flujos de registro usa `DB::transaction()`). Comparación por
+  palabra completa tras normalizar, nunca substring — "Educación Sexual" no
+  choca con la lista.
+- **Índice compuesto** `classes(teacher_profile_id, status, start_time)`
+  para `hasScheduleOverlap()` — orden igualdad-igualdad-rango, el correcto
+  para ese patrón de consulta.
+- **`price_frozen_pen`** ahora con cast `decimal:2` — antes MySQL y SQLite
+  podían devolver tipos distintos (string vs. numérico dinámico) para la
+  misma columna.
+
+### Pendiente explícito de esta ronda
+
+- **Calendario semanal** (`WeeklyCalendar.vue`) — no implementado todavía,
+  amerita su propia pasada con `impeccable`/`ui-ux-pro-max` en vez de
+  apurarlo al final de una ronda ya larga.
+- Los hallazgos ALTO/MEDIO de la auditoría (ver arriba).
+- La decisión de diseño sobre `ClassOffer`/código de referido.
+
+### Verificación (2026-08-22)
+
+- `php artisan test` → **162/162** (148 previos + 14 nuevos: 3 del gate de
+  verificación, 1 de fraude de teléfono, 4 del código de referido, 5 del
+  filtro de malas palabras, 1 de Google en stand-by).
+- `mova:reconcile-ledger` → GREEN.
+- `npm run build` → limpio.
+- Verificado en navegador real: modal de Google, bloqueo de rol en registro,
+  validación por paso, avatar/iniciales, código de profesor en historial —
+  sin errores de consola nuevos.
+- **Sin commit** — pendiente de tu revisión.

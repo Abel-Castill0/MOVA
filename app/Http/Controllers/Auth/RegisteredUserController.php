@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Rules\NotProfane;
 use App\Services\SubjectNormalizer;
 use App\Notifications\WelcomeParentNotification;
 use App\Notifications\WelcomeTeacherNotification;
@@ -20,9 +21,18 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Auth/Register');
+        // "Soy profesor"/"Soy padre" en la landing llegan con ?role=... — se
+        // valida contra una lista blanca (nunca se confía en el string crudo)
+        // y se pasa como prop para que Register.vue preseleccione y BLOQUEE
+        // el paso 1, en vez de que el usuario tenga que volver a elegir.
+        $role = $request->query('role');
+        $lockedRole = in_array($role, ['parent', 'teacher'], true) ? $role : null;
+
+        return Inertia::render('Auth/Register', [
+            'lockedRole' => $lockedRole,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -35,7 +45,7 @@ class RegisteredUserController extends Controller
             'role' => 'required|in:parent,teacher',
             'accepted_terms' => 'accepted',
             'teacher_subject_names' => 'required_if:role,teacher|array',
-            'teacher_subject_names.*' => 'nullable|string|max:100',
+            'teacher_subject_names.*' => ['nullable', 'string', 'max:100', new NotProfane],
         ], [
             'accepted_terms.accepted' => 'Debes aceptar los Términos y Condiciones y la Política de Privacidad para continuar.',
             'teacher_subject_names.required_if' => 'Agrega al menos una materia o curso especializado.',
