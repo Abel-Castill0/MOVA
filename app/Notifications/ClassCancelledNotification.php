@@ -41,9 +41,15 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
             $mail->line('**Motivo:** ' . $this->lesson->cancel_reason);
         }
 
+        // Esta notificación se envía a ambas partes (ver LessonController::cancel()
+        // y AdminController::cancelLesson(), notifyBoth()) — el deep link debe
+        // llevar a cada quien a SU propio listado, no a un /dashboard genérico
+        // que además redirige distinto según el rol.
+        $link = $notifiable->hasRole('teacher') ? $this->appRoute('teacher.lessons') : $this->appRoute('parent.lessons');
+
         return $mail
             ->line('Si tiene dudas o desea reagendar, puede contactar al equipo de MOVA.')
-            ->action('Ver mis clases', $this->appUrl('/dashboard'))
+            ->action('Ver mis clases', $link)
             ->salutation('El equipo de MOVA');
     }
 

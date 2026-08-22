@@ -34,7 +34,7 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
             ->line('**2.** Explore el marketplace y elija un profesor.')
             ->line('**3.** Solicite una clase directamente desde la oferta del profesor.')
             ->line('**4.** Recibirá recordatorios antes de cada clase y un reporte de aprendizaje al finalizar.')
-            ->action('Ir al panel', $this->appUrl('/dashboard'))
+            ->action('Ir al panel', $this->appRoute('dashboard'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -46,7 +46,7 @@ class WelcomeParentNotification extends Notification implements ShouldQueue
             . "2. Explore el marketplace\n"
             . "3. Solicite una clase\n"
             . "4. Recibirá recordatorios y reportes\n\n"
-            . $this->appUrl('/dashboard');
+            . $this->appRoute('dashboard');
     }
 
     public function toArray($notifiable): array

@@ -64,6 +64,11 @@ return [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/auth/google/callback'),
+        // "Stand by" a pedido: el botón sigue visible en el frontend (con un
+        // modal explicando que está temporalmente no disponible), pero la
+        // ruta backend también se cierra — un enlace directo a /auth/google
+        // no debe poder saltarse el frontend.
+        'login_enabled' => env('GOOGLE_LOGIN_ENABLED', false),
     ],
 
 ];

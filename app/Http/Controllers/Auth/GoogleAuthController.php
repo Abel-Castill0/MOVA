@@ -16,8 +16,14 @@ use Throwable;
 
 class GoogleAuthController extends Controller
 {
-    public function redirect(): SymfonyRedirectResponse
+    public function redirect(): SymfonyRedirectResponse|RedirectResponse
     {
+        // "Stand by": el frontend ya muestra un modal en vez de navegar aquí,
+        // pero un enlace directo a /auth/google no debe poder saltarse eso —
+        // la bandera se comprueba también en el backend, no solo se oculta el
+        // botón. Ver config('services.google.login_enabled').
+        abort_unless(config('services.google.login_enabled'), 503, 'El inicio de sesión con Google está temporalmente no disponible.');
+
         return Socialite::driver('google')->redirect();
     }
 

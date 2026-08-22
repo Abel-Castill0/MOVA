@@ -45,7 +45,7 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
             ->when($this->report->next_step, fn ($mail) =>
                 $mail->line('**Próximo paso:** ' . $this->report->next_step)
             )
-            ->action('Ver reporte completo', $this->appUrl('/my-classes'))
+            ->action('Ver reporte completo', $this->appRoute('parent.lessons'))
             ->salutation('El equipo de MOVA');
     }
 

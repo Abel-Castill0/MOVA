@@ -34,7 +34,7 @@ class PaymentConfirmedNotification extends Notification implements ShouldQueue
             ->subject('Pago confirmado en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("El padre/tutor de {$student} confirmó el pago de la clase de {$subject}.")
-            ->action('Ver clase y subir reporte', $this->appUrl('/teacher/classes'))
+            ->action('Ver clase y subir reporte', $this->appRoute('teacher.lessons'))
             ->salutation('El equipo de MOVA');
     }
 

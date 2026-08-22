@@ -36,8 +36,21 @@ class GoogleAuthTest extends TestCase
         Socialite::shouldReceive('driver->stateless->user')->andReturn($socialiteUser);
     }
 
-    public function test_redirect_sends_user_to_google(): void
+    // "Stand by": el login con Google está desactivado por defecto
+    // (config('services.google.login_enabled') = false salvo que
+    // GOOGLE_LOGIN_ENABLED=true) — el frontend ya no navega aquí (muestra un
+    // modal), pero un enlace directo a /auth/google tampoco debe funcionar.
+    public function test_redirect_is_disabled_by_default(): void
     {
+        $response = $this->get(route('auth.google'));
+
+        $response->assertStatus(503);
+    }
+
+    public function test_redirect_sends_user_to_google_when_explicitly_enabled(): void
+    {
+        config(['services.google.login_enabled' => true]);
+
         // No mockeamos driver()->redirect(): sin credenciales reales de Google
         // configuradas, Socialite igual construye la URL (con client_id vacío)
         // sin lanzar excepción — solo verificamos que la ruta responde con un

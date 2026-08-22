@@ -42,8 +42,12 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
             $mail->line('**Motivo:** ' . $this->lesson->reschedule_reason);
         }
 
+        // Se envía a ambas partes (LessonController::reschedule()) — cada
+        // quien va a su propio listado, no a un /dashboard genérico.
+        $link = $notifiable->hasRole('teacher') ? $this->appRoute('teacher.lessons') : $this->appRoute('parent.lessons');
+
         return $mail
-            ->action('Ver mis clases', $this->appUrl('/dashboard'))
+            ->action('Ver mis clases', $link)
             ->salutation('El equipo de MOVA');
     }
 

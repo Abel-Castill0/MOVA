@@ -32,7 +32,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             ->line('Colega, ha recibido una nueva solicitud de clase.')
             ->line('**Asignatura:** ' . $this->classRequest->subject->name)
             ->line('**Estudiante:** ' . $this->classRequest->student->full_name)
-            ->action('Ver solicitud', $this->appUrl('/teacher/requests'))
+            ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
     }
 

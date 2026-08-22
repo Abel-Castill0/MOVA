@@ -35,7 +35,7 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Colega, una familia solicitó una clase de **{$subject}** hace más de 12 horas.")
             ->line('Responda pronto para no perder la oportunidad.')
-            ->action('Ver solicitud', $this->appUrl('/teacher/requests'))
+            ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
     }
 
@@ -46,7 +46,7 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
             . "Hola {$notifiable->name},\n"
             . "Una familia solicitó una clase de {$subject} hace más de 12 horas.\n"
             . "Responda pronto desde su panel:\n"
-            . $this->appUrl('/teacher/requests');
+            . $this->appRoute('teacher.requests');
     }
 
     public function toArray($notifiable): array

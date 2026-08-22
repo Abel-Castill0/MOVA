@@ -3,9 +3,13 @@ import Checkbox from '@/Components/Checkbox.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
+
+const showGoogleModal = ref(false);
 
 defineProps({
     canResetPassword: {
@@ -42,7 +46,7 @@ const submit = () => {
             {{ status }}
         </div>
 
-        <a :href="route('auth.google')"
+        <button type="button" @click="showGoogleModal = true"
             class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-brand-300 hover:shadow-md active:scale-[0.98]">
             <svg class="h-5 w-5" viewBox="0 0 48 48">
                 <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
@@ -51,7 +55,19 @@ const submit = () => {
                 <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
             </svg>
             Continuar con Google
-        </a>
+        </button>
+
+        <Modal :show="showGoogleModal" max-width="sm" @close="showGoogleModal = false">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-2xl mb-3">🚧</div>
+                <h3 class="text-lg font-bold text-slate-900">Opción temporalmente no disponible</h3>
+                <p class="text-sm text-slate-500 mt-2">Estamos trabajando para ofrecerte esta opción. Por ahora, inicia sesión con tu correo electrónico.</p>
+                <button type="button" @click="showGoogleModal = false"
+                    class="mt-5 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors">
+                    Entendido
+                </button>
+            </div>
+        </Modal>
 
         <div class="my-5 flex items-center gap-3">
             <div class="h-px flex-1 bg-gray-200"></div>

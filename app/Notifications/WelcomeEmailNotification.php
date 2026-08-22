@@ -35,13 +35,13 @@ class WelcomeEmailNotification extends Notification implements ShouldQueue
                  ->line('1. Complete su perfil con biografía y tarifa.')
                  ->line('2. Espere la verificación del equipo MOVA.')
                  ->line('3. Cree sus ofertas de clase y responda solicitudes.')
-                 ->action('Completar perfil', $this->appUrl('/teacher/setup'));
+                 ->action('Completar perfil', $this->appRoute('teacher.setup'));
         } else {
             $mail->line('**Próximos pasos:**')
                  ->line('1. Agregue a su hijo/a en su perfil.')
                  ->line('2. Explore el marketplace y elija un profesor.')
                  ->line('3. Solicite una clase — recibirá recordatorios y reportes.')
-                 ->action('Ir al panel', $this->appUrl('/dashboard'));
+                 ->action('Ir al panel', $this->appRoute('dashboard'));
         }
 
         return $mail->salutation('El equipo de MOVA');

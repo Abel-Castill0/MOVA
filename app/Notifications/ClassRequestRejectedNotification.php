@@ -39,7 +39,7 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
 
         return $mail
             ->line('Puede buscar otro profesor disponible en el marketplace.')
-            ->action('Ver solicitudes', $this->appUrl('/class-requests'))
+            ->action('Ver solicitudes', $this->appRoute('class-requests.index'))
             ->salutation('El equipo de MOVA');
     }
 

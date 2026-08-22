@@ -44,7 +44,9 @@
       <!-- User -->
       <div class="px-3 py-4 border-t border-gray-100">
         <div class="flex items-center gap-3 px-2 mb-2">
-          <div class="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow">
+          <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
+            class="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow" width="36" height="36" />
+          <div v-else class="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow">
             {{ user?.name?.charAt(0)?.toUpperCase() }}
           </div>
           <div class="min-w-0 flex-1">
@@ -183,6 +185,7 @@ const navItems = computed(() => {
   return [
     { href: '/dashboard',      icon: '🏠', label: 'Inicio' },
     { href: '/students',       icon: '🎒', label: 'Mis hijos' },
+    { href: '/my-reports',     icon: '📝', label: 'Mis reportes' },
     { href: '/marketplace',    icon: '🔍', label: 'Buscar profesor' },
     { href: '/class-requests', icon: '📋', label: 'Solicitudes' },
     { href: '/my-classes',     icon: '📅', label: 'Clases' },

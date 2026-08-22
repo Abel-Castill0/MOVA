@@ -28,7 +28,7 @@ class TeacherVerifiedNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Colega, su perfil de profesor ha sido **verificado** por nuestro equipo.')
             ->line('Ya puede recibir solicitudes de clase y comenzar a enseñar en MOVA.')
-            ->action('Ver mi perfil', $this->appUrl('/teacher/profile'))
+            ->action('Ver mi perfil', $this->appRoute('teacher.profile'))
             ->salutation('El equipo de MOVA');
     }
 
