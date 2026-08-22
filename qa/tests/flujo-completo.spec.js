@@ -28,6 +28,13 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
+// Import intencional del util real de la app (no un residuo de copy-paste):
+// los pasos 7 y 10 necesitan reproducir el orden exacto en que
+// ParentIndex.vue agrupa/invierte "Esta semana" para ubicar el botón/card
+// correctos en el DOM. Reimplementar esa lógica aparte en el test permitiría
+// que ambas copias diverjan en silencio — ver los comentarios en los pasos
+// 7 y 10 para el porqué completo.
+import { splitByWeek } from '../../resources/js/utils/weekGrouping.js';
 
 const BASE_URL = 'http://localhost:8000';
 if (/railway\.app|mova-production/.test(BASE_URL)) {
@@ -179,24 +186,48 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
     await test.step('7. Confirmar pago ("Ya pagué")', async () => {
       // El botón "Ya pagué" no expone el lesson id en el DOM (no tiene href).
-      // Replicamos el mismo orderBy('start_time','desc') que usa
-      // LessonController::parentIndex() para calcular en qué posición del
-      // listado cae nuestra lesson, en vez de adivinar por texto/fecha.
-      // El botón "Ya pagué" solo se renderiza para clases cuyo end_time ya
-      // pasó (ver ParentIndex.vue::hasClassEnded) — filtramos igual que el
-      // frontend, no basta con status='scheduled'.
-      const ids = tinker(
-        `echo App\\Models\\Lesson::where('student_id', App\\Models\\Student::where('first_name','Mateo')->where('last_name','Prueba')->first()->id)` +
-          `->where('status','scheduled')->orderBy('start_time','desc')->get()` +
-          `->filter(fn($l) => now()->gte($l->end_time))->pluck('id')->implode(',');`
-      )
-        .split(',')
-        .map(Number);
-      const index = ids.indexOf(lessonId);
+      // Su posición en el DOM sigue el mismo balde/orden de ParentIndex.vue
+      // que el paso 10 (ver el comentario detallado ahí) — no un
+      // orderBy('start_time','desc') plano. Se calcula igual: se trae la
+      // lista completa, se reproduce el bucketing real con splitByWeek(), y
+      // recién ahí se filtra a las que califican para "Ya pagué" (scheduled
+      // + end_time ya pasado, igual que ParentIndex.vue::hasClassEnded).
+      // get() completo (no una selección de columnas): Lesson::$appends
+      // incluye accesores calculados (credit_cost, end_time, has_jitsi_room)
+      // que leen duration_minutes/jitsi_room internamente — toJson() los
+      // serializa siempre, así que limitar columnas con get([...]) rompe la
+      // serialización con un TypeError en cuanto falta alguna que el
+      // accesor necesita.
+      const rows = JSON.parse(
+        tinker(
+          `echo App\\Models\\Lesson::where('student_id', App\\Models\\Student::where('first_name','Mateo')->where('last_name','Prueba')->first()->id)` +
+            `->orderBy('start_time','desc')->get()->toJson();`
+        )
+      );
+      const { thisWeek, past } = splitByWeek(rows);
+      const domOrder = [...thisWeek].reverse().concat(past);
+      const payable = domOrder.filter((l) => {
+        if (l.status !== 'scheduled') return false;
+        const endTime = new Date(new Date(l.start_time).getTime() + l.duration_minutes * 60_000);
+        return Date.now() >= endTime.getTime();
+      });
+      const index = payable.findIndex((l) => l.id === lessonId);
       expect(index).toBeGreaterThanOrEqual(0);
 
       await page.goto(`${BASE_URL}/my-classes`);
-      await page.getByRole('button', { name: '✓ Ya pagué' }).nth(index).click();
+
+      // Causa raíz del flake original: se hacía click en .nth(index) justo
+      // después de goto(), sin esperar visibilidad — a diferencia de los
+      // pasos 2 y 4 de este mismo archivo, que sí confirman
+      // expect(card).toBeVisible() antes de interactuar. Sin esa espera, el
+      // click podía llegar antes de que Vue montara/hidratara este botón
+      // en particular, y el evento se perdía en silencio (sin lanzar error:
+      // Playwright encuentra el locator, pero el nodo aún no es interactivo
+      // de forma estable). Confirmar visibilidad primero replica el patrón
+      // ya probado del resto del archivo.
+      const payButton = page.getByRole('button', { name: '✓ Ya pagué' }).nth(index);
+      await expect(payButton).toBeVisible();
+      await payButton.click();
       await page.waitForLoadState('networkidle');
 
       const status = tinker(`echo App\\Models\\Lesson::find(${lessonId})->status;`);
@@ -248,17 +279,31 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       expect(review).toBe('5');
 
       // Confirmación visual en la UI, no solo en BD. La card de /my-classes no
-      // expone el MARKER en texto visible, así que ubicamos la card por índice
-      // replicando el mismo orderBy('start_time','desc') que usa
-      // LessonController::parentIndex() (sin filtro de status, a diferencia
-      // del paso 7).
-      const ids = tinker(
-        `echo App\\Models\\Lesson::where('student_id', App\\Models\\Student::where('first_name','Mateo')->where('last_name','Prueba')->first()->id)` +
-          `->orderBy('start_time','desc')->pluck('id')->implode(',');`
-      )
-        .split(',')
-        .map(Number);
-      const index = ids.indexOf(lessonId);
+      // expone el MARKER en texto visible, así que ubicamos la card por
+      // índice — pero el DOM NO sigue un simple orderBy('start_time','desc')
+      // plano: ParentIndex.vue divide en dos baldes ("Esta semana" y "Clases
+      // pasadas" vía weekGrouping.js::splitByWeek) y además invierte el
+      // orden del balde "Esta semana" (ver ParentIndex.vue: `thisWeek =
+      // [...grouped.thisWeek].reverse()`) para mostrar la más próxima
+      // primero. Con una sola lección de por medio esa inversión no se
+      // notaba, pero apenas hay ≥2 lecciones en la semana actual (algo
+      // frecuente en un entorno local que acumula corridas de este mismo
+      // archivo, ver nota de idempotencia arriba) el índice calculado con un
+      // orderBy plano deja de coincidir con la posición real en el DOM.
+      // Se reutiliza el propio splitByWeek() de la app (no una reimplementación
+      // aparte) para que este cálculo nunca pueda desincronizarse del
+      // comportamiento real del componente. get() completo, no una
+      // selección de columnas: ver nota igual en el paso 7 sobre
+      // Lesson::$appends y toJson().
+      const rows = JSON.parse(
+        tinker(
+          `echo App\\Models\\Lesson::where('student_id', App\\Models\\Student::where('first_name','Mateo')->where('last_name','Prueba')->first()->id)` +
+            `->orderBy('start_time','desc')->get()->toJson();`
+        )
+      );
+      const { thisWeek, past } = splitByWeek(rows);
+      const domOrder = [...thisWeek].reverse().concat(past);
+      const index = domOrder.findIndex((l) => l.id === lessonId);
       expect(index).toBeGreaterThanOrEqual(0);
 
       await page.goto(`${BASE_URL}/my-classes`);
