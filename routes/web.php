@@ -67,6 +67,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('students', StudentController::class)->except(['show'])->middleware('throttle:20,1');
         Route::get('/class-requests', [ClassRequestController::class, 'index'])->name('class-requests.index');
         Route::get('/class-requests/create', [ClassRequestController::class, 'create'])->name('class-requests.create');
+        Route::get('/class-requests/lookup-code', [ClassRequestController::class, 'lookupTeacherByCode'])->middleware('throttle:30,1')->name('class-requests.lookup-code');
         Route::post('/class-requests', [ClassRequestController::class, 'store'])->middleware('throttle:10,1')->name('class-requests.store');
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->middleware('throttle:20,1')->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->middleware('throttle:20,1')->name('class-requests.reject');

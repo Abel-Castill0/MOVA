@@ -7,6 +7,7 @@ use App\Models\ClassEvent;
 use App\Models\ClassOffer;
 use App\Models\ClassRequest;
 use App\Models\Subject;
+use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +18,44 @@ class ClassRequestController extends Controller
     public function create(Request $request)
     {
         $offer = $request->offer_id ? ClassOffer::with(['subject', 'teacherProfile.user'])->findOrFail($request->offer_id) : null;
+
+        // ?code=ABC123 desde "Solicitar clase" en el marketplace — prellena
+        // el input, pero el valor real sigue resolviéndose en store() contra
+        // la BD; esto es solo conveniencia de UI.
+        $prefillCode = $request->filled('code') ? strtoupper(trim((string) $request->query('code'))) : null;
+
         return Inertia::render('ClassRequests/Create', [
             'subjects' => Subject::orderBy('name')->get(),
             'students' => auth()->user()->students()->get(),
             'offer' => $offer,
             'isMentorship' => $request->boolean('is_mentorship'),
+            'prefillReferralCode' => $prefillCode,
+        ]);
+    }
+
+    /**
+     * Búsqueda en vivo para el input "Código del profesor" — el padre ve a
+     * quién le llegaría la solicitud ANTES de enviarla. Solo lectura, sin
+     * side effects; la resolución real (la que de verdad importa) vuelve a
+     * pasar por aquí mismo dentro de store(), nunca confía en lo que el
+     * frontend ya validó.
+     */
+    public function lookupTeacherByCode(Request $request)
+    {
+        $code = strtoupper(trim((string) $request->query('code', '')));
+
+        $profile = $code !== '' ? TeacherProfile::where('referral_code', $code)
+            ->where('is_verified', true)
+            ->with('user')
+            ->first() : null;
+
+        if (! $profile) {
+            return response()->json(['found' => false]);
+        }
+
+        return response()->json([
+            'found' => true,
+            'name' => $profile->user->name,
         ]);
     }
 
@@ -31,6 +65,7 @@ class ClassRequestController extends Controller
             'student_id' => 'required|exists:students,id',
             'subject_id' => 'required|exists:subjects,id',
             'class_offer_id' => 'nullable|exists:class_offers,id',
+            'teacher_referral_code' => 'nullable|string|max:6',
             'is_mentorship' => 'sometimes|boolean',
             'help_needed' => 'required|string|max:2000',
             'preferred_times' => 'nullable|array',
@@ -41,6 +76,20 @@ class ClassRequestController extends Controller
 
         $status = auth()->user()->parental_control ? 'pending_parent_approval' : 'open';
         $data['is_mentorship'] = (bool) ($data['is_mentorship'] ?? false);
+
+        // Resolución real del código — nunca confía en lo que devolvió
+        // lookupTeacherByCode() al frontend, esto es la garantía.
+        $teacherProfileId = null;
+        $rawCode = trim((string) ($data['teacher_referral_code'] ?? ''));
+        if ($rawCode !== '') {
+            $code = strtoupper($rawCode);
+            $teacherProfile = TeacherProfile::where('referral_code', $code)
+                ->where('is_verified', true)
+                ->first();
+
+            abort_unless($teacherProfile, 422, 'Código de profesor no encontrado.');
+            $teacherProfileId = $teacherProfile->id;
+        }
 
         if ($data['is_mentorship'] && !empty($data['class_offer_id'])) {
             $teacherProfile = ClassOffer::with('teacherProfile')
@@ -54,7 +103,14 @@ class ClassRequestController extends Controller
             );
         }
 
-        $classRequest = ClassRequest::create(array_merge($data, ['status' => $status]));
+        $classRequest = new ClassRequest($data);
+        $classRequest->status = $status;
+        // teacher_profile_id/teacher_referral_code quedan fuera de $fillable
+        // a propósito (ver ClassRequest.php) — asignación directa, solo tras
+        // la validación de arriba.
+        $classRequest->teacher_profile_id = $teacherProfileId;
+        $classRequest->teacher_referral_code = $teacherProfileId ? strtoupper($rawCode) : null;
+        $classRequest->save();
 
         event(new ClassRequestCreated($classRequest));
 
@@ -66,7 +122,7 @@ class ClassRequestController extends Controller
         $studentIds = auth()->user()->students()->pluck('id');
         return Inertia::render('ClassRequests/Index', [
             'requests' => ClassRequest::whereIn('student_id', $studentIds)
-                ->with(['student', 'subject', 'classOffer.teacherProfile.user'])
+                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'teacherProfile.user'])
                 ->latest()->get(),
         ]);
     }
@@ -122,24 +178,12 @@ class ClassRequestController extends Controller
         $subjectIds = $profile->subjects()->pluck('subjects.id');
 
         $open = ClassRequest::where('status', 'open')
-            ->where(function ($q) use ($offerIds, $subjectIds) {
-                $q->whereIn('class_offer_id', $offerIds)
-                  ->orWhere(function ($inner) use ($subjectIds) {
-                      $inner->whereNull('class_offer_id')
-                            ->whereIn('subject_id', $subjectIds);
-                  });
-            })
+            ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
             ->with(['student', 'subject', 'classOffer'])
             ->latest()->get();
 
         $rejected = ClassRequest::where('status', 'teacher_rejected')
-            ->where(function ($q) use ($offerIds, $subjectIds) {
-                $q->whereIn('class_offer_id', $offerIds)
-                  ->orWhere(function ($inner) use ($subjectIds) {
-                      $inner->whereNull('class_offer_id')
-                            ->whereIn('subject_id', $subjectIds);
-                  });
-            })
+            ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
             ->with(['student', 'subject'])
             ->latest('teacher_rejected_at')
             ->take(10)

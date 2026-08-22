@@ -38,6 +38,14 @@ class ClassRequestPolicy
             return false;
         }
 
+        // Código de referido (Opción A, HANDOFF_FINAL.md §18): si la
+        // solicitud ya está vinculada a un profesor específico, es EXCLUSIVA
+        // de ese profesor — ni siquiera matchear por materia/oferta debe
+        // dar acceso a otro. Corta aquí, no cae al matching de siempre.
+        if ($classRequest->teacher_profile_id !== null) {
+            return $classRequest->teacher_profile_id === $profile->id;
+        }
+
         $offerIds = $profile->classOffers()->pluck('id');
         $subjectIds = $profile->subjects()->pluck('subjects.id');
         $ownedViaOffer = $classRequest->class_offer_id && $offerIds->contains($classRequest->class_offer_id);

@@ -205,6 +205,15 @@
               Ver perfil del profesor
             </Link>
 
+            <!-- Código de referido (Opción A): copiarlo o ir directo al
+                 formulario de solicitud con el código ya cargado — vía
+                 adicional al "Solicitar clase" de la oferta, sin tocarla. -->
+            <button v-if="o.teacher_profile?.referral_code" type="button" @click="copyReferralCode(o.teacher_profile.referral_code)"
+              class="flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+              <span v-if="copiedCode === o.teacher_profile.referral_code">✓ Código copiado</span>
+              <span v-else class="font-mono tracking-widest">{{ o.teacher_profile.referral_code }} · Copiar código</span>
+            </button>
+
             <!-- CTA -->
             <template v-if="authUser">
               <template v-if="isParent">
@@ -259,7 +268,7 @@
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import GuestLayout from '@/Layouts/GuestLayout.vue'
@@ -273,6 +282,18 @@ const isParent = computed(() => {
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
 const layout   = computed(() => authUser.value ? AppLayout : GuestLayout)
+
+// Código de referido (Opción A) — copiar al portapapeles, feedback breve.
+const copiedCode = ref(null)
+async function copyReferralCode(code) {
+  try {
+    await navigator.clipboard.writeText(code)
+  } catch {
+    return // portapapeles no disponible (permiso denegado, contexto no seguro) — sin feedback falso
+  }
+  copiedCode.value = code
+  setTimeout(() => { if (copiedCode.value === code) copiedCode.value = null }, 2000)
+}
 
 const filters = reactive({
   search:     props.filters?.search     ?? '',
