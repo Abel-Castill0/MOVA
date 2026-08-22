@@ -109,9 +109,28 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // devolución). Sin este top-up, tras un puñado de corridas el
       // profesor de prueba se queda sin crédito y el paso 4 falla con
       // "Créditos insuficientes" — rompiendo el requisito de idempotencia.
+      //
+      // Antes esto era un `TeacherProfile::update(['credits_available' =>
+      // 100000])` — una sobrescritura RAW sin respaldo en el ledger, que
+      // viola la invariante central del proyecto ("credit_transactions es
+      // la única fuente de verdad", ver CLAUDE.md). Cada corrida dejaba
+      // credits_available más desincronizado de la suma real del ledger;
+      // así se originó el descuadre 99999↔4 que reportó
+      // mova:reconcile-ledger. Se reemplaza por el mismo patrón de
+      // deposit+incremento que usa Admin/RechargeController::approve()
+      // (CreditTransaction ledger-backed, credits_available += amount,
+      // nunca una asignación absoluta), con idempotency_key único por
+      // corrida (reutiliza MARKER) para que sea un depósito real y
+      // trazable, no un número mágico.
       tinker(
-        `App\\Models\\TeacherProfile::whereHas('user', fn($q) => $q->where('email','${TEACHER_EMAIL}'))` +
-          `->update(['credits_available' => 100000]);`
+        `$tp = App\\Models\\TeacherProfile::whereHas('user', fn($q) => $q->where('email','${TEACHER_EMAIL}'))->first();` +
+          `$tp->creditTransactions()->create([` +
+          `'idempotency_key' => 'e2e:${MARKER}:deposit',` +
+          `'type' => 'deposit',` +
+          `'amount' => 20,` +
+          `'description' => 'Top-up E2E flujo-completo.spec.js',` +
+          `]);` +
+          `$tp->update(['credits_available' => $tp->credits_available + 20]);`
       );
     });
 
