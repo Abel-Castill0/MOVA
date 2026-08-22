@@ -6,6 +6,8 @@ use App\Models\ClassEvent;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
 use App\Models\TeacherProfile;
+use App\Notifications\LessonSettledNotification;
+use App\Support\LessonNotifier;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -45,10 +47,34 @@ class LessonSettlementService
      * $actorId = NULL ⟺ liquidación automática del sistema (scheduler).
      * $actorId = id de usuario ⟺ liquidación disparada por su acción (reseña,
      * o un admin en force-complete).
+     *
+     * $notify = true dispara LessonSettledNotification a profesor y padre —
+     * SOLO tiene sentido en el camino automático (mova:settle-lessons): la
+     * reseña y el force-complete de admin son acciones humanas que ya saben
+     * lo que hicieron y tienen sus propias notificaciones (Decisión de
+     * negocio #3, Fase 3B §17). Nunca se dispara en el camino idempotente
+     * (lección ya liquidada) — $settledNow solo se marca true en el camino
+     * real de liquidación, después de escribirla.
+     *
+     * $notify=true exige $actorId=null (verificado en código, no solo en
+     * comentario — hallazgo de la pasada de code-review de esta decisión):
+     * el texto de LessonSettledNotification ("se cerró automáticamente")
+     * sería falso e induciría a error si un futuro caller lo combinara con
+     * una acción humana con actor real. Falla ruidoso en vez de permitirlo.
      */
-    public function consume(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_settled'): Lesson
+    public function consume(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_settled', bool $notify = false): Lesson
     {
-        return DB::transaction(function () use ($lesson, $actorId, $reason, $eventType) {
+        if ($notify && $actorId !== null) {
+            throw new \InvalidArgumentException(
+                'LessonSettlementService::consume(notify: true) es exclusivo del camino automático del sistema — '
+                .'exige actorId=null. Un actor humano ya sabe lo que hizo y no debe recibir '
+                .'"se cerró automáticamente".'
+            );
+        }
+
+        $settledNow = false;
+
+        $lesson = DB::transaction(function () use ($lesson, $actorId, $reason, $eventType, &$settledNow) {
             $lesson = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
 
             // Idempotencia por resultado: si ya está liquidada (cualquier
@@ -124,13 +150,34 @@ class LessonSettlementService
 
             ClassEvent::log($eventType, $actorId, $lesson->id, $lesson->class_request_id, $reason);
 
+            $settledNow = true;
+
             return $lesson->fresh();
         });
+
+        // Notificar SIEMPRE fuera de la transacción (Fase 3B §13 — una cola
+        // con after_commit=false podría procesar la notificación antes del
+        // commit real si se despachara dentro).
+        if ($notify && $settledNow) {
+            LessonNotifier::notifyBoth($lesson, new LessonSettledNotification($lesson));
+        }
+
+        return $lesson;
     }
 
     /**
      * Devuelve los créditos reservados de una clase: la marca como cancelada
      * y mueve el importe de reserved a available.
+     *
+     * A propósito SIN parámetro $notify (a diferencia de consume()): hoy
+     * ningún llamador dispara un refund automático sin actor — el scheduler
+     * solo auto-CONSUME tras la gracia, nunca auto-reembolsa (needs_admin_review
+     * no tiene efecto financiero por diseño). Agregar $notify aquí sería
+     * superficie sin usar, y LessonSettledNotification tiene texto específico
+     * de "clase completada / puedes calificar" que sería incorrecto para un
+     * reembolso (la clase no ocurrió). Si en el futuro se agrega un camino de
+     * auto-refund, esto necesita su propia notificación con texto de
+     * cancelación, no reutilizar esta.
      */
     public function refund(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_cancelled'): Lesson
     {
@@ -209,4 +256,5 @@ class LessonSettlementService
             return $lesson->fresh();
         });
     }
+
 }

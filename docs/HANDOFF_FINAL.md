@@ -33,7 +33,7 @@ En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesió
 
 | Check | Resultado |
 |---|---|
-| `php artisan test` | **78/78** ✅ |
+| `php artisan test` | **150/150** ✅ (ver §17 para el detalle de C-1, 2026-08-21) |
 | `npx playwright test --config=playwright.local.config.js` (desde `qa/`) | **2/2** ✅ |
 | `npm run build` | limpio, sin errores ✅ |
 | Secretos hardcodeados en código versionado | ninguno encontrado en `app/`/`resources/`; sí en 10 specs QA ya eliminados (ver advertencia arriba) |
@@ -967,3 +967,182 @@ php artisan view:cache
 (Usados por el propio suite E2E en `qa/tests/flujo-completo.spec.js`. Ver
 `SETUP.md` para el resto de usuarios de `db:seed`, con contraseña
 `password`.)
+
+---
+
+## 17. C-1 — Créditos que quedaban atrapados (2026-08-15 a 2026-08-21)
+
+### El hallazgo original
+
+Auditoría de seguridad post-lanzamiento (agosto 2026) encontró tres hallazgos
+críticos, cerrados en orden:
+
+- **C-3** (`533a799`) — la URL real de la sala de Jitsi se guardaba en el
+  payload de las notificaciones (`notifications.data`), exponiendo un token
+  de acceso a una videollamada con un menor presente. Corregido; limpieza
+  histórica del dato ya guardado vía `mova:purge-jitsi-urls`.
+- **C-2** (`6149aa4`) — `reschedule()` permitía cambiar `duration_minutes` sin
+  ajustar `credits_reserved` — un profesor podía reprogramar una clase de 30
+  min (1 crédito reservado) a 4h sin pagar créditos extra. Bloqueado: el
+  cambio de duración al reprogramar ya no se acepta.
+- **C-1** (esta sección) — el hallazgo estructural: los créditos quedaban
+  **atrapados permanentemente** en `credits_reserved` porque la única forma
+  de consumirlos era que el padre escribiera una reseña voluntaria
+  (`TeacherReviewController::store()`). Una clase en `paid` o
+  `pending_parent_confirmation` cuyo padre nunca reseñara se quedaba así
+  para siempre — sin reembolsar al profesor ni cobrarle la clase.
+
+### Arquitectura del ledger
+
+`credit_transactions` es la única fuente de verdad financiera (append-only,
+`idempotency_key` único). `classes.credits_settled_at` es una **caché
+derivada**, nunca la garantía: lo que realmente impide una doble liquidación
+bajo concurrencia es el índice `UNIQUE` sobre `idempotency_key`, no un
+`credits_settled_at IS NULL` leído antes del lock. Por eso
+`credits_settled_at` está deliberadamente **fuera de `$fillable`** en
+`Lesson` — la única capa autorizada a escribirla es
+`App\Services\LessonSettlementService`, con asignación directa +
+`save()` (nunca `update()` con mass assignment; ver "Bugs reales" abajo).
+
+Estado nuevo en el ENUM de `classes.status`: **`needs_admin_review`** — una
+clase `scheduled` cuyo padre nunca confirmó el pago dentro de
+`unconfirmed_days` (7 días por defecto) escala aquí automáticamente. El
+crédito sigue reservado; no es una liquidación, es una bandera para que un
+admin decida. Se excluye por construcción (whitelist explícita, no negación)
+de `LessonController::join()` — no se puede entrar a la sala virtual de una
+clase en disputa — y de `reschedule()`/`cancel()` normales, que exigen
+`status === 'scheduled'` exacto.
+
+`Lesson::scopeEndedBefore()`/`scopeEndedAfter()` centralizan la aritmética de
+fechas (`start_time + duration_minutes`, con ramas MySQL/SQLite) — reutilizada
+por el scheduler, por `SendClassReminders` y por
+`Lesson::scopeAwaitingReportWithinGrace()`, para no repetir la misma
+expresión SQL en tres sitios (la misma deuda que dejó `hasScheduleOverlap()`
+duplicado en C-2).
+
+### Los 3 caminos para liquidar una clase
+
+Los tres pasan por `LessonSettlementService::consume()`/`refund()` — capa
+única, reemplaza lo que antes eran implementaciones divergentes del mismo
+concepto repartidas en varios controladores:
+
+1. **Automática (`mova:settle-lessons`)** — barrido horario
+   (`Kernel::schedule()`), una transacción por lección (nunca por lote — es
+   lo que impide que el comando participe en el deadlock multi-lección de
+   C-2). Consume `paid`/`pending_parent_confirmation` vencidas más allá de
+   `settlement_grace_days`; escala `scheduled` vencidas más allá de
+   `unconfirmed_days` a `needs_admin_review` (sin efecto financiero). Un
+   error en una lección no aborta el resto del barrido (`report()` +
+   continúa).
+   **⚠️ Agendado en `Kernel.php` con `--dry-run` a propósito** — activar la
+   liquidación real requiere quitar esa bandera a mano, después de revisar
+   el dry-run en producción. No se ha activado todavía.
+2. **Manual — rescate de admin** (`POST /admin/lessons/{id}/force-complete`
+   y `.../force-refund`) — para lo que el scheduler no puede decidir por sí
+   solo (ej. el profesor confirma por otro canal que la clase sí ocurrió).
+   Razón obligatoria, `throttle:10,1`, gateadas por `role:admin`.
+3. **Vía reseña** (`TeacherReviewController::store()`, el camino original) —
+   sigue funcionando igual, pero ahora también acepta reseñar una clase que
+   ya está en `completed` (auto-liquidada o cerrada por un admin) — la
+   reseña se guarda igual, simplemente no dispara un segundo consumo (lo
+   evita el mismo guard de idempotencia).
+
+### Decisiones de producto (Fase 3B, confirmadas explícitamente)
+
+- **`settlement_grace_days = 7`** y **`unconfirmed_days = 7`** — mismo valor
+  a propósito, para simplificar el razonamiento sobre cuándo escala qué.
+  Configurables por env (`CREDITS_SETTLEMENT_GRACE_DAYS`,
+  `CREDITS_UNCONFIRMED_DAYS`).
+- **`needs_admin_review` es visible, no oculto** — corrección a una
+  caracterización imprecisa que circuló en esta ronda ("excluir de listados
+  de usuario"): la decisión real fue la opuesta. El profesor ve un banner
+  explícito ("tu crédito sigue retenido mientras se resuelve"); el padre ve
+  uno neutro ("está en revisión por el equipo MOVA", sin detalle financiero,
+  que es un concepto del profesor). Hay una pestaña "En revisión" dedicada
+  en `Admin/Lessons.vue`. Lo único que SÍ está excluido por construcción es
+  la posibilidad de unirse a la videollamada o reprogramarla/cancelarla por
+  las vías normales (ver arriba).
+- **Los contadores públicos de `completed`** (landing, perfil de profesor,
+  dashboard) cuentan TODAS las clases completadas, incluidas las
+  auto-liquidadas — no hay forma de distinguir "el padre reseñó" de "se
+  cerró sola" desde esos contadores, y así se decidió que debía ser.
+
+### Bugs reales encontrados y corregidos durante la implementación
+
+Ninguno estaba en el plan original — surgieron al probar la UI real y en una
+pasada explícita de `security-review`/`code-review`:
+
+- **`credits_settled_at` no se guardaba, en silencio.** El servicio escribía
+  `$lesson->update(['credits_settled_at' => now(), ...])` — como esa columna
+  está deliberadamente fuera de `$fillable`, Eloquent la descartaba sin
+  avisar, incluso desde el único caller autorizado a escribirla. Ningún test
+  lo detectó (ninguno afirmaba sobre esa columna) — se encontró haciendo
+  clic en la UI de admin real. Corregido con asignación directa + `save()`.
+- **Fuga de cupos de mentoría.** `refund()` cubre estados
+  (`paid`/`pending_parent_confirmation`/`needs_admin_review`) que
+  `cancel()`/`AdminController::cancelLesson()` nunca tocaban — un
+  force-refund de una clase de mentoría más allá de `scheduled` habría
+  dejado `mentorship_slots_taken` tomado para siempre.
+- **Guard de saldo ausente.** `consume()`/`refund()` no validaban
+  `credits_reserved` suficiente antes de escribir — a diferencia del resto
+  de mutaciones financieras del repo. Una desincronización ledger↔saldo
+  habría empujado el saldo a negativo en silencio en vez de abortar.
+- Un par de endurecimientos menores: `SendClassReminders` podía re-notificar
+  una lección que un admin acababa de forzar-cerrar (recheck de `status`
+  bajo lock añadido); `LessonController::cancel()`/`cancelLesson()` podían
+  dar un 500 crudo ante una lección legacy sin ledger (convertido a 422
+  accionable).
+
+### Riesgos residuales (documentados, no bloqueantes)
+
+1. **`cancel()` y `AdminController::cancelLesson()` NO se migraron a
+   `LessonSettlementService`** — deuda técnica explícita, deliberada: ya
+   funcionan, están probados, y migrarlos no formaba parte del bug de C-1.
+   Dos implementaciones de "reembolsar desde scheduled" siguen coexistiendo
+   con el servicio nuevo.
+2. **Deadlock `reschedule` × `reschedule`**, documentado al cerrar C-2 — es
+   preexistente y C-1 no lo agrava (una transacción por lección en el
+   scheduler impide que settle participe en él).
+3. **Legacy NO_LEDGER** — 0 lecciones así existen hoy (verificado con
+   `mova:reconcile-ledger`), y `store()` garantiza 1 reserva por diseño, pero
+   si alguna vez apareciera una, `reservedCreditAmount()` lanza en vez de
+   fabricar un monto — es una decisión deliberada de "fallar ruidoso", no un
+   caso sin manejar.
+4. **Una decisión de negocio de la Fase 3B sigue sin cerrar** (documentado
+   ahí como pendiente, no decidido unilateralmente):
+   - Política de reintento si el scheduler falla repetidamente sobre la
+     misma lección — hoy simplemente la vuelve a intentar cada hora
+     indefinidamente, sin límite ni alerta.
+5. **Incidente de MySQL local (2026-08-21, no relacionado con C-1 en sí):**
+   XAMPP/MariaDB se corrompió (`mysql.db`, tabla interna de privilegios, no
+   los datos de `mova`) tras un corte abrupto durante esta misma sesión —
+   diagnosticado con `mysqld --console` y corregido restaurando solo esa
+   tabla desde `C:\xampp\mysql\backup\mysql\`. Mencionado aquí por si vuelve
+   a ocurrir: el error característico es
+   `Can't open and lock privilege tables: Incorrect file format 'db'`.
+
+### Decisión de negocio #3 resuelta — notificación de cierre automático
+
+Implementada tras el cierre inicial de esta sección: `LessonSettledNotification`
+(`database` + `mail`, sin WhatsApp/broadcast — es informativa, no urgente),
+disparada exclusivamente por `LessonSettlementService::consume(..., notify:
+true)`, usado únicamente por `mova:settle-lessons` — nunca por la reseña ni
+por `force-complete` de admin, que ya tienen sus propias notificaciones o no
+necesitan una. Texto distinto por rol (`hasRole('teacher')`): al profesor se
+le dice que su crédito ya se liquidó, al padre que puede calificar. Nunca
+incluye `jitsi_room`/`jitsi_password` ni una URL de `meet.jit.si` (mismo
+riesgo que C-3) — verificado con un test dedicado que fuerza esos campos en
+la lección y confirma su ausencia del payload.
+
+### Verificación (2026-08-21)
+
+- `php artisan test` → **150/150** (132 previos + 10 escenarios A–J de la
+  máquina de estados completa + 2 de regresión del guard de saldo + 6 de la
+  notificación de cierre automático — Decisión #3, incluido el guard
+  notify+actorId encontrado en su propia pasada de code-review).
+- `mova:reconcile-ledger --json` → GREEN, 0 anomalías, 0 descuadres, contra
+  MySQL real.
+- `mova:settle-lessons --dry-run` → 0 candidatas (nada vencido todavía en la
+  BD local).
+- `npm run build` → limpio.
+- Commit `5d72dcd` — sin push todavía.

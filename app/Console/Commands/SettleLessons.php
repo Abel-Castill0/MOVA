@@ -76,9 +76,11 @@ class SettleLessons extends Command
 
             try {
                 $settlement->consume(
-                    Lesson::findOrFail($id),
-                    null,
-                    "Liquidación automática: sin cerrar {$graceDays} días tras el fin de la clase"
+                    lesson: Lesson::findOrFail($id),
+                    actorId: null,
+                    reason: "Liquidación automática: sin cerrar {$graceDays} días tras el fin de la clase",
+                    eventType: 'auto_settled',
+                    notify: true
                 );
                 $settled++;
                 $this->line("  Lesson {$id}: liquidada.");

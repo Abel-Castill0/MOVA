@@ -11,9 +11,11 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\LessonSettledNotification;
 use App\Services\LessonSettlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -305,6 +307,106 @@ class LessonSettlementScenariosTest extends TestCase
 
         $this->assertSame(0, $profile->fresh()->credits_reserved);
         $this->assertNull($lesson->fresh()->credits_settled_at);
+    }
+
+    // ── L: Decisión de negocio #3 (Fase 3B §17) — notificar el cierre automático ──
+
+    public function test_notify_true_with_a_human_actor_is_rejected(): void
+    {
+        // Hallazgo de la pasada de code-review de esta decisión: notify=true
+        // combinado con un actorId real enviaría "se cerró automáticamente"
+        // para una acción humana — debe rechazarse en código, no solo en
+        // comentario.
+        [, , $lesson] = $this->lesson('paid', now()->subHours(3));
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(LessonSettlementService::class)->consume($lesson, actorId: 999, notify: true);
+    }
+
+    public function test_auto_settlement_notifies_both_teacher_and_parent(): void
+    {
+        Notification::fake();
+
+        [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        Notification::assertSentTo($teacher, LessonSettledNotification::class);
+        Notification::assertSentTo($parent, LessonSettledNotification::class);
+        Notification::assertCount(2);
+    }
+
+    public function test_settling_via_review_does_not_send_the_auto_settlement_notification(): void
+    {
+        Notification::fake();
+
+        [$teacher, , $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subHours(2));
+        $this->reportFor($lesson);
+
+        $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5])
+            ->assertRedirect(route('parent.lessons'));
+
+        $this->assertNotNull($lesson->fresh()->credits_settled_at);
+        // La reseña sí notifica al profesor (TeacherReviewReceivedNotification,
+        // sin cambios) — lo que NO debe pasar es que ADEMÁS se dispare la
+        // notificación de cierre automático, que es exclusiva del scheduler.
+        Notification::assertNotSentTo($parent, LessonSettledNotification::class);
+        Notification::assertNotSentTo($teacher, LessonSettledNotification::class);
+    }
+
+    public function test_admin_force_complete_does_not_send_the_auto_settlement_notification(): void
+    {
+        Notification::fake();
+
+        [$teacher, , $lesson] = $this->lesson('paid', now()->subHours(3));
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)
+            ->post(route('admin.lessons.force-complete', $lesson), ['reason' => 'Confirmado manualmente por soporte.'])
+            ->assertRedirect();
+
+        $this->assertNotNull($lesson->fresh()->credits_settled_at);
+        Notification::assertNotSentTo($teacher, LessonSettledNotification::class);
+    }
+
+    public function test_settled_notification_never_carries_a_jitsi_room_or_meet_jitsi_url(): void
+    {
+        Notification::fake();
+
+        [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+        // Simula que la clase sí tenía sala asignada — exactamente el dato que
+        // C-3 (533a799) prohibió que viajara en el payload de una notificación.
+        $lesson->forceFill(['jitsi_room' => 'mova-lesson-secret-room'])->save();
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        Notification::assertSentTo($teacher, LessonSettledNotification::class, function ($notification, $channels) use ($teacher) {
+            $array = $notification->toArray($teacher);
+            $payload = json_encode($array);
+
+            $this->assertStringNotContainsString('jitsi_room', $payload);
+            $this->assertStringNotContainsString('jitsi_password', $payload);
+            $this->assertStringNotContainsString('meet.jit.si', $payload);
+            $this->assertArrayNotHasKey('jitsi_room', $array);
+
+            return true;
+        });
+    }
+
+    public function test_running_the_sweep_twice_sends_the_notification_only_once(): void
+    {
+        Notification::fake();
+
+        [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+        // Mismo cruce de minuto real que el resto de los tests de idempotencia
+        // de esta clase — evita el falso negativo ya documentado (Fase 3A).
+        Carbon::setTestNow(now()->addMinute());
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        Notification::assertSentToTimes($teacher, LessonSettledNotification::class, 1);
+        Notification::assertSentToTimes($parent, LessonSettledNotification::class, 1);
     }
 
     // ── Helpers (mismo patrón que MonetizationIntegrityTest) ───────────

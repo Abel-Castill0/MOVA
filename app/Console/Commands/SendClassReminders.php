@@ -7,6 +7,7 @@ use App\Models\Lesson;
 use App\Notifications\ClassReminderNotification;
 use App\Notifications\PendingReportReminderNotification;
 use App\Notifications\UnansweredRequestNotification;
+use App\Support\LessonNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -24,16 +25,6 @@ class SendClassReminders extends Command
         $this->sendUnansweredRequestAlerts();
     }
 
-    private function notifyBoth(Lesson $lesson, $notification): void
-    {
-        if ($lesson->teacherProfile?->user) {
-            $lesson->teacherProfile->user->notify($notification);
-        }
-        if ($lesson->student?->parent) {
-            $lesson->student->parent->notify(clone $notification);
-        }
-    }
-
     private function send24hReminders(): void
     {
         $lessons = Lesson::where('status', 'scheduled')
@@ -44,7 +35,7 @@ class SendClassReminders extends Command
 
         foreach ($lessons as $lesson) {
             $notif = new ClassReminderNotification($lesson, '24h');
-            $this->notifyBoth($lesson, $notif);
+            LessonNotifier::notifyBoth($lesson, $notif);
             $lesson->update(['reminder_24h_sent_at' => now()]);
         }
 
@@ -61,7 +52,7 @@ class SendClassReminders extends Command
 
         foreach ($lessons as $lesson) {
             $notif = new ClassReminderNotification($lesson, '2h');
-            $this->notifyBoth($lesson, $notif);
+            LessonNotifier::notifyBoth($lesson, $notif);
             $lesson->update(['reminder_2h_sent_at' => now()]);
         }
 
@@ -78,7 +69,7 @@ class SendClassReminders extends Command
 
         foreach ($lessons as $lesson) {
             $notif = new ClassReminderNotification($lesson, '10m');
-            $this->notifyBoth($lesson, $notif);
+            LessonNotifier::notifyBoth($lesson, $notif);
             $lesson->update(['reminder_sent' => true]);
         }
 
