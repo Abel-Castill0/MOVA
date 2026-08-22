@@ -8,6 +8,7 @@ use App\Notifications\ClassReminderNotification;
 use App\Notifications\PendingReportReminderNotification;
 use App\Notifications\UnansweredRequestNotification;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class SendClassReminders extends Command
 {
@@ -86,22 +87,50 @@ class SendClassReminders extends Command
 
     private function sendPendingReportAlerts(): void
     {
-        // Classes completed 2+ hours ago with no lesson_report and no alert sent yet
-        $lessons = Lesson::where('status', 'completed')
+        // C-1 (A-1, Fase 3B §11): 'status=completed' + sin reporte era
+        // imposible antes de C-1 (completed solo llegaba tras crear el
+        // reporte) — este aviso nunca se disparó. El estado real de "debe un
+        // reporte" es 'paid' dentro de la ventana de gracia; fuera de ella el
+        // scheduler ya liquidó la clase sin reporte, y avisar llegaría tarde.
+        // Misma condición que DashboardController — ver
+        // Lesson::scopeAwaitingReportWithinGrace() para no triplicarla.
+        $lessons = Lesson::awaitingReportWithinGrace()
             ->whereNull('report_reminder_sent_at')
-            ->where('updated_at', '<=', now()->subHours(2))
-            ->whereDoesntHave('lessonReport')
             ->with(['teacherProfile.user'])
             ->get();
 
+        $sent = 0;
+
         foreach ($lessons as $lesson) {
-            if ($lesson->teacherProfile?->user) {
+            // report_reminder_sent_at se escribe en la MISMA transacción que
+            // marca el envío — dos pasadas concurrentes del scheduler no
+            // deben poder duplicar el aviso (antes el update() iba después
+            // del notify(), sin transacción, dejando una ventana de carrera).
+            $sentNow = DB::transaction(function () use ($lesson) {
+                $locked = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
+
+                // Recheck status bajo lock, no solo report_reminder_sent_at:
+                // entre el SELECT de arriba y este lock, un admin pudo forzar
+                // el cierre de esta misma lección (force-complete/refund) o
+                // el padre pudo reseñarla — 'paid' ya no aplica y avisar
+                // "te falta el reporte" sería ruido sobre una clase que ya
+                // no está pendiente por esa razón.
+                if ($locked->report_reminder_sent_at !== null || $locked->status !== 'paid') {
+                    return false;
+                }
+
+                $locked->update(['report_reminder_sent_at' => now()]);
+
+                return true;
+            });
+
+            if ($sentNow && $lesson->teacherProfile?->user) {
                 $lesson->teacherProfile->user->notify(new PendingReportReminderNotification($lesson));
+                $sent++;
             }
-            $lesson->update(['report_reminder_sent_at' => now()]);
         }
 
-        $this->info("Pending report alerts: {$lessons->count()}");
+        $this->info("Pending report alerts: {$sent}");
     }
 
     private function sendUnansweredRequestAlerts(): void

@@ -27,7 +27,12 @@ class DashboardController extends Controller
                     })->count(),
                     'classes_today'            => Lesson::whereDate('start_time', today())->count(),
                     'open_requests'            => ClassRequest::where('status', 'open')->count(),
-                    'completed_without_report' => Lesson::where('status', 'completed')->whereDoesntHave('lessonReport')->count(),
+                    // C-1 (A-1/Fase 3B §11): antes de C-1 'completed' solo se alcanzaba
+                    // TRAS crear el reporte, así que esta condición era imposible por
+                    // construcción — contador muerto. El estado real de "debe un
+                    // reporte" es 'paid' dentro de la ventana de gracia. Ver
+                    // Lesson::scopeAwaitingReportWithinGrace().
+                    'completed_without_report' => Lesson::awaitingReportWithinGrace()->count(),
                     'failed_jobs'              => \DB::table('failed_jobs')->count(),
                     'unverified_email'         => User::whereNull('email_verified_at')->count(),
                     'unverified_phone'         => User::whereNull('phone_verified_at')->count(),
@@ -43,9 +48,10 @@ class DashboardController extends Controller
 
         if ($user->hasRole('teacher')) {
             $profile = $user->teacherProfile;
+            // Mismo bug A-1 que arriba: 'completed' sin reporte era imposible antes
+            // de C-1. 'paid' dentro de la gracia es el estado real.
             $pendingReports = $profile ? Lesson::where('teacher_profile_id', $profile->id)
-                ->where('status', 'completed')
-                ->whereDoesntHave('lessonReport')
+                ->awaitingReportWithinGrace()
                 ->count() : 0;
 
             $checklist = [];

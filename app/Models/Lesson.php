@@ -70,13 +70,28 @@ class Lesson extends Model
     // recalcular desde duration_minutes — así un refund/consumption siempre
     // devuelve exactamente lo que se reservó, incluso si la clase fue
     // reprogramada con otra duración después de aceptarse.
+    // C-1: endurecido — el fallback anterior a credit_cost cuando no existía
+    // reserva FABRICABA un importe de la nada si el ledger no la respaldaba
+    // (riesgo #4 detectado en el diseño de C-1, Fase 3B). En cualquier estado
+    // válido de la máquina de estados (scheduled/paid/pending_parent_confirmation/
+    // needs_admin_review/completed/cancelled ya cerrados) debe existir EXACTAMENTE
+    // una reserva por diseño de store(); si no la hay, es una anomalía financiera
+    // real y debe fallar ruidosamente, no seguir con una cifra inventada.
     public function reservedCreditAmount(): int
     {
-        $reserved = CreditTransaction::where('lesson_id', $this->id)
+        $reservations = CreditTransaction::where('lesson_id', $this->id)
             ->where('type', 'reservation')
-            ->value('amount');
+            ->pluck('amount');
 
-        return (int) ($reserved ?? $this->credit_cost);
+        if ($reservations->count() !== 1) {
+            throw new \RuntimeException(
+                "Lesson {$this->id}: se esperaba exactamente 1 asiento 'reservation' en el ledger, "
+                ."hay {$reservations->count()}. No se puede determinar el importe a liquidar sin "
+                .'arriesgar una cifra fabricada — requiere investigación manual.'
+            );
+        }
+
+        return (int) $reservations->first();
     }
 
     public function teacherProfile()
@@ -142,5 +157,60 @@ class Lesson extends Model
             'DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) < ?',
             [$moment]
         );
+    }
+
+    /**
+     * Complemento de endedBefore(): filtra clases cuya hora de fin real es
+     * POSTERIOR o igual a $moment. Existe para expresar "todavía dentro de la
+     * ventana de gracia" sin negar endedBefore() desde fuera (whereNot sobre
+     * un whereRaw no compone limpio con el resto del query builder).
+     */
+    public function scopeEndedAfter(Builder $query, $moment): Builder
+    {
+        $moment = Carbon::parse($moment)->toDateTimeString();
+
+        if ($query->getConnection()->getDriverName() === 'sqlite') {
+            return $query->whereRaw(
+                "datetime(start_time, '+' || duration_minutes || ' minutes') >= ?",
+                [$moment]
+            );
+        }
+
+        return $query->whereRaw(
+            'DATE_ADD(start_time, INTERVAL duration_minutes MINUTE) >= ?',
+            [$moment]
+        );
+    }
+
+    /**
+     * C-1 corrige un bug (A-1, Fase 3B §11): antes de C-1, 'completed' solo se
+     * alcanzaba DESPUÉS de crear el reporte, así que "completed sin reporte"
+     * era imposible por construcción — tres sitios distintos consultaban una
+     * condición que nunca podía ser cierta (DashboardController x2,
+     * SendClassReminders). El estado correcto para "profesor le debe un
+     * reporte al padre" es 'paid', no 'completed'.
+     *
+     * Ventana con ambos extremos, no solo un mínimo:
+     *   - endedBefore(ahora - report_reminder_delay_hours): ya pasó tiempo
+     *     razonable desde que terminó, no tiene sentido avisar a los 2 minutos.
+     *   - endedAfter(ahora - settlement_grace_days): SIGUE dentro de la
+     *     gracia. Sin este límite superior, después de la gracia el scheduler
+     *     ya liquidó la clase (pasa a 'completed') y esta condición volvería a
+     *     ser insatisfacible del lado incorrecto — cero contadores muertos,
+     *     pero por la razón opuesta.
+     *
+     * Un solo lugar para esta condición, reutilizado por los 3 sitios que la
+     * necesitan — repetirla generaría la misma deuda que hasScheduleOverlap()
+     * duplicado dejó en C-2.
+     */
+    public function scopeAwaitingReportWithinGrace(Builder $query): Builder
+    {
+        $graceDays = (int) config('credits.settlement_grace_days', 7);
+        $reminderDelayHours = (int) config('credits.report_reminder_delay_hours', 2);
+
+        return $query->where('status', 'paid')
+            ->whereDoesntHave('lessonReport')
+            ->endedBefore(now()->subHours($reminderDelayHours))
+            ->endedAfter(now()->subDays($graceDays));
     }
 }

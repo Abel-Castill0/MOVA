@@ -479,13 +479,26 @@ class MonetizationIntegrityTest extends TestCase
     public function test_review_completes_lesson_and_consumes_reserved_credit_once(): void
     {
         [, $profile, $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subHours(2));
+        $this->reportFor($lesson);
 
         $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5])
             ->assertRedirect(route('parent.lessons'));
+        // C-1: 'completed' ahora SÍ es un status reseñable (ver assertReviewable()),
+        // así que el segundo intento ya no lo rechaza el guard de status (403) —
+        // llega hasta el guard real: "ya existe una reseña" (422), igual que el
+        // resto de duplicados en este controlador.
         $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 4])
-            ->assertStatus(403);
+            ->assertStatus(422);
 
         $profile->refresh();
+        // credits_settled_at está deliberadamente fuera de $fillable (protección
+        // contra escritura por fuera del servicio) — regresión real detectada
+        // manualmente: LessonSettlementService usaba update() con mass
+        // assignment, que la mass-assignment guard descartaba en SILENCIO
+        // incluso desde el propio servicio autorizado. status SÍ es fillable,
+        // así que ese assert por sí solo nunca la habría detectado. Ver el fix
+        // (asignación directa + save()) en LessonSettlementService.
+        $this->assertNotNull($lesson->fresh()->credits_settled_at);
         $this->assertSame('completed', $lesson->fresh()->status);
         $this->assertSame(0, $profile->credits_reserved);
         $this->assertSame(1, $profile->completed_classes_count);
@@ -496,6 +509,7 @@ class MonetizationIntegrityTest extends TestCase
     public function test_review_consumes_the_full_reserved_amount_for_a_multi_hour_lesson(): void
     {
         [, $profile, $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subHours(2), 3);
+        $this->reportFor($lesson);
 
         $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5])
             ->assertRedirect(route('parent.lessons'));
@@ -937,6 +951,19 @@ class MonetizationIntegrityTest extends TestCase
         return [$teacher, $profile, $lesson, $parent];
     }
 
+    /** Crea el LessonReport que en producción siempre precede a pending_parent_confirmation. */
+    private function reportFor(Lesson $lesson): LessonReport
+    {
+        return LessonReport::create([
+            'lesson_id' => $lesson->id,
+            'teacher_profile_id' => $lesson->teacher_profile_id,
+            'student_id' => $lesson->student_id,
+            'topic_covered' => 'Tema de prueba',
+            'student_performance' => 'Buen desempeño',
+            'sent_to_parent_at' => now(),
+        ]);
+    }
+
     private function reviewedLesson(TeacherProfile $profile, Subject $subject, int $rating): Lesson
     {
         [$parent, $student, $request] = $this->parentRequest($subject, 'accepted');
@@ -957,6 +984,21 @@ class MonetizationIntegrityTest extends TestCase
             'type' => 'reservation',
             'amount' => 1,
             'description' => 'Reserva por aceptación de clase',
+        ]);
+
+        // pending_parent_confirmation solo se alcanza en producción vía
+        // LessonReportController::store(), que crea el reporte en el mismo
+        // paso — así que el fixture debe reflejar esa invariante. El gate de
+        // C-1 en TeacherReviewController::assertReviewable() ahora la exige
+        // explícitamente (antes no hacía falta: antes de C-1,
+        // pending_parent_confirmation la implicaba por construcción).
+        LessonReport::create([
+            'lesson_id' => $lesson->id,
+            'teacher_profile_id' => $profile->id,
+            'student_id' => $student->id,
+            'topic_covered' => 'Tema de prueba',
+            'student_performance' => 'Buen desempeño',
+            'sent_to_parent_at' => now(),
         ]);
 
         $this->actingAs($parent)

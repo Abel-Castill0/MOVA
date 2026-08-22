@@ -123,6 +123,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware('throttle:10,1')->name('admin.lessons.cancel');
+        Route::post('/lessons/{lesson}/force-complete', [AdminController::class, 'forceCompleteLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-complete');
+        Route::post('/lessons/{lesson}/force-refund', [AdminController::class, 'forceRefundLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-refund');
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
         Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
         Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware('throttle:20,1')->name('admin.recharges.reject');

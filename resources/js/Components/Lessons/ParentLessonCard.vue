@@ -83,6 +83,15 @@
         </Link>
       </div>
 
+      <!-- C-1: esta clase quedó sin confirmar y la está revisando el equipo
+           MOVA — etiqueta explícita para el padre (Fase 3B §17), sin detalle
+           financiero (el crédito retenido es un concepto del profesor). -->
+      <div v-if="lesson.status === 'needs_admin_review'" class="mt-3 bg-orange-50 border border-orange-100 rounded-xl p-3">
+        <p class="text-xs font-medium text-orange-700">
+          ⏳ Esta clase está en revisión por el equipo MOVA. Te avisaremos apenas se resuelva.
+        </p>
+      </div>
+
       <!-- Actions footer for scheduled lessons -->
       <div v-if="lesson.status === 'scheduled'" class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-end gap-2">
         <button @click="$emit('reschedule', lesson)"
@@ -146,6 +155,7 @@ function statusStripe(s) {
     scheduled: 'bg-brand-500',
     paid: 'bg-indigo-500',
     pending_parent_confirmation: 'bg-amber-500',
+    needs_admin_review: 'bg-orange-500',
     completed: 'bg-green-500',
     cancelled: 'bg-red-400',
   }[s] ?? 'bg-slate-300'
@@ -156,6 +166,7 @@ function statusLabel(s) {
     scheduled: 'Programada',
     paid: 'Pagada',
     pending_parent_confirmation: 'Esperando tu calificación',
+    needs_admin_review: 'En revisión por el equipo MOVA',
     completed: 'Completada',
     cancelled: 'Cancelada',
   }[s] ?? s

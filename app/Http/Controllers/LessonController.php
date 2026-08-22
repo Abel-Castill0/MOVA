@@ -246,7 +246,17 @@ class LessonController extends Controller
             // Se devuelve exactamente lo reservado en su momento (ledger), no lo
             // que costaría hoy — protege contra una reprogramación posterior que
             // haya cambiado duration_minutes. Ver Lesson::reservedCreditAmount().
-            $creditsToRefund = $lesson->reservedCreditAmount();
+            //
+            // reservedCreditAmount() lanza RuntimeException si el ledger no
+            // respalda exactamente 1 reserva (anomalía real, ej. una clase
+            // legacy NO_LEDGER) — se convierte a un 422 accionable en vez de
+            // dejar un 500 crudo al padre/profesor que solo quería cancelar.
+            try {
+                $creditsToRefund = $lesson->reservedCreditAmount();
+            } catch (\RuntimeException $e) {
+                report($e);
+                abort(422, 'Esta clase tiene una anomalía financiera y no se puede cancelar automáticamente. Contacta a soporte.');
+            }
 
             abort_if(
                 $teacherProfile->credits_reserved < $creditsToRefund,

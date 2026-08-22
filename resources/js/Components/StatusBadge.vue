@@ -12,6 +12,7 @@ const map = {
   in_progress: { label: 'En curso', color: 'bg-yellow-100 text-yellow-700' },
   paid: { label: 'Pagada', color: 'bg-indigo-100 text-indigo-700' },
   pending_parent_confirmation: { label: 'Esperando calificación', color: 'bg-amber-100 text-amber-700' },
+  needs_admin_review: { label: 'En revisión', color: 'bg-orange-100 text-orange-700' },
   completed: { label: 'Completada', color: 'bg-green-100 text-green-700' },
   cancelled: { label: 'Cancelada', color: 'bg-red-100 text-red-700' },
   open: { label: 'Abierta', color: 'bg-indigo-100 text-indigo-700' },

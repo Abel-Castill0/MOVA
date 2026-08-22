@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\TeacherRejectedNotification;
 use App\Notifications\TeacherVerifiedNotification;
+use App\Services\LessonSettlementService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -151,7 +152,16 @@ class AdminController extends Controller
 
             // Se devuelve exactamente lo reservado en su momento (ledger), no lo
             // que costaría hoy — ver Lesson::reservedCreditAmount().
-            $creditsToRefund = $lesson->reservedCreditAmount();
+            //
+            // Puede lanzar RuntimeException si el ledger no respalda exactamente
+            // 1 reserva (anomalía real, ej. una clase legacy NO_LEDGER) — se
+            // convierte a un 422 accionable en vez de un 500 crudo.
+            try {
+                $creditsToRefund = $lesson->reservedCreditAmount();
+            } catch (\RuntimeException $e) {
+                report($e);
+                abort(422, 'Esta clase tiene una anomalía financiera y no se puede cancelar automáticamente. Contacta a soporte.');
+            }
 
             abort_if(
                 $teacherProfile->credits_reserved < $creditsToRefund,
@@ -204,6 +214,68 @@ class AdminController extends Controller
         ]);
 
         return back()->with('success', 'Clase cancelada y partes notificadas.');
+    }
+
+    // C-1 — rescate manual (Fase 3B §7). Cubre lo que el propio cancelLesson()
+    // de arriba NUNCA cubrió: clases que ya salieron de 'scheduled' (paid,
+    // pending_parent_confirmation, needs_admin_review) y quedaron varadas sin
+    // que nadie —ni el padre con una reseña, ni el scheduler tras la gracia—
+    // las cerrara. 'scheduled' queda deliberadamente FUERA de force-complete:
+    // no hay ninguna evidencia (reserva pagada, reporte, nada) de que la
+    // clase haya ocurrido, así que "completarla a la fuerza" sería fabricar
+    // un desenlace. Para 'scheduled' varada, la salida es force-refund.
+    public function forceCompleteLesson(Lesson $lesson, LessonSettlementService $settlement)
+    {
+        // Chequeo amistoso antes del servicio: el guard real (bajo lock, a
+        // prueba de carreras) vive dentro de consume() y lanza RuntimeException
+        // si falla — esto solo evita un 500 feo en el caso común de que el
+        // admin apunte a un estado no liquidable.
+        abort_unless(
+            in_array($lesson->status, ['paid', 'pending_parent_confirmation', 'needs_admin_review'], true),
+            422,
+            'Solo se puede forzar el cierre de una clase paid, pending_parent_confirmation o needs_admin_review.'
+        );
+
+        $data = request()->validate([
+            'reason' => 'required|string|min:5|max:500',
+        ]);
+
+        $lesson = $settlement->consume($lesson, auth()->id(), $data['reason'], 'class_force_completed');
+
+        Log::info('ADMIN_LESSON_FORCE_COMPLETED', [
+            'admin_id'  => auth()->id(),
+            'lesson_id' => $lesson->id,
+            'reason'    => $data['reason'],
+        ]);
+
+        return back()->with('success', 'Clase liquidada manualmente (crédito consumido).');
+    }
+
+    public function forceRefundLesson(Lesson $lesson, LessonSettlementService $settlement)
+    {
+        abort_unless(
+            in_array($lesson->status, ['scheduled', 'paid', 'pending_parent_confirmation', 'needs_admin_review'], true),
+            422,
+            'Solo se puede forzar la devolución de una clase scheduled, paid, pending_parent_confirmation o needs_admin_review.'
+        );
+
+        $data = request()->validate([
+            'reason' => 'required|string|min:5|max:500',
+        ]);
+
+        $lesson = $settlement->refund($lesson, auth()->id(), $data['reason'], 'class_force_refunded');
+
+        $notification = new ClassCancelledNotification($lesson);
+        $lesson->teacherProfile?->user?->notify($notification);
+        $lesson->student?->parent?->notify($notification);
+
+        Log::info('ADMIN_LESSON_FORCE_REFUNDED', [
+            'admin_id'  => auth()->id(),
+            'lesson_id' => $lesson->id,
+            'reason'    => $data['reason'],
+        ]);
+
+        return back()->with('success', 'Clase devuelta manualmente (crédito liberado).');
     }
 
     public function suspendUser(User $user)

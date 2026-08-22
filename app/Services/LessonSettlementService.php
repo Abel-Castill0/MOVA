@@ -1,0 +1,212 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\ClassEvent;
+use App\Models\CreditTransaction;
+use App\Models\Lesson;
+use App\Models\TeacherProfile;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Única capa de liquidación financiera de MOVA (C-1, Fase 3B §1).
+ *
+ * Antes de esta clase, "consumir una clase" tenía una implementación en
+ * TeacherReviewController y estaba a punto de replicarse en el scheduler y en
+ * dos rutas de admin más — cuatro implementaciones divergentes del mismo
+ * concepto. Esta clase es el único lugar que mueve `credit_transactions`,
+ * `teacher_profiles` y `classes.status/credits_settled_at` juntos.
+ *
+ * FUENTE DE VERDAD (Fase 3B §2): el ledger (`credit_transactions`) es la
+ * autoridad. `credits_settled_at` es una caché derivada, NUNCA la garantía —
+ * lo que realmente impide una doble liquidación es el índice UNIQUE sobre
+ * `idempotency_key`. Por eso este servicio SIEMPRE intenta el INSERT y deja
+ * que el UNIQUE falle si ya existe, en vez de confiar en un `credits_settled_at
+ * IS NULL` leído antes del lock (que dos transacciones concurrentes podrían
+ * leer igual).
+ *
+ * Deliberadamente NO se migran aquí cancel() ni AdminController::cancelLesson()
+ * — funcionan, están probados, y no forman parte del bug de C-1. Migrarlos
+ * queda como deuda técnica explícita (ver FOLLOW-UP), no como descuido.
+ */
+class LessonSettlementService
+{
+    /** Estados desde los que se puede consumir (liquidar cobrando el crédito). */
+    private const CONSUMABLE_STATES = ['paid', 'pending_parent_confirmation', 'needs_admin_review'];
+
+    /** Estados desde los que se puede devolver (liquidar sin cobrar). */
+    private const REFUNDABLE_STATES = ['scheduled', 'paid', 'pending_parent_confirmation', 'needs_admin_review'];
+
+    /**
+     * Consume los créditos reservados de una clase: la marca como completada
+     * y descuenta credits_reserved.
+     *
+     * $actorId = NULL ⟺ liquidación automática del sistema (scheduler).
+     * $actorId = id de usuario ⟺ liquidación disparada por su acción (reseña,
+     * o un admin en force-complete).
+     */
+    public function consume(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_settled'): Lesson
+    {
+        return DB::transaction(function () use ($lesson, $actorId, $reason, $eventType) {
+            $lesson = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
+
+            // Idempotencia por resultado: si ya está liquidada (cualquier
+            // llamador concurrente ganó la carrera), no es un error — se
+            // devuelve la lección tal como quedó, sin volver a mover nada.
+            if ($lesson->credits_settled_at !== null) {
+                return $lesson;
+            }
+
+            if (! in_array($lesson->status, self::CONSUMABLE_STATES, true)) {
+                throw new \RuntimeException(
+                    "No se puede consumir Lesson {$lesson->id}: status='{$lesson->status}' no es liquidable "
+                    .'(se esperaba paid, pending_parent_confirmation o needs_admin_review).'
+                );
+            }
+
+            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)->lockForUpdate()->firstOrFail();
+            $amount = $lesson->reservedCreditAmount();
+
+            // Mismo guard que cancelLesson()/cancel() ya hacían antes de esta
+            // capa (y que aquí faltaba): credits_reserved no tiene CHECK a
+            // nivel de BD. Si alguna vez está desincronizado del ledger —
+            // justo lo que mova:reconcile-ledger existe para detectar—, sin
+            // este guard consume() lo empujaría a negativo en silencio en vez
+            // de fallar ruidosamente, violando la regla de "nunca fabricar,
+            // siempre abortar" del resto del proyecto.
+            if ($teacherProfile->credits_reserved < $amount) {
+                throw new \RuntimeException(
+                    "No se puede consumir Lesson {$lesson->id}: TeacherProfile {$teacherProfile->id} tiene "
+                    ."credits_reserved={$teacherProfile->credits_reserved}, se necesitan {$amount}. "
+                    .'Desincronización ledger↔saldo — requiere investigación manual, no se fabrica el faltante.'
+                );
+            }
+
+            // La garantía real de "no consumir dos veces" es este UNIQUE, no el
+            // chequeo de credits_settled_at de arriba (que protege contra el caso
+            // normal, pero dos transacciones podrían leerlo NULL a la vez).
+            try {
+                CreditTransaction::create([
+                    'teacher_profile_id' => $teacherProfile->id,
+                    'lesson_id' => $lesson->id,
+                    'idempotency_key' => "lesson:{$lesson->id}:consumption",
+                    'type' => 'consumption',
+                    'amount' => $amount,
+                    'description' => 'Consumo por clase completada',
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                return $lesson->fresh();
+            }
+
+            $teacherProfile->update([
+                'credits_reserved' => $teacherProfile->credits_reserved - $amount,
+                'completed_classes_count' => $teacherProfile->completed_classes_count + 1,
+                'is_experienced' => ($teacherProfile->completed_classes_count + 1) >= 5,
+            ]);
+
+            // avgRating() consulta visibleReviews() en vivo — si ya hay reseña
+            // (caso: la reseña llegó primero y disparó este mismo consume()), el
+            // recálculo ya la incluye. Si no hay reseña aún, sigue siendo correcto
+            // recalcular ahora con completed_classes_count actualizado.
+            $teacherProfile->refresh();
+            $teacherProfile->update(['hourly_rate' => $teacherProfile->maxAllowedRate()]);
+
+            // NUNCA update(['credits_settled_at' => ...]): esa columna está
+            // deliberadamente FUERA de $fillable (Lesson.php) para que nadie
+            // la escriba por fuera de este servicio — pero eso significa que
+            // update() con mass assignment la descarta en silencio, incluso
+            // aquí, el único caller autorizado. Asignación directa + save()
+            // no pasa por $fillable, así que sí se escribe.
+            $lesson->status = 'completed';
+            $lesson->credits_settled_at = now();
+            $lesson->save();
+
+            ClassEvent::log($eventType, $actorId, $lesson->id, $lesson->class_request_id, $reason);
+
+            return $lesson->fresh();
+        });
+    }
+
+    /**
+     * Devuelve los créditos reservados de una clase: la marca como cancelada
+     * y mueve el importe de reserved a available.
+     */
+    public function refund(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_cancelled'): Lesson
+    {
+        return DB::transaction(function () use ($lesson, $actorId, $reason, $eventType) {
+            // Eager load classRequest: se lee más abajo (is_mentorship) para
+            // decidir si liberar el cupo de mentoría. Sin esto, el lazy load
+            // ocurriría con el lock de teacherProfile ya tomado, alargando
+            // sin necesidad la ventana de bloqueo de la fila financiera — el
+            // mismo motivo por el que AdminController::cancelLesson() ya
+            // eager-carga esta misma relación.
+            $lesson = Lesson::with('classRequest')->whereKey($lesson->id)->lockForUpdate()->firstOrFail();
+
+            if ($lesson->credits_settled_at !== null) {
+                return $lesson;
+            }
+
+            if (! in_array($lesson->status, self::REFUNDABLE_STATES, true)) {
+                throw new \RuntimeException(
+                    "No se puede devolver Lesson {$lesson->id}: status='{$lesson->status}' no es reembolsable "
+                    .'(se esperaba scheduled, paid, pending_parent_confirmation o needs_admin_review).'
+                );
+            }
+
+            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)->lockForUpdate()->firstOrFail();
+            $amount = $lesson->reservedCreditAmount();
+
+            // Ver el comentario equivalente en consume(): mismo guard contra
+            // empujar credits_reserved a negativo por una desincronización.
+            if ($teacherProfile->credits_reserved < $amount) {
+                throw new \RuntimeException(
+                    "No se puede devolver Lesson {$lesson->id}: TeacherProfile {$teacherProfile->id} tiene "
+                    ."credits_reserved={$teacherProfile->credits_reserved}, se necesitan {$amount}. "
+                    .'Desincronización ledger↔saldo — requiere investigación manual, no se fabrica el faltante.'
+                );
+            }
+
+            try {
+                CreditTransaction::create([
+                    'teacher_profile_id' => $teacherProfile->id,
+                    'lesson_id' => $lesson->id,
+                    'idempotency_key' => "lesson:{$lesson->id}:release",
+                    'type' => 'refund',
+                    'amount' => $amount,
+                    'description' => 'Devolución por clase cancelada',
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                return $lesson->fresh();
+            }
+
+            $profileUpdates = [
+                'credits_available' => $teacherProfile->credits_available + $amount,
+                'credits_reserved' => $teacherProfile->credits_reserved - $amount,
+            ];
+
+            // Ambos cancel() existentes (LessonController y AdminController)
+            // solo devuelven desde 'scheduled' y ya liberan el cupo de
+            // mentoría ahí. Este servicio, en cambio, también reembolsa desde
+            // 'paid'/'pending_parent_confirmation'/'needs_admin_review' —
+            // terreno que esos dos NUNCA pisaron. Sin esta línea, un
+            // force-refund de una clase de mentoría más allá de 'scheduled'
+            // dejaría el cupo tomado para siempre.
+            if ($lesson->classRequest?->is_mentorship) {
+                $profileUpdates['mentorship_slots_taken'] = max(0, $teacherProfile->mentorship_slots_taken - 1);
+            }
+
+            $teacherProfile->update($profileUpdates);
+
+            // Ver el comentario equivalente en consume(): update() con
+            // mass assignment descartaría credits_settled_at en silencio.
+            $lesson->status = 'cancelled';
+            $lesson->credits_settled_at = now();
+            $lesson->save();
+
+            ClassEvent::log($eventType, $actorId, $lesson->id, $lesson->class_request_id, $reason);
+
+            return $lesson->fresh();
+        });
+    }
+}
