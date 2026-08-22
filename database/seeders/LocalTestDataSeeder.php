@@ -42,7 +42,16 @@ class LocalTestDataSeeder extends Seeder
             $teacherUser->assignRole('teacher');
         }
 
-        $teacherProfile = TeacherProfile::updateOrCreate(
+        // Los saldos van SOLO en los valores de creación (segundo array de
+        // firstOrCreate), nunca en un update: antes esto era un
+        // updateOrCreate que reescribía credits_available/credits_reserved
+        // con valores fijos en CADA corrida. Reproducido en vivo: tras
+        // cancelar una clase (que devolvió 1 crédito de reserved a
+        // available), un re-seed pisaba los saldos reales con los
+        // hardcodeados y `mova:reconcile-ledger` pasaba de GREEN a RED —
+        // el seeder corrompía el estado financiero que él mismo no había
+        // creado. Los campos no financieros sí se refrescan aparte.
+        $teacherProfile = TeacherProfile::firstOrCreate(
             ['user_id' => $teacherUser->id],
             [
                 'bio' => 'Profesor de prueba generado para pruebas E2E locales.',
@@ -51,9 +60,20 @@ class LocalTestDataSeeder extends Seeder
                 'plin_number' => '999111222',
                 'is_verified' => true,
                 'credits_available' => 5,
-                'credits_reserved' => 2, // refleja las 2 clases "scheduled" ya sembradas (1 crédito c/u)
+                'credits_reserved' => 2, // refleja las 2 clases "scheduled" que siembra este seeder (1 crédito c/u)
             ]
         );
+        // Refresco solo de campos puramente descriptivos. hourly_rate queda
+        // FUERA a propósito, igual que los saldos: desde la tarifa automática
+        // por niveles es un valor derivado (TeacherProfile::maxAllowedRate(),
+        // recalculado al liquidar y al reseñar) — reescribirlo a 20 en cada
+        // seed pisaría un ascenso legítimo a S/25 o S/30.
+        $teacherProfile->update([
+            'bio' => 'Profesor de prueba generado para pruebas E2E locales.',
+            'yape_number' => '999111222',
+            'plin_number' => '999111222',
+            'is_verified' => true,
+        ]);
         $teacherProfile->subjects()->syncWithoutDetaching(
             collect([$mathSubject, $engSubject])->filter()->pluck('id')
         );
@@ -355,8 +375,16 @@ class LocalTestDataSeeder extends Seeder
                     'credits_available' => 5,
                 ]
             );
-            $extraProfile->subjects()->syncWithoutDetaching(
-                $subjects->random(min(2, $subjects->count()))->pluck('id')
+            // Determinista + sync (no random + syncWithoutDetaching): con
+            // random, cada corrida elegía materias distintas y
+            // syncWithoutDetaching nunca quitaba las anteriores, así que el
+            // pivote teacher_subject crecía en cada re-seed — el mismo tipo
+            // de no-idempotencia que ya se corrigió en las clases sembradas
+            // (3ede6cc). Con slice($i-1, 2) cada profesor de relleno recibe
+            // siempre las mismas materias, y sync() deja el pivote
+            // exactamente en ese estado sin importar cuántas veces corra.
+            $extraProfile->subjects()->sync(
+                $subjects->slice(($i - 1) * 2, 2)->pluck('id')
             );
 
             // Igual que el profesor principal: el saldo debe tener un asiento

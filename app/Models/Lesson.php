@@ -28,6 +28,12 @@ class Lesson extends Model
     // dejarlo asignable en masa permitiría modificarlo sin pasar por la capa
     // de settlement. Solo esa capa debe escribirlo.
     protected $casts = [
+        // Sin cast, MySQL (PDO) devuelve DECIMAL como string en el formato
+        // que traiga la columna, mientras que SQLite (tests) lo devuelve con
+        // tipado dinámico — mismo código, tipo distinto según el driver.
+        // 'decimal:2' normaliza a un string de 2 decimales siempre, sea cual
+        // sea el motor. Nunca 'float': precisión monetaria.
+        'price_frozen_pen'        => 'decimal:2',
         'credits_settled_at'      => 'datetime',
         'start_time'              => 'datetime',
         'original_start_time'     => 'datetime',
