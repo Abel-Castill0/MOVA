@@ -4,10 +4,14 @@
          bootstrap="vendor/autoload.php"
          colors="true"
 >
+    <!-- La suite "Unit" se eliminó junto con el ExampleTest de boilerplate que
+         era su único contenido: MOVA no tiene tests unitarios puros, todo el
+         valor está en los Feature tests (que ejercitan rutas, políticas y
+         transacciones reales). Dejar un <testsuite> apuntando a un directorio
+         vacío rompe PHPUnit ("Test directory not found"), porque git no
+         versiona directorios vacíos. Si en el futuro se agregan tests
+         unitarios de verdad, volver a declarar la suite junto con ellos. -->
     <testsuites>
-        <testsuite name="Unit">
-            <directory>tests/Unit</directory>
-        </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>

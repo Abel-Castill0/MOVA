@@ -20,10 +20,21 @@ class ClassRequestPolicy
     }
 
     // Teacher accepting an open request (matches route teacher.requests.accept).
+    //
+    // SEGURIDAD (hallazgo CRÍTICO de auditoría, 2026-08-22): is_verified NUNCA
+    // se comprobaba aquí. MOVA declara que todo profesor pasa por verificación
+    // de admin antes de dictar su primera clase (HANDOFF_FINAL.md §1), pero el
+    // código no lo exigía — un profesor sin verificar podía aceptar una
+    // solicitud, entrar a una videollamada y quedar a solas con un menor.
+    // Probado empíricamente antes de este fix (transacción revertida, sin
+    // tocar datos reales): ClassRequestPolicy::accept() devolvía true para un
+    // perfil con is_verified=false. reject() delega en accept(), así que
+    // también queda bloqueado — correcto: un profesor sin verificar no debe
+    // interactuar con la cola de solicitudes en absoluto, no solo con aceptar.
     public function accept(User $user, ClassRequest $classRequest): bool
     {
         $profile = $user->teacherProfile;
-        if (! $profile) {
+        if (! $profile || ! $profile->is_verified) {
             return false;
         }
 

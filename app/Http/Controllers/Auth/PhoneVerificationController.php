@@ -39,6 +39,16 @@ class PhoneVerificationController extends Controller
             return back()->withErrors(['phone' => 'Número de teléfono inválido. Por favor actualiza tu perfil.']);
         }
 
+        // Chequeo amistoso, NO la garantía real (esa vive en verify(), con el
+        // UNIQUE de phone_verified_normalized) — evita gastar un envío de
+        // Twilio en un número que de todos modos no podría completar la
+        // verificación. Hallazgo CRÍTICO de auditoría (2026-08-22): antes de
+        // este fix, N cuentas podían verificar el mismo teléfono y cobrar el
+        // bono de bienvenida N veces.
+        if (User::where('phone_verified_normalized', $normalized)->where('id', '!=', $user->id)->exists()) {
+            return back()->withErrors(['phone' => 'Este número de teléfono ya está verificado en otra cuenta de MOVA.']);
+        }
+
         if ($user->phone_verification_attempts >= self::MAX_ATTEMPTS
             && $user->phone_verification_expires_at
             && now()->lt($user->phone_verification_expires_at)) {
@@ -106,12 +116,30 @@ class PhoneVerificationController extends Controller
             return back()->withErrors(['code' => "Código incorrecto. Te quedan {$remaining} intentos."]);
         }
 
-        $user->update([
-            'phone_verified_at'              => now(),
-            'phone_verification_code_hash'   => null,
-            'phone_verification_expires_at'  => null,
-            'phone_verification_attempts'    => 0,
-        ]);
+        $normalized = User::normalizePhone($user->phone);
+        if (!$normalized) {
+            return back()->withErrors(['phone' => 'Número de teléfono inválido. Por favor actualiza tu perfil.']);
+        }
+
+        // GARANTÍA REAL contra teléfono duplicado (hallazgo CRÍTICO de
+        // auditoría, 2026-08-22): el UNIQUE de phone_verified_normalized, no
+        // el chequeo amistoso de send() — mismo patrón que idempotency_key en
+        // el ledger. phone_verified_normalized está deliberadamente FUERA de
+        // $fillable, así que se asigna directo y no vía update() con mass
+        // assignment (mismo motivo que credits_settled_at en Lesson).
+        $user->phone_verified_at = now();
+        $user->phone_verification_code_hash = null;
+        $user->phone_verification_expires_at = null;
+        $user->phone_verification_attempts = 0;
+        $user->phone_verified_normalized = $normalized;
+
+        try {
+            $user->save();
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            return back()->withErrors([
+                'code' => 'Este número de teléfono ya está verificado en otra cuenta de MOVA.',
+            ]);
+        }
 
         $this->grantTeacherWelcomeBonus($user);
 

@@ -13,6 +13,10 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
+    // phone_verified_normalized NO está aquí a propósito: es la garantía
+    // UNIQUE contra teléfono duplicado (hallazgo CRÍTICO, 2026-08-22). Solo
+    // PhoneVerificationController::verify() debe escribirla, con asignación
+    // directa — igual que credits_settled_at en Lesson.
     protected $fillable = [
         'name',
         'email',

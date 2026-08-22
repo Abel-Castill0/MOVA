@@ -554,6 +554,7 @@ class MonetizationIntegrityTest extends TestCase
         [$teacher, $profile] = $this->teacher();
         $code = '123456';
         $teacher->update([
+            'phone' => '987654321',
             'phone_verification_code_hash'  => Hash::make($code),
             'phone_verification_expires_at' => now()->addMinutes(10),
             'phone_verification_attempts'   => 0,
@@ -585,6 +586,7 @@ class MonetizationIntegrityTest extends TestCase
         $parent = $this->userWithRole('parent');
         $code = '123456';
         $parent->update([
+            'phone' => '987654322',
             'phone_verification_code_hash'  => Hash::make($code),
             'phone_verification_expires_at' => now()->addMinutes(10),
             'phone_verification_attempts'   => 0,
@@ -595,6 +597,46 @@ class MonetizationIntegrityTest extends TestCase
 
         $this->assertNotNull($parent->fresh()->phone_verified_at);
         $this->assertDatabaseCount('credit_transactions', 0);
+    }
+
+    // Hallazgo CRÍTICO de auditoría (2026-08-22): un mismo teléfono, en N
+    // cuentas de profesor, cobraba el bono de bienvenida N veces — probado
+    // empíricamente con 3 cuentas y 15 créditos gratis antes del fix.
+    public function test_same_phone_cannot_verify_and_collect_the_welcome_bonus_on_a_second_teacher_account(): void
+    {
+        [$firstTeacher, $firstProfile] = $this->teacher();
+        $code = '123456';
+        $firstTeacher->update([
+            'phone' => '987000111',
+            'phone_verification_code_hash' => Hash::make($code),
+            'phone_verification_expires_at' => now()->addMinutes(10),
+        ]);
+        $this->actingAs($firstTeacher)->post(route('phone.verification.verify'), ['code' => $code])
+            ->assertRedirect(route('dashboard'));
+        $this->assertSame(5, $firstProfile->fresh()->credits_available);
+
+        // Mismo teléfono (distintos formatos: espacios, sin +51 — normalizePhone()
+        // debe reconocerlos como el mismo número), segunda cuenta de profesor.
+        [$secondTeacher, $secondProfile] = $this->teacher();
+        $secondTeacher->update([
+            'phone' => '987 000 111',
+            'phone_verification_code_hash' => Hash::make($code),
+            'phone_verification_expires_at' => now()->addMinutes(10),
+        ]);
+
+        // send() ya lo rechaza sin gastar Twilio — chequeo amistoso.
+        $this->actingAs($secondTeacher)->post(route('phone.verification.send'))
+            ->assertSessionHasErrors('phone');
+
+        // La garantía real: aunque alguien fuerce verify() directamente
+        // (saltándose send()), el UNIQUE de phone_verified_normalized bloquea.
+        $this->actingAs($secondTeacher)->post(route('phone.verification.verify'), ['code' => $code])
+            ->assertSessionHasErrors('code');
+
+        $this->assertNull($secondTeacher->fresh()->phone_verified_at);
+        $this->assertSame(0, $secondProfile->fresh()->credits_available);
+        $this->assertSame(1, CreditTransaction::where('idempotency_key', "teacher:{$firstProfile->id}:welcome")->count());
+        $this->assertDatabaseCount('credit_transactions', 1);
     }
 
     public function test_financial_history_survives_account_deletion_flow(): void
