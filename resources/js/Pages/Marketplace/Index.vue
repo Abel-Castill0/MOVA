@@ -25,6 +25,13 @@
         </Link>
       </div>
 
+      <!-- Estadísticas: refuerzan confianza (principio de diseño #1 de
+           PRODUCT.md), no son un filtro — nada aquí es clicable. -->
+      <div class="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+        <p class="text-slate-500"><span class="font-black text-slate-900">{{ stats.teachers }}</span> profesor{{ stats.teachers === 1 ? '' : 'es' }} verificado{{ stats.teachers === 1 ? '' : 's' }}</p>
+        <p class="text-slate-500"><span class="font-black text-slate-900">{{ stats.completed }}</span> clase{{ stats.completed === 1 ? '' : 's' }} impartida{{ stats.completed === 1 ? '' : 's' }}</p>
+      </div>
+
       <!-- Diagnostic banner: recomendación por IA, no búsqueda manual — se mantiene aparte. -->
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
         <p class="text-sm text-slate-500 flex-1">💡 <strong>¿No sabes qué necesitas?</strong> Responde 5 preguntas y te orientamos.</p>
@@ -114,9 +121,9 @@
 import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import GuestLayout from '@/Layouts/GuestLayout.vue'
+import PublicPageLayout from '@/Layouts/PublicPageLayout.vue'
 
-defineProps({ teachers: Object })
+defineProps({ teachers: Object, stats: Object })
 
 const authUser = computed(() => usePage().props.auth?.user ?? null)
 const isParent = computed(() => {
@@ -124,5 +131,5 @@ const isParent = computed(() => {
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
-const layout = computed(() => authUser.value ? AppLayout : GuestLayout)
+const layout = computed(() => authUser.value ? AppLayout : PublicPageLayout)
 </script>

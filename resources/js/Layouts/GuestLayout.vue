@@ -12,9 +12,18 @@
       <Link href="/" class="relative flex items-center">
         <MovaLogo theme="blanco" class="h-9 w-auto" />
       </Link>
+
+      <!-- Ilustración: varía según el rol (?role= en registro; ausente en
+           login, donde no hay forma de saberlo de antemano). SVG propio, no
+           foto de stock — sin licencia que gestionar, coherente con el
+           MovaLogo.vue inline que ya usa este mismo layout. -->
+      <div class="relative max-w-sm w-full mx-auto px-2">
+        <component :is="illustration" />
+      </div>
+
       <div class="relative max-w-sm">
-        <p class="text-2xl font-black text-white leading-snug mb-3 text-balance">Clases particulares en vivo, con profesores verificados.</p>
-        <p class="text-white/70 text-sm leading-relaxed text-pretty">Tú decides quién enseña a tu hijo. Cada profesor pasa por verificación antes de dictar su primera clase.</p>
+        <p class="text-2xl font-black text-white leading-snug mb-3 text-balance">{{ copy.title }}</p>
+        <p class="text-white/70 text-sm leading-relaxed text-pretty">{{ copy.subtitle }}</p>
       </div>
       <p class="relative text-white/40 text-xs">© {{ year }} MOVA</p>
     </div>
@@ -58,9 +67,33 @@
 import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import TeacherIllustration from '@/Components/Illustrations/TeacherIllustration.vue'
+import FamilyIllustration from '@/Components/Illustrations/FamilyIllustration.vue'
 
-defineProps({ title: String, maxWidth: { type: String, default: 'max-w-sm' } })
+const props = defineProps({
+  title: String,
+  maxWidth: { type: String, default: 'max-w-sm' },
+  // 'teacher' | 'parent' | null — quien nos llama (Register.vue con
+  // ?role=, o su propia selección en el paso 1) decide esto; Login.vue no
+  // lo pasa porque no hay forma de saber el rol antes de autenticar.
+  role: { type: String, default: null },
+})
 
 const flash = computed(() => usePage().props.flash ?? {})
 const year = new Date().getFullYear()
+
+const illustration = computed(() => props.role === 'teacher' ? TeacherIllustration : FamilyIllustration)
+
+const copy = computed(() => {
+  if (props.role === 'teacher') {
+    return {
+      title: 'Enseña online, con la seriedad de un negocio real.',
+      subtitle: 'Gestiona tus solicitudes, tu agenda y tus créditos desde un solo lugar. MOVA verifica tu perfil antes de tu primera clase.',
+    }
+  }
+  return {
+    title: 'Clases particulares en vivo, con profesores verificados.',
+    subtitle: 'Tú decides quién enseña a tu hijo. Cada profesor pasa por verificación antes de dictar su primera clase.',
+  }
+})
 </script>

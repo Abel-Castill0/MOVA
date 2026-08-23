@@ -109,7 +109,7 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
         $file = UploadedFile::fake()->create('avatar.jpg', 100, 'image/jpeg');
 
-        $response = $this->actingAs($user)->post('/profile/avatar', ['avatar' => $file]);
+        $response = $this->actingAs($user)->from('/profile')->post('/profile/avatar', ['avatar' => $file]);
 
         $response->assertSessionHasNoErrors()->assertRedirect('/profile');
 
@@ -117,6 +117,78 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->avatar_url);
         $this->assertStringContainsString('/storage/avatars/', $user->avatar_url);
         Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+    }
+
+    // UpdateAvatarForm.vue ahora se reutiliza en Teacher/Edit.vue
+    // (/teacher/profile), no solo en /profile — updateAvatar() debe volver
+    // a la página que lo llamó (back()), nunca a una ruta fija, o subir la
+    // foto desde /teacher/profile sacaría al profesor a /profile a mitad de
+    // su edición.
+    public function test_avatar_upload_redirects_back_to_the_page_it_was_submitted_from(): void
+    {
+        config(['cloudinary.cloud_url' => null]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $user->assignRole(\Spatie\Permission\Models\Role::findOrCreate('teacher', 'web'));
+        $file = UploadedFile::fake()->create('avatar.jpg', 100, 'image/jpeg');
+
+        $response = $this->actingAs($user)->from('/teacher/profile')->post('/profile/avatar', ['avatar' => $file]);
+
+        $response->assertSessionHasNoErrors()->assertRedirect('/teacher/profile');
+        $this->assertNotNull($user->fresh()->avatar_url);
+    }
+
+    // Ciclo completo tal como lo usa UpdateAvatarForm.vue en la práctica:
+    // subir y luego quitar, ambos pasos contra el mismo usuario, para probar
+    // la transición completa, no cada extremo aislado.
+    //
+    // ->create(..., 'image/jpeg'), no ->image(): esta última necesita la
+    // extensión GD de PHP para generar píxeles reales, que este entorno no
+    // tiene instalada (por eso ningún otro test del proyecto la usa). La
+    // validación de Laravel (regla `image`) solo mira MIME/extensión, nunca
+    // decodifica el archivo, así que un archivo fake con MIME correcto basta
+    // para probar el mismo camino — no es un test más débil.
+    public function test_avatar_can_be_uploaded_then_removed_end_to_end(): void
+    {
+        config(['cloudinary.cloud_url' => null]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = UploadedFile::fake()->create('foto.jpg', 200, 'image/jpeg');
+
+        $this->actingAs($user)->from('/profile')->post('/profile/avatar', ['avatar' => $file])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $user->refresh();
+        $this->assertNotNull($user->avatar_url);
+        Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+
+        $this->actingAs($user)->from('/profile')->delete('/profile/avatar')
+            ->assertRedirect('/profile');
+
+        $this->assertNull($user->fresh()->avatar_url);
+        // removeAvatar() no borra el archivo (ver TODO en ProfileController)
+        // — la sola desvinculación del avatar_url es lo que este test prueba.
+        Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+    }
+
+    public function test_removing_the_avatar_clears_avatar_url_and_redirects_back(): void
+    {
+        $user = User::factory()->create(['avatar_url' => 'https://res.cloudinary.com/demo/avatar.jpg']);
+
+        $response = $this->actingAs($user)->from('/profile')->delete('/profile/avatar');
+
+        $response->assertRedirect('/profile');
+        $this->assertNull($user->fresh()->avatar_url);
+    }
+
+    public function test_removing_the_avatar_requires_authentication(): void
+    {
+        $response = $this->delete('/profile/avatar');
+
+        $response->assertRedirect('/login');
     }
 
     public function test_avatar_upload_rejects_non_image_files(): void

@@ -41,7 +41,29 @@ class ProfileController extends Controller
 
         $user->update(['avatar_url' => $url]);
 
-        return Redirect::route('profile.edit');
+        // back(), no una ruta fija: UpdateAvatarForm.vue ahora se usa desde
+        // /profile Y /teacher/profile (Teacher/Edit.vue) — redirigir siempre
+        // a /profile sacaría a un profesor de la pantalla que estaba
+        // editando justo después de subir su foto.
+        return back();
+    }
+
+    // Vuelve a las iniciales — no borra el archivo en Cloudinary (fuera de
+    // alcance de esta ronda; el registro seguiría existiendo ahí, solo deja
+    // de estar referenciado desde MOVA). Simétrico a updateAvatar(): mismo
+    // patrón simple, sin lógica financiera de por medio.
+    //
+    // TODO: cuando haya credenciales reales de Cloudinary en producción,
+    // borrar también el asset remoto aquí (CloudinaryService ya tiene el
+    // public_id determinístico "avatars/user-{id}" — ver uploadAvatar() —
+    // así que un cloudinary()->destroy() no necesitaría guardar el ID por
+    // separado). Sin esto, cada "quitar foto" deja un archivo huérfano en
+    // la cuenta de Cloudinary indefinidamente.
+    public function removeAvatar(Request $request): RedirectResponse
+    {
+        $request->user()->update(['avatar_url' => null]);
+
+        return back();
     }
 
     /**

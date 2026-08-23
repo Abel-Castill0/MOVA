@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Lesson;
 use App\Models\TeacherProfile;
 use Inertia\Inertia;
 
@@ -35,6 +36,14 @@ class MarketplaceController extends Controller
                 // pública y no requiere autenticación — el código nunca
                 // debe llegar a este payload.
                 ->paginate(24, ['id', 'user_id', 'bio', 'hourly_rate']),
+
+            // Mismos conteos que WelcomeController::index() (misma fuente de
+            // verdad, sin duplicar la consulta de forma distinta) — refuerzan
+            // confianza sin ser un filtro ni un buscador.
+            'stats' => [
+                'teachers' => TeacherProfile::where('is_verified', true)->count(),
+                'completed' => Lesson::where('status', 'completed')->count(),
+            ],
         ]);
     }
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useForm, usePage } from '@inertiajs/vue3'
+import { router, useForm, usePage } from '@inertiajs/vue3'
 
 const user = computed(() => usePage().props.auth.user)
 const fileInput = ref(null)
@@ -35,6 +35,17 @@ function submit() {
     },
   })
 }
+
+// No borra el archivo en Cloudinary (ver ProfileController::removeAvatar) —
+// solo desvincula avatar_url, el usuario vuelve a ver sus iniciales.
+const removing = ref(false)
+function removeAvatar() {
+  removing.value = true
+  router.delete(route('profile.avatar.remove'), {
+    preserveScroll: true,
+    onFinish: () => { removing.value = false },
+  })
+}
 </script>
 
 <template>
@@ -63,6 +74,10 @@ function submit() {
           <button type="submit" v-if="form.avatar" :disabled="form.processing"
             class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 disabled:opacity-50 transition-all shadow-sm shadow-brand-600/20">
             {{ form.processing ? 'Subiendo...' : 'Guardar foto' }}
+          </button>
+          <button type="button" v-if="!form.avatar && user.avatar_url" @click="removeAvatar" :disabled="removing"
+            class="px-4 py-2 text-sm font-semibold text-red-600 rounded-xl hover:bg-red-50 active:bg-red-100 disabled:opacity-50 transition-all">
+            {{ removing ? 'Quitando...' : 'Quitar foto' }}
           </button>
           <p v-if="form.recentlySuccessful" class="text-sm text-green-600 font-medium">Guardada ✓</p>
         </div>

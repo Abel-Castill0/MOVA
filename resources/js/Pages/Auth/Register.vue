@@ -1,5 +1,5 @@
 <template>
-  <GuestLayout max-width="max-w-xl">
+  <GuestLayout max-width="max-w-xl" :role="form.role">
     <Head title="Crear cuenta – MOVA" />
 
     <div class="mb-6">
