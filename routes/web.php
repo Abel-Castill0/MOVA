@@ -89,7 +89,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
         Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->middleware('throttle:10,1')->name('teacher.credits.recharge');
 
-        Route::resource('class-offers', ClassOfferController::class)->except(['show'])->middleware('throttle:20,1');
+        // 'create'/'store' deliberadamente excluidos: el profesor ya no
+        // publica anuncios (marketplace informativo, HANDOFF_FINAL.md §21) —
+        // "el profe elige a quién enseñar aceptando solicitudes abiertas",
+        // no publicando ofertas. index/edit/update/destroy/toggle se dejan
+        // vivos para que un profesor con ofertas ya creadas antes de este
+        // cambio pueda seguir gestionándolas (desactivar, ajustar tarifa
+        // específica, borrar) — solo se cierra la puerta a crear nuevas.
+        // ClassOffer y DiagnosticRecommendationService NO se tocan: siguen
+        // leyendo is_active=true de lo que ya existe.
+        Route::resource('class-offers', ClassOfferController::class)->except(['show', 'create', 'store'])->middleware('throttle:20,1');
         Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->middleware('throttle:20,1')->name('class-offers.toggle');
 
         Route::get('/teacher/requests', [ClassRequestController::class, 'teacherIndex'])->name('teacher.requests');

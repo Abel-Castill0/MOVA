@@ -84,16 +84,29 @@ const year = new Date().getFullYear()
 
 const illustration = computed(() => props.role === 'teacher' ? TeacherIllustration : FamilyIllustration)
 
+// Tres variantes, no dos: `role` distingue "vengo de Register.vue con un
+// rol ya elegido" (teacher/parent) de "vengo de Login.vue, sin rol" (null)
+// — antes login y registro-padre compartían el mismo texto, que además
+// describía un mecanismo que ya no existe ("tú decides quién enseña" — el
+// padre ya no elige profesor directamente, ver HANDOFF_FINAL.md §21).
 const copy = computed(() => {
   if (props.role === 'teacher') {
     return {
-      title: 'Enseña online, con la seriedad de un negocio real.',
-      subtitle: 'Gestiona tus solicitudes, tu agenda y tus créditos desde un solo lugar. MOVA verifica tu perfil antes de tu primera clase.',
+      title: 'Únete al equipo de profesores mejor respaldado.',
+      subtitle: 'Tú dedícate a enseñar, MOVA se encarga de llenarte la agenda.',
     }
   }
+  if (props.role === 'parent') {
+    return {
+      title: 'Clases particulares en vivo, con profesores verificados.',
+      subtitle: 'Envía tu solicitud y el primer profesor disponible de la materia te contacta directamente.',
+    }
+  }
+  // Login.vue: sirve a padres y profesores por igual, sin saber cuál antes
+  // de autenticar — copy neutro, sin hablar solo del padre.
   return {
-    title: 'Clases particulares en vivo, con profesores verificados.',
-    subtitle: 'Tú decides quién enseña a tu hijo. Cada profesor pasa por verificación antes de dictar su primera clase.',
+    title: 'Profesores particulares verificados, en vivo por videollamada.',
+    subtitle: 'Inicia sesión para gestionar tus clases, solicitudes o tu perfil.',
   }
 })
 </script>

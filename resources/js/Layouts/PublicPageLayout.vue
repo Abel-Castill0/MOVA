@@ -16,6 +16,15 @@
   marketing, "Únete a MOVA" — copy de landing, no de una página de
   contenido), pero sí se trajo la firma del desarrollador que le faltaba a
   este footer.
+
+  Auth-aware a propósito: Marketplace/Index.vue y Teachers/Show.vue usan
+  SIEMPRE este layout, ya sea invitado o logueado — antes cambiaban a
+  AppLayout (sidebar completo) al iniciar sesión, lo que hacía que la MISMA
+  página se sintiera como dos productos distintos según el rol. El único
+  bit que sí depende de auth es este header: invitado ve Iniciar
+  sesión/Registrarse, logueado ve su avatar+nombre+rol y "Mi dashboard" —
+  igual que LandingNavbar.vue, sin el problema de contraste de ese
+  componente (ver nota de arriba).
 -->
 <template>
   <Head :title="title" />
@@ -25,12 +34,30 @@
         <MovaLogo class="h-8 w-auto" />
       </Link>
       <div class="flex items-center gap-3">
-        <Link :href="route('login')" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">
-          Iniciar sesión
-        </Link>
-        <Link :href="route('register')" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20">
-          Registrarse
-        </Link>
+        <template v-if="user">
+          <div class="flex items-center gap-2">
+            <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name"
+              class="w-8 h-8 rounded-lg object-cover flex-shrink-0" width="32" height="32" />
+            <div v-else class="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center text-white font-black text-xs flex-shrink-0">
+              {{ user.name?.charAt(0)?.toUpperCase() }}
+            </div>
+            <div class="min-w-0 leading-tight hidden sm:block">
+              <p class="text-sm font-semibold text-slate-900 truncate max-w-[8rem]">{{ user.name }}</p>
+              <p class="text-xs text-slate-400">{{ roleLabelText }}</p>
+            </div>
+          </div>
+          <Link :href="route('dashboard')" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20 whitespace-nowrap">
+            Mi dashboard
+          </Link>
+        </template>
+        <template v-else>
+          <Link :href="route('login')" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">
+            Iniciar sesión
+          </Link>
+          <Link :href="route('register')" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20">
+            Registrarse
+          </Link>
+        </template>
       </div>
     </header>
 
@@ -57,9 +84,13 @@
 </template>
 
 <script setup>
-import { Head, Link } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Head, Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import { roleLabel } from '@/utils/roleLabels'
 
 defineProps({ title: String })
 const year = new Date().getFullYear()
+const user = computed(() => usePage().props.auth?.user)
+const roleLabelText = computed(() => roleLabel(user.value?.roles?.[0]))
 </script>

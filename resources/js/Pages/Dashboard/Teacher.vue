@@ -179,11 +179,15 @@
             <p class="font-bold text-slate-900">Solicitudes</p>
             <p class="text-sm text-slate-400 mt-0.5">{{ pending_requests }} abiertas</p>
           </Link>
-          <Link :href="route('class-offers.index')"
+          <!-- Ya no se crean ofertas nuevas (ver HANDOFF_FINAL.md §21: el
+               profesor elige aceptando solicitudes abiertas, no publicando
+               anuncios). Esta tarjeta queda solo mientras existan ofertas
+               previas que gestionar — la ruta de creación ya no existe. -->
+          <Link v-if="hasOffers" :href="route('class-offers.index')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
             <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📚</div>
-            <p class="font-bold text-slate-900">Mis ofertas</p>
-            <p class="text-sm text-slate-400 mt-0.5">Gestiona tus anuncios</p>
+            <p class="font-bold text-slate-900">Mis ofertas anteriores</p>
+            <p class="text-sm text-slate-400 mt-0.5">Gestiona tarifa y cupos ya configurados</p>
           </Link>
           <Link :href="route('teacher.credits.index')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
@@ -216,7 +220,10 @@ const props = defineProps({
   pending_reports: Number,
   profile_score: { type: Number, default: 0 },
   profile_checklist: { type: Object, default: () => ({}) },
+  has_offers: { type: Boolean, default: false },
 })
+
+const hasOffers = computed(() => props.has_offers)
 
 const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))

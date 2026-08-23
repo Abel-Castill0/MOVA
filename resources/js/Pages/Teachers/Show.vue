@@ -2,7 +2,7 @@
   <Head>
     <meta name="description" :content="`Clases particulares con ${teacher.name} en MOVA` + (teacher.subjects?.length ? `: ${teacher.subjects.map(s => s.name).join(', ')}.` : '.') + ' Profesor verificado, clases en vivo por videollamada.'" />
   </Head>
-  <component :is="layout" :title="teacher.name + ' — MOVA'">
+  <PublicPageLayout :title="teacher.name + ' — MOVA'">
     <div class="max-w-3xl mx-auto space-y-6">
 
       <!-- Back -->
@@ -161,13 +161,12 @@
       </div>
 
     </div>
-  </component>
+  </PublicPageLayout>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
 import PublicPageLayout from '@/Layouts/PublicPageLayout.vue'
 
 defineProps({ teacher: Object })
@@ -178,7 +177,6 @@ const isParent = computed(() => {
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
-const layout = computed(() => authUser.value ? AppLayout : PublicPageLayout)
 // El backend solo envía referral_code al dueño o a un padre con historial
 // (ver TeacherPublicController::referralCodeVisibleTo) — este flag solo
 // decide el TEXTO a mostrar, no la visibilidad del bloque en sí.

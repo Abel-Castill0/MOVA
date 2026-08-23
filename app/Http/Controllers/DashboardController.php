@@ -106,6 +106,11 @@ class DashboardController extends Controller
                     ->get(['id', 'rating', 'comment', 'created_at']) : [],
                 'avg_rating'        => $profile ? $profile->avgRating() : null,
                 'review_count'      => $profile ? $profile->reviewCount() : 0,
+                // Ya no se crean ofertas nuevas (§21) — la tarjeta "Mis
+                // ofertas" del dashboard solo se muestra si quedan ofertas
+                // previas que gestionar, para no ofrecer un camino a una
+                // pantalla que ya no sirve para crear nada.
+                'has_offers'        => $profile ? $profile->classOffers()->exists() : false,
             ]);
         }
 

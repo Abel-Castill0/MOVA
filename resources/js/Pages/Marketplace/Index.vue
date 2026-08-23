@@ -2,7 +2,7 @@
   <Head>
     <meta name="description" content="Conoce a los profesores particulares verificados por MOVA: sus materias, calificación y experiencia. Envía tu solicitud y el primer profesor disponible te contactará." />
   </Head>
-  <component :is="layout" title="Nuestros profesores">
+  <PublicPageLayout title="Nuestros profesores">
     <div class="space-y-6">
 
       <!-- Header -->
@@ -114,13 +114,12 @@
       </div>
 
     </div>
-  </component>
+  </PublicPageLayout>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
 import PublicPageLayout from '@/Layouts/PublicPageLayout.vue'
 
 defineProps({ teachers: Object, stats: Object })
@@ -131,5 +130,4 @@ const isParent = computed(() => {
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
 })
-const layout = computed(() => authUser.value ? AppLayout : PublicPageLayout)
 </script>

@@ -1,12 +1,14 @@
 <template>
   <AppLayout title="Mis ofertas">
     <div class="space-y-6">
-      <div class="flex items-center justify-between">
+      <div>
         <h2 class="text-2xl font-black text-slate-900">Mis ofertas de clases</h2>
-        <Link :href="route('class-offers.create')"
-          class="px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-          + Nueva oferta
-        </Link>
+        <!-- Ya no se pueden crear ofertas nuevas (el profesor elige aceptando
+             solicitudes abiertas, no publicando anuncios — ver
+             HANDOFF_FINAL.md §21). Esta vista queda solo para gestionar las
+             que ya existían antes de este cambio: desactivar, ajustar o
+             borrar, nunca crear. -->
+        <p class="text-sm text-slate-500 mt-1">Ya no se crean ofertas nuevas — los profesores ahora reciben solicitudes abiertas y eligen cuál aceptar. Esta lista es solo para gestionar las que ya tenías.</p>
       </div>
 
       <div v-if="!offers.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">

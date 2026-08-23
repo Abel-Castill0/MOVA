@@ -26,6 +26,23 @@
                de hamburguesa. -->
           <div class="hidden md:flex items-center gap-3">
             <template v-if="user">
+              <!-- Avatar+nombre+rol antes solo vivían en el sidebar de
+                   AppLayout — invisibles aquí, en la landing, que un usuario
+                   logueado también puede visitar (link "Inicio" del navbar,
+                   o el logo). Sin esto no había forma de confirmar con qué
+                   cuenta se estaba, ni un camino de vuelta salvo adivinar
+                   que "Mi dashboard" hacía algo. -->
+              <div class="flex items-center gap-2" :class="scrolled ? 'text-slate-700' : 'text-white'">
+                <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name"
+                  class="w-8 h-8 rounded-lg object-cover flex-shrink-0" width="32" height="32" />
+                <div v-else class="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center text-white font-black text-xs flex-shrink-0">
+                  {{ user.name?.charAt(0)?.toUpperCase() }}
+                </div>
+                <div class="min-w-0 leading-tight">
+                  <p class="text-sm font-semibold truncate max-w-[8rem]">{{ user.name }}</p>
+                  <p class="text-xs opacity-70 capitalize">{{ roleLabelText }}</p>
+                </div>
+              </div>
               <Link :href="route('dashboard')"
                 class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors">
                 Mi dashboard
@@ -93,6 +110,17 @@
 
           <div class="flex flex-col gap-3">
             <template v-if="user">
+              <div class="flex items-center gap-3 px-1 mb-1">
+                <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name"
+                  class="w-11 h-11 rounded-xl object-cover flex-shrink-0" width="44" height="44" />
+                <div v-else class="w-11 h-11 bg-white/15 rounded-xl flex items-center justify-center text-white font-black flex-shrink-0">
+                  {{ user.name?.charAt(0)?.toUpperCase() }}
+                </div>
+                <div class="min-w-0">
+                  <p class="text-white font-semibold truncate">{{ user.name }}</p>
+                  <p class="text-white/60 text-sm capitalize">{{ roleLabelText }}</p>
+                </div>
+              </div>
               <Link :href="route('dashboard')" @click="mobileOpen = false"
                 class="text-center px-4 py-3.5 bg-white text-brand-800 font-bold rounded-xl">
                 Mi dashboard
@@ -116,13 +144,15 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import { roleLabel } from '@/utils/roleLabels'
 
 const scrolled = ref(false)
 const mobileOpen = ref(false)
 const user = usePage().props.auth?.user
+const roleLabelText = computed(() => roleLabel(user?.roles?.[0]))
 
 // El menú full-screen tapa toda la pantalla; sin esto el contenido detrás
 // sigue haciendo scroll con el dedo y se nota el "doble scroll".

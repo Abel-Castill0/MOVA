@@ -28,8 +28,13 @@
     <rect x="66" y="150" width="10" height="10" rx="2" fill="#FFFFFF" fill-opacity="0.3" />
 
     <!-- Chip "Verificado por MOVA" -->
+    <!-- width=190 (no 150): a 150px de ancho el texto (13px/700, ~135px)
+         se salía del pill blanco y sus últimas letras quedaban sobre el
+         fondo oscuro con #0D409A — casi invisibles por falta de contraste.
+         Medido con getBBox() en navegador: texto ocupa hasta x≈174 partiendo
+         del chip en x=0, así que 190 deja margen real a la derecha. -->
     <g transform="translate(90, 250)">
-      <rect width="150" height="34" rx="17" fill="#FFFFFF" />
+      <rect width="190" height="34" rx="17" fill="#FFFFFF" />
       <circle cx="22" cy="17" r="9" fill="#22C55E" />
       <path d="M18 17l3 3 6-6" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
       <text x="40" y="22" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="700" fill="#0D409A">Verificado por MOVA</text>

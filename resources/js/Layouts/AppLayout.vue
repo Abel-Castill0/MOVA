@@ -51,7 +51,7 @@
           </div>
           <div class="min-w-0 flex-1">
             <p class="text-sm font-semibold text-slate-900 truncate">{{ user?.name }}</p>
-            <p class="text-xs text-slate-400 truncate capitalize">{{ user?.roles?.[0] ?? 'usuario' }}</p>
+            <p class="text-xs text-slate-400 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
           </div>
           <NotificationBell class="flex-shrink-0" />
         </div>
@@ -78,14 +78,22 @@
         <!-- Quién está logueado en mobile: en desktop ya se ve en el pie del
              sidebar (siempre visible ahí), pero en mobile el sidebar vive
              detrás del hamburger — sin esto, no hay forma de saber qué
-             cuenta está activa sin abrir el menú. -->
+             cuenta está activa sin abrir el menú. El nombre antes llevaba
+             "hidden sm:inline" (invisible por debajo de 640px) — en un
+             teléfono real (375px y más chicos) solo quedaba el avatar
+             suelto, sin nombre ni rol. Se ve en pantalla que h1 no usa
+             todo su ancho (títulos cortos), así que hay espacio real para
+             nombre + rol incluso en 375px. -->
         <div class="lg:hidden flex items-center gap-2 flex-shrink-0">
           <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
             class="w-8 h-8 rounded-lg object-cover" width="32" height="32" />
           <div v-else class="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center text-white font-black text-xs flex-shrink-0">
             {{ user?.name?.charAt(0)?.toUpperCase() }}
           </div>
-          <span class="text-xs font-semibold text-slate-700 max-w-[6.5rem] truncate hidden sm:inline">{{ user?.name }}</span>
+          <div class="min-w-0 leading-tight">
+            <p class="text-xs font-semibold text-slate-700 max-w-[5rem] truncate">{{ user?.name }}</p>
+            <p class="text-[10px] text-slate-400 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
+          </div>
         </div>
         <!-- Mobile notification bell: botón arriba-derecha, el panel se abre
              hacia abajo-izquierda (placement distinto al del sidebar). -->
@@ -125,6 +133,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import { roleLabel } from '@/utils/roleLabels'
 
 defineProps({ title: String })
 
@@ -188,7 +197,6 @@ const navItems = computed(() => {
     return [
       { href: '/dashboard',       icon: '🏠', label: 'Inicio' },
       { href: '/teacher/requests',icon: '📋', label: 'Solicitudes' },
-      { href: '/class-offers',    icon: '📚', label: 'Mis ofertas' },
       { href: '/teacher/classes', icon: '📅', label: 'Mis clases' },
       { href: '/teacher/credits', icon: 'C', label: 'Mis créditos' },
       { href: '/teacher/profile', icon: '👤', label: 'Mi perfil' },

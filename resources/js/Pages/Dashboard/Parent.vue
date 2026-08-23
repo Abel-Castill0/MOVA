@@ -413,6 +413,17 @@ onMounted(() => {
   // la opacidad detrás de un ScrollTrigger deja el contenido bajo el pliegue
   // en opacity:0 hasta que alguien haga scroll — inaceptable para un botón
   // de "pagar clase". Se anima todo al montar, en cascada por sección.
+  //
+  // Bug real reproducido y diagnosticado en navegador: si la pestaña queda
+  // en segundo plano justo cuando esto corre (`document.hidden`), Chrome
+  // limita requestAnimationFrame a ~1fps — GSAP no se "traba", simplemente
+  // avanza ~50x más lento, y una animación de <1s puede tardar 30s+ en
+  // terminar. Mientras tanto el contenido queda en opacity:0 — exactamente
+  // "aparece y desaparece" que reportaron ("Acciones rápidas" era el caso
+  // observado). clearProps ya evita que quede a medio camino cuando SÍ
+  // termina; el setTimeout de abajo es la red de seguridad para cuando no
+  // termina a tiempo: fuerza opacity:1 igual, sin esperar a que el tween
+  // avance — nunca se queda invisible más de lo que tarda este timeout.
   document.querySelectorAll('.reveal-group').forEach((group, groupIndex) => {
     const items = group.querySelectorAll('.reveal-item')
     if (!items.length) return
@@ -424,7 +435,9 @@ onMounted(() => {
       ease: 'power2.out',
       delay: groupIndex * 0.06,
       stagger: { amount: Math.min(items.length * 0.06, 0.4) },
+      clearProps: 'opacity,transform',
     })
+    setTimeout(() => gsap.set(items, { clearProps: 'all' }), 1500)
   })
 })
 </script>

@@ -45,32 +45,19 @@ class MovaCriticalFlowTest extends TestCase
         $this->assertTrue($profile->subjects->contains('name', 'Neurocálculo Aplicado'));
         $this->assertSame(20, $profile->maxAllowedRate());
 
-        $teacher->forceFill(['email_verified_at' => now()])->save();
-        $subject = $profile->subjects->first();
-
-        $this->actingAs($teacher)
-            ->post('/class-offers', [
-                'subject_id' => $subject->id,
-                'title' => 'Oferta sobre precio permitido',
-                'description' => 'Debe fallar porque aún no completó 5 clases.',
-                'specific_rate' => 25,
-            ])
-            ->assertSessionHasErrors('specific_rate');
-
-        $this->actingAs($teacher)
-            ->post('/class-offers', [
-                'subject_id' => $subject->id,
-                'title' => 'Oferta dentro del precio permitido',
-                'description' => 'Debe pasar porque respeta el límite inicial.',
-                'specific_rate' => 20,
-            ])
-            ->assertRedirect(route('class-offers.index'));
-
         // El nivel 25 exige AMBOS umbrales: clases completadas y calificación
         // promedio — no solo el conteo de clases. Sin reseñas, avg_rating es
         // null y el profesor se queda en el nivel Base (ver
         // TeacherProfile::maxAllowedRate() y el test dedicado de progresión
         // de nivel en MonetizationIntegrityTest).
+        //
+        // La validación de specific_rate contra maxAllowedRate() se probaba
+        // antes posteando a /class-offers — esa ruta de creación ya no
+        // existe (el profesor elige aceptando solicitudes abiertas, no
+        // publicando ofertas, ver HANDOFF_FINAL.md §21). maxAllowedRate()
+        // en sí sigue siendo real (gobierna Lesson::price_frozen_pen vía
+        // TeacherProfile::hourly_rate), así que se sigue probando aquí
+        // directamente sobre el modelo, sin la ruta retirada.
         $profile->update(['completed_classes_count' => 5, 'is_experienced' => true]);
         $this->assertSame(20, $profile->fresh()->maxAllowedRate());
     }
