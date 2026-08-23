@@ -62,6 +62,9 @@
           <label for="is_mentorship" class="text-sm text-emerald-800 cursor-pointer">
             <span class="font-semibold">Busco acompañamiento continuo (mentoría)</span>
             <span class="block text-xs text-emerald-600 mt-0.5">Seguimiento regular con el mismo profesor, no solo una clase suelta. Solo profesores con cupo disponible podrán aceptarla.</span>
+            <span v-if="form.is_mentorship" class="block text-xs text-emerald-600 mt-1.5">
+              No todos los profesores ofrecen acompañamiento continuo. Si nadie acepta tu solicitud, intenta de nuevo sin esta opción.
+            </span>
           </label>
         </div>
         <div>

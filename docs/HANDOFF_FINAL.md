@@ -27,6 +27,40 @@ En local ya se rotó (ver `.env` → `ADMIN_PASSWORD`, generada para esta sesió
 
 ---
 
+## Resumen ejecutivo (2026-08-22)
+
+Vista rápida para quien no quiera leer las 21 secciones de abajo. El detalle
+completo de cada check sigue en `§1` (verificación técnica) y `§17-§21`
+(rondas más recientes); esto no las reemplaza, solo evita tener que buscar.
+
+| | |
+|---|---|
+| **Tests** | 172/172 PHPUnit · 3/3 E2E Playwright (`qa/tests/flujo-completo.spec.js`) |
+| **Build** | `npm run build` limpio |
+| **Ledger** | `mova:reconcile-ledger` → GREEN |
+| **Git** | sincronizado con `origin/master` |
+
+**Features activas** (además de lo listado en `§1`): calendario semanal
+(`WeeklyCalendar.vue`, §20), marketplace informativo sin búsqueda/filtros
+(§21), código de referido como mecanismo de confianza post-clase — visible
+en Jitsi, historial, perfil condicional y perfil propio del profesor (§21),
+acompañamiento continuo con checkbox sujeto a cupos del profesor (§21),
+tarifa automática por clases completadas y calificación, cierre automático
+de créditos vencidos (`mova:settle-lessons`, C-1, §17), JaaS sin límite de
+5 minutos, notificaciones por email, landing con datos reales.
+
+**Pendientes externos** (no bloquean el código, sí un despliegue real):
+WhatsApp Cloud API (verificación de teléfono — hoy usa un bypass de testing,
+ver `mova:testing-verify-phone`), hosting/dominio definitivo, revisión
+legal profesional de Términos y Privacidad (`§1` lo marca como obligatorio
+antes de que un usuario real los acepte, dado que MOVA maneja datos de
+menores), y los hallazgos ALTO/MEDIO de la auditoría de `§19` (confirmación
+de pago sin evidencia, rutas fuera de `not.suspended`, reprogramación sin
+límite) — documentados, decisión de priorización pendiente del dueño del
+producto.
+
+---
+
 ## 1. Estado actual del proyecto
 
 ### Verificación técnica (a la fecha de este documento)
