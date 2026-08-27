@@ -20,6 +20,7 @@ use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\AiUsageController;
 use App\Http\Controllers\Admin\RechargeController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
@@ -28,6 +29,17 @@ use Illuminate\Support\Facades\Route;
 
 // ── Health check (no session, no auth) ──────────────────────────────────────
 Route::get('/healthz', fn () => response('OK', 200));
+
+// ── SEO: sitemap + robots dinámicos ──────────────────────────────────────────
+// robots.txt vivía como archivo estático en public/ sin referenciar ningún
+// sitemap (que tampoco existía). Ambos ahora se generan a partir de APP_URL
+// en runtime — si el dominio cambia (dominio propio en vez del subdominio de
+// Railway), ninguno de los dos queda desactualizado.
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
+Route::get('/robots.txt', function () {
+    return response("User-agent: *\nDisallow:\n\nSitemap: ".route('sitemap')."\n")
+        ->header('Content-Type', 'text/plain');
+})->name('robots');
 
 // ── Legal pages (public, no auth required) ───────────────────────────────────
 Route::get('/terminos', [LegalController::class, 'terms'])->name('legal.terms');

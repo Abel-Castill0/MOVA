@@ -1,0 +1,59 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Subject;
+use App\Models\TeacherProfile;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * SEO gap encontrado al auditar el estado real de MOVA: existía robots.txt
+ * pero ningún sitemap.xml, y robots.txt no referenciaba ninguno. Ambos ahora
+ * son rutas dinámicas (no archivos estáticos en public/), generadas desde
+ * APP_URL en runtime.
+ */
+class SitemapTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_sitemap_lists_the_static_public_pages(): void
+    {
+        $response = $this->get('/sitemap.xml');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/xml');
+        $response->assertSeeText(route('welcome'), false);
+        $response->assertSeeText(route('marketplace'), false);
+        $response->assertSeeText(route('legal.privacy'), false);
+    }
+
+    public function test_sitemap_lists_only_verified_teacher_profiles(): void
+    {
+        $verifiedTeacher = User::factory()->create();
+        $verifiedTeacher->assignRole('teacher');
+        $verified = TeacherProfile::create(['user_id' => $verifiedTeacher->id, 'is_verified' => true]);
+
+        $unverifiedTeacher = User::factory()->create();
+        $unverifiedTeacher->assignRole('teacher');
+        $unverified = TeacherProfile::create(['user_id' => $unverifiedTeacher->id, 'is_verified' => false]);
+
+        $response = $this->get('/sitemap.xml');
+
+        $response->assertSeeText(route('teachers.show', $verified), false);
+        // Un perfil no verificado da 404 en TeacherPublicController::show —
+        // listarlo en el sitemap enviaría a los buscadores a una URL rota.
+        $response->assertDontSeeText(route('teachers.show', $unverified), false);
+    }
+
+    public function test_robots_txt_references_the_sitemap(): void
+    {
+        $response = $this->get('/robots.txt');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
+        $response->assertSeeText('Sitemap: '.route('sitemap'), false);
+        $response->assertSeeText('Disallow:', false);
+    }
+}
