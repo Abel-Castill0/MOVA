@@ -4,7 +4,6 @@
 // en vez de duplicarlo una tercera vez.
 export const STATUS_STYLES = {
   scheduled: { label: 'Programada', color: 'bg-blue-100 text-blue-700', ring: 'border-blue-200' },
-  in_progress: { label: 'En curso', color: 'bg-yellow-100 text-yellow-700', ring: 'border-yellow-200' },
   paid: { label: 'Pagada', color: 'bg-indigo-100 text-indigo-700', ring: 'border-indigo-200' },
   pending_parent_confirmation: { label: 'Esperando calificación', color: 'bg-amber-100 text-amber-700', ring: 'border-amber-200' },
   needs_admin_review: { label: 'En revisión', color: 'bg-orange-100 text-orange-700', ring: 'border-orange-200' },

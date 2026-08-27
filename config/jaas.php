@@ -29,4 +29,29 @@ return [
 
     'domain' => '8x8.vc',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ventana de acceso a la sala (F-06)
+    |--------------------------------------------------------------------------
+    |
+    | Antes, join() no comprobaba proximidad temporal alguna y el JWT vivía 24h
+    | fijas. La regla "disponible 15 minutos antes" existía SOLO en el frontend
+    | (resources/js/utils/lessonJoin.js), así que un POST directo a la ruta
+    | devolvía un token válido días antes de la clase: la UI comunicaba una
+    | restricción que el backend no aplicaba.
+    |
+    | Ahora estos dos valores gobiernan AMBOS lados y el `exp` del JWT queda
+    | acotado por la misma ventana: el token nunca puede sobrevivir al periodo
+    | en que join() lo habría concedido.
+    |
+    | join_grace_after_minutes es deliberadamente generoso (2h por defecto)
+    | para que una clase que se alarga nunca se corte a mitad. Reducirlo exige
+    | un smoke test real contra JaaS: no está confirmado desde este repositorio
+    | cómo trata JaaS un `exp` que vence con la llamada en curso — ver
+    | UNKNOWN-03 en docs/MOVA_FULL_AUDIT.md.
+    |
+    */
+    'join_window_before_minutes' => (int) env('JAAS_JOIN_WINDOW_BEFORE_MINUTES', 15),
+    'join_grace_after_minutes'   => (int) env('JAAS_JOIN_GRACE_AFTER_MINUTES', 120),
+
 ];

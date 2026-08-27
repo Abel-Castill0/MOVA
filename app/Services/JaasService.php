@@ -13,8 +13,25 @@ use Firebase\JWT\JWT;
  */
 class JaasService
 {
-    public function generateToken(string $roomName, string $userName, bool $isModerator): string
-    {
+    /**
+     * @param  \DateTimeInterface|null  $expiresAt  Momento en que el token deja
+     *   de ser válido. F-06: antes era SIEMPRE ahora+24h, una ventana enorme
+     *   para una clase de 60 minutos — si el JWT se filtraba (historial del
+     *   navegador, captura de DevTools, extensión, proxy corporativo), daba
+     *   acceso a una videollamada con un menor durante un día entero. Ahora
+     *   LessonController::join() lo acota al final de la ventana en que esa
+     *   misma llamada habría concedido el acceso.
+     *
+     *   Se mantiene el fallback de 24h para cualquier llamador que no pase el
+     *   valor, en vez de romper: el endurecimiento no debe depender de que
+     *   todos los llamadores se acuerden.
+     */
+    public function generateToken(
+        string $roomName,
+        string $userName,
+        bool $isModerator,
+        ?\DateTimeInterface $expiresAt = null
+    ): string {
         $appId = config('jaas.app_id');
         $privateKey = config('jaas.private_key');
         $keyId = config('jaas.key_id');
@@ -23,13 +40,19 @@ class JaasService
         abort_unless($keyId, 500, 'JaaS no está configurado (falta JAAS_KEY_ID).');
 
         $now = time();
+        $exp = $expiresAt ? $expiresAt->getTimestamp() : $now + (24 * 60 * 60);
+
+        // Nunca emitir un token ya vencido ni de duración ridícula: si la
+        // ventana calculada quedó en el pasado por desfase de reloj, se
+        // concede un mínimo operativo en lugar de un token inservible.
+        $exp = max($exp, $now + 300);
 
         $payload = [
             'aud' => 'jitsi',
             'iss' => 'chat',
             'sub' => $appId,
             'room' => $roomName,
-            'exp' => $now + (24 * 60 * 60),
+            'exp' => $exp,
             'nbf' => $now - 10,
             'context' => [
                 'user' => [

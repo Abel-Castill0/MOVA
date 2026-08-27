@@ -91,9 +91,12 @@ class LessonController extends Controller
                 'status' => 'scheduled',
             ]);
 
+            // F-07: ya no se genera jitsi_password. JaaS autentica por JWT
+            // firmado (con el `room` en el payload); la contraseña era un
+            // residuo de meet.jit.si que se guardaba en claro sin que nadie
+            // la leyera nunca.
             $lesson->update([
                 'jitsi_room' => "mova-lesson-{$lesson->id}-".Str::random(32),
-                'jitsi_password' => Str::random(10),
             ]);
 
             $profileUpdates = [
@@ -157,7 +160,8 @@ class LessonController extends Controller
     // listado de clases; así reducimos la ventana de exposición y evitamos
     // que alguien con la URL/room adivinada pueda entrar sin haber pasado
     // por esta verificación de autorización + estado. El JWT se firma con
-    // la private key de JaaS (nunca sale del backend) y expira en 24h.
+    // la private key de JaaS (nunca sale del backend) y su expiración queda
+    // acotada a la ventana de acceso de la clase (F-06), no a 24h fijas.
     public function join(Lesson $lesson, JaasService $jaas)
     {
         $this->authorize('view', $lesson);
@@ -170,12 +174,44 @@ class LessonController extends Controller
 
         abort_unless($lesson->jitsi_room, 404, 'Esta clase todavía no tiene una sala virtual asignada.');
 
+        // F-06 — Ventana temporal AUTORITATIVA en el servidor.
+        //
+        // Antes esta comprobación no existía aquí: la regla "disponible 15
+        // minutos antes" vivía solo en resources/js/utils/lessonJoin.js, así
+        // que un POST directo a esta ruta devolvía un token válido días antes
+        // de la clase. La UI comunicaba una restricción que el backend no
+        // aplicaba — divergencia de autorización, no solo de UX.
+        //
+        // 'paid' se exceptúa a propósito: es el estado en que la clase ya
+        // ocurrió y se confirmó el pago; el acceso posterior a la sala para
+        // repasar/cerrar temas ya era el comportamiento esperado (ver
+        // lessonJoin.js:13) y restringirlo aquí sería un cambio de producto,
+        // no una corrección de seguridad.
+        if ($lesson->status !== 'paid') {
+            $opensAt  = $lesson->start_time->copy()->subMinutes((int) config('jaas.join_window_before_minutes', 15));
+            $closesAt = $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+
+            abort_if(
+                now()->lt($opensAt),
+                403,
+                'La sala se abre '.config('jaas.join_window_before_minutes', 15).' minutos antes del inicio de la clase.'
+            );
+            abort_if(now()->gt($closesAt), 403, 'La sala de esta clase ya se cerró.');
+        }
+
         $user = auth()->user();
         $isModerator = $lesson->teacherProfile?->user_id === $user->id;
 
+        // El token no sobrevive a la ventana en que este mismo endpoint lo
+        // habría concedido. Para 'paid' se mantiene una ventana corta desde
+        // ahora, en lugar de las 24h fijas de antes.
+        $tokenExpiresAt = $lesson->status === 'paid'
+            ? now()->addMinutes((int) config('jaas.join_grace_after_minutes', 120))
+            : $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+
         return response()->json([
             'jitsi_room' => $lesson->jitsi_room,
-            'jitsi_token' => $jaas->generateToken($lesson->jitsi_room, $user->name, $isModerator),
+            'jitsi_token' => $jaas->generateToken($lesson->jitsi_room, $user->name, $isModerator, $tokenExpiresAt),
             // App ID de JaaS — no es secreto (aparece en cada URL/script tag
             // de la llamada), el frontend lo necesita para construir el room
             // name con prefijo de tenant y la URL de external_api.js.

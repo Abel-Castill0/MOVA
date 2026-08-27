@@ -153,7 +153,9 @@
                         class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
                         🎥 Unirse a la sala
                       </button>
-                      <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">Disponible 15 min antes de empezar</p>
+                      <!-- F-11: rama inalcanzable — canJoinJitsi() devuelve true para todo lo que esté en 'paid', así que este texto no llega a mostrarse. Se conserva como red por si la regla de acceso cambia. -->
+                      <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">La sala de esta clase ya no está disponible.</p>
+                      <p v-if="paymentError && payingId === null" class="mt-1 text-xs font-semibold text-red-600 text-right">{{ paymentError }}</p>
                       <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
                         class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
                         ★ Calificar
@@ -327,6 +329,7 @@ import StatusBadge from '@/Components/StatusBadge.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
+import { canJoinJitsi } from '@/utils/lessonJoin'
 import gsap from 'gsap'
 
 const props = defineProps({
@@ -346,6 +349,7 @@ const user  = computed(() => usePage().props.auth?.user)
 const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
 const payingId = ref(null)
+const paymentError = ref('')
 const postClassLessonId = ref(null)
 const postClassEnded = ref(true)
 const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
@@ -372,21 +376,25 @@ function dotColor(status) {
   }[status] ?? 'bg-slate-300'
 }
 
-function canJoinJitsi(l) {
-  if (!l.has_jitsi_room) return false
-  if (l.status !== 'paid') return false
-  const minutesToStart = (new Date(l.start_time).getTime() - Date.now()) / 60000
-  return minutesToStart <= 15
-}
+// F-06: era una CUARTA copia divergente de la misma regla (las otras tres ya
+// se habían unificado en utils/lessonJoin.js). Además tenía el mismo hueco
+// que la versión compartida anterior —sin límite inferior— y restringía a
+// 'paid' cuando el backend permite más estados. Se usa la función compartida.
 
 function hasClassEnded(l) {
   return Date.now() >= new Date(l.end_time).getTime()
 }
 
+// F-19: esta acción no tenía onError, aunque la MISMA acción en
+// Lessons/ParentIndex.vue sí lo tiene. Un 422 (por ejemplo, la clase todavía
+// no ha terminado) dejaba al padre pulsando un botón que no hacía nada.
 function confirmPayment(l) {
+  if (payingId.value) return
   payingId.value = l.id
+  paymentError.value = ''
   router.post(route('lessons.confirm-payment', l.id), {}, {
     preserveScroll: true,
+    onError: () => { paymentError.value = 'No se pudo confirmar el pago. Recarga la página e inténtalo de nuevo.' },
     onFinish: () => { payingId.value = null },
   })
 }
