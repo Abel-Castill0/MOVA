@@ -373,6 +373,7 @@ import Icon from '@/Components/Icon.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { canJoinJitsi } from '@/utils/lessonJoin'
+import { statusStyle } from '@/utils/statusColors'
 import gsap from 'gsap'
 
 const props = defineProps({
@@ -411,19 +412,11 @@ function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-// violet, no indigo: mismo color que 'paid' en utils/statusColors.js — antes
-// este punto vivía con su propio 'bg-indigo-400' independiente, un tercer
-// lugar (junto a TeacherLessonCard/ParentLessonCard) repitiendo el mismo
-// mapeo de color. Se deja documentado aquí en vez de importar statusColors.js
-// directamente: unificar los cuatro sitios en una sola fuente es un cambio de
-// mayor alcance que un barrido de color, y queda anotado como pendiente en
-// docs/MOVA_DESIGN_AUDIT_FINAL.md en vez de hacerse a medias en esta pasada.
+// Deduplicado: antes era un cuarto mapeo de color independiente (junto a
+// utils/statusColors.js, TeacherLessonCard.vue y ParentLessonCard.vue, cada
+// uno con su propia copia). Ahora los cuatro leen del mismo `statusStyle()`.
 function dotColor(status) {
-  return {
-    scheduled: 'bg-blue-400',
-    paid: 'bg-violet-400',
-    pending_parent_confirmation: 'bg-amber-400',
-  }[status] ?? 'bg-slate-300'
+  return statusStyle(status).dot
 }
 
 // F-06: era una CUARTA copia divergente de la misma regla (las otras tres ya

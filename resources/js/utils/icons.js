@@ -44,6 +44,8 @@ import {
   Gift,
   Archive,
   FileWarning,
+  Hourglass,
+  CircleDollarSign,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -96,6 +98,10 @@ export const icons = {
   incentive: Gift,                 // 🎁 "verifica tu celular y desbloquea créditos gratis"
   'past-offers': Archive,          // 📚 "Mis ofertas anteriores" — distinto de `topic` (📚 "Pasadas"/"Tema"): mismo emoji original, roles distintos en la misma página
   'report-due': FileWarning,       // 📝 alerta "clases sin reporte" — el reporte en sí ya usa `my-reports` (FileText); esta es la variante de alerta/pendiente
+
+  // Lessons/*LessonCard.vue
+  'under-review': Hourglass,       // ⏳ "en revisión por el equipo MOVA"
+  'payment-received': CircleDollarSign, // 💰 "el padre confirmó el pago"
 }
 
 /**
