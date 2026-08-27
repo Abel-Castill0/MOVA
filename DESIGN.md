@@ -92,6 +92,67 @@ centraliza en tokens en vez de reinventarse. Contraste texto-sobre-tinte
 verificado en los cuatro casos, ambos temas: **todos ≥6.3:1**, muy por
 encima de AA.
 
+## Sistema de estados semánticos
+
+**Regla:** ningún color de estado se elige "porque se ve bien" — cada estado
+de negocio se asigna a un **rol semántico**, y el rol determina el color, no
+al revés. Siete roles, verificados contra los enums reales del código
+(`database/migrations/*_classes_table.php`, `*_class_requests_table.php`),
+no inventados:
+
+| Rol | Uso | Color |
+|---|---|---|
+| `brand` | acciones primarias, marca | `brand-600` |
+| `neutral` | sin opinión fuerte, por defecto | `slate`/`gray` |
+| `info` | programado/informativo, nada requerido del usuario todavía | `blue` |
+| `success` | terminal positivo | `green`/`emerald` |
+| `warning` | requiere atención/acción del usuario | `amber`/`orange` |
+| `danger` | terminal negativo | `red`/`rose` |
+| `accent` | en curso, con un hecho de negocio distintivo que el `info` genérico no comunica (ver justificación por estado abajo) | `violet` / `cyan` — dos tonos de acento, uno por dominio, nunca el mismo para dos conceptos distintos |
+
+### Ciclo de vida real de `Lesson` (`classes.status`)
+
+Verificado en `2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`:
+`scheduled → paid → pending_parent_confirmation → completed`, con
+`cancelled`/`needs_admin_review` como ramas de excepción.
+
+| Estado | Rol | Por qué (semántico, no estético) |
+|---|---|---|
+| `scheduled` | `info` | Programada, nada pendiente del padre todavía — es literalmente información. |
+| `paid` | **`accent` (violet)** | No es "info" ni "success": el dinero ya se movió (evento de negocio de primera clase en todo el ledger de créditos) pero la clase todavía no ocurrió ni se confirmó — mezclarlo con `scheduled` (nada pagado) le escondería al padre precisamente el dato que más le importa ver de un vistazo ("esta ya la pagué"). Mezclarlo con `completed` (verde) sería peor: afirmaría que la clase ya ocurrió cuando no es cierto. Necesita un rol propio. |
+| `pending_parent_confirmation` | `warning` | Acción requerida del padre (confirmar). |
+| `needs_admin_review` | `warning` (tono `orange`, más urgente que `amber`) | Requiere intervención humana — más urgente que una confirmación de rutina. |
+| `completed` | `success` | Terminal positivo. |
+| `cancelled` | `danger` | Terminal negativo. |
+
+### Ciclo de vida real de `ClassRequest` (`class_requests.status`)
+
+Verificado en `2026_07_08_000001_update_class_requests_status_enum.php`:
+`pending_parent_approval → open → accepted/rejected/teacher_rejected → completed`.
+Es un **dominio distinto** de `Lesson` — una solicitud precede a una clase, y
+ambos pueden aparecer juntos en el mismo dashboard del padre (ver
+`Dashboard/Parent.vue`, que muestra solicitudes pendientes y clases próximas
+en la misma pantalla). Por eso `open` no puede reutilizar el mismo `accent`
+que `paid`: si compartieran color, un padre viendo ambos módulos a la vez no
+podría distinguir "tengo una solicitud buscando profesor" de "tengo una
+clase ya pagada" solo por el color — precisamente el tipo de ambigüedad que
+un sistema de color semántico existe para evitar.
+
+| Estado | Rol | Por qué |
+|---|---|---|
+| `pending_parent_approval` | `warning` | Acción requerida del padre. |
+| `open` | **`accent` (cyan)** | En curso (buscando profesor), pero es información del dominio *solicitud*, no *clase* — necesita distinguirse de `paid`/`scheduled` para que ambos módulos convivan sin ambigüedad en el mismo dashboard. |
+| `accepted` | `success` | Terminal positivo. |
+| `rejected` / `teacher_rejected` | `danger` (el segundo con un tono distinto, `rose`, porque ya existía así en el código antes de esta sesión y sigue siendo una decisión válida: distingue "rechazada" en general de "un profesor específico la rechazó") | Terminal negativo. |
+| `completed` | `success` | Terminal positivo. |
+
+**Consecuencia práctica:** los cuatro sitios que pintan estos colores
+(`utils/statusColors.js`, `Dashboard/Parent.vue::dotColor()`,
+`TeacherLessonCard.vue`, `ParentLessonCard.vue`) ya usan `violet`/`cyan`
+consistentemente para `paid`/`open` respectivamente — la deduplicación real
+(que los tres últimos importen `statusStyle()` en vez de repetir el mapeo)
+sigue pendiente, registrada en `docs/MOVA_DESIGN_AUDIT_FINAL.md`.
+
 ## Border radius
 
 Escala con nombre para uso deliberado en primitivos y páginas migradas —

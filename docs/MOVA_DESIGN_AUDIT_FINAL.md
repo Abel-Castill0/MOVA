@@ -14,22 +14,76 @@ no una copia del hallazgo original de la Fase 0.
 
 ---
 
-## Qué significa cada columna
+## Vocabulario de verificación (obligatorio desde este punto en adelante)
 
-- **Emoji restantes**: ocurrencias de emoji detectadas en el archivo ahora
-  mismo (no todas son necesariamente iconos de interfaz — algunas son
-  contenido legítimo que se conserva a propósito; eso se decide archivo por
-  archivo en la fase de migración, no aquí).
-- **Indigo restante**: apariciones literales de `indigo` — resto de Laravel
-  Breeze, nunca la marca.
-- **Migrada (tokens+iconos)**: `PARCIAL` si el archivo ya fue tocado en esta
-  sesión (Fases 1-3), `NO` si sigue en su estado original. Ningún archivo
-  está `COMPLETA` todavía — eso requiere además responsive/dark/a11y/QA
-  reales, no solo tokens+iconos.
-- **Responsive / Dark / A11y / QA**: `pendiente` en todas las filas todavía.
-  Se actualizan a `✅ <fecha> <evidencia>` únicamente cuando existe evidencia
-  real (build, test, o verificación en el Browser pane) — nunca por
-  inspección de código sola.
+**"Migrado" y "rediseñado" no son lo mismo.** Migrar emoji→Lucide, indigo→
+brand, o aplicar `BaseButton`/tokens es una condición necesaria, nunca
+suficiente, para decir que una página está resuelta. Por eso cada página
+usa uno de estos estados — nunca una palabra genérica como "completado y
+verificado" que mezcle niveles distintos de evidencia:
+
+| Estado | Significa |
+|---|---|
+| `AUDITED` | Se leyó el archivo completo y se identificaron sus problemas reales (no solo emoji/indigo). |
+| `IMPLEMENTED` | El código fue modificado (tokens, iconos, componentes, copy, estados). |
+| `BUILD_VERIFIED` | `npm run build` limpio después del cambio. |
+| `TEST_VERIFIED` | La suite de PHP (`php artisan test`) sigue en verde; se nombra el test específico si ejercita esa ruta. |
+| `BROWSER_VERIFIED` | Se cargó la página real en el Browser pane y se inspeccionó (screenshot, DOM, o interacción real — clic/teclado). |
+| `A11Y_VERIFIED` | Foco por teclado, contraste, `aria-*` verificados en esa página específica (no heredado de los primitivos). |
+| `RESPONSIVE_VERIFIED` | Probado en los breakpoints reales del proyecto. |
+| `DARK_VERIFIED` | Probado con `data-theme="dark"` forzado — no solo "compila con los tokens". |
+| `PERFORMANCE_VERIFIED` | Bundle/build comparado contra la línea base. |
+| `DONE` | Todos los estados anteriores que aplican a esa página están cumplidos. |
+| `BLOCKED_VISUAL_VERIFICATION` | No se puede verificar visualmente por una razón externa concreta (auth+DB en este sandbox) — **nunca se convierte en `DONE` ni en `BROWSER_VERIFIED ✅` solo porque el build pasa.** La razón siempre se nombra. |
+| `NO CHANGE — VERIFIED` | Se auditó la página y genuinamente no necesitaba cambios — un resultado válido, no una omisión. |
+
+**Ninguna fila de este documento llega a `DONE` todavía.** Lo que existe hoy,
+fila por fila, es como mucho `IMPLEMENTED` + `BUILD_VERIFIED` +
+`TEST_VERIFIED`, y `BROWSER_VERIFIED` solo donde la ruta no exige sesión —
+el resto está honestamente en `BLOCKED_VISUAL_VERIFICATION`, nunca
+maquillado.
+
+### Clasificación de emoji (no perseguir el cero ciego)
+
+| Categoría | Qué es | Acción |
+|---|---|---|
+| `UI_ICON` | Funciona como icono de interfaz (nav, botón, badge, estado) | Migrar a Lucide siempre |
+| `CONTENT` | Parte de un texto que el usuario lee como contenido, no como interfaz | Conservar |
+| `BRAND_COPY` | Aparece en copy de marketing/marca | Evaluar caso a caso, no mecánicamente |
+
+Todo lo migrado en esta sesión hasta ahora era `UI_ICON` real (nav, badges de
+estado, botones de acción) — verificado archivo por archivo, no asumido.
+
+### Clasificación de `indigo` (no perseguir el cero ciego)
+
+| Categoría | Qué es | Acción |
+|---|---|---|
+| `LEGACY` | Resto de Laravel Breeze, nunca fue una decisión de marca | Eliminar → `brand` o el rol semántico que corresponda |
+| `SEMANTIC` | Codifica un estado de negocio real (ver "Sistema de estados semánticos" en `DESIGN.md`) | Conservar el ROL, no necesariamente el tono `indigo` — reasignar al rol semántico correcto |
+| `DECORATIVE` | Parte de un degradado/fondo sin significado de estado | Evaluar si el degradado en sí debe existir (ver el caso del CTA de diagnóstico, abajo) |
+| `THIRD_PARTY` | Vendría de una librería externa no tocada por MOVA | No modificar |
+
+Todo el `indigo` encontrado hasta ahora ha sido `LEGACY` (focus rings,
+botones, checkboxes heredados de Breeze) o `SEMANTIC` mal asignado (los
+estados `paid`/`open`, que sí necesitaban un rol propio pero nunca debieron
+llamarse "indigo porque sí" — ver `DESIGN.md`, sección "Sistema de estados
+semánticos", con la justificación de por qué cada uno es un `accent` propio
+y no una elección estética). Ninguna aparición ha sido `THIRD_PARTY`.
+
+### Qué significa cada columna de la matriz
+
+- **Emoji restantes / Indigo restante**: re-lectura mecánica del archivo
+  (cuenta bruta) — el veredicto real de cada ocurrencia (`UI_ICON` vs
+  `CONTENT`, `LEGACY` vs `SEMANTIC`) vive en la celda "Migrada", no en este
+  número.
+- **Migrada (tokens+iconos)**: resume el estado `IMPLEMENTED` de esa página
+  — qué se cambió y por qué. No implica `BROWSER_VERIFIED` ni `DONE`.
+- **Responsive / Dark / A11y**: `pendiente` significa exactamente eso —
+  ningún primitivo compartido "hereda" estos estados a la página que lo usa;
+  se verifican por página.
+- **QA**: los tres estados de evidencia de ejecución —
+  `BUILD_VERIFIED`/`TEST_VERIFIED`/`BROWSER_VERIFIED` — siempre nombrados
+  por separado, nunca colapsados en un solo "✅ verificado".
 
 ---
 
@@ -87,27 +141,27 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Auth/ConfirmPassword.vue` | 0 | 0 | **COMPLETA** — además corregido: texto/label/botón en inglés (residuo de Breeze), ahora en español | ✅ (ya usaba primitivos) | ✅ (tokens) | pendiente | ⚠️ solo build+tests — ruta requiere sesión autenticada (middleware `auth`), redirige a `/login` sin DB; no verificable con captura en este sandbox |
-| `Pages/Auth/ForgotPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | ✅ (Browser pane, `/forgot-password` real) |
-| `Pages/Auth/Login.vue` | 0 | 0 | **COMPLETA** — 🚧 → `Icon name="pending"` (Construction) | ✅ | ✅ | pendiente | ✅ (Browser pane, modal probado con clic real) |
-| `Pages/Auth/PhoneVerification.vue` | 0 | 0 | **PARCIAL** — 7 indigo→brand corregidos; sigue con markup propio (no usa TextInput/Checkbox/PrimaryButton) — deferred, ver nota | pendiente | pendiente | pendiente | ⚠️ solo build+sed, sin captura (requiere sesión con teléfono, no verificable sin DB) |
-| `Pages/Auth/Register.vue` | 0 | 0 | **PARCIAL** — 5 emoji migrados a Icon (`pending`/`role-parent`/`role-teacher`); wizard sigue con botones propios en vez de BaseButton — deferred, ver nota | ✅ | ✅ (tokens en lo migrado) | pendiente | ✅ (Browser pane, selector de rol + modal probados con clic real) |
-| `Pages/Auth/ResetPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | ✅ (Browser pane, `/reset-password/{token}` real con token falso — la página solo renderiza el formulario, la validación real del token ocurre en el POST) |
-| `Pages/Auth/VerifyEmail.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre PrimaryButton migrado, sin indigo) | ✅ | ✅ | pendiente | ⚠️ solo build+tests — ruta requiere sesión autenticada, redirige a `/login` sin DB; no verificable con captura en este sandbox |
+| `Pages/Auth/ConfirmPassword.vue` | 0 | 0 | **COMPLETA** — además corregido: texto/label/botón en inglés (residuo de Breeze), ahora en español | ✅ (ya usaba primitivos) | ✅ (tokens) | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (ruta tras middleware `auth`, redirige a `/login` sin sesión; este sandbox no tiene DB para autenticar) |
+| `Pages/Auth/ForgotPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (`/forgot-password` real, sin DB necesaria) |
+| `Pages/Auth/Login.vue` | 0 | 0 | **COMPLETA** — 🚧 → `Icon name="pending"` (Construction) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (modal probado con clic real, icono Construction confirmado en pantalla) |
+| `Pages/Auth/PhoneVerification.vue` | 0 | 0 | **PARCIAL** — 7 indigo→brand corregidos; sigue con markup propio (no usa TextInput/Checkbox/PrimaryButton) — deferred, ver nota | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED: no hay test que cubra esta página · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (requiere sesión con teléfono pendiente de verificar, no reproducible sin DB) |
+| `Pages/Auth/Register.vue` | 0 | 0 | **PARCIAL** — 5 emoji migrados a Icon (`pending`/`role-parent`/`role-teacher`); wizard sigue con botones propios en vez de BaseButton — deferred, ver nota | ✅ | ✅ (tokens en lo migrado) | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (selector de rol + modal probados con clic real) |
+| `Pages/Auth/ResetPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (`/reset-password/{token}` real con token de prueba — la página solo renderiza el formulario, la validación real del token ocurre en el POST) |
+| `Pages/Auth/VerifyEmail.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre PrimaryButton migrado, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (ruta tras middleware `auth`, redirige a `/login` sin sesión) |
 
 ### Parent (1 archivo)
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Dashboard/Parent.vue` | 0 | 0 | **COMPLETA** — 30 emoji → Icon (semántico, no mecánico: mismo emoji 📅 usado 4 veces distintas se mapeó a `classes` cuando es un icono suelto y a un `<Icon>` inline junto a la fecha cuando acompaña texto); CTA de diagnóstico simplificado de gradiente indigo→brand a tarjeta plana `bg-brand-50` (el gradiente decorativo iba contra PRODUCT.md); 5ª estrella de reseña ahora usa `<Icon fill>` en vez de texto `★`; `dotColor()` alineado a `violet` (mismo tono que `paid` en `statusColors.js`, ver más abajo) | pendiente | pendiente | pendiente | ⚠️ solo build+tests (`MonetizationIntegrityTest` toca esta ruta) — requiere sesión con hijos/clases reales, no verificable con captura sin DB |
+| `Pages/Dashboard/Parent.vue` | 0 | 0 | **COMPLETA** — 30 emoji → Icon (semántico, no mecánico: mismo emoji 📅 usado 4 veces distintas se mapeó a `classes` cuando es un icono suelto y a un `<Icon>` inline junto a la fecha cuando acompaña texto); CTA de diagnóstico simplificado de gradiente indigo→brand a tarjeta plana `bg-brand-50` (el gradiente decorativo iba contra PRODUCT.md); 5ª estrella de reseña ahora usa `<Icon fill>` en vez de texto `★`; `dotColor()` alineado a `violet` (mismo tono que `paid` en `statusColors.js`, ver más abajo) | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`MonetizationIntegrityTest` ejercita esta ruta server-side) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (requiere sesión de padre con hijos/clases reales) |
 
 ### Parent — gestión de hijos (3 archivos)
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Students/Create.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en brand tokens, sin indigo; se usó como referencia para corregir Edit.vue) | pendiente | pendiente | pendiente | ⚠️ solo build+tests (`StudentDeletionIntegrityTest`, `AuthorizationPolicyTest` pasan — la ruta requiere sesión, no hay captura sin DB) |
-| `Pages/Students/Edit.vue` | 0 | 0 | **COMPLETA** — 7 indigo→brand, y **radio/borde alineados a Create.vue** (`rounded-lg`→`rounded-xl`, `border-gray-300`→`border-gray-200`, `shadow` del botón): eran el mismo formulario con dos estilos visiblemente distintos, hallazgo real de inconsistencia, no solo de color | pendiente | pendiente | pendiente | ⚠️ solo build+tests, misma razón que Create.vue |
-| `Pages/Students/Index.vue` | 0 | 0 | **COMPLETA** — 🎒 → `Icon name="my-students"`; botón de eliminar propio → `DangerButton` con `:loading="deleting"` (ya existía la lógica, solo faltaba el componente correcto) | pendiente | pendiente | pendiente | ⚠️ solo build+tests, misma razón que Create.vue |
+| `Pages/Students/Create.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en brand tokens, sin indigo; se usó como referencia para corregir Edit.vue) | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`StudentDeletionIntegrityTest`, `AuthorizationPolicyTest`) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (ruta tras `auth`) |
+| `Pages/Students/Edit.vue` | 0 | 0 | **COMPLETA** — 7 indigo→brand, y **radio/borde alineados a Create.vue** (`rounded-lg`→`rounded-xl`, `border-gray-300`→`border-gray-200`, `shadow` del botón): eran el mismo formulario con dos estilos visiblemente distintos, hallazgo real de inconsistencia, no solo de color | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (misma razón que Create.vue) |
+| `Pages/Students/Index.vue` | 0 | 0 | **COMPLETA** — 🎒 → `Icon name="my-students"`; botón de eliminar propio → `DangerButton` con `:loading="deleting"` (ya existía la lógica, solo faltaba el componente correcto) | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (misma razón que Create.vue) |
 
 ### Teacher (4 archivos)
 
@@ -211,7 +265,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
 | `Layouts/AppLayout.vue` | 0 | 0 | **PARCIAL** (iconos migrados Fase 3; colores propios aún sin tokenizar — deliberado, ver DESIGN.md) | pendiente | pendiente | pendiente | pendiente |
-| `Layouts/GuestLayout.vue` | 0 | 0 | **PARCIAL** — flash messages migradas a Icon (mismo patrón que AppLayout); colores propios del panel de marca aún sin tokenizar (deliberado, mismo motivo que AppLayout) | ✅ (verificado en las 7 páginas Auth que lo usan) | pendiente | pendiente | ✅ (Browser pane, vía las páginas que lo envuelven) |
+| `Layouts/GuestLayout.vue` | 0 | 0 | **PARCIAL** — flash messages migradas a Icon (mismo patrón que AppLayout); colores propios del panel de marca aún sin tokenizar (deliberado, mismo motivo que AppLayout) | BUILD_VERIFIED ✅ | pendiente | pendiente | BROWSER_VERIFIED ✅ (indirectamente, vía las 5 páginas Auth sin DB que lo envuelven) |
 | `Layouts/PublicPageLayout.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 
 ### Componentes — compartido (26 archivos)
