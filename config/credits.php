@@ -52,6 +52,17 @@ return [
     'settlement_grace_days' => (int) env('CREDITS_SETTLEMENT_GRACE_DAYS', 7),
     'unconfirmed_days' => (int) env('CREDITS_UNCONFIRMED_DAYS', 7),
 
+    // F-02 — Modo operativo de la liquidación automática. 'dry_run' (por
+    // defecto) hace que el scheduler solo reporte; 'live' hace que escriba de
+    // verdad en el ledger. Antes esto era una bandera --dry-run hardcodeada en
+    // Kernel.php, lo que dejaba C-1 permanentemente apagado sin que nada lo
+    // señalara. Ahora `mova:health-check` marca producción+dry_run como
+    // configuración peligrosa. Ver App\Support\SettlementMode.
+    //
+    // PARA ACTIVAR C-1 EN PRODUCCIÓN: LESSON_SETTLEMENT_MODE=live
+    // (revisar antes la salida de `php artisan mova:settle-lessons --dry-run`).
+    'settlement_mode' => env('LESSON_SETTLEMENT_MODE', 'dry_run'),
+
     // Ventana del recordatorio "te falta el reporte": debe vivir estrictamente
     // ANTES del cierre automático (settlement_grace_days), o el profesor podría
     // recibir el aviso después de que la clase ya se liquidó sola. Este valor es

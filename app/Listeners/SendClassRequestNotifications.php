@@ -22,16 +22,13 @@ class SendClassRequestNotifications implements ShouldQueue
         // Código de referido (Opción A): la solicitud ya está vinculada a UN
         // profesor específico — solo a él, nunca a todos los que enseñan la
         // materia (ese era el comportamiento de las solicitudes abiertas).
-        if ($request->teacher_profile_id && $request->teacherProfile) {
-            $request->teacherProfile->user->notify(new NewClassRequestNotification($request));
-        } elseif ($request->class_offer_id && $request->classOffer) {
-            $request->classOffer->teacherProfile->user->notify(new NewClassRequestNotification($request));
-        } else {
-            TeacherProfile::whereHas('subjects', fn($q) => $q->where('subjects.id', $request->subject_id))
-                ->where('is_verified', true)
-                ->with('user')
-                ->get()
-                ->each(fn($tp) => $tp->user->notify(new NewClassRequestNotification($request)));
-        }
+        //
+        // F-10: la resolución de destinatarios vive ahora en
+        // ClassRequest::eligibleTeacherUsers(), compartida con el recordatorio
+        // de solicitudes sin responder (SendClassReminders). Estaba duplicada
+        // a medias entre ambos y el recordatorio solo cubría el caso de la
+        // oferta, perdiendo silenciosamente los otros dos.
+        $request->eligibleTeacherUsers()
+            ->each(fn ($user) => $user->notify(new NewClassRequestNotification($request)));
     }
 }

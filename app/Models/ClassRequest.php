@@ -35,9 +35,23 @@ class ClassRequest extends Model
         return $this->status === 'teacher_rejected';
     }
 
+    /**
+     * F-18 (regresión corregida en Fase 4) — `withTrashed()` es OBLIGATORIO.
+     *
+     * Al añadir SoftDeletes a Student, esta relación empezó a devolver NULL en
+     * cuanto el padre daba de baja al alumno. Verificado empíricamente: las
+     * clases históricas perdían su alumno, y —más grave— `?->parent?->notify()`
+     * dejaba de encontrar destinatario, así que el padre dejaba de recibir
+     * avisos de cancelación y devolución SIN ningún error visible.
+     *
+     * Un registro histórico debe seguir resolviendo su alumno aunque este ya
+     * no aparezca en la lista activa del padre. Los datos personales del menor
+     * ya se sustituyen al darlo de baja (Student::anonymize()), así que esto no
+     * reexpone información.
+     */
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(Student::class)->withTrashed();
     }
 
     public function subject()
@@ -79,6 +93,46 @@ class ClassRequest extends Model
                         });
                 });
         });
+    }
+
+    /**
+     * Usuarios-profesor que deben enterarse de esta solicitud. Tres caminos
+     * excluyentes, en orden de especificidad:
+     *
+     *   1. teacher_profile_id  -> código de referido (Opción A): EXCLUSIVA de
+     *      ese profesor, nunca se difunde por materia.
+     *   2. class_offer_id      -> el profesor dueño de la oferta.
+     *   3. ninguno (abierta)   -> todos los profesores VERIFICADOS de la materia.
+     *
+     * F-10: esta resolución vivía solo dentro de SendClassRequestNotifications.
+     * SendClassReminders reimplementaba únicamente el caso 2, así que las
+     * solicitudes de los casos 1 y 3 —el flujo mayoritario— se marcaban como
+     * avisadas sin avisar a nadie, y quedaban excluidas para siempre del
+     * barrido. Ahora ambos caminos comparten este método y no pueden divergir.
+     *
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    public function eligibleTeacherUsers(): \Illuminate\Support\Collection
+    {
+        if ($this->teacher_profile_id) {
+            $user = $this->teacherProfile?->user;
+
+            return $user ? collect([$user]) : collect();
+        }
+
+        if ($this->class_offer_id) {
+            $user = $this->classOffer?->teacherProfile?->user;
+
+            return $user ? collect([$user]) : collect();
+        }
+
+        return TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+            ->where('is_verified', true)
+            ->with('user')
+            ->get()
+            ->map(fn (TeacherProfile $profile) => $profile->user)
+            ->filter()
+            ->values();
     }
 
     public function lesson()
