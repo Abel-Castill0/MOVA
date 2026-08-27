@@ -32,7 +32,9 @@
 
       <Modal :show="showGoogleModal" max-width="sm" @close="showGoogleModal = false">
         <div class="p-6 text-center">
-          <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-2xl mb-3">🚧</div>
+          <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mb-3">
+            <Icon name="pending" :size="24" />
+          </div>
           <h3 class="text-lg font-bold text-slate-900">Opción temporalmente no disponible</h3>
           <p class="text-sm text-slate-500 mt-2">Estamos trabajando para ofrecerte esta opción. Por ahora, regístrate con tu correo electrónico.</p>
           <button type="button" @click="showGoogleModal = false"
@@ -52,7 +54,7 @@
                rol queda fijo — no se ofrece la posibilidad de cambiarlo por
                error, solo un aviso de dónde ajustarlo si se equivocó de link. -->
           <div v-if="roleLocked" class="rounded-2xl border-2 border-brand-600 bg-brand-50 p-4 flex items-center gap-3">
-            <span class="text-2xl">{{ form.role === 'teacher' ? '🎓' : '👪' }}</span>
+            <Icon :name="form.role === 'teacher' ? 'role-teacher' : 'role-parent'" :size="24" class="flex-shrink-0 text-brand-700" />
             <div>
               <span class="block font-bold text-brand-700">{{ form.role === 'teacher' ? 'Registro de profesor' : 'Registro de padre/madre' }}</span>
               <span class="block text-xs text-slate-500">¿Te equivocaste? <Link :href="route('register')" class="text-brand-600 hover:underline">Elige de nuevo</Link>.</span>
@@ -60,12 +62,12 @@
           </div>
           <div v-else class="grid gap-3 sm:grid-cols-2">
             <button type="button" @click="form.role = 'parent'" :class="roleClass(form.role === 'parent')">
-              <span class="text-2xl">👪</span>
+              <Icon name="role-parent" :size="24" />
               <span class="block font-bold">Soy padre</span>
               <span class="block text-xs text-slate-500">Busco apoyo para mi hijo.</span>
             </button>
             <button type="button" @click="form.role = 'teacher'" :class="roleClass(form.role === 'teacher')">
-              <span class="text-2xl">🎓</span>
+              <Icon name="role-teacher" :size="24" />
               <span class="block font-bold">Soy profesor</span>
               <span class="block text-xs text-slate-500">Quiero enseñar en MOVA.</span>
             </button>
@@ -175,6 +177,7 @@ import GuestLayout from '@/Layouts/GuestLayout.vue'
 import InputError from '@/Components/InputError.vue'
 import Modal from '@/Components/Modal.vue'
 import TextInput from '@/Components/TextInput.vue'
+import Icon from '@/Components/Icon.vue'
 
 const props = defineProps({
   lockedRole: { type: String, default: null }, // 'parent' | 'teacher' | null — desde ?role= en la landing

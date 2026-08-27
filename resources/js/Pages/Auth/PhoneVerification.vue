@@ -28,7 +28,7 @@
             maxlength="6"
             required
             autofocus
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-center tracking-widest text-lg font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-center tracking-widest text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             placeholder="000000"
           />
           <p v-if="form.errors.code" class="text-xs text-red-500 mt-1">{{ form.errors.code }}</p>
@@ -44,7 +44,7 @@
           <input
             v-model="form.whatsapp_notifications"
             type="checkbox"
-            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
           />
           <span class="text-xs text-gray-600">
             <span class="font-medium text-gray-800">Quiero recibir recordatorios y actualizaciones de mis clases por WhatsApp.</span>
@@ -55,7 +55,7 @@
         <button
           type="submit"
           :disabled="form.processing"
-          class="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          class="w-full bg-brand-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors"
         >
           Verificar
         </button>
@@ -66,7 +66,7 @@
           <button
             type="submit"
             :disabled="resendForm.processing"
-            class="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+            class="text-sm text-brand-600 hover:underline disabled:opacity-50"
           >
             Reenviar código
           </button>
@@ -75,7 +75,7 @@
 
       <p class="mt-4 text-center text-xs text-gray-400">
         Puedes verificar tu número más tarde desde tu perfil.
-        <Link :href="route('dashboard')" class="text-indigo-500 hover:underline">Omitir por ahora</Link>
+        <Link :href="route('dashboard')" class="text-brand-500 hover:underline">Omitir por ahora</Link>
       </p>
     </div>
   </div>

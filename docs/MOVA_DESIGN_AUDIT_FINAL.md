@@ -41,9 +41,9 @@ no una copia del hallazgo original de la Fase 0.
 | Pages | 53 |
 | Components | 26 |
 | Layouts | 3 |
-| Emoji restantes (suma) | 199 en 43 archivos |
-| `indigo` restante (suma) | 72 en 18 archivos |
-| Archivos con algún trabajo de esta sesión (`PARCIAL`) | 13 de 82 |
+| Emoji restantes (suma) | 191 en 40 archivos (era 199/43 antes de la Fase Auth) |
+| `indigo` restante (suma) | 65 en 17 archivos (era 72/18 antes de la Fase Auth; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
+| Archivos con algún trabajo de esta sesión (`PARCIAL`/`COMPLETA`/`NO CHANGE — VERIFIED`) | 20 de 82 |
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -87,13 +87,13 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Auth/ConfirmPassword.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/ForgotPassword.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/Login.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/PhoneVerification.vue` | 0 | 7 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/Register.vue` | 5 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/ResetPassword.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Auth/VerifyEmail.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Auth/ConfirmPassword.vue` | 0 | 0 | **COMPLETA** — además corregido: texto/label/botón en inglés (residuo de Breeze), ahora en español | ✅ (ya usaba primitivos) | ✅ (tokens) | pendiente | ⚠️ solo build+tests — ruta requiere sesión autenticada (middleware `auth`), redirige a `/login` sin DB; no verificable con captura en este sandbox |
+| `Pages/Auth/ForgotPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | ✅ (Browser pane, `/forgot-password` real) |
+| `Pages/Auth/Login.vue` | 0 | 0 | **COMPLETA** — 🚧 → `Icon name="pending"` (Construction) | ✅ | ✅ | pendiente | ✅ (Browser pane, modal probado con clic real) |
+| `Pages/Auth/PhoneVerification.vue` | 0 | 0 | **PARCIAL** — 7 indigo→brand corregidos; sigue con markup propio (no usa TextInput/Checkbox/PrimaryButton) — deferred, ver nota | pendiente | pendiente | pendiente | ⚠️ solo build+sed, sin captura (requiere sesión con teléfono, no verificable sin DB) |
+| `Pages/Auth/Register.vue` | 0 | 0 | **PARCIAL** — 5 emoji migrados a Icon (`pending`/`role-parent`/`role-teacher`); wizard sigue con botones propios en vez de BaseButton — deferred, ver nota | ✅ | ✅ (tokens en lo migrado) | pendiente | ✅ (Browser pane, selector de rol + modal probados con clic real) |
+| `Pages/Auth/ResetPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | ✅ (Browser pane, `/reset-password/{token}` real con token falso — la página solo renderiza el formulario, la validación real del token ocurre en el POST) |
+| `Pages/Auth/VerifyEmail.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre PrimaryButton migrado, sin indigo) | ✅ | ✅ | pendiente | ⚠️ solo build+tests — ruta requiere sesión autenticada, redirige a `/login` sin DB; no verificable con captura en este sandbox |
 
 ### Parent (1 archivo)
 
@@ -211,7 +211,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
 | `Layouts/AppLayout.vue` | 0 | 0 | **PARCIAL** (iconos migrados Fase 3; colores propios aún sin tokenizar — deliberado, ver DESIGN.md) | pendiente | pendiente | pendiente | pendiente |
-| `Layouts/GuestLayout.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Layouts/GuestLayout.vue` | 0 | 0 | **PARCIAL** — flash messages migradas a Icon (mismo patrón que AppLayout); colores propios del panel de marca aún sin tokenizar (deliberado, mismo motivo que AppLayout) | ✅ (verificado en las 7 páginas Auth que lo usan) | pendiente | pendiente | ✅ (Browser pane, vía las páginas que lo envuelven) |
 | `Layouts/PublicPageLayout.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 
 ### Componentes — compartido (26 archivos)
@@ -257,6 +257,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `EmptyState.vue`/`Skeleton.vue` sin consumidores todavía | Establecidos por adelantado (aprobado en el plan), a la espera de que la migración página-por-página los use. |
 | `rounded-*` con nombres propios (`chip/control/card/elevated/pill`) en vez de `sm/md/lg/xl` | Evita colisión silenciosa con la escala default de Tailwind — ver `DESIGN.md`. |
 | `Checkbox.vue` "indigo restante"=1 | Es un comentario del propio código explicando el reemplazo (`// reemplaza el indigo heredado...`), no una clase activa — falso positivo del grep mecánico, documentado aquí en vez de re-escribir el comentario para "limpiar el número". |
+| `Register.vue` (wizard) y `PhoneVerification.vue` migrados solo en color/iconos, no en componentes | Ambos usan botones/inputs `<button>`/`<input>` propios en vez de `BaseButton`/`TextInput`/`Checkbox` — una conversión real (wizard de 5-6 pasos con estados condicionales de validación; formulario de código con estilos centrados/tracking-widest específicos) que merece su propia revisión, no un cambio apurado dentro del barrido de iconos/color. Queda como pendiente explícito, no oculto. |
 
 ## Lo que este documento NO afirma todavía
 

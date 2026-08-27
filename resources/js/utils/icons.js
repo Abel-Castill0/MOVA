@@ -32,6 +32,7 @@ import {
   Menu,
   X,
   LogOut,
+  Construction,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -53,6 +54,11 @@ export const icons = {
   'my-reports': FileText,          // 📝 "Mis reportes"
   teachers: GraduationCap,         // 👩‍🏫 "Profesores" (marketplace)
   profile: User,                   // 👤 "Mi perfil"
+
+  // Selector de rol — Register.vue (paso 1, "¿Cómo usarás MOVA?")
+  'role-parent': Users,            // 👪 "Soy padre"
+  'role-teacher': GraduationCap,   // 🎓 "Soy profesor" — mismo icono semántico que "teachers", contexto distinto
+  pending: Construction,           // 🚧 "Opción temporalmente no disponible" (modal de Google en Login/Register)
 
   // Feedback / estado
   'flash-success': CircleCheck,    // ✅ en AppLayout.vue flash messages

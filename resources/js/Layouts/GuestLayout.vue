@@ -39,10 +39,10 @@
       <!-- Flash messages -->
       <div v-if="flash.success || flash.error" class="px-4 sm:px-8 pt-6">
         <div v-if="flash.success" class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <span>✅</span> {{ flash.success }}
+          <Icon name="flash-success" :size="18" label="Éxito" class="flex-shrink-0" /> {{ flash.success }}
         </div>
         <div v-if="flash.error" class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <span>❌</span> {{ flash.error }}
+          <Icon name="flash-error" :size="18" label="Error" class="flex-shrink-0" /> {{ flash.error }}
         </div>
       </div>
 
@@ -67,6 +67,7 @@
 import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import Icon from '@/Components/Icon.vue'
 import TeacherIllustration from '@/Components/Illustrations/TeacherIllustration.vue'
 import FamilyIllustration from '@/Components/Illustrations/FamilyIllustration.vue'
 

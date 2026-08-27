@@ -1,5 +1,6 @@
 <script setup>
 import Checkbox from '@/Components/Checkbox.vue';
+import Icon from '@/Components/Icon.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -59,7 +60,9 @@ const submit = () => {
 
         <Modal :show="showGoogleModal" max-width="sm" @close="showGoogleModal = false">
             <div class="p-6 text-center">
-                <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-2xl mb-3">🚧</div>
+                <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mb-3">
+                    <Icon name="pending" :size="24" />
+                </div>
                 <h3 class="text-lg font-bold text-slate-900">Opción temporalmente no disponible</h3>
                 <p class="text-sm text-slate-500 mt-2">Estamos trabajando para ofrecerte esta opción. Por ahora, inicia sesión con tu correo electrónico.</p>
                 <button type="button" @click="showGoogleModal = false"
