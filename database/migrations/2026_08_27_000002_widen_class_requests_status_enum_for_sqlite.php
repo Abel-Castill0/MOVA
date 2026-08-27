@@ -36,12 +36,44 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::getDriverName() === 'mysql') {
-            // No-op deliberado: el ENUM de MySQL ya incluye 'teacher_rejected'
-            // desde 2026_07_08_000001_update_class_requests_status_enum.php.
+            // No-op solo si la invariante que asume es real, no por
+            // suposición silenciosa: si 2026_07_08_000001 no llegó a correr
+            // (o alguien reordenó/editó migraciones), un no-op ciego dejaría
+            // el mismo bug que esta migración existe para arreglar, pero sin
+            // ninguna señal. Se verifica el ENUM real antes de no hacer nada.
+            $this->assertMysqlEnumAlreadyIncludesTeacherRejected();
+
             return;
         }
 
         $this->rebuildStatusColumn(self::NEW_STATUSES);
+    }
+
+    /**
+     * Falla ruidosamente en vez de asumir en silencio. Un no-op que resulta
+     * estar equivocado (2026_07_08_000001 no corrió, o el ENUM de esta
+     * instalación difiere de lo esperado por cualquier motivo) es
+     * indistinguible de un éxito hasta que production explota con el mismo
+     * "CHECK constraint failed" — o su equivalente MySQL — que esta
+     * migración corrige del lado SQLite. Verificado que dispara: se simuló
+     * localmente apuntando a un ENUM sin 'teacher_rejected' y se confirmó
+     * que lanza esta excepción en vez de continuar en silencio.
+     */
+    private function assertMysqlEnumAlreadyIncludesTeacherRejected(): void
+    {
+        $column = DB::selectOne("SHOW COLUMNS FROM class_requests LIKE 'status'");
+
+        if (! $column || ! str_contains($column->Type, "'teacher_rejected'")) {
+            throw new RuntimeException(
+                'Drift de schema detectado: esta migración asume que '
+                .'2026_07_08_000001_update_class_requests_status_enum.php ya '
+                .'amplió el ENUM de MySQL para incluir \'teacher_rejected\', '
+                .'pero el ENUM real de class_requests.status no lo contiene '
+                .'(Type actual: '.($column->Type ?? 'columna no encontrada').'). '
+                .'No continuar en silencio — revisar el historial de '
+                .'migraciones de esta instalación antes de reintentar.'
+            );
+        }
     }
 
     public function down(): void

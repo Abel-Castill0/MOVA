@@ -5,12 +5,32 @@ cobertura que el propio proceso de esta sesión exigió: inventario completo
 por filesystem real, matriz por archivo, y ninguna fila oculta o marcada
 "no aplica" sin justificación explícita.
 
-Snapshot de esta versión: `HEAD` `ed96447` (rama `master`), working tree
-limpio al generar el inventario, 2026-08-27. El inventario se regenera con
-`python resources/../scratchpad/audit_signals.py` (script ad hoc, no
-commiteado) cada vez que se actualiza este documento — los números de
-"emoji restantes"/"indigo restante" son una re-lectura real de cada archivo,
-no una copia del hallazgo original de la Fase 0.
+**Identificación de esta revisión** (obligatoria — nunca mezclar snapshots
+sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
+varios commits posteriores y generó confusión real durante una revisión):
+
+```text
+audit_revision:   2026-08-27.05
+generated_at:     2026-08-27T11:04:55Z
+repository_head:  cf23e7c3b3dd1c5c2943a52544474d32802025df   (rama master)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (41 commits detrás de local, sin push)
+working_tree:     limpio salvo package-lock.json (ajeno a este documento)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio
+```
+
+El header de la revisión anterior (`2026-08-27.04`) citaba `HEAD ed96447`
+como si fuera el `master` de este repositorio — **era, en realidad, el HEAD
+de un worktree paralelo no relacionado** (`claude/jolly-hellman-5ca1a1`,
+tarea de iconos, Fase 3), copiado por error al redactar el header inicial y
+nunca actualizado en las revisiones siguientes. No invalida el contenido
+verificado de esas revisiones (cada hallazgo cita su propio commit/comando),
+pero si vas a citar "el HEAD de este documento", usa siempre el bloque de
+arriba, no un hash suelto en el texto.
+
+El inventario se regenera con `python resources/../scratchpad/audit_signals.py`
+(script ad hoc, no commiteado) cada vez que se actualiza este documento —
+los números de "emoji restantes"/"indigo restante" son una re-lectura real
+de cada archivo, no una copia del hallazgo original de la Fase 0.
 
 ---
 
@@ -206,6 +226,34 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 - **Admin**: login → dashboard → revisión (profesores/solicitudes/recargas) →
   auditoría.
 
+### Orden de ejecución decidido (reemplaza "Admin es lo siguiente")
+
+El plan original de esta fase seguía dominios en el orden en que se venían
+tocando archivos (Auth → Students → Parent → Teacher → shared components →
+Admin). Se corrige explícitamente: **limpiar Admin página por página antes
+de tocar los journeys comerciales de arriba invertía el eje de prioridad** —
+dejaba pulida la superficie de menor tráfico (Admin, uso interno) mientras
+Marketplace/Booking/Checkout, que es donde MOVA genera y cobra clases,
+seguía al 0%. Diez páginas administrativas bien migradas valen menos que un
+journey de negocio crítico funcionando de punta a punta.
+
+Orden vigente a partir de aquí:
+
+1. **Bloque de integridad técnica** (antes que cualquier página nueva):
+   `class_requests.status` — cerrado esta sesión. `classes.status` (P1,
+   ver hallazgo arriba) — programado, siguiente en este bloque, antes de
+   cualquier trabajo visual nuevo.
+2. **Journey del padre** (el corazón comercial de MOVA, 0% hoy):
+   `Marketplace/Index.vue` → `Teachers/Show.vue` →
+   `ClassRequests/Create.vue` → `Diagnostics/*` →
+   `ClassOffers/*`/checkout.
+3. **Resto del journey del profesor** (~50% hecho): `LessonReports/*`,
+   `Lessons/TeacherIndex`.
+4. **Experiencia de clase (Jitsi)** — sigue con su revisión de seguridad
+   dedicada como condición previa, no se adelanta solo por orden de lista.
+5. **Admin** — se retoma después, no antes, precisamente porque es la
+   superficie de menor impacto directo en el negocio entre las que faltan.
+
 ---
 
 ## 🚨 PRODUCT BLOCKERS — decisiones de negocio pendientes (no ocultar entre hallazgos visuales)
@@ -255,11 +303,38 @@ asignada.
 
 ## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
 
-**Estado**: `RESOLVED` (código + regresión + SQLite fresh/incremental +
-MySQL) — `RECONCILED` (git + trabajo paralelo), ver pasada de reconciliación
-abajo. No queda ninguna dimensión pendiente de este bug puntual; sí queda un
-**hallazgo nuevo, distinto**, en `classes.status` (ver el final de esta
-sección) sin decidir todavía.
+**Estado, por dimensión — nunca colapsadas en una sola palabra**:
+
+```text
+FIXED                     ✅ (migración nueva, no se editó una ya aplicada)
+REGRESSION COVERED        ✅ (TeacherRejectClassRequestTest, regresión simulada y confirmada)
+SQLITE VERIFIED           ✅ (fresh :memory: + up()/down() + rollback guard)
+MYSQL LOCAL VERIFIED      ✅ (127.0.0.1/mova, lectura real de SHOW COLUMNS)
+STAGING VERIFIED          ❌ NO VERIFICADO — no existe entorno de staging separado en este proyecto
+PRODUCTION (Railway)      ❌ NO VERIFICADO — sin acceso; ver nota abajo
+GIT / TRABAJO PARALELO    ✅ RECONCILED (ver pasada de reconciliación abajo)
+```
+
+**No se afirma "MySQL resuelto" a secas — solo "MySQL LOCAL verificado".**
+Railway/producción no se tocó ni se consultó: esta sesión no tiene
+credenciales ni acceso a ese entorno, y no se simuló ni se asumió paridad.
+Si quieres cerrar también esa dimensión, la vía más segura sin exponer
+ninguna credencial es que tú mismo ejecutes, con tus propias credenciales
+de Railway (CLI o dashboard), algo equivalente a:
+
+```bash
+railway run php artisan migrate:status
+# o, directo a MySQL de producción, de solo lectura:
+railway run mysql -e "SHOW COLUMNS FROM class_requests LIKE 'status'"
+```
+
+y compartas el resultado (no las credenciales) — con eso puedo confirmar si
+producción ya tiene `teacher_rejected` en el ENUM o si le falta la migración
+`2026_07_08_000001` (poco probable si el resto del sistema funciona en
+producción, pero no se afirma sin evidencia).
+
+Sí queda, además, un **hallazgo nuevo y distinto** en `classes.status` (ver
+más abajo) — programado, no arreglado en esta pasada.
 
 **Snapshot original de la corrección** (Audit Snapshot Contract): `HEAD`
 `eeca1ffa7dc7212de46bba2a80f653711deec65b` → esta corrección se aplicó
@@ -330,6 +405,19 @@ cada punto se re-ejecutó, no se re-leyó de memoria:
   `2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`.
   Queda anotado, no se toca en esta pasada (bajo impacto, fuera del alcance
   pedido).
+- **El no-op de MySQL ya no es silencioso.** El `if (mysql) return;` original
+  asumía, sin comprobarlo, que `2026_07_08_000001` ya había corrido en esa
+  instalación. Ahora verifica el `ENUM` real (`SHOW COLUMNS ... LIKE
+  'status'`) antes de no hacer nada, y lanza `RuntimeException` con
+  diagnóstico explícito si `teacher_rejected` no está — un no-op equivocado
+  ya no es indistinguible de un éxito. Cubierto por
+  `tests/Feature/ClassRequestsStatusEnumMigrationDriftGuardTest.php` (3
+  tests, sin `RefreshDatabase`: mockea la fachada `DB` para simular un ENUM
+  correcto y uno con drift). **Verificado que el guard realmente dispara**:
+  se restauró temporalmente la versión sin el guard (`git show HEAD:...`),
+  se confirmó que 2 de los 3 tests fallaban, y se restauró la versión
+  corregida. Suite completa tras este cambio: **483/483** (480 previos + 3
+  nuevos).
 
 **Corregido** en `database/migrations/2026_08_27_000002_widen_class_requests_status_enum_for_sqlite.php`
 — sigue el mismo patrón de reconstrucción ya usado en
@@ -415,7 +503,18 @@ la suite de tests) está incompleto respecto a producción (MySQL).
   hallazgo demuestra que el schema de test no siempre coincide con la
   intención real del dominio.
 
-### Hallazgo nuevo, distinto — `classes.status` no tiene NINGÚN CHECK en SQLite (P2, sin decidir)
+### Hallazgo nuevo, distinto — `classes.status` no tiene NINGÚN CHECK en SQLite (P1 — reliability/environment parity, programado, sin arreglar todavía)
+
+**Reclasificado de P2 a P1** tras revisión: el motivo de subirlo no es que
+sea "otro bug de estados" — es que `classes.status` incluye estados con
+efecto económico real (`paid`, `pending_parent_confirmation`), y el patrón
+de riesgo concreto es que un typo pase silenciosamente TODA la suite de
+tests (que corre 100% contra SQLite) y solo se descubra contra MySQL real,
+potencialmente en producción. Eso lo pone por encima de trabajo cosmético
+(iconos, tokens de un dominio administrativo) y por debajo de bugs
+financieros ya confirmados — se programa inmediatamente después de cerrar
+el bloque de integridad actual, antes de continuar con Admin página por
+página.
 
 Auditoría transversal (pedida explícitamente: "no solo el estado que acaba
 de explotar") sobre el otro dominio de estado con el mismo historial de
@@ -728,3 +827,27 @@ que un humano se acuerde de revisar ambos lados.
 Este documento se actualiza en cada commit de migración subsiguiente —
 nunca se reescribe para "verse más terminado" sin que el commit correspondiente
 exista.
+
+## Alcance de este documento (para que no crezca sin límite)
+
+Este archivo es un **ledger de evidencia y hallazgos**, no el lugar donde
+vive una decisión de arquitectura estable. Regla de dónde va cada cosa:
+
+- **Aquí** (`MOVA_DESIGN_AUDIT_FINAL.md`): qué se auditó, qué se encontró,
+  qué se arregló, con qué evidencia, en qué commit, con qué verificación —
+  append-only por naturaleza, crece con cada pasada.
+- **`DESIGN.md`**: decisiones visuales ya estables (tokens, escalas, el
+  porqué de cada rol semántico de color) — el sistema de diseño en sí, no
+  el backend.
+- **`docs/MOVA_SYSTEM_KNOWLEDGE.md`**: patrones de backend/datos ya
+  estables (el patrón de reconstrucción de columna `enum` en SQLite, la
+  tabla global de estados, la deuda técnica conocida) — es donde vive
+  realmente el patrón `rebuildStatusColumn()` + guard de rollback + guard
+  de drift de esta sesión (§26/§29), no en este ledger ni en `DESIGN.md`.
+
+Cuando un hallazgo de aquí se resuelve y su patrón se vuelve un estándar
+repetible, la evidencia de que ocurrió (commit, comando, test) se queda
+aquí; la descripción del patrón en sí — para que el próximo caso similar lo
+siga sin releer este historial — se sincroniza al documento que corresponda
+según el tipo de decisión (visual → `DESIGN.md`; backend/datos →
+`MOVA_SYSTEM_KNOWLEDGE.md`).
