@@ -28,6 +28,62 @@ class TeacherProfile extends Model
         'rejected_at', 'rejection_reason', 'reviewed_by', 'reviewed_at',
     ];
 
+    /**
+     * Defensa en profundidad, no la primera línea de defensa — esa sigue
+     * siendo el allow-list explícito de columnas en cada controller
+     * (MarketplaceController::index()/TeacherPublicController::show(), los
+     * únicos dos públicos, verificados sin fuga). `$hidden` solo protege
+     * contra el día en que ALGÚN código nuevo pase el modelo completo a una
+     * vista sin pensarlo (`return $teacherProfile` / Inertia prop directo) —
+     * lo mismo que ya le pasó a `MarketplaceController` (ver el P0 corregido
+     * en docs/MOVA_DESIGN_AUDIT_FINAL.md) pero por un motivo distinto (ahí el
+     * allow-list existía y un detalle de Eloquent lo ignoraba en silencio;
+     * esto cubre el caso de que el allow-list directamente no exista).
+     *
+     * Solo entran aquí los campos SIN NINGÚN lector real en todo el
+     * frontend — verificado con grep en resources/js (nombre snake_case Y
+     * camelCase) antes de añadir cada uno, no una lista intuida:
+     *
+     * - `user_id`: cada consumidor que necesita "a quién pertenece este
+     *   perfil" usa la relación `user` ya cargada (`t.user?.name`, etc.),
+     *   nunca el FK crudo.
+     * - `credits_available`/`credits_reserved`: su único lector real
+     *   (Teacher/Credits/Index.vue) los recibe de
+     *   Teacher\CreditController::index(), que ya construye su propio
+     *   array a mano (`'credits_available' => $teacherProfile->credits_available`)
+     *   — nunca depende de la serialización del modelo, así que ocultarlos
+     *   aquí no cambia nada ahí. `Teacher/Edit.vue`/`Setup.vue` (que sí
+     *   reciben el modelo completo) jamás los leen.
+     * - `completed_classes_count`/`is_experienced`: solo se leen dentro de
+     *   `maxAllowedRate()` (este archivo) — acceso directo a propiedad,
+     *   `$hidden` no lo afecta.
+     * - `mentorship_slots_taken`: solo se lee dentro de
+     *   `hasAvailableMentorshipSlots()` — `mentorship_slots_total` SÍ se
+     *   usa en Teacher/Edit.vue/Setup.vue (el profesor fija su total), por
+     *   eso ese campo se queda fuera de esta lista.
+     * - `reviewed_at`: Admin/PendingTeachers.vue muestra `rejected_at`
+     *   (verificado leyendo el archivo), nunca `reviewed_at`.
+     *
+     * Deliberadamente FUERA de esta lista pese a no tener lector obvio a
+     * primera vista: `reviewed_by`. Cuando se carga la relación
+     * `reviewedBy` (Admin/PendingTeachers.vue vía
+     * AdminController::pendingTeachers()), Eloquent la serializa bajo la
+     * misma clave snake_case `reviewed_by` que el FK crudo — ocultar esa
+     * clave escondería también la relación ya cargada y rompería
+     * "Revisado por: {{ t.reviewed_by?.name }}" en esa vista. `yape_number`/
+     * `plin_number` tampoco entran: Teacher/Edit.vue los necesita para
+     * precargar el formulario del propio profesor.
+     */
+    protected $hidden = [
+        'user_id',
+        'credits_available',
+        'credits_reserved',
+        'completed_classes_count',
+        'is_experienced',
+        'mentorship_slots_taken',
+        'reviewed_at',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (TeacherProfile $profile) {
