@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.05
-generated_at:     2026-08-27T11:04:55Z
-repository_head:  cf23e7c3b3dd1c5c2943a52544474d32802025df   (rama master)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (41 commits detrás de local, sin push)
+audit_revision:   2026-08-27.06
+generated_at:     2026-08-27T11:28:58Z
+repository_head:  ba92536   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (44 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -53,15 +53,31 @@ verificado" que mezcle niveles distintos de evidencia:
 | `RESPONSIVE_VERIFIED` | Probado en los breakpoints reales del proyecto. |
 | `DARK_VERIFIED` | Probado con `data-theme="dark"` forzado — no solo "compila con los tokens". |
 | `PERFORMANCE_VERIFIED` | Bundle/build comparado contra la línea base. |
-| `DONE` | Todos los estados anteriores que aplican a esa página están cumplidos. |
+| `DONE` | Todos los estados anteriores que aplican a esa fila están cumplidos — ver la distinción página/primitivo abajo. |
 | `BLOCKED_VISUAL_VERIFICATION` | No se puede verificar visualmente por una razón externa concreta (auth+DB en este sandbox) — **nunca se convierte en `DONE` ni en `BROWSER_VERIFIED ✅` solo porque el build pasa.** La razón siempre se nombra. |
 | `NO CHANGE — VERIFIED` | Se auditó la página y genuinamente no necesitaba cambios — un resultado válido, no una omisión. |
 
-**Ninguna fila de este documento llega a `DONE` todavía.** Lo que existe hoy,
-fila por fila, es como mucho `IMPLEMENTED` + `BUILD_VERIFIED` +
-`TEST_VERIFIED`, y `BROWSER_VERIFIED` solo donde la ruta no exige sesión —
-el resto está honestamente en `BLOCKED_VISUAL_VERIFICATION`, nunca
-maquillado.
+**`DONE` no es exclusivo de páginas — pero la barra es distinta para cada
+fila.** Una **página de producto** requiere su propia validación de
+página: no basta con que sus componentes compartidos estén verificados,
+porque el layout, el copy y la interacción específicos de esa página no
+se prueban por transitividad. Un **primitivo compartido**
+(`BaseButton`/`Modal`/`Icon`/etc.) sí puede alcanzar `DONE` de forma
+independiente el día en que TODAS sus dimensiones aplicables —
+`BUILD_VERIFIED`, `TEST_VERIFIED`, `BROWSER_VERIFIED`, `A11Y_VERIFIED`,
+`RESPONSIVE_VERIFIED`, `DARK_VERIFIED` cuando corresponda — tengan
+evidencia real, sin que eso implique nada sobre las páginas que lo
+consumen.
+
+**Ninguna fila de este documento llega a `DONE` todavía — ni páginas ni
+primitivos.** Lo que existe hoy, fila por fila, es como mucho
+`IMPLEMENTED` + `BUILD_VERIFIED` + `TEST_VERIFIED`, y `BROWSER_VERIFIED`
+solo donde la ruta no exige sesión — el resto está honestamente en
+`BLOCKED_VISUAL_VERIFICATION`, nunca maquillado. Ningún primitivo tiene
+todavía su `BROWSER_VERIFIED`/`A11Y_VERIFIED`/`RESPONSIVE_VERIFIED`/
+`DARK_VERIFIED` completos como para cruzar la barra de arriba — la regla
+se redefine para cuando ese trabajo exista, no se usa para adelantar una
+conclusión que la evidencia todavía no sostiene.
 
 ### Clasificación de emoji (no perseguir el cero ciego)
 
@@ -239,12 +255,21 @@ journey de negocio crítico funcionando de punta a punta.
 
 Orden vigente a partir de aquí:
 
-1. **Bloque de integridad técnica** (antes que cualquier página nueva):
-   `class_requests.status` — cerrado esta sesión. `classes.status` (P1,
-   ver hallazgo arriba) — programado, siguiente en este bloque, antes de
-   cualquier trabajo visual nuevo.
-2. **Journey del padre** (el corazón comercial de MOVA, 0% hoy):
-   `Marketplace/Index.vue` → `Teachers/Show.vue` →
+1. **Bloque de integridad técnica** — ✅ **cerrado esta sesión**:
+   `class_requests.status` (P0) y `classes.status` (P1) resueltos, ambos
+   con guard "fail loud" de drift en MySQL, ambos verificados fresh +
+   incremental + rollback, 496/496 tests. Categoría de riesgo
+   `DATABASE CONTRACT / ENVIRONMENT PARITY DRIFT` registrada en
+   `docs/MOVA_SYSTEM_KNOWLEDGE.md` §29 para las dos direcciones del
+   problema (SQLite demasiado estricto / demasiado permisivo) — no se
+   auditó ninguna otra tabla de estado de forma exhaustiva todavía
+   (`RechargeRequest`/`PaymentOrder`/`WhatsAppMessage` no mostraron el
+   mismo síntoma en esta pasada, pero tampoco se les aplicó el mismo
+   barrido línea por línea; queda como riesgo conocido, no como "ya
+   descartado").
+1.5. **Integration Gate** — ✅ ejecutado, ver sección siguiente. `PASS`.
+2. **Journey del padre** (el corazón comercial de MOVA, 0% hoy) — **siguiente
+   paso**: `Marketplace/Index.vue` → `Teachers/Show.vue` →
    `ClassRequests/Create.vue` → `Diagnostics/*` →
    `ClassOffers/*`/checkout.
 3. **Resto del journey del profesor** (~50% hecho): `LessonReports/*`,
@@ -253,6 +278,30 @@ Orden vigente a partir de aquí:
    dedicada como condición previa, no se adelanta solo por orden de lista.
 5. **Admin** — se retoma después, no antes, precisamente porque es la
    superficie de menor impacto directo en el negocio entre las que faltan.
+
+## Integration Gate (2026-08-27, tras cerrar el bloque de integridad)
+
+Punto de control explícito antes de empezar un dominio grande nuevo —
+no es una fase, es un checklist de una sola pasada:
+
+```text
+git status --short --branch     → master, limpio salvo package-lock.json (ajeno)
+git branch -vv                  → sin ramas relacionadas con este bloque sin mergear
+git worktree list                → 1 worktree paralelo activo, tarea no relacionada (iconos, Fase 3)
+git rev-list --left-right --count HEAD...origin/master → 44 ahead / 0 behind / no diverged
+php artisan test                 → 496/496 ✅
+migraciones duplicadas           → ninguna (verificado por nombre de archivo y por tabla afectada)
+utilidades duplicadas            → ninguna nueva introducida en este bloque
+audit doc ↔ HEAD                 → consistente (este párrafo se escribe en el mismo commit que lo cierra)
+MOVA_SYSTEM_KNOWLEDGE.md          → actualizado (§29, ambos hallazgos)
+MOVA_DESIGN_AUDIT_FINAL.md        → actualizado (esta sección)
+```
+
+**INTEGRATION GATE: PASS.** No se ejecutó `npm run build` en esta pasada —
+el bloque de integridad fue 100% backend (migraciones + tests PHP), cero
+archivos `.vue`/`.js` tocados; correrlo no habría probado nada sobre este
+cambio. Se ejecutará antes/durante el trabajo de Marketplace, que sí toca
+frontend.
 
 ---
 
@@ -503,54 +552,101 @@ la suite de tests) está incompleto respecto a producción (MySQL).
   hallazgo demuestra que el schema de test no siempre coincide con la
   intención real del dominio.
 
-### Hallazgo nuevo, distinto — `classes.status` no tiene NINGÚN CHECK en SQLite (P1 — reliability/environment parity, programado, sin arreglar todavía)
+### `classes.status` no tenía NINGÚN CHECK en SQLite — P1 reliability/environment parity · ✅ RESOLVED
 
-**Reclasificado de P2 a P1** tras revisión: el motivo de subirlo no es que
-sea "otro bug de estados" — es que `classes.status` incluye estados con
-efecto económico real (`paid`, `pending_parent_confirmation`), y el patrón
-de riesgo concreto es que un typo pase silenciosamente TODA la suite de
-tests (que corre 100% contra SQLite) y solo se descubra contra MySQL real,
-potencialmente en producción. Eso lo pone por encima de trabajo cosmético
-(iconos, tokens de un dominio administrativo) y por debajo de bugs
-financieros ya confirmados — se programa inmediatamente después de cerrar
-el bloque de integridad actual, antes de continuar con Admin página por
-página.
+**Estado, por dimensión** (mismo vocabulario que el P0 de arriba, nunca
+colapsado en una palabra):
 
-Auditoría transversal (pedida explícitamente: "no solo el estado que acaba
-de explotar") sobre el otro dominio de estado con el mismo historial de
-migraciones-solo-MySQL: `classes.status`. Verificado en vivo, no asumido del
-comentario de la migración: fresh migrate contra `sqlite::memory:` y lectura
-directa de `sqlite_master.sql` →
-
+```text
+DOMAIN CONTRACT AUDITED   ✅ (los 6 estados canónicos, cada escritor real
+                              rastreado en código, ver abajo — no se asumió
+                              el enum documentado, se verificó)
+FIXED                     ✅ (migración nueva 2026_08_27_000003, no se editó
+                              una ya aplicada)
+SQLITE FRESH VERIFIED     ✅ (CHECK contiene exactamente los 6 valores;
+                              3 índices de status recreados correctamente)
+SQLITE INCREMENTAL        ✅ (BD SQLite persistida, no :memory:, sembrada
+VERIFIED                     con una fila por estado ANTES de migrar;
+                              las 6 sobrevivieron con su valor exacto)
+ROLLBACK VERIFIED         ✅ (down() revierte a VARCHAR libre; datos e
+                              índices intactos tras el rollback)
+MYSQL LOCAL VERIFIED      ✅ (SHOW COLUMNS real, 127.0.0.1/mova: el ENUM ya
+                              coincidía exactamente con el contrato canónico)
+REGRESSION COVERED        ✅ (13 tests nuevos; verificado que 2 de ellos
+                              fallan sin la migración — no decorativos)
+STAGING / PRODUCTION      ❌ NO VERIFICADO (mismo límite que el P0: sin
+                              acceso a Railway desde esta sesión)
 ```
-status VARCHAR(255) DEFAULT 'scheduled' NOT NULL COLLATE "BINARY"
-```
 
-Sin `CHECK` alguno. Confirma lo que ya documentaban (correctamente, verificado
-ahora de primera mano) los comentarios de
-`2026_08_16_000002_add_needs_admin_review_to_classes_status_enum.php` y
-`2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`: una
-migración anterior (`2026_07_17_000001_add_payment_states_to_classes_table`)
-ya había dejado la columna como string libre en SQLite, sin rama de
-reconstrucción de `CHECK` como la que este bug sí necesitó para
-`class_requests`.
+**Reclasificado de P2 a P1** (no "incidente de producción confirmado" — es
+un riesgo de paridad de entornos, distinción que este documento mantiene
+explícita): `classes.status` incluye estados con efecto económico real
+(`paid`, `pending_parent_confirmation`), y el patrón de riesgo era que un
+typo futuro pasara silenciosamente TODA la suite de tests (100% SQLite) y
+solo se descubriera contra MySQL real.
 
-**Es el riesgo en la dirección opuesta al P0 de arriba**: `class_requests`
-fallaba por ser *demasiado estricto* en SQLite (rechazaba un valor válido).
-`classes.status` es *demasiado laxo* en SQLite (acepta cualquier string) —
-un typo en un valor de `classes.status` pasaría silenciosamente toda la
-suite de tests y solo fallaría contra MySQL real. No es el mismo bug, pero
-es la misma categoría de raíz (paridad de constraints SQLite/MySQL en
-columnas de estado), encontrada al aplicar el mismo tipo de auditoría al
-dominio hermano.
+**Auditoría transversal completa hecha antes de tocar el schema** (no se
+saltó directo a "reconstruye el CHECK"): se rastreó cada escritor real de
+`classes.status` en el código actual —
+`LessonController::store()/confirmPayment()/cancel()` (`scheduled`, `paid`,
+`cancelled`), `LessonReportController::store()`
+(`pending_parent_confirmation`), `LessonSettlementService::consume()/
+refund()` (`completed`, `cancelled`), `SettleLessons::escalateToReview()`
+(`needs_admin_review`), `AdminController::cancelLesson()` (`cancelled`).
+Los 6 estados canónicos tienen escritor real y correcto; ninguno escribe un
+valor fuera del conjunto. `in_progress` no tiene escritor en ningún lugar
+del código actual (ya limpiado del ENUM de MySQL en
+`2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`) — no
+se reintrodujo.
 
-**No se corrige en esta pasada** — reconstruir `classes.status` con un
-`CHECK` real en SQLite es un cambio de esquema no trivial (mismo patrón de
-`rebuildStatusColumn()`, pero sobre una tabla con más columnas y estados con
-efecto financiero real: `paid`, `pending_parent_confirmation`), y no fue lo
-que se pidió resolver hoy. Se documenta como hallazgo verificado y se deja
-para una decisión explícita de priorización — no se asume que "ya se
-arregló el mismo tipo de bug en la tabla vecina" lo cubre.
+**Matiz importante, verificado leyendo cada controlador/servicio**: cada
+transición ya valida su precondición explícitamente en código
+(`abort_unless($lesson->status === '<estado previo esperado>', 422, ...)`
+bajo `lockForUpdate()`) — la ausencia del `CHECK` en SQLite nunca fue la
+ÚNICA barrera contra un estado inválido, era la ausencia de una SEGUNDA
+capa de defensa a nivel de base de datos. Esta distinción es la razón por
+la que se mantiene como P1 (riesgo de que un futuro typo no se detecte en
+CI) y no se reclasifica como bug de producción ya ocurrido — no hay
+evidencia de que ningún valor inválido haya llegado nunca a escribirse.
+
+Origen histórico (no es un descuido nuevo, es una decisión deliberada de
+2026_07_17_000001_add_payment_states_to_classes_table.php): esa migración,
+al ampliar el enum de pagos, usó
+`$table->string('status')->default('scheduled')->change()` para SQLite en
+vez de reconstruir un `CHECK` — el patrón `rebuildStatusColumn()` que este
+mismo bloque de integridad usa ahora todavía no existía como práctica
+establecida en esa fecha.
+
+**Corregido** en
+`database/migrations/2026_08_27_000003_add_check_constraint_to_classes_status_for_sqlite.php`
+— mismo patrón que `2026_08_27_000002` (rebuild de columna + guard de
+drift MySQL "fail loud"), con una complicación real que `class_requests` no
+tenía: **tres** índices tocan `status`
+(`classes_status_index`; `classes_status_settled_index`, compuesto con
+`credits_settled_at`; `classes_teacher_status_start_index`, compuesto con
+`teacher_profile_id`/`start_time`) — los tres se dropean y se recrean con
+el mismo nombre y composición exactos, verificado leyendo `sqlite_master`
+antes/después, no asumido del código fuente de las migraciones que los
+crearon.
+
+El guard de MySQL aquí es más estricto que el de `class_requests`: en vez
+de comprobar solo "¿está el valor que me importa?", compara el **conjunto
+completo** del ENUM real contra el contrato canónico (orden-independiente)
+— detecta tanto un estado ausente como un estado histórico que debería
+haberse limpiado (p. ej. un `in_progress` reintroducido) y no se limpió en
+una instalación concreta.
+
+13 tests nuevos:
+`ClassesStatusEnumMigrationDriftGuardTest.php` (5, guard de MySQL vía mock
+de `DB`) y `ClassesStatusCheckConstraintTest.php` (8, comportamiento real
+contra la BD de test — las 6 escrituras válidas aceptadas vía
+`Lesson::create()`, un valor inválido y un `in_progress` reintroducido
+rechazados con `QueryException` real). Verificado que no son decorativos:
+se quitó temporalmente la migración, se confirmó que exactamente los 2
+tests de rechazo fallaban (los 6 de aceptación seguían pasando — un
+VARCHAR libre también acepta valores válidos), se restauró.
+
+Suite completa: **496/496** (483 + 13 nuevos).
 
 ---
 

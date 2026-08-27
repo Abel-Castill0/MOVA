@@ -583,6 +583,36 @@ Meta → POST /api/webhooks/whatsapp → WhatsAppWebhookController::handle()
 
 ## 29. Deuda técnica (separada estrictamente de bugs/vulnerabilidades)
 
+### Categoría de riesgo registrada: DATABASE CONTRACT / ENVIRONMENT PARITY DRIFT
+
+No es una abstracción de código — es una categoría de auditoría a
+comprobar cuando se toque cualquier columna de estado/enum en el futuro.
+Dos casos reales ya encontrados y corregidos (2026-08-27), en direcciones
+opuestas del mismo problema de raíz:
+
+| Columna | Síntoma en SQLite | Efecto | Corregido en |
+|---|---|---|---|
+| `class_requests.status` | `CHECK` **demasiado estricto** — rechazaba `teacher_rejected`, un valor que MySQL sí aceptaba | escritura real de producción fallaba con 500 si corría contra la BD de test | `2026_08_27_000002` |
+| `classes.status` | **sin `CHECK` alguno** — VARCHAR libre, aceptaba cualquier string | un typo pasaría silenciosamente toda la suite (100% SQLite) y solo se descubriría contra MySQL real | `2026_08_27_000003` |
+
+**Ambas comparten la misma causa raíz**: una migración que amplía un `ENUM`
+de MySQL con un `if (driver === 'mysql')` sin rama SQLite equivalente (o,
+en el caso de `classes.status`, que resolvió el problema de Doctrine DBAL
+convirtiendo la columna en un string libre en vez de reconstruir el
+`CHECK`). El patrón de corrección establecido (`rebuildStatusColumn()` +
+guard "fail loud" de drift en MySQL vía `SHOW COLUMNS`) es ahora el
+estándar a seguir — ver los propios archivos de migración citados arriba
+para el código exacto.
+
+**No auditado todavía con el mismo barrido exhaustivo**: `RechargeRequest.
+status`, `PaymentOrder.status`, `WhatsAppMessage.status` (ver §26). Ninguno
+mostró el síntoma durante el trabajo de esta sesión, pero tampoco se les
+aplicó la misma auditoría línea-por-línea de escritores reales que sí se
+hizo para los dos casos de arriba — no se asume que estén bien por
+ausencia de evidencia en contra. Si se toca cualquiera de esos dominios,
+repetir el mismo procedimiento: listar escritores reales → comparar contra
+el `ENUM` de MySQL → comparar contra el schema de SQLite → decidir.
+
 **CRITICAL:** ninguna identificada en esta pasada (fuera de alcance auditar activamente).
 
 **HIGH:**
@@ -590,9 +620,8 @@ Meta → POST /api/webhooks/whatsapp → WhatsAppWebhookController::handle()
 - Las 21 clases de `Notification` conocen demasiado del canal (`toWhatsApp(): string` en vez de un payload independiente de canal) — documentado como deuda deliberada en `docs/whatsapp-architecture.md`, no una omisión.
 
 **MEDIUM:**
-- Doctrine DBAL no puede alterar columnas `enum` en SQLite — cada migración que amplía un enum necesita una reconstrucción manual de columna (patrón ya usado 2 veces esta sesión — `recharge_requests.status`, `class_requests.status` — documentado en los propios archivos de migración; el segundo caso además añadió un guard que hace fallar la migración si el `ENUM` real de MySQL no contiene el valor que la rama MySQL asume ya presente, en vez de un no-op ciego).
-- `classes.status` **no tiene ningún `CHECK`/constraint en SQLite** (verificado en vivo leyendo `sqlite_master`, 2026-08-27: la columna es `VARCHAR(255)` libre) — riesgo en la dirección opuesta al bug de `class_requests.status` de arriba: en vez de rechazar un valor válido, SQLite acepta cualquier string. Un typo en un valor de `classes.status` (dominio con estados financieros reales: `paid`, `pending_parent_confirmation`) pasaría silenciosamente toda la suite de tests (100% SQLite) y solo se descubriría contra MySQL real. Sin arreglar todavía — ver `docs/MOVA_DESIGN_AUDIT_FINAL.md` para el hallazgo completo y su reconciliación.
-- `in_progress` en `classes.status` — confirmado exhaustivamente que es un valor muerto (ningún controlador/servicio/job/listener/modelo lo asigna); ya eliminado del enum de MySQL en `2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`.
+- Doctrine DBAL no puede alterar columnas `enum` en SQLite — cada migración que amplía un enum necesita una reconstrucción manual de columna (patrón ya usado 3 veces esta sesión — `recharge_requests.status`, `class_requests.status`, `classes.status` — documentado en los propios archivos de migración; los dos últimos casos además añaden un guard que hace fallar la migración si el `ENUM` real de MySQL no coincide con lo que la rama MySQL asume, en vez de un no-op ciego).
+- `in_progress` en `classes.status` — confirmado exhaustivamente que es un valor muerto (ningún controlador/servicio/job/listener/modelo lo asigna); ya eliminado del enum de MySQL en `2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`, y el `CHECK` nuevo de SQLite (`2026_08_27_000003`) lo rechaza igual que MySQL.
 - `completed` en `class_requests.status` — mismo patrón, recién confirmado (2026-08-27): está en el enum desde la migración original de 2024 pero ningún punto del código actual lo escribe (la finalización real se rastrea en `classes.status`, tabla distinta). No roto, solo muerto — no se ha limpiado.
 - Plantilla OTP de WhatsApp (`sub_type='url'` del botón) sin confirmar contra Meta directamente — solo contra documentación de 2 BSP.
 
