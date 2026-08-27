@@ -106,9 +106,9 @@
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
             Cancelar
           </button>
-          <button @click="submitReject"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
-            Confirmar rechazo
+          <button @click="submitReject" :disabled="rejecting"
+            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ rejecting ? 'Rechazando…' : 'Confirmar rechazo' }}
           </button>
         </div>
       </div>
@@ -129,6 +129,7 @@ defineProps({
 const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
+const rejecting    = ref(false)
 
 function openRejectModal(teacher) {
   rejectTarget.value = teacher
@@ -142,15 +143,22 @@ function closeRejectModal() {
   rejectError.value  = ''
 }
 
+// F-12: sin guard, un doble clic enviaba dos rechazos.
 function submitReject() {
+  if (rejecting.value) return
   if (rejectReason.value.trim().length < 10) {
     rejectError.value = 'El motivo debe tener al menos 10 caracteres.'
     return
   }
+  rejecting.value = true
   router.post(
     route('admin.teachers.reject', rejectTarget.value.id),
     { reason: rejectReason.value.trim() },
-    { onSuccess: () => closeRejectModal() }
+    {
+      onSuccess: () => closeRejectModal(),
+      onError: (errors) => { rejectError.value = errors.reason ?? 'No se pudo rechazar al profesor.' },
+      onFinish: () => { rejecting.value = false },
+    }
   )
 }
 

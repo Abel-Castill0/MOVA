@@ -82,9 +82,9 @@
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
             Cancelar
           </button>
-          <button @click="submitReject"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg">
-            Confirmar rechazo
+          <button @click="submitReject" :disabled="rejecting"
+            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ rejecting ? 'Rechazando…' : 'Confirmar rechazo' }}
           </button>
         </div>
       </div>
@@ -105,6 +105,7 @@ defineProps({
 const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
+const rejecting    = ref(false)
 
 const TIME_SLOT_LABELS = {
   morning_weekday:   '🌅 Mañana (L-V)',
@@ -126,20 +127,30 @@ function openRejectModal(r) {
 }
 
 function closeRejectModal() {
+  if (rejecting.value) return
   rejectTarget.value = null
   rejectReason.value = ''
   rejectError.value  = ''
 }
 
+// F-12 (segunda ronda): esta página quedó fuera de la primera corrección.
+// Importa más que las otras: rechazar cierra una solicitud, y el botón vecino
+// de aceptar crea una Lesson y RESERVA créditos del profesor.
 function submitReject() {
+  if (rejecting.value) return
   if (rejectReason.value.trim().length < 10) {
     rejectError.value = 'El motivo debe tener al menos 10 caracteres.'
     return
   }
+  rejecting.value = true
   router.post(
     route('teacher.requests.reject', rejectTarget.value.id),
     { reason: rejectReason.value.trim() },
-    { onSuccess: () => closeRejectModal() }
+    {
+      onSuccess: () => closeRejectModal(),
+      onError: (errors) => { rejectError.value = errors.reason ?? 'No se pudo rechazar la solicitud.' },
+      onFinish: () => { rejecting.value = false },
+    }
   )
 }
 

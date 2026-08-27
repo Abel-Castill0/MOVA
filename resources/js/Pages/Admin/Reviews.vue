@@ -56,8 +56,8 @@
                 Ocultar
               </button>
               <button v-else
-                @click="restoreReview(r)"
-                class="px-3 py-1.5 text-xs font-semibold text-green-600 border border-green-200 rounded-lg hover:bg-green-50 transition-colors whitespace-nowrap">
+                @click="restoreReview(r)" :disabled="moderating"
+                class="px-3 py-1.5 text-xs font-semibold text-green-600 border border-green-200 rounded-lg hover:bg-green-50 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 Mostrar
               </button>
             </div>
@@ -88,9 +88,10 @@
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
             Cancelar
           </button>
-          <button @click="submitHide"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg">
-            Confirmar
+          <p v-if="moderationError" class="mb-3 text-sm font-semibold text-red-600">{{ moderationError }}</p>
+          <button @click="submitHide" :disabled="moderating"
+            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ moderating ? 'Ocultando…' : 'Confirmar' }}
           </button>
         </div>
       </div>
@@ -116,6 +117,8 @@ const visibilityFilters = [
 
 const hideTarget = ref(null)
 const hideReason = ref('')
+const moderating = ref(false)
+const moderationError = ref('')
 
 function setFilter(v) {
   router.get(route('admin.reviews'), v ? { visibility: v } : {}, { preserveScroll: true })
@@ -130,15 +133,32 @@ function openHideModal(r) {
   hideReason.value = ''
 }
 
+// F-12 (segunda ronda): moderación de reseñas, también sin guard en la
+// primera pasada. El backend es idempotente aquí, pero un doble clic dejaba
+// al admin viendo un parpadeo sin saber si la acción se aplicó.
 function submitHide() {
+  if (moderating.value) return
+  moderating.value = true
   router.post(
     route('admin.reviews.hide', hideTarget.value.id),
     { reason: hideReason.value.trim() || null },
-    { onSuccess: () => { hideTarget.value = null; hideReason.value = '' } }
+    {
+      preserveScroll: true,
+      onSuccess: () => { hideTarget.value = null; hideReason.value = '' },
+      // F-19: sin esto, un fallo de moderación era invisible para el admin.
+      onError: (errors) => { moderationError.value = errors.reason ?? 'No se pudo ocultar la reseña.' },
+      onFinish: () => { moderating.value = false },
+    }
   )
 }
 
 function restoreReview(r) {
-  router.post(route('admin.reviews.show', r.id))
+  if (moderating.value) return
+  moderating.value = true
+  router.post(route('admin.reviews.show', r.id), {}, {
+    preserveScroll: true,
+    onError: () => { moderationError.value = 'No se pudo mostrar la reseña.' },
+    onFinish: () => { moderating.value = false },
+  })
 }
 </script>

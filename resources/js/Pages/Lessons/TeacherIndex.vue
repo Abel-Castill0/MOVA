@@ -80,9 +80,9 @@
             class="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
             Volver
           </button>
-          <button @click="submitCancel"
-            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl transition-all">
-            Confirmar cancelación
+          <button @click="submitCancel" :disabled="cancelling"
+            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ cancelling ? 'Cancelando…' : 'Confirmar cancelación' }}
           </button>
         </div>
       </div>
@@ -116,9 +116,9 @@
             class="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
             Volver
           </button>
-          <button @click="submitReschedule"
-            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl transition-all">
-            Reprogramar
+          <button @click="submitReschedule" :disabled="rescheduling"
+            class="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ rescheduling ? 'Reprogramando…' : 'Reprogramar' }}
           </button>
         </div>
       </div>
@@ -145,6 +145,9 @@ const props = defineProps({ lessons: Array })
 const { viewMode, tabListRef, tabCalendarRef, onTabsKeydown } = useLessonsViewMode()
 const cancelTarget   = ref(null)
 const cancelReason   = ref('')
+// F-12: guards de doble submit, mismo patrón que ParentIndex/Admin/Lessons.
+const cancelling     = ref(false)
+const rescheduling   = ref(false)
 const rescheduleTarget = ref(null)
 const rescheduleError  = ref('')
 const rescheduleForm   = ref({ start_time: '', reason: '' })
@@ -163,10 +166,15 @@ function openCancel(l) {
 }
 
 function submitCancel() {
+  if (cancelling.value) return
+  cancelling.value = true
   router.post(
     route('lessons.cancel', cancelTarget.value.id),
     { reason: cancelReason.value.trim() || null },
-    { onSuccess: () => { cancelTarget.value = null; cancelReason.value = '' } }
+    {
+      onSuccess: () => { cancelTarget.value = null; cancelReason.value = '' },
+      onFinish: () => { cancelling.value = false },
+    }
   )
 }
 
@@ -180,10 +188,12 @@ function openReschedule(l) {
 }
 
 function submitReschedule() {
+  if (rescheduling.value) return
   if (!rescheduleForm.value.start_time) {
     rescheduleError.value = 'Selecciona una fecha y hora.'
     return
   }
+  rescheduling.value = true
   router.post(
     route('lessons.reschedule', rescheduleTarget.value.id),
     {
@@ -193,6 +203,7 @@ function submitReschedule() {
     {
       onSuccess: () => { rescheduleTarget.value = null },
       onError: (e) => { rescheduleError.value = e.start_time || 'Error al reprogramar.' },
+      onFinish: () => { rescheduling.value = false },
     }
   )
 }

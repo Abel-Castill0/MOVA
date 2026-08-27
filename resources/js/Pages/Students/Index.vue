@@ -29,26 +29,74 @@
                 class="text-xs text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium">
                 Editar
               </Link>
-              <Link :href="route('students.destroy', s.id)" method="delete" as="button"
+              <button type="button"
                 class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
-                @click.prevent="confirmDelete(s.id)">Eliminar</Link>
+                @click="deleteTarget = s">Eliminar</button>
             </div>
           </div>
         </div>
       </div>
     </div>
+    <!--
+      F-13: era un window.confirm() con el texto "¿Eliminar este estudiante?".
+      Se trata de datos de un menor, así que la confirmación debe nombrar al
+      alumno y decir qué se pierde, no preguntar en abstracto. Además el
+      confirm() nativo no permite bloquear el doble envío.
+    -->
+    <Modal :show="!!deleteTarget" max-width="md" @close="closeDelete">
+      <div v-if="deleteTarget" class="p-6">
+        <h3 class="text-lg font-black text-slate-900">Eliminar a {{ deleteTarget.full_name }}</h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Se eliminará su ficha y dejará de aparecer en tus solicitudes. Esta acción no se puede deshacer.
+        </p>
+        <p class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          El historial de clases ya realizadas se conserva por motivos contables.
+        </p>
+
+        <p v-if="deleteError" class="mt-3 text-sm font-semibold text-red-600">{{ deleteError }}</p>
+
+        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <SecondaryButton type="button" :disabled="deleting" @click="closeDelete">Cancelar</SecondaryButton>
+          <button type="button"
+            class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+            :disabled="deleting"
+            @click="submitDelete">
+            {{ deleting ? 'Eliminando…' : 'Eliminar' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
   </AppLayout>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
+import SecondaryButton from '@/Components/SecondaryButton.vue'
 
 defineProps({ students: Array })
 
-function confirmDelete(id) {
-  if (confirm('¿Eliminar este estudiante?')) {
-    router.delete(route('students.destroy', id))
-  }
+const deleteTarget = ref(null)
+const deleting = ref(false)
+const deleteError = ref('')
+
+function closeDelete() {
+  if (deleting.value) return
+  deleteTarget.value = null
+  deleteError.value = ''
+}
+
+function submitDelete() {
+  if (deleting.value) return
+  deleting.value = true
+  router.delete(route('students.destroy', deleteTarget.value.id), {
+    preserveScroll: true,
+    onSuccess: () => { deleteTarget.value = null },
+    // F-19: sin esto, un fallo al eliminar dejaba el modal abierto sin explicar nada.
+    onError: () => { deleteError.value = 'No se pudo eliminar. Inténtalo de nuevo o contacta a soporte.' },
+    onFinish: () => { deleting.value = false },
+  })
 }
 </script>

@@ -14,7 +14,7 @@ class LessonReportController extends Controller
     public function create(Lesson $lesson)
     {
         $this->authorize('createReport', $lesson);
-        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
+        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases cuyo pago haya confirmado el padre.');
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson);
         }
@@ -37,7 +37,7 @@ class LessonReportController extends Controller
     {
         $this->authorize('createReport', $lesson);
         $profile = auth()->user()->teacherProfile;
-        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
+        abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases cuyo pago haya confirmado el padre.');
 
         if ($lesson->lessonReport()->exists()) {
             return redirect()->route('lesson-reports.show', $lesson)
@@ -58,7 +58,7 @@ class LessonReportController extends Controller
         $report = DB::transaction(function () use ($lesson, $profile, $data) {
             $lesson = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
 
-            abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases con el pago confirmado.');
+            abort_unless($lesson->status === 'paid', 422, 'Solo se pueden reportar clases cuyo pago haya confirmado el padre.');
 
             $report = LessonReport::create(array_merge($data, [
                 'lesson_id'          => $lesson->id,
