@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.20
-generated_at:     2026-08-27T22:58:15Z
-repository_head:  7e83af6   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (79 commits detrás de local, sin push)
+audit_revision:   2026-08-27.21
+generated_at:     2026-08-27T23:15:16Z
+repository_head:  ad10f03   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (81 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: reschedule() audit closure)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: confirmPayment() audit closure)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1326,6 +1326,122 @@ hallazgos de integridad financiera nuevos — el riesgo histórico (`C-2`) ya
 estaba cerrado antes de esta sesión, con test real. Los hallazgos de esta
 pasada fueron protocolo de error y proyección de datos, el mismo patrón ya
 visto en `Create.vue`/`Register.vue`/`Accept.vue`.
+
+---
+
+## 🔍 `LessonController::confirmPayment()` — auditoría de contrato (financiero, priorizado sobre `cancel()`/`join()`)
+
+Instrucción explícita: no asumir que está bien solo porque `accept()`/
+`reschedule()` lo estén — auditar desde cero, empezando por la pregunta
+que el nombre del método no responde por sí solo: **¿quién puede
+confirmar el pago?**
+
+### Quién confirma — verificado, no inferido
+
+`LessonPolicy::confirmPayment()`: `$user->hasRole('parent') && $user->
+students()->where('id', $lesson->student_id)->exists()` — **solo el
+padre dueño del alumno**, más admin vía `before()`. El profesor **no**
+puede confirmar su propio pago — verificado leyendo la Policy completa,
+no supuesto por el nombre.
+
+### Qué mueve realmente esta operación — hallazgo central
+
+`confirmPayment()` **no toca créditos, ledger, ni ningún monto** — solo
+cambia `Lesson.status` de `'scheduled'` a `'paid'` y registra un
+`ClassEvent`. El consumo/devolución real de créditos vive enteramente en
+`LessonSettlementService` (código anterior a esta sesión, ya endurecido:
+comentarios propios citan `C-1`, `Fase 3B`, `BUG-3`), leído completo antes
+de asumir nada:
+
+- **Fuente autoritativa del monto**: `Lesson::reservedCreditAmount()` lee
+  el ledger (`credit_transactions` tipo `reservation`) — nunca se
+  recalcula desde `duration_minutes`/`price_frozen_pen` al momento de
+  liquidar. Congelado en `accept()`, consumido/devuelto exactamente igual
+  después, sin importar qué cambie mientras tanto.
+- **Idempotencia real, no solo protección de transición de estado**: el
+  `UNIQUE` de `credit_transactions.idempotency_key` es la garantía —
+  `consume()`/`refund()` intentan el `INSERT` directamente y capturan
+  `UniqueConstraintViolationException` para devolver el estado actual sin
+  fallar, en vez de confiar solo en un chequeo de `credits_settled_at`
+  antes del lock (que dos transacciones concurrentes podrían leer igual).
+- **Notificación post-commit, con la razón explícita ya en el código**:
+  "una cola con `after_commit=false` podría procesar la notificación
+  antes del commit real si se despachara dentro" — exactamente la
+  preocupación que este documento viene verificando en cada endpoint,
+  aquí ya resuelta antes de esta sesión.
+
+### Premisa verificada y descartada: no hay doble representación del dinero
+
+Se pidió explícitamente comprobar si `Lesson.price` y `PaymentOrder.
+amount` podían divergir. Rastreado el modelo `PaymentOrder` completo:
+pertenece a `RechargeRequest` (un profesor comprándole créditos a MOVA) —
+**dominio financiero completamente distinto**, sin relación con
+`Lesson`/`confirmPayment()`. `price_frozen_pen` es lo que el padre le debe
+al profesor (fuera de la plataforma, Yape/Plin); `PaymentOrder.
+amount_minor` es lo que el profesor le paga a MOVA por créditos. Nunca
+tocan el mismo dinero ni el mismo registro — el riesgo planteado no existe
+en el código real.
+
+### Hallazgo real, corregido en esta pasada
+
+Mismo patrón que `accept()`/`reschedule()`: 2 `abort_unless()`/`abort_if()`
+crudos (×2 sitios cada uno: fail-fast + re-chequeo bajo lock = 4 llamadas),
+ninguno de autorización (esa ya corre aparte, sin tocar) — ambos
+conflictos de estado del recurso. Convertidos a `ValidationException` bajo
+una clave de negocio propia, `confirmPayment` — este formulario no tiene
+NINGÚN campo (`ParentIndex.vue` lo dispara con un POST de body vacío, solo
+un botón), así que no había ningún campo real al que atar el error, mismo
+razonamiento que `accept`/`reschedule`.
+
+**Frontend**: mismo hallazgo por tercera vez — `ParentIndex.vue`'s
+`confirmPayment()` descartaba en silencio el mensaje real y mostraba
+siempre un texto genérico hardcodeado. Corregido a leer `e.confirmPayment`
+primero.
+
+### Doble confirmación — verificado en vivo, no solo en PHPUnit
+
+El botón de confirmar pago está oculto por el cliente hasta que la clase
+termina (mismo patrón que `canAffordSelected` en `Accept.vue`) — se
+verificó vía `fetch()` real contra el servidor, no clic simulado.
+Secuencia completa confirmada por inspección directa de base de datos:
+confirmación real (`Lesson#12`: `scheduled → paid`, exactamente 1
+`ClassEvent`) → segundo intento rechazado con el mensaje real
+("Solo se puede confirmar el pago de clases programadas.") → tercer
+chequeo de BD: sigue `paid`, sigue exactamente 1 `ClassEvent` — ninguna
+transición ni efecto financiero duplicado.
+
+**Anomalía menor no explicada, señalada por honestidad**: uno de los
+intentos intermedios durante esta verificación devolvió un `409` en vez
+del `302`/`422` esperado — no se investigó a fondo (no afectó el
+resultado: el estado final en base de datos es correcto y consistente),
+pero se registra en vez de omitirlo.
+
+### Regression proof
+
+`git stash` sobre `LessonController.php` reprodujo las 6 fallas reales
+esperadas antes de restaurar.
+
+### Cierre — vocabulario exacto
+
+```text
+Authorization:               VERIFIED (solo padre dueño + admin, ya sólido)
+State machine:                VERIFIED (scheduled→paid, doble chequeo bajo lock)
+Financial authority:          VERIFIED (ledger vía reservedCreditAmount(), nunca recalculado)
+Transaction:                  VERIFIED (ya sólido, sin tocar)
+Concurrency:                  NOT DIRECTLY EXERCISED (mismo límite de PHPUnit en toda la sesión)
+Retry semantics:              VERIFIED (segundo intento rechazado, sin duplicar — confirmado en BD, no solo HTTP status)
+Data projection:               VERIFIED (ya corregido en el bloque de reschedule() — misma página)
+Error protocol:                VERIFIED (corregido en esta pasada — 2 conversiones + 1 fix de frontend)
+Notifications:                 VERIFIED (post-commit, ShouldQueue, razón documentada en el propio código)
+Tests:                         545/545 — 6 assertSessionHasErrors() corregidas, 0 nuevas
+Browser:                       VERIFIED (secuencia completa confirmada por inspección directa de BD)
+```
+
+**`LessonController::confirmPayment()` → CERRADO PARA ESTE ALCANCE.** Sin
+hallazgos financieros nuevos — el mecanismo real de liquidación
+(`LessonSettlementService`) ya era sólido antes de esta sesión, y la
+premisa de doble representación del dinero (`PaymentOrder` vs. `Lesson`)
+quedó descartada con evidencia, no solo con una suposición.
 
 ---
 
