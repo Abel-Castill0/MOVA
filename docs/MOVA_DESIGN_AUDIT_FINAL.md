@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.10
-generated_at:     2026-08-27T13:10:23Z
-repository_head:  1c1ac31   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (55 commits detrás de local, sin push)
+audit_revision:   2026-08-27.11
+generated_at:     2026-08-27T13:25:37Z
+repository_head:  4df28d1   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (57 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -311,10 +311,12 @@ frontend.
 primeras dos correcciones (`0b1bc13`, `904ea07`) se documentaron primero
 como "el bug de Marketplace" y "el bug de Welcome" — eso subestimaba lo
 que realmente pasó. Ambos son instancias de la misma causa raíz genérica
-(ver abajo), y el propio proceso de cierre de esta clase encontró **dos
-instancias más** (el pivot de `subjects`, y una fuga hermana en un
-endpoint de admin) — evidencia de que valía la pena tratarlo como
-categoría, no como archivo por archivo.
+(ver abajo), y el propio proceso de cierre de esta clase encontró **tres
+instancias más** (el pivot de `subjects`, una fuga hermana en un endpoint
+de admin, y una cuarta superficie en `ClassRequestController::create()`
+encontrada al clasificar `specific_rate` con evidencia en vez de
+etiquetarlo "sensible" por reflejo) — evidencia de que valía la pena
+tratarlo como categoría, no como archivo por archivo.
 
 ### Causa raíz (formulación genérica y reusable, no "un bug de paginate")
 
@@ -407,7 +409,7 @@ La solución determinista es fijar la proyección ANTES de los agregados:
 | Commit que lo introdujo | `2fb22fd` (2026-08-22) | `03db9f5` — el primer commit del repo (2026-06-10) | mismo origen que las dos anteriores (el pivot nunca se restringió) | no rastreado individualmente — encontrado al verificar `reviewedBy`, no por sí solo |
 | ¿Ancestro de `origin/master`? | Sí | Sí | Sí | Sí |
 | Ventana de exposición estimada | ~5 días | ~11 semanas | igual que las dos anteriores | N/A (requiere `role:admin`, no es exposición pública) |
-| Campos expuestos | `yape_number`, `plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`, `credits_*`, etc. | los mismos, salvo lo que `$hidden` ya cubría | `specific_rate` (tarifa por materia) + IDs de la tabla pivote | `User` completo salvo `password`/`remember_token`: `phone_verification_code_hash`, `suspension_reason`, `whatsapp_opt_in_at`, etc. |
+| Campos expuestos | `yape_number`, `plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`, `credits_*`, etc. | los mismos, salvo lo que `$hidden` ya cubría | `teacher_subject.specific_rate` (columna pivote) + IDs de la tabla pivote | `User` completo salvo `password`/`remember_token`: `phone_verification_code_hash`, `suspension_reason`, `whatsapp_opt_in_at`, etc. |
 | Fix | `0b1bc13` | `904ea07` | `607f9ec` (ambos endpoints) | `1c1ac31` |
 | Tests | `TeacherPublicVisibilityTest.php` (8) | `WelcomeFeaturedTeachersExposureTest.php` (3) | `PublicTeacherProfileExposureContractTest.php` (2, allowlist forward-looking) | `AdminPendingTeachersExposureTest.php` (2) |
 
@@ -534,6 +536,55 @@ incidental de `/admin/pending-teachers` (encontrado verificando
 `reviewedBy`, no por una nueva búsqueda deliberada) — no se abrió una
 segunda auditoría general.
 
+### `specific_rate` — dos campos distintos, no uno solo (corrección importante)
+
+Al cerrar el pivot de `subjects` se afirmó sin más "se filtraba
+`specific_rate`" — eso mezclaba dos columnas homónimas y no distinguía
+"serialización no intencionada" de "brecha de confidencialidad". Rastreado
+cada consumidor real antes de clasificar, no asumido:
+
+| | `teacher_subject.specific_rate` (el pivot) | `class_offers.specific_rate` |
+|---|---|---|
+| ¿Quién lo escribe? | `RegisteredUserController`, `TeacherProfileController::storeSetup()`/`update()` — **los tres siempre lo sincronizan como `null`** (`['specific_rate' => null]`), verificado leyendo las 3 llamadas reales | `ClassOfferController` — el profesor fija una tarifa real y acotada por `TeacherProfile::maxAllowedRate()` |
+| ¿Quién lo lee? | Ningún backend ni frontend — cero lectores encontrados | `ClassRequests/Create.vue:9` — el padre lo ve como el precio de la clase que está solicitando |
+| Clasificación | **INTERNAL / DEAD** — no es un dato de precio real hoy, es una columna vestigial siempre nula | **PUBLIC (para quien solicita)** — es la información de precio que el producto necesita mostrar |
+| Qué se hizo | Ocultado del payload público (`607f9ec`) — corrección correcta, pero la razón real es "elimina una clave no intencionada del contrato", no "cierra una fuga de precios en producción", porque el valor real casi siempre es `null` | Sin cambios — sigue siendo parte legítima del contrato de `ClassRequestController::create()`, con proyección explícita ahora (`4df28d1`) |
+
+**Lección aplicada**: *unintended serialization* ≠ *confidentiality
+breach* automáticamente. El pivot se corrigió porque violaba el contrato
+de respuesta declarado (nadie decidió exponerlo), no porque el valor en sí
+fuera sensible — en la práctica casi siempre es `null`. Si en el futuro
+`teacher_subject.specific_rate` se reactiva como funcionalidad real de
+precio por materia, esta clasificación debe revisarse explícitamente, no
+heredarse de esta nota.
+
+### Quinto hallazgo — `ClassRequestController::create()` (mismo patrón, encontrado siguiendo el rastro de `specific_rate`)
+
+Investigar los consumidores reales de `class_offers.specific_rate` llevó
+directamente a `ClassRequestController::create()`: `'offer' => $offer`
+pasaba el `ClassOffer` completo con `teacherProfile.user` sin proyección.
+Esta ruta exige `role:parent` (no pública), pero cualquier padre
+autenticado puede pasar `?offer_id=N` (IDs secuenciales) para una oferta
+de un profesor con el que no tiene ninguna relación — y recibía
+`yape_number`/`plin_number`/`referral_code` del profesor (más allá de lo
+que `$hidden` ya bloquea) y su `User` completo (`email`, `phone`,
+`phone_verification_code_hash`, `suspension_reason`, etc.). Verificado con
+`json_encode()`, corregido con proyección explícita (`4df28d1`),
+`ClassRequestCreateOfferExposureTest.php` (1 test, 26 assertions,
+verificado como detección real).
+
+### Verificación final: `$appends`/accessors (el último rincón de la familia)
+
+Pedido explícitamente antes de cerrar: ¿algún modelo de esta familia
+reintroduce un campo oculto vía `$appends` o un accessor? Verificado con
+grep, no asumido — `$appends` SÍ es un patrón real en esta base de código
+(`Lesson::$appends = ['has_jitsi_room', 'end_time', 'credit_cost']`,
+`Student::$appends = ['full_name']`), pero **ninguno de los 4 modelos de
+esta familia** (`TeacherProfile`, `User`, `Subject`, `ClassOffer`)
+declara `$appends`, un accessor estilo `getXAttribute()`, ni el estilo
+nuevo `Attribute::make()`. Ninguna reintroducción oculta de campos en
+esta familia.
+
 ### Checklist de cierre de esta clase de vulnerabilidad
 
 ```text
@@ -544,24 +595,44 @@ segunda auditoría general.
 [x] TeacherProfile revisado campo por campo (contrato de sensibilidad)
 [x] reviewedBy verificado — correcto, sin cambios necesarios
 [x] Hallazgo hermano de reviewedBy (relación `user` sin acotar) corregido (1c1ac31)
-[x] Pivot de `subjects` (specific_rate) corregido en ambos endpoints públicos (607f9ec)
+[x] Pivot de subjects corregido en ambos endpoints públicos (607f9ec) —
+    reclasificado como limpieza de contrato, no fuga de precio (ver arriba)
+[x] specific_rate (class_offers, el real) clasificado PUBLIC con evidencia,
+    no por reflejo — sigue expuesto a quien solicita, por diseño
+[x] Quinto hallazgo — ClassRequestController::create() corregido (4df28d1)
+[x] $appends/accessors/Attribute::make() verificados en los 4 modelos —
+    ninguno reintroduce un campo oculto
+[x] currentInertiaVersion — confirmado 0 referencias en todo el
+    repositorio (`rg`/Grep, no asumido)
 [x] Positive response contracts (tests)
 [x] Negative response contracts (tests)
 [x] Allowlist forward-looking (protege contra campos futuros, no solo los conocidos)
-[x] Tests de regresión — 19 nuevos, todos verificados como detección real
-[x] Suite completa — 530/530
-[ ] Build de frontend — no aplica, ningún archivo .vue/.js tocado en este bloque
+[x] Tests de regresión — 22 assertions/tests nuevos en 6 clases de test
+    (TeacherPublicVisibilityTest, WelcomeFeaturedTeachersExposureTest,
+    PublicTeacherProfileExposureContractTest, AdminPendingTeachersExposureTest,
+    TeacherProfileHiddenFieldsTest, ClassRequestCreateOfferExposureTest),
+    cubriendo: contrato público de listado, contrato de perfil individual,
+    relaciones anidadas, pivot, serialización de admin, y el formulario
+    de solicitud de clase — todos verificados como detección real
+    (revertidos, confirmado el fallo exacto, restaurados), no contados
+    como métrica sola
+[x] Suite completa — 531/531
+[ ] Build de frontend — no aplica, ningún archivo .vue/.js tocado en este bloque de seguridad
 [x] Audit document actualizado (esta sección)
 [x] MOVA_SYSTEM_KNOWLEDGE.md actualizado (§19-20: nota correctiva +
     política arquitectónica de proyección pública explícita)
-[x] Git state — 55 ahead / 0 behind, verificado con fetch, limpio salvo package-lock.json
+[x] Git state — 56 ahead / 0 behind, verificado con fetch; historial
+    revisado línea por línea (git log --oneline -12): un solo commit de
+    diseño (cd0c8ee) intercalado, en su orden cronológico real, ningún
+    commit de seguridad mezclado con cambios cosméticos
 ```
 
-**Cierre de esta clase de vulnerabilidad.** No se reabre esta auditoría
-salvo que aparezca evidencia nueva de una fuga P0/P1 real — el siguiente
-trabajo de esta sesión retoma el core product journey
-(`ClassRequests/Create.vue` → `Diagnostics` → checkout), no una quinta
-ronda de búsqueda de exposición.
+**PUBLIC SERIALIZATION DRIFT — CLOSED FOR CURRENT SCOPE.** No se reabre
+esta auditoría salvo que aparezca evidencia nueva de una fuga P0/P1 real
+— el siguiente trabajo de esta sesión entra a `ClassRequests/Create.vue`
+por el contrato de negocio (precio, créditos, disponibilidad, idempotencia,
+autorización, concurrencia) antes que por UX/UI, no una sexta ronda de
+búsqueda de exposición.
 
 ---
 
