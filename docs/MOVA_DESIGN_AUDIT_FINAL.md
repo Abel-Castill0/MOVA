@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.19
-generated_at:     2026-08-27T22:34:44Z
-repository_head:  9a58951   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (77 commits detrás de local, sin push)
+audit_revision:   2026-08-27.20
+generated_at:     2026-08-27T22:58:15Z
+repository_head:  7e83af6   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (79 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: Final Integrity Gate closure para Accept.vue)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: reschedule() audit closure)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1216,10 +1216,116 @@ Strict idempotency:              NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOP
 | Concurrencia real | `NOT DIRECTLY EXERCISED` — ver sección propia, terminología no colapsada | — |
 | Idempotencia estricta | `NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOPE` — el mecanismo actual (lock + re-chequeo de estado) protege la invariante real; no hay evidencia de que falte más | — |
 | UX/UI | **Deliberadamente no tocado** — siguiente fase | — |
-| Riesgos remanentes | 4 `abort_if()` restantes en el mismo controlador, otras páginas (`task_29e7c685`, `reschedule()` priorizado primero por su historial); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
+| Riesgos remanentes | ~~4 `abort_if()` restantes~~ **`reschedule()` ya auditado y cerrado (ver sección propia abajo)** — quedan `join()`/`confirmPayment()`/`cancel()` (`task_29e7c685`, reordenado: `confirmPayment()` ahora primero por ser financiero, luego `cancel()`, luego `join()`); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
 | Git | ✅ Commits atómicos `0fdc1c2` (hallazgo inicial) + `9a58951` (Final Integrity Gate), separados de su documentación | Sin push — sigue bloqueado por F-26 |
 
 **`ClassRequests/Accept.vue` (backend) → CERRADO PARA ESTE ALCANCE.** Continúa UX/UI: la pantalla debe comunicar alumno, materia, solicitud, horario, duración, precio y créditos según los datos genuinamente disponibles en cada punto del flujo — mismo principio que `Create.vue` ("no muestres valores que el backend todavía no ha determinado"), no una "reserva" antes de que el backend la confirme.
+
+---
+
+## 🔍 `LessonController::reschedule()` — auditoría de contrato (siguiente hotspot priorizado sobre `confirmPayment()`/`cancel()`/`join()`)
+
+Instrucción explícita: no asumir que `reschedule()` equivale a `store()` —
+auditar desde cero. Dominio distinto: `store()` crea un `Lesson` desde un
+`ClassRequest` abierto; `reschedule()` solo mueve `start_time` sobre un
+`Lesson` **ya existente**.
+
+### Hallazgo central: la duración ya es inmutable, por diseño previo
+
+Leído el código completo antes de asumir nada: `reschedule()` **rechaza la
+sola presencia** del campo `duration_minutes` en la request (no solo un
+valor distinto — cualquier valor, incluso igual al original). El propio
+comentario del código (`C-2 v1`) documenta que esto cierra un exploit real
+anterior a esta sesión: un padre podía ampliar una clase de 30 min a 4h
+pagando y consumiendo lo de 30 min. Como la duración no puede cambiar,
+`price_frozen_pen` y el ledger de créditos **no pueden verse afectados por
+este endpoint en absoluto** — no por casualidad, sino porque el camino que
+los tocaría está bloqueado antes de llegar ahí. Responde directamente la
+pregunta central pedida en revisión ("¿qué pasa financieramente cuando una
+clase cambia de duración?"): no puede cambiar de duración vía `reschedule()`
+— cambiarla de forma seguro (recalculando costo/créditos/ledger) queda
+explícitamente fuera de este v1, para una v2 futura no planificada aún.
+
+### Clases ya liquidadas — ya protegido
+
+`abort`/ahora `ValidationException` si `status !== 'scheduled'`, verificado
+contra el enum completo (`paid`, `pending_parent_confirmation`, `completed`,
+`cancelled`, `needs_admin_review`) — probado exhaustivamente por
+`RescheduleTest::test_reschedule_is_rejected_for_every_non_scheduled_status`
+(ya existente, no escrito en esta pasada) con los 5 estados reales, no
+inventados. Una clase pagada/completada/cancelada no puede reprogramarse.
+
+### Autorización — ya sólida
+
+`LessonPolicy::reschedule()`: profesor asignado o padre dueño del alumno,
+admin vía `before()`. Verificado con 4 tests ya existentes (dueño ✅,
+profesor asignado ✅, padre ajeno ❌, profesor ajeno ❌).
+
+### Lo que sí era un hallazgo real, corregido en esta pasada
+
+1. **Clasificación de excepciones** (mismo patrón ya corregido en `store()`):
+   3 `abort()`/`abort_if()` crudos, ninguno de autorización (esa ya corre por
+   `authorize('reschedule', …)`, sin tocar) — los 3 son conflictos de estado
+   de recurso, reclasificados a `ValidationException`. `duration_minutes`
+   mantiene esa clave literal (el mensaje sí es sobre ese campo concreto);
+   "la lección ya no está `scheduled`" usa una clave de negocio propia,
+   `reschedule` — mismo patrón que `accept` en `Accept.vue`, no reutiliza
+   `start_time` ni inventa uno nuevo.
+2. **Proyección de datos** — mismo root cause que `ClassRequestController::
+   accept()`, encontrado en las dos páginas que alojan la UI de
+   reprogramar/cancelar: `teacherIndex()` serializaba `student` completo
+   (`birth_date`/`school`, sin uso — `TeacherLessonCard.vue` solo lee
+   `first_name`/`last_name`); `parentIndex()` serializaba `teacherProfile.
+   user` completo (email/teléfono/hashes del profesor — `ParentLessonCard.vue`
+   solo lee `user.name`, `yape_number`, `plin_number`, estos dos últimos
+   legítimamente necesarios porque así paga el padre). Ambos restringidos a
+   columnas explícitas.
+3. **Consumo en frontend** — encontrado al verificar el fix anterior en
+   vivo, no en el código a simple vista: tanto `TeacherIndex.vue` como
+   `ParentIndex.vue` solo leían `e.start_time` en su `onError`, descartando
+   en silencio los mensajes reales bajo `reschedule`/`duration_minutes` y
+   mostrando siempre el genérico "Error al reprogramar." — mismo patrón que
+   `Register.vue`: un fix de backend sin consumo en frontend sigue siendo
+   invisible. Corregido en ambos archivos.
+
+### Regression proof
+
+`git stash` sobre `LessonController.php` reprodujo las 9 fallas reales
+esperadas (5 aserciones de status-code corregidas a
+`assertSessionHasErrors()`, más 4 que dependían indirectamente del
+comportamiento corregido) antes de restaurar.
+
+### Concurrencia
+
+`test_reschedule_reevaluates_status_under_lock_not_from_a_stale_read`
+(ya existente) prueba que el estado se relee bajo `lockForUpdate()` en vez
+de confiar en la instancia cargada antes — **NOT DIRECTLY EXERCISED** para
+paralelismo real, mismo límite de PHPUnit ya documentado en toda esta
+sesión.
+
+### Cierre — vocabulario exacto
+
+```text
+Authorization:              VERIFIED (ya sólido, sin tocar)
+Duration contract:          VERIFIED (inmutable por diseño, ya cerrado)
+Schedule contract:          VERIFIED (overlap + exclusión propia, ya sólido)
+Pricing:                    VERIFIED (no puede cambiar — duración inmutable)
+Credits:                    VERIFIED (no puede cambiar — duración inmutable)
+State machine:               VERIFIED (5 estados no-scheduled probados)
+Concurrency:                 NOT DIRECTLY EXERCISED (mismo límite de PHPUnit)
+Transaction/rollback:        VERIFIED (ya sólido, sin tocar)
+Notifications:               VERIFIED (post-commit, ShouldQueue, mismo patrón que store())
+Data projection:             VERIFIED (corregido en esta pasada — 2 endpoints)
+Error protocol:               VERIFIED (corregido en esta pasada — 3 conversiones + 2 fixes de frontend)
+Tests:                        545/545 — 5 assertSessionHasErrors() corregidas, 0 nuevas (cobertura ya existía)
+Browser:                       VERIFIED (mensaje real confirmado en el modal, no solo el fallback genérico)
+```
+
+**`LessonController::reschedule()` → CERRADO PARA ESTE ALCANCE.** Sin
+hallazgos de integridad financiera nuevos — el riesgo histórico (`C-2`) ya
+estaba cerrado antes de esta sesión, con test real. Los hallazgos de esta
+pasada fueron protocolo de error y proyección de datos, el mismo patrón ya
+visto en `Create.vue`/`Register.vue`/`Accept.vue`.
 
 ---
 
