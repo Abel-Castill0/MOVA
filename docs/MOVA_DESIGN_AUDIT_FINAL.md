@@ -253,14 +253,83 @@ asignada.
 
 ---
 
-## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0 · ✅ RESUELTO
+## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
 
-**Snapshot de la corrección** (Audit Snapshot Contract): `HEAD`
+**Estado**: `RESOLVED` (código + regresión + SQLite fresh/incremental +
+MySQL) — `RECONCILED` (git + trabajo paralelo), ver pasada de reconciliación
+abajo. No queda ninguna dimensión pendiente de este bug puntual; sí queda un
+**hallazgo nuevo, distinto**, en `classes.status` (ver el final de esta
+sección) sin decidir todavía.
+
+**Snapshot original de la corrección** (Audit Snapshot Contract): `HEAD`
 `eeca1ffa7dc7212de46bba2a80f653711deec65b` → esta corrección se aplicó
-encima, sin pushear (`origin/master` en `692b3651...`, 40 commits por
-detrás, sin cambiar); working tree limpio salvo los 2 archivos nuevos de
-esta corrección; verificado 2026-08-27T10:40Z, directorio de trabajo real,
-no worktree aislado.
+encima; working tree limpio salvo los 2 archivos nuevos de esta corrección;
+verificado 2026-08-27T10:40Z, directorio de trabajo real, no worktree
+aislado.
+
+### Pasada de reconciliación (post-cierre, misma sesión)
+
+Verificación adicional pedida explícitamente antes de aceptar el cierre —
+cada punto se re-ejecutó, no se re-leyó de memoria:
+
+- **Git, con vocabulario explícito** (`git status --short --branch`,
+  `git branch -vv`, `git rev-list --left-right --count HEAD...origin/master`,
+  `git fetch origin master` para confirmar que no cambió):
+  `branch: master` · `HEAD: 58e7951` · `origin/master: 692b3651...`
+  (sin cambios tras `fetch`) · **ahead: 41** · **behind: 0** · **diverged: no**
+  · working tree: limpio salvo `package-lock.json` (ajeno a este fix). "41
+  por delante, nada pusheado" del reporte anterior era la lectura correcta
+  de `ahead=41, behind=0` — no ambiguo una vez declarado explícitamente así,
+  pero se re-verifica en vez de darlo por sentado.
+- **Trabajo duplicado/paralelo**: búsqueda real en los 15 branches locales +
+  2 worktrees activos (`git ls-tree` de cada branch, más `git status` +
+  `grep` dentro del working tree de `.claude/worktrees/jolly-hellman-5ca1a1`,
+  el único worktree con una rama `claude/*` propia). **Ningún otro branch ni
+  worktree contiene la migración `2026_08_27_000002...` ni ninguna otra
+  ampliación del `CHECK` de `class_requests.status`.** El worktree paralelo
+  existente está en una tarea completamente distinta (Fase 3 del rediseño:
+  iconos de `AppLayout.vue`), sin tocar esta tabla. La respuesta de
+  `dismiss_task` ("ya iniciada por el usuario") no corresponde a ningún
+  código encontrado en el repositorio — no se pudo confirmar qué la generó;
+  se reporta como sin resolver, no como descartada.
+- **Paridad MySQL, con evidencia real, no solo relectura del archivo**:
+  consulta de solo lectura contra `DB_DATABASE=mova` en `127.0.0.1` (el
+  MySQL de desarrollo local real del usuario, NO el remoto de Railway de
+  F-26) — `SHOW COLUMNS FROM class_requests LIKE 'status'` devuelve
+  `enum('pending_parent_approval','open','accepted','rejected',
+  'teacher_rejected','completed')`. Confirma que el `ENUM` de MySQL ya
+  incluía `teacher_rejected` desde que corrió por primera vez
+  `2026_07_08_000001` — la paridad rota fue exclusivamente del lado SQLite,
+  nunca de MySQL. `php artisan migrate:status` contra esa misma base
+  confirma que **ambas migraciones nuevas de esta sesión
+  (`2026_08_27_000001` y `_000002`) siguen `Pending`** — no se ejecutó
+  `php artisan migrate` contra ella, solo lecturas.
+- **Fresh vs. incremental**: no aplica como duda separada para el propio
+  test suite — `RefreshDatabase` migra desde cero una base `:memory:` en
+  cada clase de test, así que las 480 pruebas (incluidas las 3 nuevas) ya
+  son, cada una, una migración *fresh* real, no incremental. Donde sí aplica
+  "incremental contra una base ya existente" es en el MySQL de desarrollo
+  real de arriba: ahí la migración sigue pendiente y es un no-op declarado
+  en código para ese motor — confirmado leyendo la guarda
+  `if (DB::getDriverName() === 'mysql') { return; }`, no ejecutado.
+- **Auditoría transversal de TODOS los estados de `class_requests`, no solo
+  `teacher_rejected`** (pedida explícitamente): se listaron las 6 migraciones
+  que tocan esta tabla y se confirmó que solo una (`2026_07_08_000001`)
+  altera el `ENUM`; se cruzaron los 6 valores canónicos contra cada escritura
+  real en código (`ClassRequestController` y `LessonController`) y contra
+  `utils/statusColors.js`. Resultado: `pending_parent_approval`, `open`,
+  `rejected`, `teacher_rejected` se escriben en `ClassRequestController`;
+  `accepted` se escribe en `LessonController.php:131` (la aceptación real
+  ocurre ahí, no en `ClassRequestController::accept()`, que solo renderiza
+  la página). **`completed` no tiene ningún punto de escritura en el código
+  actual** — está en el enum desde la migración original de 2024 pero
+  ningún controlador/listener/job lo asigna hoy (la finalización real se
+  rastrea en `classes.status`, tabla distinta). No es un bug — no rompe
+  nada — pero es un valor de enum muerto, mismo patrón que ya se documentó
+  y limpió para `classes.status`/`in_progress` en
+  `2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`.
+  Queda anotado, no se toca en esta pasada (bajo impacto, fuera del alcance
+  pedido).
 
 **Corregido** en `database/migrations/2026_08_27_000002_widen_class_requests_status_enum_for_sqlite.php`
 — sigue el mismo patrón de reconstrucción ya usado en
@@ -345,6 +414,44 @@ la suite de tests) está incompleto respecto a producción (MySQL).
   reales — no introspección dinámica del schema — precisamente porque este
   hallazgo demuestra que el schema de test no siempre coincide con la
   intención real del dominio.
+
+### Hallazgo nuevo, distinto — `classes.status` no tiene NINGÚN CHECK en SQLite (P2, sin decidir)
+
+Auditoría transversal (pedida explícitamente: "no solo el estado que acaba
+de explotar") sobre el otro dominio de estado con el mismo historial de
+migraciones-solo-MySQL: `classes.status`. Verificado en vivo, no asumido del
+comentario de la migración: fresh migrate contra `sqlite::memory:` y lectura
+directa de `sqlite_master.sql` →
+
+```
+status VARCHAR(255) DEFAULT 'scheduled' NOT NULL COLLATE "BINARY"
+```
+
+Sin `CHECK` alguno. Confirma lo que ya documentaban (correctamente, verificado
+ahora de primera mano) los comentarios de
+`2026_08_16_000002_add_needs_admin_review_to_classes_status_enum.php` y
+`2026_08_24_000002_remove_in_progress_from_classes_status_enum.php`: una
+migración anterior (`2026_07_17_000001_add_payment_states_to_classes_table`)
+ya había dejado la columna como string libre en SQLite, sin rama de
+reconstrucción de `CHECK` como la que este bug sí necesitó para
+`class_requests`.
+
+**Es el riesgo en la dirección opuesta al P0 de arriba**: `class_requests`
+fallaba por ser *demasiado estricto* en SQLite (rechazaba un valor válido).
+`classes.status` es *demasiado laxo* en SQLite (acepta cualquier string) —
+un typo en un valor de `classes.status` pasaría silenciosamente toda la
+suite de tests y solo fallaría contra MySQL real. No es el mismo bug, pero
+es la misma categoría de raíz (paridad de constraints SQLite/MySQL en
+columnas de estado), encontrada al aplicar el mismo tipo de auditoría al
+dominio hermano.
+
+**No se corrige en esta pasada** — reconstruir `classes.status` con un
+`CHECK` real en SQLite es un cambio de esquema no trivial (mismo patrón de
+`rebuildStatusColumn()`, pero sobre una tabla con más columnas y estados con
+efecto financiero real: `paid`, `pending_parent_confirmation`), y no fue lo
+que se pidió resolver hoy. Se documenta como hallazgo verificado y se deja
+para una decisión explícita de priorización — no se asume que "ya se
+arregló el mismo tipo de bug en la tabla vecina" lo cubre.
 
 ---
 
