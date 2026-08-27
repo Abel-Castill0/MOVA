@@ -21,9 +21,7 @@
         </Link>
         <button @click="sidebarOpen = false" aria-label="Cerrar menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-lg text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
+          <Icon name="close" :size="20" />
         </button>
       </div>
 
@@ -36,7 +34,7 @@
             isActive(item.href)
               ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
               : 'text-slate-600 hover:bg-slate-50 hover:text-brand-700']">
-          <span class="text-base">{{ item.icon }}</span>
+          <Icon :name="item.icon" :size="20" class="flex-shrink-0" />
           {{ item.label }}
         </Link>
       </nav>
@@ -70,9 +68,7 @@
         <!-- Hamburger (mobile only) -->
         <button @click="sidebarOpen = true" aria-label="Abrir menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-          </svg>
+          <Icon name="menu" :size="20" />
         </button>
         <h1 class="text-base font-bold text-slate-900 flex-1 truncate">{{ title }}</h1>
         <!-- Quién está logueado en mobile: en desktop ya se ve en el pie del
@@ -105,10 +101,10 @@
       <!-- Flash messages -->
       <div v-if="flash.success || flash.error" class="px-4 sm:px-6 lg:px-8 pt-4">
         <div v-if="flash.success" class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <span>✅</span> {{ flash.success }}
+          <Icon name="flash-success" :size="18" label="Éxito" class="flex-shrink-0" /> {{ flash.success }}
         </div>
         <div v-if="flash.error" class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-          <span>❌</span> {{ flash.error }}
+          <Icon name="flash-error" :size="18" label="Error" class="flex-shrink-0" /> {{ flash.error }}
         </div>
       </div>
 
@@ -116,7 +112,7 @@
       <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0 -translate-y-2" leave-active-class="transition duration-200" leave-to-class="opacity-0">
         <div v-if="realtimeToast" class="px-4 sm:px-6 lg:px-8 pt-4">
           <div class="bg-brand-50 border border-brand-200 text-brand-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-            <span>🔔</span> {{ realtimeToast }}
+            <Icon name="notification" :size="18" class="flex-shrink-0" /> {{ realtimeToast }}
           </div>
         </div>
       </Transition>
@@ -133,6 +129,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
 import MovaLogo from '@/Components/MovaLogo.vue'
+import Icon from '@/Components/Icon.vue'
 import { roleLabel } from '@/utils/roleLabels'
 
 defineProps({ title: String })
@@ -183,32 +180,34 @@ const navItems = computed(() => {
   const roles = user.value?.roles ?? []
   if (roles.includes('admin')) {
     return [
-      { href: '/dashboard',               icon: '📊', label: 'Dashboard' },
-      { href: '/admin/users',             icon: '👥', label: 'Usuarios' },
-      { href: '/admin/pending-teachers',  icon: '✅', label: 'Verificar profesores' },
-      { href: '/admin/requests',          icon: '📋', label: 'Solicitudes' },
-      { href: '/admin/lessons',           icon: '📅', label: 'Clases' },
-      { href: '/admin/recharges',         icon: '💳', label: 'Recargas' },
-      { href: '/admin/reviews',           icon: '⭐', label: 'Reseñas' },
-      { href: '/admin/ai-usage',          icon: '🤖', label: 'Uso de IA' },
+      { href: '/dashboard',               icon: 'dashboard',        label: 'Dashboard' },
+      { href: '/admin/users',             icon: 'users',            label: 'Usuarios' },
+      { href: '/admin/pending-teachers',  icon: 'verify-teachers',  label: 'Verificar profesores' },
+      { href: '/admin/requests',          icon: 'requests',         label: 'Solicitudes' },
+      { href: '/admin/lessons',           icon: 'classes',          label: 'Clases' },
+      { href: '/admin/recharges',         icon: 'credits',          label: 'Recargas' },
+      { href: '/admin/reviews',           icon: 'reviews',          label: 'Reseñas' },
+      { href: '/admin/ai-usage',          icon: 'ai-usage',         label: 'Uso de IA' },
     ]
   }
   if (roles.includes('teacher')) {
     return [
-      { href: '/dashboard',       icon: '🏠', label: 'Inicio' },
-      { href: '/teacher/requests',icon: '📋', label: 'Solicitudes' },
-      { href: '/teacher/classes', icon: '📅', label: 'Mis clases' },
-      { href: '/teacher/credits', icon: 'C', label: 'Mis créditos' },
-      { href: '/teacher/profile', icon: '👤', label: 'Mi perfil' },
+      { href: '/dashboard',        icon: 'home',     label: 'Inicio' },
+      { href: '/teacher/requests', icon: 'requests', label: 'Solicitudes' },
+      { href: '/teacher/classes',  icon: 'classes',  label: 'Mis clases' },
+      // Antes era el literal 'C' renderizado como texto (no un icono real) —
+      // hallazgo de la auditoría de diseño, corregido aquí.
+      { href: '/teacher/credits',  icon: 'credits',  label: 'Mis créditos' },
+      { href: '/teacher/profile', icon: 'profile',  label: 'Mi perfil' },
     ]
   }
   return [
-    { href: '/dashboard',      icon: '🏠', label: 'Inicio' },
-    { href: '/students',       icon: '🎒', label: 'Mis hijos' },
-    { href: '/my-reports',     icon: '📝', label: 'Mis reportes' },
-    { href: '/marketplace',    icon: '👩‍🏫', label: 'Profesores' },
-    { href: '/class-requests', icon: '📋', label: 'Solicitudes' },
-    { href: '/my-classes',     icon: '📅', label: 'Clases' },
+    { href: '/dashboard',      icon: 'home',         label: 'Inicio' },
+    { href: '/students',       icon: 'my-students',  label: 'Mis hijos' },
+    { href: '/my-reports',     icon: 'my-reports',   label: 'Mis reportes' },
+    { href: '/marketplace',    icon: 'teachers',     label: 'Profesores' },
+    { href: '/class-requests', icon: 'requests',     label: 'Solicitudes' },
+    { href: '/my-classes',     icon: 'classes',      label: 'Clases' },
   ]
 })
 </script>
