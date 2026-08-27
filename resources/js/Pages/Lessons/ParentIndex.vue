@@ -169,9 +169,14 @@ function confirmPayment(l) {
   paymentErrorId.value = null
   router.post(route('lessons.confirm-payment', l.id), {}, {
     preserveScroll: true,
-    onError: () => {
+    // Encontrado en auditoría: descartaba en silencio el mensaje real del
+    // servidor (bajo la clave `confirmPayment`, p. ej. "La clase aún no ha
+    // finalizado.") y mostraba siempre el mismo texto genérico — mismo
+    // hallazgo ya corregido en Lessons/TeacherIndex.vue/ParentIndex.vue
+    // para reschedule().
+    onError: (e) => {
       paymentErrorId.value = l.id
-      paymentError.value = 'No se pudo confirmar el pago. Intenta nuevamente.'
+      paymentError.value = e.confirmPayment || 'No se pudo confirmar el pago. Intenta nuevamente.'
     },
     onFinish: () => { payingId.value = null },
   })

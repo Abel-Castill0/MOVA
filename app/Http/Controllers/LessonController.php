@@ -303,12 +303,31 @@ class LessonController extends Controller
     {
         $user = auth()->user();
         $this->authorize('confirmPayment', $lesson);
-        abort_unless($lesson->status === 'scheduled', 422, 'Solo se puede confirmar el pago de clases programadas.');
+
+        // Mismo hallazgo/clasificación que accept()/reschedule(): ninguno de
+        // estos dos es una falla de autorización (`authorize()` ya corrió,
+        // aparte, arriba) — son conflictos de estado del recurso, recuperables
+        // (el padre puede entender por qué y esperar/reintentar). Antes eran
+        // abort_unless()/abort_if() crudos — mismo patrón de fallo silencioso
+        // ya corregido 4 veces antes en esta sesión. Este formulario no tiene
+        // NINGÚN campo (ParentIndex.vue lo dispara con un POST de body vacío,
+        // solo un botón), así que no hay ningún campo real al que atar el
+        // error — usa su propia clave de negocio, `confirmPayment`, mismo
+        // patrón que `accept`/`reschedule`.
+        if ($lesson->status !== 'scheduled') {
+            throw ValidationException::withMessages([
+                'confirmPayment' => 'Solo se puede confirmar el pago de clases programadas.',
+            ]);
+        }
         // Sin bypass por query param ni por entorno: en PHPUnit, now() ya respeta
         // Carbon::setTestNow(); para E2E (Playwright), usar el comando de consola
         // `mova:testing-backdate-lesson` para sembrar la clase ya vencida en BD,
         // en vez de debilitar esta validación en runtime.
-        abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
+        if (now()->lt($lesson->end_time)) {
+            throw ValidationException::withMessages([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
+        }
 
         $lesson = DB::transaction(function () use ($lesson, $user) {
             $lesson = Lesson::with(['teacherProfile.user'])
@@ -316,8 +335,16 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($lesson->status === 'scheduled', 422, 'Solo se puede confirmar el pago de clases programadas.');
-            abort_if(now()->lt($lesson->end_time), 422, 'La clase aún no ha finalizado.');
+            if ($lesson->status !== 'scheduled') {
+                throw ValidationException::withMessages([
+                    'confirmPayment' => 'Solo se puede confirmar el pago de clases programadas.',
+                ]);
+            }
+            if (now()->lt($lesson->end_time)) {
+                throw ValidationException::withMessages([
+                    'confirmPayment' => 'La clase aún no ha finalizado.',
+                ]);
+            }
 
             $lesson->update(['status' => 'paid']);
 

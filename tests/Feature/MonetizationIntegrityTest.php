@@ -355,9 +355,16 @@ class MonetizationIntegrityTest extends TestCase
         $lesson = Lesson::firstOrFail();
         $this->assertSame('2026-07-11 15:00:00', $lesson->start_time->utc()->format('Y-m-d H:i:s'));
 
+        // assertStatus(422) era la aserción original — mismo punto ciego que
+        // el resto de esta sección (ver docblock de
+        // test_cancelled_lesson_payment_cannot_be_confirmed), encontrado
+        // aquí también, no solo en las pruebas etiquetadas explícitamente
+        // como de confirmPayment().
         Carbon::setTestNow(Carbon::parse('2026-07-11 15:30:00 UTC'));
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
     }
 
     public function test_parent_cannot_approve_request_outside_pending_state(): void
@@ -382,12 +389,24 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('accepted', $request->fresh()->status);
     }
 
+    /**
+     * assertStatus(422) era la aserción original en las 5 pruebas de
+     * confirmPayment() de esta sección — mismo punto ciego ya encontrado 4
+     * veces antes esta sesión: un abort_unless()/abort_if() crudo también
+     * produce 422, pero como HttpException plano, no como ValidationException
+     * real, así que nunca demostraron que el padre viera el mensaje.
+     * Corregidas a assertSessionHasErrors() con el texto exacto tras
+     * convertir esos abort a ValidationException reales bajo la clave
+     * `confirmPayment` — verificado con revert-confirm-restore.
+     */
     public function test_cancelled_lesson_payment_cannot_be_confirmed(): void
     {
         [, , $lesson, $parent] = $this->lesson('cancelled', now()->subHours(2));
 
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'Solo se puede confirmar el pago de clases programadas.',
+            ]);
 
         $this->assertDatabaseCount('credit_transactions', 1);
     }
@@ -407,7 +426,9 @@ class MonetizationIntegrityTest extends TestCase
         [, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
 
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
 
         $this->assertSame('scheduled', $lesson->fresh()->status);
         $this->assertSame(Lesson::creditCostForMinutes(60), $profile->fresh()->credits_reserved);
@@ -421,7 +442,9 @@ class MonetizationIntegrityTest extends TestCase
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
             ->assertRedirect();
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'Solo se puede confirmar el pago de clases programadas.',
+            ]);
 
         $this->assertSame('paid', $lesson->fresh()->status);
         $this->assertSame(1, ClassEvent::where('event_type', 'payment_confirmed')->count());
@@ -436,11 +459,15 @@ class MonetizationIntegrityTest extends TestCase
         // confirmPayment() has no time-check bypass of any kind, in any environment.
         $this->actingAs($parent)
             ->post(route('lessons.confirm-payment', $lesson).'?bypass_time_check=1')
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
 
         $this->actingAs($parent)
             ->post(route('lessons.confirm-payment', $lesson), ['bypass_time_check' => true])
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
 
         $this->assertSame('scheduled', $lesson->fresh()->status);
         $this->assertSame(Lesson::creditCostForMinutes(60), $profile->fresh()->credits_reserved);
@@ -452,7 +479,9 @@ class MonetizationIntegrityTest extends TestCase
 
         // Before backdating: the real-time gate still applies.
         $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'confirmPayment' => 'La clase aún no ha finalizado.',
+            ]);
 
         $this->artisan('mova:testing-backdate-lesson', ['lesson_id' => $lesson->id])
             ->assertExitCode(0);
