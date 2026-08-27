@@ -50,6 +50,20 @@ class TeacherReferralRequestTest extends TestCase
     // Verifica también que la búsqueda es insensible a minúsculas/espacios,
     // ya que el input del frontend fuerza mayúsculas pero el backend nunca
     // debe confiar en eso.
+    /**
+     * Encontrado al preparar el rediseño de Create.vue, no asumido: el
+     * `abort_unless(..., 422, $msg)` original nunca era una respuesta
+     * Inertia utilizable — Laravel devolvía su página HTML de error
+     * genérica y `session('errors')` quedaba `null` (verificado en vivo
+     * con una request real antes de corregir). El mensaje en español se
+     * perdía por completo; `form.errors.teacher_referral_code` en
+     * Create.vue era código muerto. Ahora es un `ValidationException`
+     * real, que Inertia sí traduce a `form.errors` vía el prop `errors`
+     * compartido desde sesión tras un redirect-back (el mecanismo real
+     * que `useForm().post()` usa en un `router.post()` normal, verificado
+     * leyendo el middleware base de Inertia — no un 422+JSON top-level,
+     * que es un mecanismo distinto que este flujo no usa).
+     */
     public function test_a_request_with_an_invalid_code_fails_with_a_clear_message(): void
     {
         [$parent, $student] = $this->parentWithStudent();
@@ -60,7 +74,7 @@ class TeacherReferralRequestTest extends TestCase
             'subject_id' => $subject->id,
             'teacher_referral_code' => 'zzzzzz',
             'help_needed' => 'Necesita reforzar el tema.',
-        ])->assertStatus(422);
+        ])->assertRedirect()->assertSessionHasErrors(['teacher_referral_code' => 'Código de profesor no encontrado.']);
 
         $this->assertDatabaseCount('class_requests', 0);
     }

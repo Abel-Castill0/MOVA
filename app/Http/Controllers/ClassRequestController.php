@@ -12,6 +12,7 @@ use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ClassRequestController extends Controller
@@ -119,6 +120,22 @@ class ClassRequestController extends Controller
 
         // Resolución real del código — nunca confía en lo que devolvió
         // lookupTeacherByCode() al frontend, esto es la garantía.
+        //
+        // Encontrado al preparar el rediseño de Create.vue, verificado en
+        // vivo antes de asumir nada: este `abort_unless(..., 422, $msg)`
+        // (y los dos de abajo) NUNCA llegaban al frontend como un error de
+        // formulario. `abort()` lanza una HttpException genérica — sin
+        // `ValidationException`, Inertia no la reconoce como error de
+        // formulario y Laravel devuelve su página de error HTML genérica
+        // ("Oops! An Error Occurred"), no una respuesta Inertia. Confirmado
+        // con una request real: `session('errors')` quedaba `null`, el
+        // mensaje en español se perdía por completo — `form.errors.
+        // teacher_referral_code` en Create.vue era código muerto. Mismo
+        // bug en los tres casos, mismo archivo, mismo formulario que se
+        // está rediseñando — se corrige aquí. `ValidationException::
+        // withMessages()` es el mecanismo real que Inertia sí traduce a
+        // `form.errors` — ya usado correctamente para `start_time` en
+        // `LessonController::store()`.
         $teacherProfileId = null;
         $rawCode = trim((string) ($data['teacher_referral_code'] ?? ''));
         if ($rawCode !== '') {
@@ -127,7 +144,11 @@ class ClassRequestController extends Controller
                 ->where('is_verified', true)
                 ->first();
 
-            abort_unless($teacherProfile, 422, 'Código de profesor no encontrado.');
+            if (! $teacherProfile) {
+                throw ValidationException::withMessages([
+                    'teacher_referral_code' => 'Código de profesor no encontrado.',
+                ]);
+            }
             $teacherProfileId = $teacherProfile->id;
         }
 
@@ -143,18 +164,16 @@ class ClassRequestController extends Controller
             $offer = ClassOffer::with('teacherProfile')->findOrFail($data['class_offer_id']);
             $offerTeacherProfile = $offer->teacherProfile;
 
-            abort_unless(
-                $offer->is_active && $offerTeacherProfile?->is_verified,
-                422,
-                'Esta oferta ya no está disponible.'
-            );
+            if (! ($offer->is_active && $offerTeacherProfile?->is_verified)) {
+                throw ValidationException::withMessages([
+                    'class_offer_id' => 'Esta oferta ya no está disponible.',
+                ]);
+            }
 
-            if ($data['is_mentorship']) {
-                abort_unless(
-                    $offerTeacherProfile->hasAvailableMentorshipSlots(),
-                    422,
-                    'Este profesor tiene la agenda llena para acompañamiento continuo.'
-                );
+            if ($data['is_mentorship'] && ! $offerTeacherProfile->hasAvailableMentorshipSlots()) {
+                throw ValidationException::withMessages([
+                    'is_mentorship' => 'Este profesor tiene la agenda llena para acompañamiento continuo.',
+                ]);
             }
         }
 

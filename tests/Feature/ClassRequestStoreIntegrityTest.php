@@ -54,12 +54,23 @@ class ClassRequestStoreIntegrityTest extends TestCase
             'is_active' => false,
         ]);
 
+        // Encontrado al preparar el rediseño de Create.vue: el
+        // abort_unless() original no era una respuesta Inertia utilizable
+        // — Laravel devolvía su página de error HTML genérica y
+        // `session('errors')` quedaba `null` (verificado en vivo antes de
+        // corregir). Ahora es un ValidationException real. Verificado
+        // también el mecanismo: Inertia NO usa un 422+JSON top-level para
+        // errores de formulario en un router.post() normal — el propio
+        // middleware base de Inertia comparte `errors` desde la SESIÓN
+        // como prop de página tras un redirect-back (`assertSessionHasErrors`
+        // es la aserción correcta; probar 422+JSON aquí habría sido
+        // probar un mecanismo que Inertia no usa en este flujo).
         $this->actingAs($parent)->post(route('class-requests.store'), [
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
             'help_needed' => 'Necesita ayuda.',
-        ])->assertStatus(422);
+        ])->assertRedirect()->assertSessionHasErrors(['class_offer_id' => 'Esta oferta ya no está disponible.']);
 
         $this->assertSame(0, ClassRequest::count(), 'No debe crearse ninguna solicitud contra una oferta inactiva.');
     }
@@ -83,7 +94,36 @@ class ClassRequestStoreIntegrityTest extends TestCase
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
             'help_needed' => 'Necesita ayuda.',
-        ])->assertStatus(422);
+        ])->assertRedirect()->assertSessionHasErrors(['class_offer_id' => 'Esta oferta ya no está disponible.']);
+
+        $this->assertSame(0, ClassRequest::count());
+    }
+
+    /**
+     * Camino de mentoría en la CREACIÓN (distinto del ya cubierto en
+     * MentorshipRequestTest, que prueba la ACEPTACIÓN vía
+     * LessonController::store()) — sin test hasta ahora, encontrado al
+     * corregir el mismo abort_unless() a ValidationException.
+     */
+    public function test_a_mentorship_request_cannot_be_bound_to_an_offer_with_no_available_slots(): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        [, $profile, $subject] = $this->verifiedTeacherWithSubject();
+        $profile->update(['mentorship_slots_total' => 1, 'mentorship_slots_taken' => 1]);
+        $offer = ClassOffer::create([
+            'teacher_profile_id' => $profile->id,
+            'subject_id' => $subject->id,
+            'title' => 'Oferta de mentoría sin cupo',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($parent)->post(route('class-requests.store'), [
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'class_offer_id' => $offer->id,
+            'is_mentorship' => true,
+            'help_needed' => 'Necesita acompañamiento continuo.',
+        ])->assertRedirect()->assertSessionHasErrors(['is_mentorship' => 'Este profesor tiene la agenda llena para acompañamiento continuo.']);
 
         $this->assertSame(0, ClassRequest::count());
     }
