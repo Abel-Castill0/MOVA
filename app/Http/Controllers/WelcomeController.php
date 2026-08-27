@@ -17,13 +17,25 @@ class WelcomeController extends Controller
         return Inertia::render('Welcome', [
             'subjects' => Subject::orderBy('name')->get(['id', 'name', 'level']),
 
+            // P0 encontrado y corregido junto con el mismo bug en
+            // MarketplaceController::index() (ver docs/MOVA_DESIGN_AUDIT_FINAL.md):
+            // el allow-list de columnas iba como argumento de get() — igual
+            // que paginate(), get($columns) tampoco es determinista cuando
+            // el query ya tiene withCount()/withAvg() encadenados. Verificado
+            // en vivo con json_encode(): la home pública devolvía yape_number,
+            // plin_number, referral_code, rejection_reason y reviewed_by de
+            // cada profesor destacado, en la ruta de MAYOR tráfico de todo
+            // MOVA. `user_id` se mantiene en el ->select() (Eloquent lo
+            // necesita para resolver el `belongsTo` de `user`), pero nunca
+            // llega al frontend — está en TeacherProfile::$hidden.
             'featuredTeachers' => TeacherProfile::where('is_verified', true)
+                ->select(['id', 'user_id', 'bio', 'hourly_rate'])
                 ->with(['user:id,name', 'subjects:id,name'])
                 ->withCount('classes')
                 ->withAvg('visibleReviews as avg_rating', 'rating')
                 ->orderByDesc('classes_count')
                 ->limit(6)
-                ->get(['id', 'user_id', 'bio', 'hourly_rate']),
+                ->get(),
 
             'stats' => [
                 'teachers'  => TeacherProfile::where('is_verified', true)->count(),
