@@ -332,10 +332,10 @@ negocio o backend.
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Components/AvailabilityPicker.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/AvailabilityPicker.vue` | 0 | 0 | **NO** — solo se verificó con grep dirigido que no tiene emoji/indigo (no cuenta como `AUDITED`: no se leyó el archivo completo todavía, así que no se puede afirmar que no tenga otros problemas). | pendiente | pendiente | pendiente | pendiente |
 | `Components/BaseButton.vue` | 0 | 0 | **COMPLETA** (Fase 2, ver commit `1b58bc2`) | ✅ (utilidades responsive por diseño) | ✅ (tokens) | ✅ (44px, aria-busy, focus-visible) | ✅ (verificado en Login.vue) |
 | `Components/Checkbox.vue` | 0 | 1 (`text-brand-600` ya reemplazó el foco; el string "indigo" restante es un comentario histórico, no una clase) | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
-| `Components/CookieConsent.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/CookieConsent.vue` | 0 | 0 | **NO** — mismo caso que `AvailabilityPicker.vue`: solo grep dirigido, no lectura completa. | pendiente | pendiente | pendiente | pendiente |
 | `Components/DangerButton.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | ✅ | ✅ |
 | `Components/EmptyState.vue` | 0 | 0 | **COMPLETA** (nuevo, Fase 2) — sin consumidores todavía | pendiente | ✅ (tokens) | pendiente | pendiente |
 | `Components/Icon.vue` | 0 | 0 | **COMPLETA** (nuevo, Fase 3) | ✅ | ✅ (currentColor) | ✅ (aria-hidden/aria-label explícito) | ✅ |
