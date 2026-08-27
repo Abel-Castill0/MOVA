@@ -73,7 +73,18 @@ class FinancialConcurrencyTest extends TestCase
 
         $this->actingAs($teacherA)->post(route('lessons.store'), $payload);
         // El segundo profesor llega tarde: la solicitud ya no está 'open'.
-        $this->actingAs($teacherB)->post(route('lessons.store'), $payload)->assertForbidden();
+        // assertForbidden() (403) fue la aserción original — sobrevivía
+        // igual con un abort_if() crudo que con un ValidationException real,
+        // así que nunca demostraba que el mensaje llegara al profesor que
+        // pierde la carrera (el mismo punto ciego que ya causó dos bugs
+        // reales antes en esta sesión: Register.vue y RegisteredUserController).
+        // Corregido a assertSessionHasErrors() con el mensaje exacto, que solo
+        // pasa si de verdad es una ValidationException llegando por
+        // redirect-back — confirmado con revert-confirm-restore antes de
+        // fijar esta aserción.
+        $this->actingAs($teacherB)->post(route('lessons.store'), $payload)
+            ->assertRedirect()
+            ->assertSessionHasErrors(['class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.']);
 
         $this->assertDatabaseCount('classes', 1);
         $this->assertSame(9, $profileA->fresh()->credits_available);

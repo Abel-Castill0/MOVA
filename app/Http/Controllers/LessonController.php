@@ -32,8 +32,27 @@ class LessonController extends Controller
         $classRequest = ClassRequest::with(['student', 'subject'])->findOrFail($data['class_request_id']);
         $profile = auth()->user()->teacherProfile;
 
-        abort_unless($profile, 403, 'No tienes perfil de profesor.');
-        abort_if($classRequest->status !== 'open', 403, 'Esta solicitud ya no está disponible.');
+        // Los 5 abort()/abort_if()/abort_unless() de este método (aquí y
+        // dentro de la transacción) eran el mismo patrón ya encontrado y
+        // corregido dos veces antes en esta sesión (ClassRequestController,
+        // RegisteredUserController): abort() lanza un HttpException plano,
+        // Laravel muestra su página de error genérica, y session('errors')
+        // queda null — Inertia nunca traduce esto a form.errors. Aquí el
+        // caso es más grave que "UX pobre": el chequeo de `status !== 'open'`
+        // (abajo y de nuevo bajo lock dentro de la transacción) ES el
+        // mecanismo real de protección contra doble-aceptación — el profesor
+        // que pierde la carrera necesita ver POR QUÉ, no una página de error
+        // genérica indistinguible de un fallo real del servidor.
+        if (! $profile) {
+            throw ValidationException::withMessages([
+                'class_request_id' => 'No tienes perfil de profesor.',
+            ]);
+        }
+        if ($classRequest->status !== 'open') {
+            throw ValidationException::withMessages([
+                'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+            ]);
+        }
         $this->authorize('accept', $classRequest);
 
         if ($this->hasScheduleOverlap($profile->id, $data['start_time'], $data['duration_minutes'])) {
@@ -46,7 +65,14 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_if($classRequest->status !== 'open', 403, 'Esta solicitud ya no está disponible.');
+            if ($classRequest->status !== 'open') {
+                // Re-chequeo bajo lock: si otra request ganó la carrera entre
+                // el chequeo de arriba y este `lockForUpdate()`, esta es la
+                // que realmente importa — el de arriba es solo fail-fast.
+                throw ValidationException::withMessages([
+                    'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+                ]);
+            }
 
             if ($this->hasScheduleOverlap(
                 $profile->id,
@@ -65,19 +91,21 @@ class LessonController extends Controller
 
             $creditsNeeded = Lesson::creditCostForMinutes($data['duration_minutes']);
 
-            abort_if(
-                $teacherProfile->credits_available < $creditsNeeded,
-                422,
-                'Créditos insuficientes. Por favor, recargue su saldo para aceptar esta clase.'
-            );
+            if ($teacherProfile->credits_available < $creditsNeeded) {
+                // Se ata a `duration_minutes`, no a un campo genérico: es el
+                // único valor que el profesor puede cambiar en este mismo
+                // formulario para intentar de nuevo (una duración menor
+                // cuesta menos créditos), a diferencia de `class_offer_id`,
+                // que aquí ni siquiera es un campo del formulario.
+                throw ValidationException::withMessages([
+                    'duration_minutes' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
+                ]);
+            }
 
-            if ($classRequest->is_mentorship) {
-                abort_unless(
-                    $teacherProfile->hasAvailableMentorshipSlots(),
-                    422,
-                    'Este profesor tiene la agenda llena para acompañamiento continuo.'
-                );
-
+            if ($classRequest->is_mentorship && ! $teacherProfile->hasAvailableMentorshipSlots()) {
+                throw ValidationException::withMessages([
+                    'class_request_id' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
+                ]);
             }
 
             // BUG-4 (docs/MOVA_AUDIT_PHASE0.md, sección Q): `specific_rate` se

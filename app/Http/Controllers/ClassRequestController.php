@@ -328,8 +328,23 @@ class ClassRequestController extends Controller
 
         $profile = auth()->user()->teacherProfile;
 
+        // Proyección explícita: `Accept.vue` solo lee subject.name y
+        // student.first_name/last_name (verificado leyendo el archivo, no
+        // supuesto). `Student` tiene `birth_date` y `school` — datos reales
+        // de un menor que este profesor todavía ni siquiera aceptó — sin
+        // ninguna columna elegida aquí, `->load(['student','subject'])`
+        // serializaba la fila completa al cliente igual que el hallazgo ya
+        // corregido en ClassRequestController::create() (?offer_id=), mismo
+        // patrón de proyección implícita, encontrado ahora en un endpoint
+        // distinto. `parent_user_id` se mantiene (es solo un id numérico,
+        // sin nombre/contacto, y no carga la relación `parent`).
+        $classRequest->load([
+            'student:id,parent_user_id,first_name,last_name,grade_level',
+            'subject:id,name',
+        ]);
+
         return Inertia::render('ClassRequests/Accept', [
-            'classRequest' => $classRequest->load(['student', 'subject']),
+            'classRequest' => $classRequest,
             'creditsAvailable' => $profile->credits_available ?? 0,
             'hourlyRate' => (float) ($profile->hourly_rate ?? 0),
         ]);

@@ -22,6 +22,17 @@
         </div>
       </div>
 
+      <!-- Error general: la solicitud ya no está disponible (otro profesor
+           la aceptó primero), agenda de mentoría llena, o cualquier otro
+           fallo que no pertenece a un campo concreto del formulario. Antes
+           de esto, estos errores llegaban como abort_if()/abort_unless()
+           crudos — Laravel mostraba su página de error genérica y este
+           mensaje jamás llegaba a form.errors. -->
+      <div v-if="form.errors.class_request_id" role="alert"
+        class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-sm text-red-700">
+        {{ form.errors.class_request_id }}
+      </div>
+
       <!-- Form -->
       <form @submit.prevent="submit" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
@@ -53,6 +64,14 @@
           </div>
           <p v-if="!canAffordSelected" class="text-xs text-red-500 mt-2">
             No tienes créditos suficientes para esta duración ({{ selectedCredits }} necesarios, {{ creditsAvailable }} disponibles).
+          </p>
+          <!-- Distinto del mensaje de arriba: ese usa `creditsAvailable`, un
+               snapshot cargado al abrir la página — puede quedar desactualizado
+               si el profesor aceptó otra clase en otra pestaña mientras esta
+               seguía abierta. Este es el veredicto real del servidor, dentro
+               de la misma transacción que hace el chequeo definitivo. -->
+          <p v-if="form.errors.duration_minutes" role="alert" class="text-xs text-red-500 mt-2">
+            {{ form.errors.duration_minutes }}
           </p>
         </div>
 

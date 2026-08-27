@@ -236,6 +236,16 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('credit_transactions', 0);
     }
 
+    /**
+     * assertStatus(403) era la aserción original — un abort_if() crudo
+     * también produce 403, pero como HttpException plano, no como
+     * ValidationException real, así que esta prueba nunca demostró que el
+     * propio profesor viera el mensaje al intentar aceptar su propia
+     * solicitud dos veces (mismo hallazgo de sesión ya corregido en
+     * Register.vue/RegisteredUserController, encontrado de nuevo aquí en
+     * LessonController::store()). Corregido a assertSessionHasErrors() con
+     * el texto exacto — verificado con revert-confirm-restore.
+     */
     public function test_accepted_request_cannot_be_accepted_again(): void
     {
         [$teacher, $profile, $subject] = $this->teacher(5);
@@ -250,7 +260,9 @@ class MonetizationIntegrityTest extends TestCase
         $this->actingAs($teacher)->post(route('lessons.store'), $payload)
             ->assertRedirect(route('teacher.lessons'));
         $this->actingAs($teacher)->post(route('lessons.store'), $payload)
-            ->assertStatus(403);
+            ->assertRedirect()->assertSessionHasErrors([
+                'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+            ]);
 
         $lesson = Lesson::firstOrFail();
         $this->assertSame('accepted', $request->fresh()->status);
@@ -695,6 +707,17 @@ class MonetizationIntegrityTest extends TestCase
         ])->assertSessionHasErrors('email');
     }
 
+    /**
+     * assertStatus(422) era la aserción original — un abort_if() crudo
+     * también produce 422, pero como HttpException plano, no como
+     * ValidationException real, así que Inertia nunca lo traducía a
+     * form.errors y esta prueba nunca demostró que el profesor viera el
+     * mensaje (mismo hallazgo de sesión que ya corrigió Register.vue y
+     * RegisteredUserController, encontrado aquí de nuevo, en
+     * LessonController::store()). Corregido a assertSessionHasErrors() con
+     * el texto exacto tras convertir ese abort_if() a un ValidationException
+     * real — verificado con revert-confirm-restore.
+     */
     public function test_insufficient_credits_never_create_negative_balance(): void
     {
         [$teacher, $profile, $subject] = $this->teacher(0);
@@ -704,7 +727,9 @@ class MonetizationIntegrityTest extends TestCase
             'class_request_id' => $request->id,
             'start_time' => now()->addDay()->toDateTimeString(),
             'duration_minutes' => 60,
-        ])->assertStatus(422);
+        ])->assertRedirect()->assertSessionHasErrors([
+            'duration_minutes' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
+        ]);
 
         $profile->refresh();
         $this->assertSame(0, $profile->credits_available);

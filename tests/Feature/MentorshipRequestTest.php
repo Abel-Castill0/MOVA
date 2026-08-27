@@ -50,6 +50,17 @@ class MentorshipRequestTest extends TestCase
         $this->assertNull($request->class_offer_id);
     }
 
+    /**
+     * assertStatus(422) era la aserción original — sobrevivía igual con el
+     * abort_unless() crudo que este mismo hallazgo de sesión acaba de
+     * corregir a ValidationException real (LessonController::store()): un
+     * abort() también produce 422 si se le pasa ese código, pero como
+     * HttpException plano, no como error de validación real — Inertia nunca
+     * lo traduce a form.errors, así que esta prueba nunca demostró que el
+     * profesor viera el mensaje. Corregido a assertSessionHasErrors() con el
+     * texto exacto (confirmado con revert-confirm-restore antes de fijar
+     * esta aserción, junto con el resto del hallazgo en LessonController).
+     */
     public function test_teacher_without_available_slots_cannot_accept_a_mentorship_request(): void
     {
         [$teacher, $profile, $subject] = $this->teacherWithSubject(5);
@@ -60,7 +71,9 @@ class MentorshipRequestTest extends TestCase
             'class_request_id' => $request->id,
             'start_time' => now()->addDay()->toDateTimeString(),
             'duration_minutes' => 60,
-        ])->assertStatus(422);
+        ])->assertRedirect()->assertSessionHasErrors([
+            'class_request_id' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
+        ]);
 
         $this->assertSame(0, Lesson::count());
         // La solicitud sigue abierta — el rechazo no la consume.
