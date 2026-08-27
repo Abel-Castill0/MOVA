@@ -83,7 +83,13 @@ return [
     |
     */
 
-    'locale' => 'en',
+    // Hardcodeado a 'en' hasta ahora, sin leer de env - MOVA es una app
+    // enteramente en español (Perú), pero al no haber ningún lang/ ni
+    // locale configurado, todo mensaje sin :messages custom (email
+    // duplicado en registro, "These credentials do not match our
+    // records." al fallar login, etc.) salía en inglés. Confirmado en
+    // vivo antes de este cambio, no asumido.
+    'locale' => env('APP_LOCALE', 'es'),
 
     /*
     |--------------------------------------------------------------------------
@@ -96,7 +102,7 @@ return [
     |
     */
 
-    'fallback_locale' => 'en',
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     /*
     |--------------------------------------------------------------------------
