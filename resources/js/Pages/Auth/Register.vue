@@ -248,7 +248,38 @@ function back() {
   if (step.value > 1) step.value -= 1
 }
 
+// Bug real encontrado en vivo (no en el diff, en el navegador): un envío
+// final que falla por una validación que solo el servidor puede conocer
+// (el caso real y alcanzable: email ya registrado — `unique:users`, nada
+// que el cliente pueda verificar de antemano sin una consulta live-lookup
+// que no existe aquí) llenaba `form.errors.email`, pero el wizard se queda
+// en `totalSteps` porque nada mueve `step` de vuelta al paso que en
+// realidad tiene el problema — la sección con el email (paso 3) ni
+// siquiera está montada en el DOM en ese momento (`v-if="step === 3"`).
+// El usuario veía un botón "Crear cuenta" habilitado que no hacía nada al
+// hacer clic, sin ningún mensaje visible en ningún lado — confirmado
+// reproduciendo con un correo ya sembrado (ana@mova.test) y leyendo
+// form.errors.email manualmente tras retroceder al paso 3.
+function stepForField(field) {
+  if (field === 'role') return 1
+  if (field === 'name') return 2
+  if (field === 'email' || field === 'phone') return 3
+  if (field === 'teacher_subject_names' || field.startsWith('teacher_subject_names.')) return 4
+  if (field === 'password' || field === 'password_confirmation') return passwordStep.value
+  if (field === 'accepted_terms') return totalSteps.value
+  return step.value // campo desconocido: no mover al usuario a ciegas
+}
+
 function submit() {
-  form.post(route('register'))
+  form.post(route('register'), {
+    onError: (errors) => {
+      const fields = Object.keys(errors)
+      if (fields.length === 0) return
+      // Si hay errores en más de un paso, se va al más temprano — tiene
+      // más sentido arreglar los problemas en el orden en que aparecen en
+      // el flujo que saltar a uno arbitrario.
+      step.value = Math.min(...fields.map(stepForField))
+    },
+  })
 }
 </script>
