@@ -24,18 +24,33 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Encontrado al verificar que `reviewedBy:id,name` (ya acotado) no
+     * tuviera un hermano sin acotar en el mismo método: la relación `user`
+     * de arriba se cargaba SIN restricción de columnas — verificado con
+     * json_encode() que eso enviaba el `User` completo a un admin,
+     * incluyendo `phone_verification_code_hash`, `suspension_reason`,
+     * `whatsapp_opt_in_at`/`opt_out_at`, etc. No es la misma clase P0 que
+     * `/marketplace`/`/` (esta ruta exige `role:admin`, verificado en
+     * routes/web.php — no es una superficie pública), pero es el mismo
+     * patrón de raíz (relación cargada sin proyección) y el mismo
+     * principio de exposición mínima aplica igual para un admin.
+     * `Admin/PendingTeachers.vue` solo lee `name`/`email` de esta relación.
+     */
     public function pendingTeachers()
     {
         return Inertia::render('Admin/PendingTeachers', [
             'pendingTeachers' => TeacherProfile::where('is_verified', false)
                 ->whereNull('rejected_at')
-                ->with(['user', 'subjects'])
-                ->get(),
+                ->with(['user:id,name,email', 'subjects:id,name'])
+                ->get()
+                ->each(fn (TeacherProfile $teacher) => $teacher->subjects->each->makeHidden('pivot')),
             'rejectedTeachers' => TeacherProfile::where('is_verified', false)
                 ->whereNotNull('rejected_at')
-                ->with(['user', 'subjects', 'reviewedBy:id,name'])
+                ->with(['user:id,name,email', 'subjects:id,name', 'reviewedBy:id,name'])
                 ->latest('rejected_at')
-                ->get(),
+                ->get()
+                ->each(fn (TeacherProfile $teacher) => $teacher->subjects->each->makeHidden('pivot')),
         ]);
     }
 
