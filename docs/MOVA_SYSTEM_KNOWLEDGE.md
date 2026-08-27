@@ -641,6 +641,36 @@ mantener en cualquier flujo nuevo que toque dinero, créditos o
 autorización: el frontend construye la solicitud de intención, nunca el
 resultado.
 
+### Regla arquitectónica: autorización para actuar ≠ autorización para recibir el modelo completo
+
+Confirmada con evidencia real durante la auditoría de
+`ClassRequests/Accept.vue` (2026-08-27): `ClassRequestController::accept()`
+serializaba `Student` completo — incluyendo `birth_date` y `school`, datos
+reales de un menor — a un profesor cuya única autorización verificada era
+"elegible para aceptar esta solicitud" (`ClassRequestPolicy::accept()`).
+Tener permiso para ejecutar una acción sobre un recurso NO concede
+automáticamente permiso para recibir todos los campos del modelo
+relacionado — son dos preguntas distintas que este código colapsaba en
+una sola.
+
+```text
+¿Puede el profesor aceptar esta solicitud?     → Policy::accept()
+¿Qué datos del alumno necesita para hacerlo?   → proyección explícita,
+                                                   pregunta aparte
+```
+
+La misma auditoría encontró una segunda cara del mismo principio, esta
+vez sobre el *ciclo de vida* del recurso, no solo sus columnas: la
+autorización de elegibilidad no caduca cuando el recurso deja de ser
+procesable (una solicitud ya `accepted` seguía pasando la Policy), así
+que el profesor seguía recibiendo el payload del alumno para una
+solicitud sobre la que ya no tenía ninguna acción legítima. Regla a
+mantener en cualquier endpoint nuevo que sirva un modelo relacionado con
+datos de un menor o financieros: la autorización de la ACCIÓN, la
+proyección de los DATOS, y la vigencia del ESTADO del recurso son tres
+preguntas separadas — ninguna respuesta afirmativa a una responde las
+otras dos.
+
 ---
 
 ## 29. Deuda técnica (separada estrictamente de bugs/vulnerabilidades)

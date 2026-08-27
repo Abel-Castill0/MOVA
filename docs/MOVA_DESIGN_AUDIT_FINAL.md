@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.18
-generated_at:     2026-08-27T22:19:06Z
-repository_head:  0fdc1c2   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (75 commits detrás de local, sin push)
+audit_revision:   2026-08-27.19
+generated_at:     2026-08-27T22:34:44Z
+repository_head:  9a58951   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (77 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: ClassRequests/Accept.vue audit closure)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: Final Integrity Gate closure para Accept.vue)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1084,22 +1084,24 @@ Verificado leyendo el archivo completo, no asumido:
 |---|---|---|
 | Autorización del profesor | ✅ ya sólida, sin tocar | `$this->authorize('accept', $classRequest)` → `ClassRequestPolicy::accept()`: exige `is_verified` (hallazgo crítico ya corregido en 2026-08-22, con test), respeta el código de referido exclusivo si existe, y si no, matchea por oferta o por materia — nunca confía en `class_offer_id`/`subject_id` del cliente porque ninguno de los dos viene del cliente en este endpoint (son del modelo ya cargado) |
 | Proyección de datos | 🔧 **corregido en esta pasada** | `$classRequest->load(['student', 'subject'])` sin restricción de columnas serializaba `Student` completo — incluye `birth_date` y `school`, datos reales de un menor, a un profesor que ni siquiera aceptó todavía la solicitud. Ninguno de los dos se renderiza en `Accept.vue` (confirmado leyendo el `<template>`: solo `subject.name`, `student.first_name`/`last_name`, `help_needed`). Restringido a `student:id,parent_user_id,first_name,last_name,grade_level` y `subject:id,name` |
-| Estado de la solicitud antes de renderizar | ⚠️ **gap real, menor, no corregido aquí** | El GET no comprueba `status === 'open'` — un profesor puede abrir el formulario completo de una solicitud ya aceptada por otro, y solo se entera al enviar (el POST sí lo bloquea correctamente). No es un problema de seguridad (nada se filtra ni se ejecuta de más), es UX: llenar un formulario entero para recién ahí ver el error. Se documenta para la fase de UX, no se resuelve ahora — cambiar el GET también implica decidir qué mostrar en su lugar (fuera del alcance "solo backend" de esta pasada) |
+| Estado de la solicitud antes de renderizar | 🔧 **corregido en el Final Integrity Gate** | Reclasificado en revisión de "solo UX" a **lifecycle authorization/data exposure**: la Policy comprueba elegibilidad pero nunca `status`, así que un profesor podía cargar el GET completo para una solicitud ya `accepted` — el POST ya bloqueaba re-aceptar, pero seguía sirviendo nombre/apellido/grado del alumno a un profesor que ya no tiene ninguna acción legítima sobre esa solicitud. Confirmado en vivo ANTES del fix (200 con los datos del alumno intactos) y con test (`test_accept_get_redirects_away_without_exposing_student_data_once_no_longer_open`, revert-confirm-restore real). Ahora: `status !== 'open'` → `redirect()->route('teacher.requests')->with('error', …)` antes de tocar `student`/`subject` en absoluto |
 
 ### POST/accept — `LessonController::store()` (`Accept.vue` envía a `route('lessons.store')`, no a un endpoint de `ClassRequestController`)
 
-**Hallazgo principal, corregido**: 5 instancias de `abort()`/`abort_if()`/`abort_unless()` — el mismo patrón de fallo silencioso ya corregido dos veces antes en esta sesión (`ClassRequestController`, `RegisteredUserController`), encontrado aquí por tercera vez. La diferencia que eleva la severidad: el chequeo `status !== 'open'` (una vez antes de la transacción como fail-fast, y otra vez bajo `lockForUpdate()` dentro de ella) **es** el mecanismo real que impide aceptar la misma solicitud dos veces — no una validación decorativa. Con `abort_if()`, el profesor que pierde la carrera veía la página de error genérica de Laravel en vez de cualquier indicación de qué pasó. Las otras tres instancias (perfil de profesor inexistente, créditos insuficientes, cupo de mentoría lleno) tenían el mismo problema — y créditos insuficientes es, de las cinco, la más alcanzable en uso normal.
+**Hallazgo principal, corregido**: 5 instancias de `abort()`/`abort_if()`/`abort_unless()` — el mismo patrón de fallo silencioso ya corregido dos veces antes en esta sesión (`ClassRequestController`, `RegisteredUserController`), encontrado aquí por tercera vez. La diferencia que eleva la severidad: el chequeo `status !== 'open'` (una vez antes de la transacción como fail-fast, y otra vez bajo `lockForUpdate()` dentro de ella) **es** el mecanismo real que impide aceptar la misma solicitud dos veces — no una validación decorativa. Con `abort_if()`, el profesor que pierde la carrera veía la página de error genérica de Laravel en vez de cualquier indicación de qué pasó.
 
-Las 5 se convirtieron a `throw ValidationException::withMessages([...])`, con el campo elegido por relevancia semántica, no al azar:
+**Clasificación explícita por instancia (Final Integrity Gate — revisión solicitada: no todo `abort()` se convierte automáticamente)**:
 
-| Chequeo | Campo elegido | Por qué |
-|---|---|---|
-| Sin perfil de profesor | `class_request_id` | No hay ningún campo más cercano; caso casi inalcanzable en uso normal (el middleware de rol ya debería impedirlo), corregido igual por consistencia |
-| Solicitud ya no `open` (×2: fail-fast + re-chequeo bajo lock) | `class_request_id` | Es el campo real, oculto, que identifica QUÉ se está intentando aceptar — el problema no es la fecha ni la duración, es que esta solicitud puntual ya no está disponible |
-| Créditos insuficientes | `duration_minutes` | Es el único campo que el profesor puede cambiar en este mismo formulario para resolverlo — una duración menor cuesta menos créditos. Atarlo a un campo sin acción posible (como `class_request_id`) habría sido menos útil |
-| Cupo de mentoría lleno | `class_request_id` | Mismo razonamiento que "ya no open": no es un problema del formulario, es que esta solicitud puntual no se puede aceptar |
+| Chequeo | Semántica original | Semántica nueva | Por qué |
+|---|---|---|---|
+| Sin perfil de profesor | `abort_unless(…, 403)` | **Sin cambio — sigue 403** | No es recuperable reenviando este mismo formulario (el perfil se crea atómicamente al registrarse; ver `RegisteredUserController`) — es un estado de cuenta roto, casi inalcanzable en la práctica, más cercano a autorización/precondición que a validación de negocio. Convertirlo a `ValidationException` en un primer intento fue un error de clasificación, corregido: se revirtió a `abort_unless(403)` |
+| Solicitud ya no `open` (×2: fail-fast + re-chequeo bajo lock) | `abort_if(…, 403)` | `ValidationException` | El profesor sigue siendo elegible, sigue autorizado — el recurso cambió de estado, no el permiso. Recuperable: puede intentar con otra solicitud |
+| Créditos insuficientes | `abort_if(…, 422)` | `ValidationException` | Recuperable: recargar saldo o elegir una duración menor |
+| Cupo de mentoría lleno | `abort_unless(…, 422)` | `ValidationException` | Recuperable: intentar más tarde o con otra solicitud |
 
-`Accept.vue` se actualizó para renderizar ambos campos nuevos (antes solo existía `form.errors.start_time`): un banner con `role="alert"` para `class_request_id`, y un mensaje bajo el selector de duración para `duration_minutes` — explícitamente distinto del aviso ya existente basado en `creditsAvailable` (un snapshot cargado al abrir la página, que puede quedar desactualizado si el profesor aceptó otra clase en otra pestaña).
+**Corrección de campo, también solicitada en revisión**: las 3 conversiones de negocio (arriba) usaban inicialmente `duration_minutes` (créditos) y `class_request_id` (status/mentoría) por ser "el campo más cercano" — pero eso sugiere visualmente que cambiar ESE campo resuelve el problema, cuando la solución real (recargar saldo, elegir otra solicitud, esperar cupo) no está en el formulario en absoluto. Las 3 ahora comparten una única clave nueva, `accept` — un error de negocio a nivel de formulario, no de campo. `start_time` sigue reservado exclusivamente para el error que sí es sobre la hora elegida (solapamiento de horario, sin cambios).
+
+`Accept.vue` renderiza un solo banner (`role="alert"`, ligado a `form.errors.accept`) para los tres casos de negocio, separado del aviso ya existente basado en `creditsAvailable` (un snapshot cargado al abrir la página, que puede quedar desactualizado si el profesor aceptó otra clase en otra pestaña) — ambos visibles, sin mezclarse: uno es la señal previa al envío, el otro el veredicto real del servidor.
 
 ### Matriz de invariantes (pedida explícitamente, verificada línea por línea contra `LessonController::store()`)
 
@@ -1156,39 +1158,68 @@ El evento se dispara en la línea inmediatamente posterior al cierre de `DB::tra
 
 ### Taxonomía de errores — cubiertos en esta pasada
 
-`request no encontrada` (`findOrFail`, 404 nativo de Laravel) · `sin perfil de profesor` · `no autorizado` (policy) · `solicitud ya no open` (×2, fail-fast y bajo lock) · `horario ocupado` (×2, ya estaba bien antes de esta pasada) · `créditos insuficientes` · `cupo de mentoría lleno`. Cada uno ahora resulta en un redirect-back con `session('errors')`, nunca en la página de error genérica de Laravel.
+`request no encontrada` (`findOrFail`, 404 nativo de Laravel) · `sin perfil de profesor` (403, autorización — sin cambios) · `no autorizado` (policy, 403) · `solicitud ya no open` (×2, fail-fast y bajo lock, `ValidationException`/`accept`) · `horario ocupado` (×2, `ValidationException`/`start_time`, ya estaba bien antes de esta pasada) · `créditos insuficientes` (`ValidationException`/`accept`) · `cupo de mentoría lleno` (`ValidationException`/`accept`). Cada error de negocio ahora resulta en un redirect-back con `session('errors')`, nunca en la página de error genérica de Laravel; los dos únicos casos que siguen siendo un `abort()` crudo (perfil inexistente, autorización) lo son deliberadamente, no por descuido — ver clasificación arriba.
 
 ### Lo que esta pasada deliberadamente NO hizo
 
-- **No tocó `join()`/`confirmPayment()`/`cancel()`/`reschedule()`** — mismo patrón de `abort_if()` crudo presente ahí también, pero pertenecen a páginas distintas (`Lessons/ParentIndex.vue`, `Lessons/TeacherIndex.vue`), fuera del alcance de "Accept.vue". Flageado por separado (`task_29e7c685`), no corregido aquí para no exceder el alcance.
-- **No corrigió el gap del GET** (no comprueba `status==='open'` antes de renderizar el formulario) — es UX, no seguridad, y su solución correcta depende de decisiones de UX que corresponden a la fase siguiente, no a esta auditoría de backend.
-- **No rediseñó `Accept.vue`** — instrucción explícita: primero backend verificado, después UX. La pantalla sigue siendo el formulario original salvo los dos nuevos slots de error.
+- **No tocó `join()`/`confirmPayment()`/`cancel()`/`reschedule()`** — mismo patrón de `abort_if()` crudo presente ahí también, pero pertenecen a páginas distintas (`Lessons/ParentIndex.vue`, `Lessons/TeacherIndex.vue`), fuera del alcance de "Accept.vue". Flageado por separado (`task_29e7c685`), priorizado en revisión: `reschedule()` primero (historial real de riesgo de integridad — `duration_minutes` sin recalcular precio/créditos, ya corregido antes en `C-2`, ver comentario en el propio código), luego `confirmPayment()` (financiero), luego `cancel()`, luego `join()`.
+- **No rediseñó `Accept.vue`** — instrucción explícita: primero backend verificado, después UX. La pantalla sigue siendo el formulario original salvo los slots de error.
 - **No afirma paralelismo real** en ningún punto — ver sección de concurrencia arriba.
+- **No implementó** idempotency-key formal, infraestructura de test paralelo, una capa DTO nueva, ni un sistema de locking o notificaciones nuevo — ninguno de los gates de esta pasada mostró evidencia de que la arquitectura actual sea insuficiente; añadir cualquiera de esos ahora sería sobre-arquitecturar sin necesidad demostrada.
 
-### Cierre — estado formal, por dimensión
+### Final Integrity Gate — 6 puntos, todos verificados antes de cerrar
+
+Pedido explícitamente en revisión, como paso final antes de UX (no una auditoría nueva):
+
+1. **GET sobre solicitud cerrada → autorización correcta**: ✅ corregido y verificado (redirect + flash, sin servir datos del alumno) — ver fila del GET arriba y `test_accept_get_redirects_away_without_exposing_student_data_once_no_longer_open`.
+2. **Proyección de `Student` verificada**: ✅ ya corregido en la pasada anterior, re-confirmado aquí — solo `id,parent_user_id,first_name,last_name,grade_level`, nunca `birth_date`/`school`.
+3. **Créditos insuficientes = sin mutación de DB**: ✅ verificado explícitamente — `credits_available`/`credits_reserved` sin cambios, `classes` en 0, y ahora también `ClassRequest.status` confirmado como `'open'` (la tercera aserción, antes solo inferida, ahora explícita).
+4. **Cupo de mentoría lleno = sin mutación de DB**: ✅ ya verificado (mismo patrón: `Lesson::count()===0`, request sigue `'open'`, créditos intactos).
+5. **Todos los errores de negocio mapeados semánticamente**: ✅ ver clasificación y corrección de campo arriba — ninguno atado a un campo que no puede resolverlo.
+6. **Ningún error de autorización convertido accidentalmente a 422**: ✅ encontrado y corregido — "sin perfil de profesor" había sido convertido en el primer intento; revertido a `abort_unless(403)` tras la clasificación explícita.
+
+### Cierre — estado formal, por dimensión (vocabulario exacto, sin colapsar)
+
+```text
+Acceptance business contract:    VERIFIED
+Authorization:                   VERIFIED
+State transition:                VERIFIED
+Pricing:                         VERIFIED
+Credits:                         VERIFIED
+Availability:                    VERIFIED
+Transaction:                     VERIFIED
+Notification ordering:           VERIFIED
+Student data projection:         VERIFIED
+Error protocol:                  VERIFIED
+Real parallel concurrency:       NOT DIRECTLY EXERCISED
+Strict idempotency:              NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOPE
+```
 
 | Dimensión | Estado | Evidencia |
 |---|---|---|
-| Contrato GET | ✅ Auditado, 1 corrección (proyección) | `ClassRequestController::accept()` |
-| Contrato POST | ✅ Auditado, 5 correcciones (mensajes) | `LessonController::store()` |
+| Contrato GET | ✅ Auditado, 2 correcciones (proyección + lifecycle) | `ClassRequestController::accept()` |
+| Contrato POST | ✅ Auditado, 4 conversiones a `ValidationException` + 1 revertida a 403 tras clasificación | `LessonController::store()` |
 | Autorización | ✅ Ya sólida, verificada, sin tocar | `ClassRequestPolicy::accept()` |
 | Duración | ✅ Auditada, permisividad documentada, no es bug | `min:30\|max:240`, recálculo correcto en cualquier punto del rango |
 | Horario/disponibilidad | ✅ Ya sólida, verificada, sin tocar | `hasScheduleOverlap()`, doble chequeo con lock |
 | Precio | ✅ 100% servidor, cliente no puede imponerlo | Verificado: no existe en `validate()` |
-| Créditos | ✅ 100% servidor, verificado bajo lock | `Lesson::creditCostForMinutes()` |
+| Créditos | ✅ 100% servidor, verificado bajo lock, sin mutación en fallo | `Lesson::creditCostForMinutes()` + Gate #3 |
 | Transacción/locking | ✅ Ya sólida, verificada, sin tocar | `lockForUpdate()` en `ClassRequest` y `TeacherProfile` |
 | Rollback | ✅ Verificado (test existente + repro en vivo) | 0 cambios para el perdedor de la carrera |
 | Máquina de estados | ✅ Verificada | `accepted` terminal, re-chequeo bajo lock |
 | Notificaciones | ✅ Verificado el orden (post-commit, encolado) | `event()` después de `DB::transaction()`, listener `ShouldQueue` |
-| Taxonomía de errores | ✅ 5 casos convertidos a `ValidationException` | Ver tabla arriba |
-| Tests | ✅ 544/544 — 4 tests existentes corregidos (mismo punto ciego de "solo status code" ya visto 2 veces antes esta sesión), 0 tests nuevos (la cobertura de escenario ya existía) | `FinancialConcurrencyTest`, `MentorshipRequestTest`, `MonetizationIntegrityTest` |
-| Regression proof | ✅ `git stash` sobre `LessonController.php` reprodujo los 4 fallos reales antes de restaurar | Revert-confirm-restore |
+| Taxonomía de errores | ✅ Clasificada explícitamente (autorización vs. negocio), campos corregidos a `accept` | Ver tabla de clasificación arriba |
+| Tests | ✅ 545/545 — 5 tests corregidos/añadidos (4 con el mismo punto ciego de "solo status code" ya visto 2 veces antes esta sesión, +1 nuevo para el gap del GET) | `FinancialConcurrencyTest`, `MentorshipRequestTest`, `MonetizationIntegrityTest` |
+| Regression proof | ✅ `git stash` reprodujo cada fallo real antes de restaurar (LessonController y ClassRequestController, por separado) | Revert-confirm-restore |
 | Build | ✅ Sin errores/warnings nuevos | `npm run build` |
-| Navegador (`BROWSER_VERIFIED`) | ✅ Dos escenarios reales, no solo build/PHPUnit | Carrera de dos profesores reales (`profesor@mova.test` gana, `profesor-relleno-1@mova.test` ve el error real); créditos insuficientes (`carlos@mova.test`, 0 créditos) vía `fetch()` real (el botón está deshabilitado en el cliente, así que el camino de servidor se verificó con una request real, no simulada) |
-| Concurrencia real | ❌ **NO EJERCITADA** — ver sección propia, terminología no colapsada | — |
+| Navegador (`BROWSER_VERIFIED`) | ✅ Tres escenarios reales, no solo build/PHPUnit | Carrera de dos profesores reales; créditos insuficientes vía envío real de Inertia (no solo `fetch()` — confirma que el propio `<template>` renderiza `form.errors.accept`); GET sobre solicitud ya `accepted` redirige con flash real, sin datos del alumno en la respuesta |
+| Concurrencia real | `NOT DIRECTLY EXERCISED` — ver sección propia, terminología no colapsada | — |
+| Idempotencia estricta | `NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOPE` — el mecanismo actual (lock + re-chequeo de estado) protege la invariante real; no hay evidencia de que falte más | — |
 | UX/UI | **Deliberadamente no tocado** — siguiente fase | — |
-| Riesgos remanentes | GET no chequea `status` antes de renderizar (UX, no seguridad); 4 `abort_if()` restantes en el mismo controlador, otras páginas (`task_29e7c685`); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
-| Git | ✅ Commit atómico `0fdc1c2`, separado de la documentación de este cierre | Sin push — sigue bloqueado por F-26 |
+| Riesgos remanentes | 4 `abort_if()` restantes en el mismo controlador, otras páginas (`task_29e7c685`, `reschedule()` priorizado primero por su historial); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
+| Git | ✅ Commits atómicos `0fdc1c2` (hallazgo inicial) + `9a58951` (Final Integrity Gate), separados de su documentación | Sin push — sigue bloqueado por F-26 |
+
+**`ClassRequests/Accept.vue` (backend) → CERRADO PARA ESTE ALCANCE.** Continúa UX/UI: la pantalla debe comunicar alumno, materia, solicitud, horario, duración, precio y créditos según los datos genuinamente disponibles en cada punto del flujo — mismo principio que `Create.vue` ("no muestres valores que el backend todavía no ha determinado"), no una "reserva" antes de que el backend la confirme.
 
 ---
 
