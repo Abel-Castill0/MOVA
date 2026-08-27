@@ -9,12 +9,14 @@
           <h2 class="text-xl sm:text-2xl font-black mt-0.5">{{ user?.name?.split(' ')[0] }}</h2>
           <p class="text-white/60 text-sm mt-1">{{ today }}</p>
         </div>
-        <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍👩‍👧</div>
+        <Icon name="role-parent" :size="56" :stroke-width="1.25" class="hidden sm:block opacity-30 flex-shrink-0" />
       </div>
 
       <!-- Banner post-clase: recién salió de la videollamada -->
       <div v-if="postClassLessonId && postClassEnded" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">✅</div>
+        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+          <Icon name="flash-success" :size="20" />
+        </div>
         <div class="flex-1">
           <p class="font-semibold text-emerald-900">La clase ha terminado.</p>
           <p class="text-sm text-emerald-700 mt-0.5">Confirma tu pago para continuar.</p>
@@ -25,23 +27,31 @@
             Ir a la clase
           </Link>
           <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-            class="px-2 py-2 text-emerald-500 hover:text-emerald-700 transition-colors">✕</button>
+            class="px-2 py-2 text-emerald-500 hover:text-emerald-700 transition-colors">
+            <Icon name="close" :size="16" />
+          </button>
         </div>
       </div>
       <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🕐</div>
+        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
+          <Icon name="in-progress" :size="20" />
+        </div>
         <div class="flex-1">
           <p class="font-semibold text-slate-800">La clase está en curso.</p>
           <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
         </div>
         <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">
+          <Icon name="close" :size="16" />
+        </button>
       </div>
 
       <!-- Empty state: sin hijos registrados -->
       <div v-if="!students.length" class="reveal-group">
         <div class="reveal-item bg-white rounded-2xl border border-gray-100 px-6 py-16 sm:py-20 text-center max-w-xl mx-auto">
-          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-5">🎒</div>
+          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 mx-auto mb-5">
+            <Icon name="my-students" :size="32" :stroke-width="1.5" />
+          </div>
           <h3 class="text-xl font-black text-slate-900">Registra a tu primer hijo/a</h3>
           <p class="text-slate-500 mt-2 leading-relaxed">
             Para solicitar clases, seguir su progreso y calificar profesores, primero necesitamos
@@ -58,7 +68,9 @@
 
         <!-- Pending approval alert -->
         <div v-if="pending_approval > 0" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">⚠️</div>
+          <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
+            <Icon name="warning" :size="20" />
+          </div>
           <div class="flex-1">
             <p class="font-semibold text-orange-900">{{ pending_approval }} solicitud(es) esperan tu aprobación</p>
             <p class="text-sm text-orange-600 mt-0.5">Revisa y aprueba las clases de tus hijos</p>
@@ -72,17 +84,26 @@
         <!-- Metric cards — Spatial UI: superficie elevada, badge de icono, profundidad sutil -->
         <div class="reveal-group grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-            <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-brand-100 transition-colors">📋</div>
+            <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 mb-3 group-hover:bg-brand-100 transition-colors">
+              <Icon name="requests" :size="20" />
+            </div>
             <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.class_requests_total }}</p>
             <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Clases solicitadas</p>
           </div>
           <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-            <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-green-100 transition-colors">✅</div>
+            <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600 mb-3 group-hover:bg-green-100 transition-colors">
+              <Icon name="flash-success" :size="20" />
+            </div>
             <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.classes_completed }}</p>
             <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Clases completadas</p>
           </div>
+          <!-- sky, no indigo: cuarto color de la fila de métricas, distinto del
+               violeta ya reservado para el estado "pagada" (utils/statusColors.js)
+               para no mezclar el color de una métrica con el de un estado. -->
           <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-            <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-indigo-100 transition-colors">📅</div>
+            <div class="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-600 mb-3 group-hover:bg-sky-100 transition-colors">
+              <Icon name="classes" :size="20" />
+            </div>
             <template v-if="next_lesson">
               <p class="text-sm sm:text-base font-black text-slate-900 leading-snug line-clamp-1">{{ next_lesson.class_request?.subject?.name ?? 'Clase' }}</p>
               <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ fmtDateShort(next_lesson.start_time) }}</p>
@@ -93,15 +114,22 @@
             </template>
           </div>
           <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-lg mb-3 group-hover:bg-amber-100 transition-colors">⭐</div>
+            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 mb-3 group-hover:bg-amber-100 transition-colors">
+              <Icon name="reviews" :size="20" />
+            </div>
             <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.avg_teacher_rating ?? '—' }}</p>
             <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Calificación promedio</p>
           </div>
         </div>
 
-        <!-- Diagnostic CTA -->
-        <div class="bg-gradient-to-r from-indigo-50 to-brand-50 border border-brand-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-          <div class="text-3xl flex-shrink-0">🎯</div>
+        <!-- Diagnostic CTA — antes era un gradiente indigo-50→brand-50: ni el
+             indigo era de marca, ni un gradiente decorativo encaja con el
+             principio de PRODUCT.md de evitarlos. Tarjeta plana, tono brand
+             único, igual que el resto de tarjetas de esta página. -->
+        <div class="bg-brand-50 border border-brand-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div class="text-brand-600 flex-shrink-0">
+            <Icon name="target" :size="28" />
+          </div>
           <div class="flex-1">
             <p class="font-bold text-slate-900">¿No sabes qué profesor elegir?</p>
             <p class="text-sm text-slate-500 mt-0.5">Responde 5 preguntas y MOVA te recomienda profesores ideales para tu hijo</p>
@@ -121,7 +149,9 @@
 
           <div v-if="upcoming.length" class="reveal-group bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 space-y-6">
             <div>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">📅 Esta semana</p>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Icon name="classes" :size="14" /> Esta semana
+              </p>
               <ol v-if="upcomingThisWeek.length" class="relative">
                 <li v-for="(l, i) in upcomingThisWeek" :key="l.id"
                   class="reveal-item relative pl-9 pb-6 last:pb-0">
@@ -140,25 +170,28 @@
                       <p class="text-sm text-slate-500 mt-0.5">
                         {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
                       </p>
-                      <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
+                      <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                        <Icon name="classes" :size="12" /> {{ fmtDate(l.start_time) }}
+                      </p>
                     </div>
 
                     <div class="flex-shrink-0">
                       <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
-                        class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-                        {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
+                        <Icon v-if="payingId !== l.id" name="check" :size="16" />
+                        {{ payingId === l.id ? 'Confirmando...' : 'Ya pagué' }}
                       </button>
                       <p v-else-if="l.status === 'scheduled'" class="text-xs text-slate-400 text-right max-w-[10rem]">Podrás confirmar el pago cuando la clase finalice</p>
                       <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
-                        class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
-                        🎥 Unirse a la sala
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
+                        <Icon name="join-room" :size="16" /> Unirse a la sala
                       </button>
                       <!-- F-11: rama inalcanzable — canJoinJitsi() devuelve true para todo lo que esté en 'paid', así que este texto no llega a mostrarse. Se conserva como red por si la regla de acceso cambia. -->
                       <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">La sala de esta clase ya no está disponible.</p>
                       <p v-if="paymentError && payingId === null" class="mt-1 text-xs font-semibold text-red-600 text-right">{{ paymentError }}</p>
                       <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
-                        class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
-                        ★ Calificar
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+                        <Icon name="reviews" :size="16" /> Calificar
                       </Link>
                     </div>
                   </div>
@@ -168,7 +201,9 @@
             </div>
 
             <div v-if="upcomingPast.length" class="pt-5 border-t border-gray-50">
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">📚 Pasadas</p>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Icon name="topic" :size="14" /> Pasadas
+              </p>
               <ol class="relative">
                 <li v-for="(l, i) in upcomingPast" :key="l.id"
                   class="reveal-item relative pl-9 pb-6 last:pb-0">
@@ -185,21 +220,24 @@
                       <p class="text-sm text-slate-500 mt-0.5">
                         {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
                       </p>
-                      <p class="text-xs text-slate-400 mt-0.5">📅 {{ fmtDate(l.start_time) }}</p>
+                      <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                        <Icon name="classes" :size="12" /> {{ fmtDate(l.start_time) }}
+                      </p>
                     </div>
 
                     <div class="flex-shrink-0">
                       <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
-                        class="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-                        {{ payingId === l.id ? 'Confirmando...' : '✓ Ya pagué' }}
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
+                        <Icon v-if="payingId !== l.id" name="check" :size="16" />
+                        {{ payingId === l.id ? 'Confirmando...' : 'Ya pagué' }}
                       </button>
                       <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
-                        class="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
-                        🎥 Unirse a la sala
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
+                        <Icon name="join-room" :size="16" /> Unirse a la sala
                       </button>
                       <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
-                        class="inline-block px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
-                        ★ Calificar
+                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+                        <Icon name="reviews" :size="16" /> Calificar
                       </Link>
                     </div>
                   </div>
@@ -209,7 +247,9 @@
           </div>
 
           <div v-else class="bg-white rounded-2xl border border-gray-100 px-6 py-10 text-center text-slate-400">
-            <div class="text-4xl mb-2">📭</div>
+            <div class="mb-2 flex justify-center">
+              <Icon name="no-classes" :size="32" :stroke-width="1.5" />
+            </div>
             <p class="text-sm">No hay clases próximas</p>
             <Link :href="route('marketplace')" class="inline-block mt-3 text-sm text-brand-600 hover:underline font-medium">
               Buscar un profesor →
@@ -233,7 +273,9 @@
                   <p class="text-xs text-slate-400">{{ fmtDateShort(l.start_time) }}</p>
                 </div>
                 <div v-if="l.teacher_review" class="flex-shrink-0 flex items-center gap-0.5">
-                  <span v-for="n in 5" :key="n" class="text-sm" :class="n <= l.teacher_review.rating ? 'text-amber-400' : 'text-gray-200'">★</span>
+                  <Icon v-for="n in 5" :key="n" name="reviews" :size="14"
+                    :class="n <= l.teacher_review.rating ? 'text-amber-400' : 'text-gray-200'"
+                    :fill="n <= l.teacher_review.rating ? 'currentColor' : 'none'" />
                 </div>
                 <p v-else class="flex-shrink-0 text-xs text-slate-300 italic">Sin calificar</p>
               </div>
@@ -254,15 +296,15 @@
             </div>
             <div class="grid sm:grid-cols-2 gap-3">
               <div class="bg-slate-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">📚 Tema</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="topic" :size="12" /> Tema</p>
                 <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.topic_covered }}</p>
               </div>
               <div class="bg-slate-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">⭐ Desempeño</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="reviews" :size="12" /> Desempeño</p>
                 <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.student_performance }}</p>
               </div>
               <div v-if="last_report.next_step" class="sm:col-span-2 bg-green-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">🎯 Próximo paso</p>
+                <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="target" :size="12" /> Próximo paso</p>
                 <p class="text-sm text-slate-800">{{ last_report.next_step }}</p>
               </div>
             </div>
@@ -294,19 +336,19 @@
           <div class="reveal-group grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Link :href="route('class-requests.create')"
               class="reveal-item group bg-brand-600 rounded-2xl p-5 hover:bg-brand-700 transition-all shadow-lg shadow-brand-600/25">
-              <div class="text-3xl mb-3">✏️</div>
+              <Icon name="new-request" :size="28" class="text-white/90 mb-3" />
               <p class="font-bold text-white">Solicitar una clase</p>
               <p class="text-sm text-brand-200 mt-0.5">Sin elegir profesor — te contactará el primero disponible</p>
             </Link>
             <Link :href="route('students.index')"
               class="reveal-item group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-              <div class="text-3xl mb-3">🎒</div>
+              <Icon name="my-students" :size="28" class="text-brand-600 mb-3" />
               <p class="font-bold text-slate-900">Gestionar hijos</p>
               <p class="text-sm text-slate-400 mt-0.5">Añade o edita sus datos</p>
             </Link>
             <Link :href="route('parent.reports')"
               class="reveal-item group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-              <div class="text-3xl mb-3">📋</div>
+              <Icon name="requests" :size="28" class="text-brand-600 mb-3" />
               <p class="font-bold text-slate-900">Reportes</p>
               <p class="text-sm text-slate-400 mt-0.5">Historial de aprendizaje</p>
             </Link>
@@ -327,6 +369,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
+import Icon from '@/Components/Icon.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { canJoinJitsi } from '@/utils/lessonJoin'
@@ -368,10 +411,17 @@ function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+// violet, no indigo: mismo color que 'paid' en utils/statusColors.js — antes
+// este punto vivía con su propio 'bg-indigo-400' independiente, un tercer
+// lugar (junto a TeacherLessonCard/ParentLessonCard) repitiendo el mismo
+// mapeo de color. Se deja documentado aquí en vez de importar statusColors.js
+// directamente: unificar los cuatro sitios en una sola fuente es un cambio de
+// mayor alcance que un barrido de color, y queda anotado como pendiente en
+// docs/MOVA_DESIGN_AUDIT_FINAL.md en vez de hacerse a medias en esta pasada.
 function dotColor(status) {
   return {
     scheduled: 'bg-blue-400',
-    paid: 'bg-indigo-400',
+    paid: 'bg-violet-400',
     pending_parent_confirmation: 'bg-amber-400',
   }[status] ?? 'bg-slate-300'
 }

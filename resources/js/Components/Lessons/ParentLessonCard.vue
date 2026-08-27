@@ -149,7 +149,7 @@ function fmtDateShort(d) {
 function statusStripe(s) {
   return {
     scheduled: 'bg-brand-500',
-    paid: 'bg-indigo-500',
+    paid: 'bg-violet-500',
     pending_parent_confirmation: 'bg-amber-500',
     needs_admin_review: 'bg-orange-500',
     completed: 'bg-green-500',

@@ -37,8 +37,8 @@
         </div>
       </div>
 
-      <div v-if="lesson.status === 'paid' && !lesson.lesson_report" class="mt-3 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-        <p class="text-xs font-medium text-indigo-700">
+      <div v-if="lesson.status === 'paid' && !lesson.lesson_report" class="mt-3 bg-violet-50 border border-violet-100 rounded-xl p-3">
+        <p class="text-xs font-medium text-violet-700">
           💰 El padre/tutor confirmó el pago de esta clase. Ya puedes escribir el reporte pedagógico.
         </p>
       </div>
@@ -107,7 +107,7 @@ function fmtDateShort(d) {
 function statusStripe(s) {
   return {
     scheduled: 'bg-brand-500',
-    paid: 'bg-indigo-500',
+    paid: 'bg-violet-500',
     pending_parent_confirmation: 'bg-amber-500',
     needs_admin_review: 'bg-orange-500',
     completed: 'bg-green-500',

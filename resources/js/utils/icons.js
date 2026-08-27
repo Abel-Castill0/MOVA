@@ -33,6 +33,14 @@ import {
   X,
   LogOut,
   Construction,
+  Clock,
+  TriangleAlert,
+  Target,
+  Video,
+  BookOpen,
+  CalendarX,
+  PenLine,
+  Check,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -70,6 +78,16 @@ export const icons = {
   menu: Menu,                      // hamburguesa móvil
   close: X,                        // cerrar sidebar/modal
   logout: LogOut,                  // "Cerrar sesión"
+  check: Check,                    // "✓ Ya pagué" — confirmación de acción, no el mismo rol que flash-success
+
+  // Dashboard/Parent.vue
+  'in-progress': Clock,            // 🕐 "La clase está en curso"
+  warning: TriangleAlert,          // ⚠️ "solicitudes esperan tu aprobación"
+  target: Target,                  // 🎯 "diagnóstico"/"próximo paso" — objetivo, meta
+  'join-room': Video,              // 🎥 "Unirse a la sala"
+  topic: BookOpen,                 // 📚 "Tema" (reporte) / "Pasadas" (historial) — contenido de estudio
+  'no-classes': CalendarX,         // 📭 "No hay clases próximas"
+  'new-request': PenLine,          // ✏️ "Solicitar una clase"
 }
 
 /**

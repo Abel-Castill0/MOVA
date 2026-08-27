@@ -41,9 +41,9 @@ no una copia del hallazgo original de la Fase 0.
 | Pages | 53 |
 | Components | 26 |
 | Layouts | 3 |
-| Emoji restantes (suma) | 191 en 40 archivos (era 199/43 antes de la Fase Auth) |
-| `indigo` restante (suma) | 65 en 17 archivos (era 72/18 antes de la Fase Auth; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
-| Archivos con algún trabajo de esta sesión (`PARCIAL`/`COMPLETA`/`NO CHANGE — VERIFIED`) | 20 de 82 |
+| Emoji restantes (suma) | 160 en 38 archivos (191/40 tras Auth, 199/43 al inicio de la Fase 3) |
+| `indigo` restante (suma) | 54 en 14 archivos (65/17 tras Auth, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
+| Archivos con algún trabajo de esta sesión (`PARCIAL`/`COMPLETA`/`NO CHANGE — VERIFIED`) | 24 de 82 |
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -99,7 +99,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Dashboard/Parent.vue` | 30 | 4 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Dashboard/Parent.vue` | 0 | 0 | **COMPLETA** — 30 emoji → Icon (semántico, no mecánico: mismo emoji 📅 usado 4 veces distintas se mapeó a `classes` cuando es un icono suelto y a un `<Icon>` inline junto a la fecha cuando acompaña texto); CTA de diagnóstico simplificado de gradiente indigo→brand a tarjeta plana `bg-brand-50` (el gradiente decorativo iba contra PRODUCT.md); 5ª estrella de reseña ahora usa `<Icon fill>` en vez de texto `★`; `dotColor()` alineado a `violet` (mismo tono que `paid` en `statusColors.js`, ver más abajo) | pendiente | pendiente | pendiente | ⚠️ solo build+tests (`MonetizationIntegrityTest` toca esta ruta) — requiere sesión con hijos/clases reales, no verificable con captura sin DB |
 
 ### Parent — gestión de hijos (3 archivos)
 
@@ -232,8 +232,8 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `Components/JitsiModal.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingFooter.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingNavbar.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/Lessons/ParentLessonCard.vue` | 6 | 1 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/Lessons/TeacherLessonCard.vue` | 5 | 4 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/Lessons/ParentLessonCard.vue` | 6 | 0 | **PARCIAL** — solo el color `paid` (indigo→violet) corregido, mismo motivo que `statusColors.js`; emoji propios sin migrar todavía | pendiente | pendiente | pendiente | pendiente |
+| `Components/Lessons/TeacherLessonCard.vue` | 5 | 0 | **PARCIAL** — mismo color `paid` corregido (dot + alerta de "sin reporte"); emoji propios sin migrar todavía | pendiente | pendiente | pendiente | pendiente |
 | `Components/Lessons/WeeklyCalendar.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/Modal.vue` | 0 | 0 | **COMPLETA** (Fase 2, ver commit `1b58bc2`) | ✅ (hoja móvil / diálogo centrado, medido en 1280px) | ✅ (tokens) | ✅ (dialog/aria-modal/focus trap/restauración de foco — verificado con teclado real) | ✅ |
 | `Components/MovaLogo.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
@@ -258,6 +258,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `rounded-*` con nombres propios (`chip/control/card/elevated/pill`) en vez de `sm/md/lg/xl` | Evita colisión silenciosa con la escala default de Tailwind — ver `DESIGN.md`. |
 | `Checkbox.vue` "indigo restante"=1 | Es un comentario del propio código explicando el reemplazo (`// reemplaza el indigo heredado...`), no una clase activa — falso positivo del grep mecánico, documentado aquí en vez de re-escribir el comentario para "limpiar el número". |
 | `Register.vue` (wizard) y `PhoneVerification.vue` migrados solo en color/iconos, no en componentes | Ambos usan botones/inputs `<button>`/`<input>` propios en vez de `BaseButton`/`TextInput`/`Checkbox` — una conversión real (wizard de 5-6 pasos con estados condicionales de validación; formulario de código con estilos centrados/tracking-widest específicos) que merece su propia revisión, no un cambio apurado dentro del barrido de iconos/color. Queda como pendiente explícito, no oculto. |
+| Color del estado "pagada"/"abierta" (antes `indigo`) corregido en 4 lugares independientes, no unificado en 1 | `utils/statusColors.js` (fuente ya declarada "única" en su propio comentario, pero `Dashboard/Parent.vue::dotColor()`, `TeacherLessonCard.vue` y `ParentLessonCard.vue` la duplican con su propio mapeo en vez de importarla) pasaron de `indigo` a `violet`/`cyan` — mismo color en los 4 sitios, pero la deduplicación real (que los 3 componentes importen `statusStyle()` en vez de repetirla) es un cambio de mayor alcance que un barrido de color, y queda pendiente explícito. |
 
 ## Lo que este documento NO afirma todavía
 
