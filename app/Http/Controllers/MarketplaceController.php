@@ -28,14 +28,27 @@ class MarketplaceController extends Controller
     {
         return Inertia::render('Marketplace/Index', [
             'teachers' => TeacherProfile::where('is_verified', true)
+                // P0 encontrado y corregido en esta pasada: el allow-list de
+                // columnas iba antes como segundo argumento de paginate() —
+                // ->paginate(24, ['id','user_id','bio','hourly_rate']) — y
+                // NO se aplicaba. Verificado en vivo (json_encode() del
+                // resultado real): con withAvg()/withCount() ya presentes en
+                // el query builder, ese segundo argumento se ignora y
+                // paginate() devuelve TODAS las columnas de la tabla —
+                // yape_number, plin_number, referral_code, rejection_reason,
+                // credits_available/reserved, todo — a un endpoint público
+                // sin autenticación. Exactamente lo que el comentario
+                // original de este método decía que nunca debía pasar.
+                // ->select() explícito ANTES de with()/withAvg()/withCount()
+                // sí se respeta (withAvg/withCount usan addSelect(), que no
+                // pisa un select() ya fijado) — verificado con el mismo
+                // json_encode() de control, sin este cambio.
+                ->select(['id', 'user_id', 'bio', 'hourly_rate'])
                 ->with(['user:id,name,avatar_url', 'subjects:id,name'])
                 ->withAvg('visibleReviews as avg_rating', 'rating')
                 ->withCount('visibleReviews as review_count')
                 ->orderByDesc('review_count')
-                // Columnas explícitas, sin 'referral_code': esta vista es
-                // pública y no requiere autenticación — el código nunca
-                // debe llegar a este payload.
-                ->paginate(24, ['id', 'user_id', 'bio', 'hourly_rate']),
+                ->paginate(24),
 
             // Mismos conteos que WelcomeController::index() (misma fuente de
             // verdad, sin duplicar la consulta de forma distinta) — refuerzan

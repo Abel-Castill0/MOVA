@@ -51,6 +51,17 @@ class TeacherPublicController extends Controller
                 // prueba con Lesson.teacher_profile_id, no con
                 // ClassRequest.teacher_referral_code.
                 'referral_code'    => $this->referralCodeVisibleTo($teacherProfile) ? $teacherProfile->referral_code : null,
+                // El frontend nunca recibe user_id de este perfil (columnas
+                // explícitas arriba), así que no puede comparar "¿soy yo?"
+                // por su cuenta. Antes se aproximaba con "¿el usuario
+                // logueado tiene el rol teacher?" — incorrecto: cualquier
+                // profesor que visitara el perfil de OTRO profesor (y que
+                // además tuviera una clase completada con él como padre,
+                // caso raro pero posible si un mismo User tiene ambos
+                // roles) vería el texto "tu código para compartir" sobre el
+                // código de otra persona. Se decide aquí, con la misma
+                // comparación exacta que referralCodeVisibleTo() ya usa.
+                'is_own_profile'   => $teacherProfile->user_id === auth()->id(),
             ],
         ]);
     }
