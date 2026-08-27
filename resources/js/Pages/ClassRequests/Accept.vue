@@ -22,15 +22,19 @@
         </div>
       </div>
 
-      <!-- Error general: la solicitud ya no está disponible (otro profesor
-           la aceptó primero), agenda de mentoría llena, o cualquier otro
-           fallo que no pertenece a un campo concreto del formulario. Antes
-           de esto, estos errores llegaban como abort_if()/abort_unless()
+      <!-- Error de negocio a nivel de formulario (NO field-level): la
+           solicitud ya no está disponible, créditos insuficientes, o cupo
+           de mentoría lleno. Deliberadamente NO se ata a class_request_id
+           ni a duration_minutes — corregido en revisión: atarlo a un campo
+           concreto sugiere que cambiar ESE campo resuelve el problema,
+           cuando la solución real (recargar saldo, elegir otra solicitud,
+           esperar cupo) no está en este formulario en absoluto. Antes de
+           esto, estos errores llegaban como abort_if()/abort_unless()
            crudos — Laravel mostraba su página de error genérica y este
            mensaje jamás llegaba a form.errors. -->
-      <div v-if="form.errors.class_request_id" role="alert"
+      <div v-if="form.errors.accept" role="alert"
         class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-sm text-red-700">
-        {{ form.errors.class_request_id }}
+        {{ form.errors.accept }}
       </div>
 
       <!-- Form -->
@@ -62,16 +66,15 @@
               </span>
             </button>
           </div>
+          <!-- Snapshot cargado al abrir la página — puede quedar
+               desactualizado si el profesor aceptó otra clase en otra
+               pestaña mientras esta seguía abierta. El veredicto real del
+               servidor (mismo chequeo, dentro de la transacción) llega por
+               el banner general de arriba (form.errors.accept), no aquí:
+               ambos comparten la misma causa (créditos), pero el banner
+               general no insinúa que la duración sea la única solución. -->
           <p v-if="!canAffordSelected" class="text-xs text-red-500 mt-2">
             No tienes créditos suficientes para esta duración ({{ selectedCredits }} necesarios, {{ creditsAvailable }} disponibles).
-          </p>
-          <!-- Distinto del mensaje de arriba: ese usa `creditsAvailable`, un
-               snapshot cargado al abrir la página — puede quedar desactualizado
-               si el profesor aceptó otra clase en otra pestaña mientras esta
-               seguía abierta. Este es el veredicto real del servidor, dentro
-               de la misma transacción que hace el chequeo definitivo. -->
-          <p v-if="form.errors.duration_minutes" role="alert" class="text-xs text-red-500 mt-2">
-            {{ form.errors.duration_minutes }}
           </p>
         </div>
 

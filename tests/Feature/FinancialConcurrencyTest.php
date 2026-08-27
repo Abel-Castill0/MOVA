@@ -84,7 +84,7 @@ class FinancialConcurrencyTest extends TestCase
         // fijar esta aserción.
         $this->actingAs($teacherB)->post(route('lessons.store'), $payload)
             ->assertRedirect()
-            ->assertSessionHasErrors(['class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.']);
+            ->assertSessionHasErrors(['accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.']);
 
         $this->assertDatabaseCount('classes', 1);
         $this->assertSame(9, $profileA->fresh()->credits_available);

@@ -261,7 +261,7 @@ class MonetizationIntegrityTest extends TestCase
             ->assertRedirect(route('teacher.lessons'));
         $this->actingAs($teacher)->post(route('lessons.store'), $payload)
             ->assertRedirect()->assertSessionHasErrors([
-                'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+                'accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
             ]);
 
         $lesson = Lesson::firstOrFail();
@@ -728,13 +728,63 @@ class MonetizationIntegrityTest extends TestCase
             'start_time' => now()->addDay()->toDateTimeString(),
             'duration_minutes' => 60,
         ])->assertRedirect()->assertSessionHasErrors([
-            'duration_minutes' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
+            'accept' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
         ]);
 
         $profile->refresh();
         $this->assertSame(0, $profile->credits_available);
         $this->assertSame(0, $profile->credits_reserved);
         $this->assertDatabaseCount('classes', 0);
+        // Explícito, no solo inferido de classes=0 — pedido en revisión: el
+        // fallo de crédito no debe dejar la solicitud en ningún estado
+        // intermedio, sigue disponible para que otro profesor la acepte.
+        $this->assertSame('open', $request->fresh()->status);
+    }
+
+    /**
+     * Pedido explícitamente en revisión: `ClassRequestPolicy::accept()` solo
+     * comprueba elegibilidad (verificado, materia/oferta), nunca el
+     * `status` de la solicitud — así que antes de este fix, un profesor
+     * podía cargar GET /teacher/requests/{id}/accept para una solicitud YA
+     * aceptada (por él mismo o por otro) y seguir recibiendo el nombre,
+     * apellido y grado del alumno. El POST ya bloqueaba aceptar de nuevo,
+     * pero el ciclo de vida del recurso importa tanto como la autorización
+     * de la acción: un profesor que ya no puede actuar sobre esta solicitud
+     * tampoco necesita seguir viendo sus datos. Verificado con
+     * revert-confirm-restore: reproducido primero contra el código sin este
+     * fix (200 con el payload del alumno intacto), luego confirmado
+     * corregido.
+     */
+    public function test_accept_get_redirects_away_without_exposing_student_data_once_no_longer_open(): void
+    {
+        [$teacherA, , $subject] = $this->teacher(5);
+        $teacherB = $this->userWithRole('teacher');
+        $profileB = TeacherProfile::create([
+            'user_id' => $teacherB->id,
+            'is_verified' => true,
+            'credits_available' => 5,
+        ]);
+        $profileB->subjects()->attach($subject->id);
+        [, $student, $request] = $this->parentRequest($subject, 'open');
+
+        $this->actingAs($teacherA)->post(route('lessons.store'), [
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'duration_minutes' => 60,
+        ])->assertRedirect(route('teacher.lessons'));
+
+        $this->assertSame('accepted', $request->fresh()->status);
+
+        $response = $this->actingAs($teacherB)->get(route('teacher.requests.accept', $request));
+
+        $response->assertRedirect(route('teacher.requests'));
+        $response->assertSessionHas('error');
+        // La comprobación que de verdad importa: nada del alumno viajó en
+        // la respuesta. assertRedirect() ya confirma que no es un 200 con
+        // Accept.vue renderizado, pero esto lo hace explícito e imposible
+        // de dejar pasar por accidente si el redirect cambiara de forma.
+        $this->assertStringNotContainsString($student->first_name, $response->getContent());
+        $this->assertStringNotContainsString($student->last_name, $response->getContent());
     }
 
     public function test_lesson_join_allows_owner_parent_and_assigned_teacher(): void

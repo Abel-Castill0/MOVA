@@ -326,6 +326,24 @@ class ClassRequestController extends Controller
     {
         $this->authorize('accept', $classRequest);
 
+        // Hallazgo de revisión, distinto del anterior (proyección de
+        // columnas): `ClassRequestPolicy::accept()` solo comprueba
+        // ELEGIBILIDAD (verificado, materia/oferta, código de referido) —
+        // nunca el `status` de la solicitud. Antes de este chequeo, un
+        // profesor podía cargar este GET para una solicitud YA aceptada
+        // (por él mismo o por otro) y recibir el payload completo del
+        // alumno igual que si siguiera abierta; el POST ya bloqueaba
+        // aceptar de nuevo, pero el ciclo de vida del recurso importa tanto
+        // como la autorización de la acción — un profesor que ya no puede
+        // (ni debe poder) actuar sobre esta solicitud tampoco necesita
+        // seguir viendo los datos del alumno. Confirmado en vivo antes de
+        // este fix: GET sobre una solicitud ya `accepted` devolvía 200 con
+        // el nombre/apellido/grado del alumno intactos.
+        if ($classRequest->status !== 'open') {
+            return redirect()->route('teacher.requests')
+                ->with('error', 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.');
+        }
+
         $profile = auth()->user()->teacherProfile;
 
         // Proyección explícita: `Accept.vue` solo lee subject.name y

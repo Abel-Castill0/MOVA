@@ -72,7 +72,7 @@ class MentorshipRequestTest extends TestCase
             'start_time' => now()->addDay()->toDateTimeString(),
             'duration_minutes' => 60,
         ])->assertRedirect()->assertSessionHasErrors([
-            'class_request_id' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
+            'accept' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
         ]);
 
         $this->assertSame(0, Lesson::count());

@@ -32,25 +32,34 @@ class LessonController extends Controller
         $classRequest = ClassRequest::with(['student', 'subject'])->findOrFail($data['class_request_id']);
         $profile = auth()->user()->teacherProfile;
 
-        // Los 5 abort()/abort_if()/abort_unless() de este método (aquí y
-        // dentro de la transacción) eran el mismo patrón ya encontrado y
-        // corregido dos veces antes en esta sesión (ClassRequestController,
-        // RegisteredUserController): abort() lanza un HttpException plano,
-        // Laravel muestra su página de error genérica, y session('errors')
-        // queda null — Inertia nunca traduce esto a form.errors. Aquí el
-        // caso es más grave que "UX pobre": el chequeo de `status !== 'open'`
-        // (abajo y de nuevo bajo lock dentro de la transacción) ES el
-        // mecanismo real de protección contra doble-aceptación — el profesor
-        // que pierde la carrera necesita ver POR QUÉ, no una página de error
-        // genérica indistinguible de un fallo real del servidor.
-        if (! $profile) {
-            throw ValidationException::withMessages([
-                'class_request_id' => 'No tienes perfil de profesor.',
-            ]);
-        }
+        // Clasificación explícita, no "todo abort() se convierte" — revisión
+        // solicitada: ¿cuál de estos 5 es de verdad una autorización (403,
+        // se queda como abort) y cuál es un estado de negocio recuperable
+        // (ValidationException)?
+        //
+        // - Sin perfil de profesor: NO es recuperable reenviando este mismo
+        //   formulario — es un estado de cuenta roto/imposible en la
+        //   práctica (todo profesor obtiene su perfil atómicamente al
+        //   registrarse; ver RegisteredUserController). Es más cercano a
+        //   una autorización/precondición que a una validación de negocio,
+        //   así que se queda como abort_unless(403) — un 403 crudo aquí es
+        //   aceptable porque un usuario real jamás debería alcanzarlo
+        //   legítimamente (y si alguna vez ocurre, un error ruidoso en logs
+        //   es mejor que uno silenciosamente disfrazado de validación).
+        abort_unless($profile, 403, 'No tienes perfil de profesor.');
+
+        // - `status !== 'open'` SÍ es recuperable: la solicitud sigue
+        //   existiendo, el profesor sigue siendo elegible para intentar con
+        //   OTRA — es un conflicto de estado del recurso, no una falta de
+        //   permiso. Mismo razonamiento para créditos insuficientes y cupo
+        //   de mentoría lleno (ver dentro de la transacción, abajo): todos
+        //   son "no puedes completar esta acción de negocio ahora mismo",
+        //   no "no tienes permiso". Los 3 usan la misma clave de error de
+        //   formulario — no field-level — ver nota más abajo sobre por qué
+        //   NO se atan a `class_request_id` ni a `duration_minutes`.
         if ($classRequest->status !== 'open') {
             throw ValidationException::withMessages([
-                'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+                'accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
             ]);
         }
         $this->authorize('accept', $classRequest);
@@ -70,7 +79,7 @@ class LessonController extends Controller
                 // el chequeo de arriba y este `lockForUpdate()`, esta es la
                 // que realmente importa — el de arriba es solo fail-fast.
                 throw ValidationException::withMessages([
-                    'class_request_id' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+                    'accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
                 ]);
             }
 
@@ -92,19 +101,25 @@ class LessonController extends Controller
             $creditsNeeded = Lesson::creditCostForMinutes($data['duration_minutes']);
 
             if ($teacherProfile->credits_available < $creditsNeeded) {
-                // Se ata a `duration_minutes`, no a un campo genérico: es el
-                // único valor que el profesor puede cambiar en este mismo
-                // formulario para intentar de nuevo (una duración menor
-                // cuesta menos créditos), a diferencia de `class_offer_id`,
-                // que aquí ni siquiera es un campo del formulario.
+                // Corregido en revisión: NO se ata a `duration_minutes`. La
+                // primera versión de este fix lo hacía razonando que "es lo
+                // único que el profesor puede cambiar en este formulario" —
+                // pero eso implica visualmente que cambiar la duración es
+                // LA solución, cuando la solución más directa (recargar
+                // saldo) ni siquiera está en este formulario. Es un error de
+                // negocio, no un dato de formulario inválido — usa la misma
+                // clave `accept` que el resto de errores no ligados a un
+                // campo concreto. El mensaje mismo ya menciona ambas
+                // salidas (recargar o acortar), la UI no necesita
+                // insinuarlo con la ubicación del error.
                 throw ValidationException::withMessages([
-                    'duration_minutes' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
+                    'accept' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
                 ]);
             }
 
             if ($classRequest->is_mentorship && ! $teacherProfile->hasAvailableMentorshipSlots()) {
                 throw ValidationException::withMessages([
-                    'class_request_id' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
+                    'accept' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
                 ]);
             }
 
