@@ -41,7 +41,7 @@ class LessonController extends Controller
         }
 
         $lesson = DB::transaction(function () use ($classRequest, $data, $profile) {
-            $classRequest = ClassRequest::with(['student', 'subject'])
+            $classRequest = ClassRequest::with(['student', 'subject', 'classOffer'])
                 ->whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -80,6 +80,16 @@ class LessonController extends Controller
 
             }
 
+            // BUG-4 (docs/MOVA_AUDIT_PHASE0.md, sección Q): `specific_rate` se
+            // valida y persiste en ClassOfferController, pero hasta este fix
+            // nunca se leía aquí — el profesor podía configurar una tarifa
+            // distinta para una oferta concreta creyendo que era la que se
+            // cobraría, y el sistema siempre congelaba la tarifa general del
+            // perfil en su lugar. `specific_rate` ya fue validado contra
+            // maxAllowedRate() al guardarse la oferta, así que no hace falta
+            // volver a acotarlo aquí — solo usarlo si existe.
+            $rate = $classRequest->classOffer?->specific_rate ?? $teacherProfile->hourly_rate;
+
             $lesson = Lesson::create([
                 'teacher_profile_id' => $profile->id,
                 'student_id' => $classRequest->student_id,
@@ -87,7 +97,7 @@ class LessonController extends Controller
                 'class_offer_id' => $classRequest->class_offer_id,
                 'start_time' => $data['start_time'],
                 'duration_minutes' => $data['duration_minutes'],
-                'price_frozen_pen' => round($teacherProfile->hourly_rate * $creditsNeeded, 2),
+                'price_frozen_pen' => round($rate * $creditsNeeded, 2),
                 'status' => 'scheduled',
             ]);
 
