@@ -213,21 +213,50 @@ tal (no viene de un script), para no perder de vista que "42/82 tocadas"
 puede significar mucho trabajo en superficies secundarias y cero en las que
 de verdad mueven la aguja:
 
-| Superficie crítica | Estimado | Qué falta |
-|---|---:|---|
-| Auth | ~100% | Nada pendiente de este barrido — 2 páginas siguen `BLOCKED_VISUAL_VERIFICATION` (requieren sesión) |
-| Parent — core journey | ~40% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar`, `ClassRequests/Create` hechos; `Marketplace/Index`, `Teachers/Show`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
-| Teacher — core journey | ~50% | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
-| Marketplace/descubrimiento | ~90% (2/2 páginas) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + **2 P0 de exposición pública real** encontrados y corregidos, uno de ellos en la home pública (`WelcomeController`, no un archivo de Marketplace en sí — ver sección propia arriba, incluye auditoría acotada de las 10 rutas públicas de MOVA). Falta: filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño — no inventada aquí) y `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` (bloqueados: MySQL local no disponible en este sandbox ahora mismo) |
-| Booking/Checkout | ~15% (1/6 páginas: `ClassRequests/Create.vue`) | **Corregido aquí** — esta fila decía `0%` y listaba `ClassRequests/Create.vue` como "sin tocar" en una revisión anterior de este documento, contradiciendo directamente la sección de cierre de su propio rediseño más abajo (commits `f7b03b7`/`a266f7d`). `ClassOffers/*`, `Diagnostics/*`, `LessonReports/Create.vue`, `Reviews/Create.vue` siguen sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
-| Class experience (Jitsi) | 0% (deliberado) | `JitsiModal.vue` diferido a propósito para su revisión de seguridad dedicada — no es un olvido |
-| Admin | ~25% | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
+**Renombrado en esta revisión** (corrección conceptual solicitada
+explícitamente): "Booking/Checkout" agrupaba `ClassRequests/Create.vue`
+junto a pricing/créditos, pero `Create.vue` no cobra nada ni fija
+precio/duración — eso ocurre exclusivamente en `Accept`/`LessonController`.
+Nombrar el dominio "Checkout" sugiere una etapa de pago que `Create.vue`
+nunca es. La taxonomía real de MOVA es:
+
+```text
+Discovery (Marketplace/descubrimiento)
+   ↓
+Request (ClassRequests/Create — intención, sin precio ni horario final)
+   ↓
+Acceptance/Scheduling (ClassRequests/Accept — aquí se fija duración,
+                        horario, precio y créditos)
+   ↓
+Lesson (la clase ya agendada)
+   ↓
+Settlement (reportes, reseñas, liquidación de créditos)
+```
+
+Cada fila de abajo usa este vocabulario en vez de "Booking/Checkout". Y
+donde antes decía "Marketplace ~90%", ese porcentaje medía **cobertura de
+implementación** (tokens, iconos, proyección de datos), no "90% listo
+para producción" — la propia fila ya reconocía `BROWSER_VERIFIED`/
+`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` bloqueados, así que un `~90%` sin
+esa aclaración podía leerse mal. Separado en dos columnas explícitas.
+
+| Superficie crítica | Cobertura de implementación | QA/journey pendiente | Qué falta |
+|---|---:|---|---|
+| Auth | ~100% | `BROWSER_VERIFIED` bloqueado en 2 páginas (requieren sesión) | Nada pendiente de este barrido |
+| Parent — core journey | ~40% | sin verificar en su mayoría | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar`, `ClassRequests/Create` hechos; `Marketplace/Index`, `Teachers/Show`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
+| Teacher — core journey | ~50% | sin verificar en su mayoría | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
+| Discovery (Marketplace) | ~90% de implementación (2/2 páginas) — **no** 90% listo para producción | `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` **bloqueados** (MySQL local no disponible en este sandbox al momento de esa pasada) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + **2 P0 de exposición pública real** encontrados y corregidos, uno en la home pública (`WelcomeController`, ver sección propia). Falta filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño) |
+| Request (`ClassRequests/Create.vue`) | ~15% del tramo Request→Lesson (1/6 páginas) | `BROWSER_VERIFIED` ✅ real (ver su sección de cierre) | `ClassOffers/*`, `Diagnostics/*`, `LessonReports/Create.vue`, `Reviews/Create.vue` siguen sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
+| Acceptance/Scheduling (`ClassRequests/Accept.vue`) | 0% | **siguiente objetivo de esta sesión** — auditoría de backend antes de UI | Es la superficie económicamente más sensible del journey: duración, horario, precio y créditos se deciden aquí, no en `Create` |
+| Class experience (Jitsi) | 0% (deliberado) | diferido a su propia revisión de seguridad | `JitsiModal.vue` — no es un olvido |
+| Admin | ~25% | sin verificar en su mayoría | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
 
 **Lectura correcta de esta tabla:** el trabajo de mayor impacto real para el
-negocio (Marketplace, Booking/Checkout, Class experience) sigue
-mayoritariamente sin tocar — `Booking/Checkout` pasó de `0%` a un primer
-paso real (`ClassRequests/Create.vue`), no a completo. El orden de dominios
-restante prioriza esto explícitamente — ver "Flujos críticos" abajo. El
+negocio (Discovery, Request→Acceptance→Lesson, Class experience) sigue
+mayoritariamente sin tocar — `Request` pasó de `0%` a un primer paso real
+(`ClassRequests/Create.vue`), no a completo, y `Acceptance/Scheduling`
+sigue en `0%`. El orden de dominios restante prioriza esto explícitamente
+— ver "Flujos críticos" abajo. El
 siguiente tramo lógico de este mismo journey es `ClassRequests/TeacherIndex.vue`
 → `ClassRequests/Accept.vue` (donde se decide duración, precio y créditos —
 la parte económicamente sensible), no una página de un dominio distinto.
@@ -272,7 +301,7 @@ tocando archivos (Auth → Students → Parent → Teacher → shared components
 Admin). Se corrige explícitamente: **limpiar Admin página por página antes
 de tocar los journeys comerciales de arriba invertía el eje de prioridad** —
 dejaba pulida la superficie de menor tráfico (Admin, uso interno) mientras
-Marketplace/Booking/Checkout, que es donde MOVA genera y cobra clases,
+Discovery/Request/Acceptance — donde MOVA genera y cobra clases —
 seguía al 0%. Diez páginas administrativas bien migradas valen menos que un
 journey de negocio crítico funcionando de punta a punta.
 
