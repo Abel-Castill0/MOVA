@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.11
-generated_at:     2026-08-27T13:25:37Z
-repository_head:  4df28d1   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (57 commits detrás de local, sin push)
+audit_revision:   2026-08-27.12
+generated_at:     2026-08-27T13:37:58Z
+repository_head:  193f9a7   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (58 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -633,6 +633,136 @@ esta auditoría salvo que aparezca evidencia nueva de una fuga P0/P1 real
 por el contrato de negocio (precio, créditos, disponibilidad, idempotencia,
 autorización, concurrencia) antes que por UX/UI, no una sexta ronda de
 búsqueda de exposición.
+
+---
+
+## 🔍 `ClassRequests/Create.vue` — auditoría de contrato de negocio (backend primero, antes de tocar UI)
+
+Se planteó la duda de si el hallazgo de `?offer_id=` en
+`ClassRequestController::create()` era **BOLA/autorización de objeto**
+(Parent A accede a un recurso que no debería poder consultar) o
+**minimización de datos** (el recurso es correcto de consultar, pero
+devolvía demasiado). Se investigó con evidencia, no por intuición — la
+regla que se pidió seguir explícitamente.
+
+### Veredicto sobre `?offer_id=`: minimización de datos, NO autorización de objeto
+
+Evidencia recogida, en orden:
+
+1. **`ClassOfferPolicy` no declara ninguna ability `view`** (solo
+   `update`/`delete`, ambas exigen `$classOffer->teacher_profile_id ===
+   $profile->id`) — leído el archivo completo. Nunca existió una
+   autorización de "quién puede ver una oferta" que este endpoint
+   estuviera saltándose: esa autorización no existe en el sistema, para
+   nadie.
+2. **El propio historial de `MarketplaceController` documenta que el
+   Marketplace anterior al rediseño listaba `ClassOffer` completo — con
+   profesor, materia y precio — a CUALQUIER visitante, sin autenticación
+   alguna** (docblock del método `index()`, ya citado en la sección P0 de
+   arriba). Es decir: la combinación (nombre del profesor, materia,
+   tarifa) que `?offer_id=` seguía exponiendo tras la corrección de
+   `4df28d1` es exactamente el mismo nivel de dato que ya era público sin
+   ningún login antes del rediseño.
+3. **`TeacherPublicController::show()` expone hoy mismo, a cualquier
+   visitante sin sesión, ese mismo nivel de dato** (nombre, materias,
+   tarifa por hora) para cualquier profesor verificado — verificado en la
+   sección P0 de arriba.
+
+**Conclusión, con evidencia, no por intuición**: no existía ninguna
+frontera de autorización que cruzar — `ClassOffer` (de un profesor
+verificado) nunca fue un recurso privado en el modelo de negocio de MOVA,
+es el mismo nivel de "anuncio profesional público" que el Marketplace y el
+perfil público ya muestran. El P0 real y ya corregido en `4df28d1` es
+**data minimization**: la fuga no era "Parent A ve algo que no debería
+poder ver", era "el endpoint devolvía campos que ni siquiera el
+Marketplace público expone" (`yape_number`, `plin_number`,
+`referral_code`, y el `User` completo del profesor). Se mantiene la
+severidad P0 de esa parte — el dato expuesto sí era sensible — pero se
+corrige la clasificación: **no es BOLA**, y no se introduce una
+autorización nueva que el modelo de negocio nunca tuvo.
+
+**Categoría superior adoptada para futuros hallazgos de esta familia**,
+como se pidió — `RESOURCE ACCESS & DATA PROJECTION`, con dos dimensiones
+que se evalúan siempre por separado, con evidencia, nunca asumidas:
+
+```text
+A. Data minimization / projection — ¿el endpoint devuelve más de lo que
+   necesita, incluso a un consumidor legítimamente autorizado?
+B. Object-level authorization — ¿existe una frontera de autorización real
+   en el modelo de negocio que el endpoint esté saltándose?
+```
+
+En el caso de `?offer_id=`: **A confirmado y corregido, B evaluado y
+descartado con evidencia** (no hay frontera B que exista para este
+recurso).
+
+### Verificación del resto del flujo `ClassRequests/Create` → aceptación (leído, no asumido)
+
+Se rastreó la cadena completa `ClassRequestController::store()` →
+`ClassRequestPolicy::accept()` → `LessonController::store()` — el punto
+donde de verdad se mueven créditos y se fija el precio. Cada invariante
+que se pidió verificar, con el archivo/línea real:
+
+| Invariante | Estado | Evidencia |
+|---|---|---|
+| Student ownership | ✅ Ya correcto | `ClassRequestController::store()`: `auth()->user()->students()->findOrFail($data['student_id'])` — un `student_id` de otro padre lanza 404, no se puede crear la solicitud |
+| Teacher/subject/offer válido en la aceptación | ✅ Ya correcto | `ClassRequestPolicy::accept()`: profesor debe estar `is_verified`; si la solicitud está vinculada a un profesor específico (código de referido), es EXCLUSIVA de ese profesor; si no, exige que el profesor sea dueño de la oferta o enseñe la materia — nunca confía en lo que el cliente afirma |
+| Precio autoritativo del servidor | ✅ Ya correcto | `LessonController::store()`: `$rate = $classRequest->classOffer?->specific_rate ?? $teacherProfile->hourly_rate` — ambos valores de BD, el cliente solo envía `class_request_id`/`start_time`/`duration_minutes`, nunca un precio |
+| Créditos autoritativos + a prueba de carrera | ✅ Ya correcto | `$creditsNeeded = Lesson::creditCostForMinutes(...)` (servidor) verificado contra `TeacherProfile::lockForUpdate()` DENTRO de la transacción — no la lectura previa a la transacción, la relockeada — evita TOCTOU |
+| Disponibilidad validada server-side | ✅ Ya correcto | `hasScheduleOverlap()` se llama dos veces: una vez fuera de la transacción (fail-fast de UX) y otra vez DENTRO con `lockForUpdate()` sobre las lecciones candidatas — un segundo intento concurrente no puede colar un solape |
+| Concurrencia / doble reserva | ✅ Ya correcto | El lock de `TeacherProfile` actúa como mutex por profesor: dos `accept()` simultáneos para el mismo profesor se serializan; el segundo relee el estado ya actualizado por el primero |
+| "Idempotencia" de aceptación (doble-accept del mismo `ClassRequest`) | ✅ Ya correcto | `abort_if($classRequest->status !== 'open', ...)` reevaluado DENTRO de la transacción con `lockForUpdate()` sobre el propio `ClassRequest` — un segundo accept tras el primero ve `status === 'accepted'` y aborta |
+
+**Nada de esto se tocó ni se "arregló" — ya estaba bien construido.**
+Documentarlo como verificado (no asumido) es en sí mismo el resultado de
+esta pasada: la superficie más sensible de dinero/menores de MOVA
+(aceptar una solicitud, reservar créditos, fijar precio) ya tenía las
+protecciones correctas antes de esta sesión.
+
+### Dos hallazgos reales, menores, encontrados en el camino (documentados, no P0/P1)
+
+- **`ClassRequestController::store()` no protege contra doble envío por
+  reintento de red** (P3). El botón de envío en `Create.vue` ya se
+  deshabilita mientras `form.processing` (cubre el doble-click, el caso
+  común), y la ruta tiene `throttle:10,1` (limita abuso, no duplicados).
+  Pero no existe una clave de idempotencia ni una restricción de
+  unicidad — un reintento genuino de red (conexión inestable, no un
+  clic doble) podría crear dos `ClassRequest` idénticas. Impacto
+  acotado: no mueve dinero/créditos en la creación (eso ocurre solo en
+  `LessonController::store()`, ya protegido), en el peor caso dos
+  profesores distintos podrían aceptar cada una y el padre terminaría con
+  dos clases para una sola necesidad. No se implementa una clave de
+  idempotencia ahora — es una decisión de diseño (¿qué forma debe tener?)
+  que merece su propia pasada deliberada, no un parche apurado dentro de
+  esta auditoría.
+- **`ClassRequestController::store()` no valida `is_active`/`is_verified`
+  al guardar un `class_offer_id` fuera del camino de mentoría** (P3). Una
+  solicitud podría quedar vinculada a una oferta inactiva o a un profesor
+  no verificado. El daño real está acotado porque `ClassRequestPolicy::
+  accept()` ya bloquea a cualquier profesor no verificado
+  independientemente del estado de la oferta — el peor caso es una
+  solicitud huérfana que nadie puede/debe aceptar, no un problema de
+  seguridad ni de dinero.
+
+### Cierre de esta pasada — autorización a entrar en UX/UI
+
+```text
+[x] Root cause de ?offer_id determinado con evidencia: data minimization,
+    NO object-level authorization (ver arriba)
+[x] Contrato de ClassOffer/oferta verificado contra el código real, no inventado
+[x] Student ownership verificado — ya correcto
+[x] Teacher/subject/offer integrity verificado — ya correcto
+[x] Pricing verificado como autoritativo del servidor — ya correcto
+[x] Credits verificado como autoritativo + a prueba de carrera — ya correcto
+[x] Availability verificado server-side — ya correcto
+[x] Concurrencia verificada (lock de TeacherProfile como mutex) — ya correcto
+[x] "Idempotencia" de aceptación verificada (lock sobre ClassRequest) — ya correcto
+[x] Dos hallazgos menores (P3) documentados, no bloquean el cierre
+```
+
+Con esto, el contrato de negocio de `ClassRequests/Create.vue` está
+verificado — la fase de UX/UI puede empezar sin dejar sin comprobar
+ningún invariante de dinero/autorización/concurrencia detrás del diseño.
 
 ---
 
