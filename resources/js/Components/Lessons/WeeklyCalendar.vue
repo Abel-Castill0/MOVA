@@ -47,7 +47,7 @@
                   canJoinJitsi(l) ? 'hover:brightness-[0.97] active:scale-[0.98] cursor-pointer' : 'cursor-default']">
                 <div class="flex items-center justify-between gap-1">
                   <p class="font-bold">{{ fmtTime(l.start_time) }}</p>
-                  <span v-if="canJoinJitsi(l)" aria-hidden="true">🎥</span>
+                  <Icon v-if="canJoinJitsi(l)" name="join-room" :size="12" />
                 </div>
                 <p class="truncate font-semibold mt-0.5">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
                 <p class="truncate opacity-75">{{ otherParty(l) }}</p>
@@ -63,6 +63,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import Icon from '@/Components/Icon.vue'
 import { statusStyle } from '@/utils/statusColors'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { startOfWeek } from '@/utils/weekGrouping'

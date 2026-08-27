@@ -46,6 +46,10 @@ import {
   FileWarning,
   Hourglass,
   CircleDollarSign,
+  Sunrise,
+  Sun,
+  Sunset,
+  RefreshCw,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -102,6 +106,12 @@ export const icons = {
   // Lessons/*LessonCard.vue
   'under-review': Hourglass,       // ⏳ "en revisión por el equipo MOVA"
   'payment-received': CircleDollarSign, // 💰 "el padre confirmó el pago"
+
+  // TimeSlotPicker.vue
+  morning: Sunrise,                // 🌅 "Mañana"
+  afternoon: Sun,                  // ☀️ "Tarde"
+  evening: Sunset,                 // 🌆 "Noche"
+  flexible: RefreshCw,             // 🔄 "Flexible"
 }
 
 /**

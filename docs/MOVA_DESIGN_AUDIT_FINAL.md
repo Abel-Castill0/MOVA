@@ -117,9 +117,9 @@ tildes eliminadas en `Teacher/Credits/Index.vue`, el texto en inglés de
 | Pages | 53 |
 | Components | 26 |
 | Layouts | 3 |
-| Emoji restantes (suma) | 139 en 36 archivos (160/38 tras Parent, 199/43 al inicio de la Fase 3) |
-| `indigo` restante (suma) | 33 en 13 archivos (54/14 tras Parent, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
-| Archivos con algún trabajo de esta sesión | 28 de 82 |
+| Emoji restantes (suma) | 120 en 31 archivos (139/36 tras Teacher, 199/43 al inicio de la Fase 3) — de estos, 1 es `CONTENT` deliberadamente conservado (`LandingFooter.vue`), el resto sigue sin clasificar |
+| `indigo` restante (suma) | 26 en 11 archivos (33/13 tras Teacher, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
+| Archivos con algún trabajo de esta sesión | 33 de 82 |
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -344,20 +344,20 @@ negocio o backend.
 | `Components/InputError.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
 | `Components/InputLabel.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
 | `Components/JitsiModal.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/LandingFooter.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/LandingFooter.vue` | 1 | 0 | **AUDITED — NO CHANGE (CONTENT)** — el ❤ es "Desarrollado con ❤ por Abel Castillo", copy/crédito personal, no un icono de interfaz. Clasificado `CONTENT` explícitamente, no omitido por descuido. | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingNavbar.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/Lessons/ParentLessonCard.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — deduplicado de `statusColors.js` (`statusStripe()`/`statusLabel()` locales eliminados, ahora consume `statusStyle().stripe/.label`); 6 emoji→Icon (estrellas de reseña ahora `<Icon fill>`, no texto `★`). Personalización menor descartada a propósito: el label local decía "Esperando **tu** calificación" (2ª persona), la fuente compartida dice "Esperando calificación" (genérica) — se prioriza una sola fuente de verdad sobre el matiz de copy, documentado aquí en vez de silenciado. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ |
 | `Components/Lessons/TeacherLessonCard.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — mismo deduplicado; 5 emoji→Icon. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ |
-| `Components/Lessons/WeeklyCalendar.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/Lessons/WeeklyCalendar.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 🎥→Icon. Ya era consumidor correcto de `statusStyle()` (no duplicaba el mapeo) — confirmado, no asumido. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ |
 | `Components/Modal.vue` | 0 | 0 | **COMPLETA** (Fase 2, ver commit `1b58bc2`) | ✅ (hoja móvil / diálogo centrado, medido en 1280px) | ✅ (tokens) | ✅ (dialog/aria-modal/focus trap/restauración de foco — verificado con teclado real) | ✅ |
 | `Components/MovaLogo.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/NotificationBell.vue` | 1 | 2 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/NotificationBell.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 🔔→Icon; indigo→brand (link "Marcar todas", fondo de no-leído). **A11y real, no solo color**: añadido `aria-haspopup`/`aria-expanded`/`aria-controls` al botón (el panel colapsable no anunciaba su estado). **Bug real de manejo de errores**: `markOne`/`markAll` no tenían `try/catch` (a diferencia de `load()`, que sí) — un fallo de red lanzaba un rechazo de promesa sin manejar; ahora no actualiza el estado local si la petición falla, en vez de asumir éxito optimista. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (solo se usa dentro de `AppLayout`, autenticado) |
 | `Components/PrimaryButton.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | ✅ | ✅ |
 | `Components/SecondaryButton.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | ✅ | ✅ |
 | `Components/Skeleton.vue` | 0 | 0 | **COMPLETA** (nuevo, Fase 2) — sin consumidores todavía | ✅ | ✅ | ✅ (aria-hidden) | pendiente |
 | `Components/StatusBadge.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/TextInput.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
-| `Components/TimeSlotPicker.vue` | 6 | 3 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Components/TimeSlotPicker.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 6 emoji→Icon (semántico por hora del día: Sunrise/Sun/Sunset/RefreshCw, no genérico); 3 indigo→brand. **A11y real**: añadido `aria-pressed` a los botones de selección múltiple (no anunciaban su estado activado/desactivado). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (usado en `ClassRequests/Create.vue`, autenticado) |
 <!-- MATRIZ:FIN -->
 
 ---

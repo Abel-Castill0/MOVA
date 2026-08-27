@@ -1,24 +1,25 @@
 <template>
   <div class="relative" ref="root">
     <button @click="open = !open" aria-label="Notificaciones"
+      aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
-      🔔
+      <Icon name="notification" :size="20" />
       <span v-if="unread > 0"
         class="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
         {{ unread > 9 ? '9+' : unread }}
       </span>
     </button>
 
-    <div v-if="open" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
+    <div v-if="open" id="notification-panel" role="menu" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
-        <button v-if="unread > 0" @click="markAll" class="text-xs text-indigo-600 hover:underline">Marcar todas</button>
+        <button v-if="unread > 0" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
       </div>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
         <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin notificaciones</div>
         <div v-for="n in notifications" :key="n.id"
           @click="markOne(n.id)"
-          :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-indigo-50/40' : '']">
+          :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
           <p class="text-xs text-gray-400 mt-0.5">{{ fmtDate(n.created_at) }}</p>
         </div>
@@ -30,6 +31,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import Icon from '@/Components/Icon.vue'
 
 // El componente vive en dos lugares con geometría opuesta: al fondo del
 // sidebar (el botón está abajo-izquierda, así que el panel debe abrirse
@@ -67,14 +69,28 @@ async function load() {
   } catch {}
 }
 
+// AUDITORÍA (hallazgo real, no solo visual): a diferencia de load(), estas
+// dos acciones no tenían try/catch — un fallo de red lanzaba un rechazo de
+// promesa sin manejar en la consola. No hay espacio visual en este panel
+// compacto para un mensaje de error explícito, así que la corrección
+// correcta aquí es no actualizar el estado local si la petición falla (en
+// vez de asumir optimistamente que se marcó como leída cuando no fue así).
 async function markOne(id) {
-  await axios.post(`/notifications/${id}/read`)
+  try {
+    await axios.post(`/notifications/${id}/read`)
+  } catch {
+    return
+  }
   const n = notifications.value.find(x => x.id === id)
   if (n) n.read_at = new Date().toISOString()
 }
 
 async function markAll() {
-  await axios.post('/notifications/read-all')
+  try {
+    await axios.post('/notifications/read-all')
+  } catch {
+    return
+  }
   notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
 }
 
