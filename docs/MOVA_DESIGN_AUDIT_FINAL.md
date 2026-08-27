@@ -253,7 +253,50 @@ asignada.
 
 ---
 
-## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
+## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0 · ✅ RESUELTO
+
+**Snapshot de la corrección** (Audit Snapshot Contract): `HEAD`
+`eeca1ffa7dc7212de46bba2a80f653711deec65b` → esta corrección se aplicó
+encima, sin pushear (`origin/master` en `692b3651...`, 40 commits por
+detrás, sin cambiar); working tree limpio salvo los 2 archivos nuevos de
+esta corrección; verificado 2026-08-27T10:40Z, directorio de trabajo real,
+no worktree aislado.
+
+**Corregido** en `database/migrations/2026_08_27_000002_widen_class_requests_status_enum_for_sqlite.php`
+— sigue el mismo patrón de reconstrucción ya usado en
+`2026_08_23_000002_add_reversal_state_to_recharge_requests.php`; no-op real
+en MySQL (el ENUM ahí ya era correcto), reconstruye el CHECK en SQLite.
+Verificado, no asumido:
+- `up()` probado directamente: el `CHECK` resultante en SQLite ahora incluye
+  `teacher_rejected` (confirmado leyendo `sqlite_master.sql` antes/después).
+- `down()` probado: revierte el `CHECK` correctamente, y además **se
+  verificó que el guard de seguridad bloquea el rollback** si ya existen
+  filas en `teacher_rejected` (mismo patrón que la migración de
+  `recharge_requests`).
+- `tests/Feature/TeacherRejectClassRequestTest.php` (nuevo, 3 tests) cierra
+  el hueco de cobertura real: `TeacherVerificationGateTest` ya existente
+  solo cubre el camino BLOQUEADO (403, la policy corta antes del `update()`
+  — nunca escribe a la BD). Este archivo prueba el camino que faltaba: un
+  profesor verificado que sí puede rechazar, con la escritura real
+  ocurriendo. **Verificado que el test realmente habría atrapado el bug
+  original**: se deshabilitó temporalmente la migración de corrección, se
+  confirmó que el test fallaba con un 500 (la misma `CHECK constraint
+  failed` reproducida al diagnosticar el bug), y se restauró el archivo
+  antes de continuar.
+- Suite completa: **480/480 tests pasan** (477 antes de esta corrección +
+  3 nuevos).
+- Migración renombrada de `_000001_` a `_000002_` tras notar una colisión
+  de timestamp con `2026_08_27_000001_add_idempotency_key_to_student_
+  diagnostics.php` (el fix de BUG-2 de esta misma sesión) — sin colisión
+  funcional real (Laravel desempata alfabéticamente), pero renombrado para
+  evitar confusión en el historial de migraciones.
+
+**No se ejecutó `php artisan migrate` contra ninguna base de datos local
+real** — la verificación completa se hizo contra la base de datos de test
+(SQLite en memoria, la misma que usa `php artisan test`), no contra
+`DB_DATABASE=mova` en `127.0.0.1` que aparece en `.env`. Aplicar esta
+migración al entorno de desarrollo local real queda como una acción del
+usuario, no ejecutada aquí sin pedirlo.
 
 Al intentar construir un test de contrato que verificara los estados reales
 de la base de datos contra los registros JS (`utils/statusColors.js`,
