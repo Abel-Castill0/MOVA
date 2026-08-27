@@ -479,7 +479,30 @@ Estas son las dos pasadas dedicadas que CLAUDE.md exige explícitamente antes de
 - **Exports/backups/attachments**: no se encontró ninguna funcionalidad de exportación de datos de alumnos en el código (ni CSV, ni PDF, ni API pública). Backups son responsabilidad de infraestructura (Railway/MySQL gestionado), fuera del alcance de una revisión de código — `UNKNOWN`, ya señalado como C4 en el mapa de deuda técnica.
 - **Búsqueda/admin**: no existe ningún panel admin que liste o busque `Student` directamente (confirmado: `AdminController` no referencia el modelo `Student` en ningún método).
 
-**Veredicto Y.1: el diseño de ACCESS y MUTATION es sólido, sin hallazgo explotable. RETENTION tiene un hallazgo real pero no explotable (PII de un alumno sin historial sobrevive indefinidamente sin anonimizar) — clasificado como mejora de privacidad pendiente, no como vulnerabilidad. Esto satisface la revisión de seguridad que CLAUDE.md exige para este cambio.**
+**Veredicto Y.1: el diseño de ACCESS y MUTATION es sólido, sin hallazgo explotable. RETENTION tiene un hallazgo real pero no explotable — esto satisface la revisión de seguridad que CLAUDE.md exige para este cambio.**
+
+### Ficha formal — PRIV-STUDENT-RETENTION
+
+```
+ID:              PRIV-STUDENT-RETENTION
+Status:          OPEN
+Severity:        P2
+Type:            Privacy / Data lifecycle
+Affected entity: Student (menor de edad)
+Evidence:        StudentController::destroy() + Student::anonymize(),
+                 confirmado por tests/Feature/StudentDeletionIntegrityTest.php
+                 ::test_a_student_without_history_is_deleted_cleanly
+```
+
+**No se corrige en este documento ni en el checkpoint asociado.** No se inventa una política de retención — antes de escribir cualquier código, deben responderse explícitamente (por quien tenga la autoridad de producto/legal sobre datos de menores, no por esta auditoría):
+
+- ¿Qué debe conservarse de un alumno tras su baja, y por qué (obligación operativa, contable, legal)?
+- ¿Durante cuánto tiempo?
+- ¿Quién puede acceder a esos datos retenidos, y con qué autorización?
+- ¿En qué momento (inmediato / tras un período / nunca automáticamente) corresponde anonimizar?
+- ¿Debe tratarse distinto un alumno CON historial académico (donde ya existe una razón de integridad para conservar la fila) de uno SIN historial (donde hoy no existe ninguna)?
+
+Solo después de responder esas preguntas se implementa el comportamiento — anonimizar de inmediato, hard-delete real para el caso sin historial, o retención por un plazo definido son las tres opciones razonables, y ninguna se adopta por defecto aquí.
 
 ### Y.2 — JaaS/Jitsi (`LessonController::join()`, `JaasService`, ventana de acceso)
 
@@ -498,7 +521,15 @@ Estas son las dos pasadas dedicadas que CLAUDE.md exige explícitamente antes de
 | ¿Las notificaciones contienen todavía información sensible (`jitsi_room`/token)? | No — cubierto por `tests/Feature/NotificationSecurityTest.php`, que usa el tokenizer real de PHP (`token_get_all()`, no un regex ingenuo que un comentario pudiera engañar) para confirmar que ningún archivo de `app/Notifications/*.php` incluye el valor real de la sala. Ejecutado en esta misma ronda de revisión (ver sección X) — pasa |
 | ¿Puede un admin entrar a cualquier videollamada? | Sí, deliberadamente — `LessonPolicy::before()` da bypass total a `hasRole('admin')`, igual que las otras 6 Policies del sistema. Es consistente con el resto del modelo de confianza de admin (ya puede suspender, forzar reembolsos, verificar profesores) — no es un hallazgo nuevo, es el mismo patrón de confianza ya existente aplicado aquí también |
 
-**Veredicto Y.2: la ventana de acceso es server-authoritative, la autorización por lección es correcta, no se encontró ninguna ruta de bypass. El único punto que sigue como `UNKNOWN` (ya reconocido honestamente en el propio código, no descubierto ahora) es si JaaS aplica de verdad el claim `room` como aislamiento entre salas — requiere una prueba contra JaaS real, imposible de verificar desde el código. Esto satisface la revisión de seguridad que CLAUDE.md exige para este cambio, con esa única reserva explícita.**
+**Veredicto Y.2 — declarado en dos líneas separadas a propósito, para que nunca se colapsen en una sola afirmación de "seguro":**
+
+```
+Application security (autorización, ventana, expiración, ownership):  ✅ VERIFIED
+Provider-side room isolation (¿JaaS aplica el claim 'room' como                 
+  aislamiento real entre salas?):                                     ⚠️ UNKNOWN / EXTERNAL
+```
+
+Todo lo que el código de MOVA controla — quién puede pedir un token, cuándo, con qué expiración, ligado a qué lección — está verificado con evidencia, sin ruta de bypass encontrada. Lo que MOVA **no controla** — si JaaS realmente aísla una sala de otra usando ese claim, y no solo confía en que nadie adivine el nombre de sala de otro — es una garantía de un proveedor externo, no verificable desde este código ni desde esta auditoría, y **no se convierte en una afirmación de "seguro" por extensión**. Esto satisface la revisión de seguridad que CLAUDE.md exige para este cambio: la mitad que depende de MOVA está verificada; la mitad que depende de JaaS queda marcada como lo que es, sin fusionarse con la primera.
 
 ---
 

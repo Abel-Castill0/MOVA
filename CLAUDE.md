@@ -26,3 +26,11 @@ Cuando el usuario escriba `/handoff`, generar `docs/SESSION_HANDOFF.md` con: obj
 ## Legal / menores de edad
 
 MOVA maneja videollamadas y datos de menores (alumnos). Cualquier cambio en Jitsi, en el manejo de datos de estudiantes, o en el modelo `Student`/`teacher_profiles` debe pasar por una revisión de seguridad explícita antes de mergear.
+
+## Auditorías y verificación — Audit Snapshot Contract
+
+Una auditoría de esta base de código encontró, de forma verificada, que un checkout aislado (`git worktree` desde `HEAD`) puede describir un estado del código distinto al del directorio de trabajo real cuando hay cambios sin commitear — y que confundir ambos produjo un hallazgo de seguridad reportado como abierto cuando ya estaba corregido. Regla derivada, obligatoria para cualquier verificación futura (auditoría, revisión de seguridad, o cualquier afirmación de tipo "esto ya está arreglado/verificado"):
+
+Toda verificación debe declarar explícitamente, antes de cualquier conclusión, el snapshot exacto contra el que se hizo: `HEAD` (hash), `origin/<rama>` (hash y si diverge), si se usó un checkout aislado o el directorio de trabajo real, estado del working tree (limpio / N archivos modificados-untracked), y la marca de tiempo. Nunca declarar algo "verificado" o "corregido" sin decir contra qué snapshot — y nunca mezclar evidencia de un checkout aislado con evidencia del directorio de trabajo real sin señalarlo explícitamente.
+
+Al reportar la exposición de un secreto, mantener siempre separadas estas cinco dimensiones, sin mezclarlas bajo una sola cifra: exposición histórica (todo lo que alguna vez lo contuvo), exposición en `HEAD` local, exposición en el remoto actual, exposición en el working tree, y validez de la credencial. Rotar una credencial, limpiar el remoto actual (commit+push hacia adelante) y purgar el historial de git son tres controles distintos que actúan sobre superficies distintas — nunca tratar uno como sustituto de otro.
