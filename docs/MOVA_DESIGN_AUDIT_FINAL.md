@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.06
-generated_at:     2026-08-27T11:28:58Z
-repository_head:  ba92536   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (44 commits detrás de local, sin push)
+audit_revision:   2026-08-27.07
+generated_at:     2026-08-27T11:56:00Z
+repository_head:  cd0c8ee   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (48 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -199,7 +199,7 @@ de verdad mueven la aguja:
 | Auth | ~100% | Nada pendiente de este barrido — 2 páginas siguen `BLOCKED_VISUAL_VERIFICATION` (requieren sesión) |
 | Parent — core journey | ~35% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar` hechos; `Marketplace/Index`, `Teachers/Show`, `ClassRequests/Create`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
 | Teacher — core journey | ~50% | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
-| Marketplace/descubrimiento | 0% | `Marketplace/Index.vue`, `Teachers/Show.vue` — sin tocar todavía |
+| Marketplace/descubrimiento | ~90% (2/2 páginas) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + un P0 de seguridad real encontrado y corregido (ver sección propia arriba). Falta: filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño — no inventada aquí) y `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` (bloqueados: MySQL local no disponible en este sandbox ahora mismo) |
 | Booking/Checkout | 0% | `ClassRequests/Create.vue`, `ClassOffers/*`, `Diagnostics/*` — sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
 | Class experience (Jitsi) | 0% (deliberado) | `JitsiModal.vue` diferido a propósito para su revisión de seguridad dedicada — no es un olvido |
 | Admin | ~25% | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
@@ -302,6 +302,72 @@ el bloque de integridad fue 100% backend (migraciones + tests PHP), cero
 archivos `.vue`/`.js` tocados; correrlo no habría probado nada sobre este
 cambio. Se ejecutará antes/durante el trabajo de Marketplace, que sí toca
 frontend.
+
+---
+
+## 🔴 INCIDENTE DE SEGURIDAD REAL — fuga de datos en `/marketplace` · ✅ CORREGIDO LOCALMENTE, NO DESPLEGADO TODAVÍA
+
+Encontrado el primer día de trabajo real sobre Marketplace (no en la
+auditoría de estados/migraciones) — merece su propia sección por la misma
+regla que ya rige `active_offer` y el bug de `teacher_rejected`: nunca
+enterrado entre hallazgos visuales.
+
+**Qué pasaba, verificado con `json_encode()` del resultado real de la
+query, no inferido**: `MarketplaceController::index()` pasaba su allow-list
+de columnas como segundo argumento de `paginate(24, ['id', 'user_id',
+'bio', 'hourly_rate'])`. Ese argumento se ignora en silencio en cuanto el
+query ya tiene `withAvg()`/`withCount()` encadenados (ambos usan
+`addSelect()` internamente). El resultado real, confirmado antes de tocar
+nada:
+
+```json
+{"id":1,"user_id":1,"bio":"x","hourly_rate":"30.00","is_verified":true,
+ "rejected_at":null,"rejection_reason":null,"reviewed_by":null,
+ "reviewed_at":null,"credits_available":0,"credits_reserved":0,
+ "yape_number":null,"plin_number":null,"referral_code":"TCDH7K", ...}
+```
+
+**Toda la fila de `TeacherProfile`** — incluyendo `yape_number`/
+`plin_number` (números de cuenta de pago personales de cada profesor
+verificado) y `referral_code` — viajaba al frontend en cada visita a
+`/marketplace`. Es una ruta pública, sin autenticación, y está en el
+sitemap con `changefreq: daily` — cualquiera que visite la página (o
+cualquier crawler de Google/Bing) recibe ese JSON embebido en el HTML
+inicial (visible con "ver código fuente", sin necesitar devtools).
+
+**Ventana de exposición real, no solo "el código tenía un bug"**: `git log`
+ubica la línea exacta en el commit `2fb22fd` (2026-08-22), y
+`git merge-base --is-ancestor 2fb22fd origin/master` confirma que ese
+commit ya es ancestro de `origin/master` — es decir, **este código muy
+probablemente lleva ~5 días desplegado en producción** antes de encontrarse
+aquí. No se afirma que alguien específico haya extraído los datos — no hay
+forma de saberlo desde este repositorio — pero la superficie de exposición
+fue real y pública, no teórica.
+
+**Qué NO se hizo, deliberadamente**: no se rota nada. `yape_number`/
+`plin_number` son los propios números de cuenta de pago de cada profesor,
+no una credencial que esta sesión pueda o deba rotar — es una decisión que
+depende de ti (si quieres avisar a los profesores verificados, o
+monitorear uso indebido). Se separan aquí las mismas dimensiones que ya
+rigen F-26/F-27: exposición histórica (~5 días en producción, ruta pública
++ sitemap) vs. corrección del código (hecha, local, no desplegada aún) vs.
+decisión sobre las cuentas de pago en sí (tuya, no técnica).
+
+**Corregido** (commit `0b1bc13`): `->select([...])` explícito antes de
+`with()`/`withAvg()`/`withCount()` en vez de pasarlo a `paginate()` —
+verificado que si se aplica en ese orden, si se respeta. `TeacherPublicVisibilityTest.php`
+(8 tests nuevos — ninguno de los dos controllers públicos tenía un solo
+test dedicado hasta ahora) prueba explícitamente que `yape_number`,
+`plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`,
+`credits_available`/`reserved` nunca aparecen en el listado. Verificado
+que el test detecta la regresión real: se restauró temporalmente el
+código con el bug, el test falló exactamente con
+`Property [teachers.data.0.referral_code] was found while it was expected
+to be missing`, se restauró la corrección.
+
+**No desplegado**: sigue bajo la misma regla de "no push mientras F-26/F-27
+sigan alcanzables en el HEAD actual de origin" — este fix está listo,
+local, esperando junto con el resto del trabajo de esta sesión.
 
 ---
 
