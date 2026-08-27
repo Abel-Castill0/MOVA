@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AiUsageLog;
 use App\Models\StudentDiagnostic;
+use App\Support\LimaClock;
 use App\Support\TextRedactor;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -138,8 +139,12 @@ class DiagnosticAiEnrichmentService
     {
         $limit = (int) config('diagnostic.daily_limit', 50);
         if ($limit <= 0) return false;
+        // BUG-5: el límite diario debe resetearse a medianoche en Lima, no a
+        // medianoche UTC (7pm hora de Lima) — ver LimaClock.
+        [$todayStart, $todayEnd] = LimaClock::todayRangeUtc();
         $count = AiUsageLog::where('status', 'success')
-            ->whereDate('created_at', today())
+            ->where('created_at', '>=', $todayStart)
+            ->where('created_at', '<', $todayEnd)
             ->count();
         return $count >= $limit;
     }

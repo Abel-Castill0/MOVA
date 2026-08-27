@@ -9,6 +9,7 @@ use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\TeacherReview;
 use App\Models\User;
+use App\Support\LimaClock;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -25,7 +26,15 @@ class DashboardController extends Controller
                     'incomplete_profiles'      => TeacherProfile::where(function ($q) {
                         $q->whereNull('bio')->orWhere('bio', '')->orWhere('hourly_rate', 0);
                     })->count(),
-                    'classes_today'            => Lesson::whereDate('start_time', today())->count(),
+                    // BUG-5: "hoy" para un admin en Perú, no medianoche UTC
+                    // (que cae a las 7pm hora de Lima) — ver LimaClock. Rango
+                    // semiabierto [inicio, fin) explícito, no whereBetween
+                    // (que es inclusivo en ambos extremos y contaría una
+                    // clase que empieza justo a la medianoche del día
+                    // siguiente).
+                    'classes_today'            => Lesson::where('start_time', '>=', LimaClock::todayRangeUtc()[0])
+                        ->where('start_time', '<', LimaClock::todayRangeUtc()[1])
+                        ->count(),
                     'open_requests'            => ClassRequest::where('status', 'open')->count(),
                     // C-1 (A-1/Fase 3B §11): antes de C-1 'completed' solo se alcanzaba
                     // TRAS crear el reporte, así que esta condición era imposible por

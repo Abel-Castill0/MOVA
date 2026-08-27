@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiUsageLog;
+use App\Support\LimaClock;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -10,10 +11,13 @@ class AiUsageController extends Controller
 {
     public function index()
     {
-        $today = today();
         $monthStart = now()->startOfMonth();
 
-        $statsToday = AiUsageLog::whereDate('created_at', $today)
+        // BUG-5: "hoy" para un admin en Perú, no medianoche UTC — ver LimaClock.
+        [$todayStart, $todayEnd] = LimaClock::todayRangeUtc();
+
+        $statsToday = AiUsageLog::where('created_at', '>=', $todayStart)
+            ->where('created_at', '<', $todayEnd)
             ->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')
             ->pluck('count', 'status')
