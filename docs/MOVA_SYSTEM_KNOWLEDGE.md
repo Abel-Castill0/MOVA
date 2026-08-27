@@ -604,14 +604,36 @@ guard "fail loud" de drift en MySQL vía `SHOW COLUMNS`) es ahora el
 estándar a seguir — ver los propios archivos de migración citados arriba
 para el código exacto.
 
-**No auditado todavía con el mismo barrido exhaustivo**: `RechargeRequest.
-status`, `PaymentOrder.status`, `WhatsAppMessage.status` (ver §26). Ninguno
-mostró el síntoma durante el trabajo de esta sesión, pero tampoco se les
-aplicó la misma auditoría línea-por-línea de escritores reales que sí se
-hizo para los dos casos de arriba — no se asume que estén bien por
-ausencia de evidencia en contra. Si se toca cualquiera de esos dominios,
-repetir el mismo procedimiento: listar escritores reales → comparar contra
-el `ENUM` de MySQL → comparar contra el schema de SQLite → decidir.
+**Inventario de riesgo pendiente — comprobación barata ejecutada ahora
+(2026-08-27), auditoría completa de escritores NO ejecutada todavía:**
+
+Antes de dejar esto como "sin auditar" sin más, se hizo la comprobación
+más barata posible (fresh migrate + lectura de `sqlite_master`, sin
+rastrear escritores) para los tres dominios de estado restantes de §26 —
+resultado real, no supuesto:
+
+| Columna | CHECK real en SQLite (verificado ahora) | Riesgo de esta categoría |
+|---|---|---|
+| `recharge_requests.status` | `('pending','approved','rejected','reversed')` — coincide con §26 | Bajo — CHECK ya existe y ya coincide |
+| `payment_orders.status` | `('created','pending','paid','failed','expired','cancelled')` — coincide con §26 | Bajo — CHECK ya existe y ya coincide; además "sin tráfico real todavía" (§26) |
+| `whatsapp_messages.status` | `('sent','delivered','read','failed','unknown','skipped')` — coincide con §26 (incluye `skipped`, migración `2026_08_24_000005`) | Bajo — CHECK ya existe y ya coincide |
+
+**Ninguno de los tres reproduce el síntoma** (`CHECK` ausente o
+desincronizado) que sí tenían `class_requests.status` y `classes.status` —
+los dos casos reales parecen haber sido los únicos de su tipo en el
+repositorio, no la punta de un problema mayor. Esto reduce el riesgo de
+"auditoría infinita" que motivaría seguir revisando tabla por tabla antes
+de continuar con producto.
+
+**Lo que esta comprobación NO cubre** (a diferencia del barrido completo
+de `class_requests`/`classes`): no se rastreó cada escritor real de estas
+tres columnas en el código, no se buscaron estados muertos, y no se
+verificó el guard de MySQL "fail loud" (estas migraciones son anteriores
+al patrón y pueden no tenerlo). Si se toca cualquiera de estos tres
+dominios por otro motivo, repetir el procedimiento completo en ese momento
+— no se cierra la categoría de riesgo entera solo por esta comprobación,
+solo se descarta la variante "CHECK ausente" que ya causó los dos bugs
+anteriores.
 
 **CRITICAL:** ninguna identificada en esta pasada (fuera de alcance auditar activamente).
 

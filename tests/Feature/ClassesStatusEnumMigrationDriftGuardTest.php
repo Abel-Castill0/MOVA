@@ -45,6 +45,22 @@ class ClassesStatusEnumMigrationDriftGuardTest extends TestCase
         $this->assertTrue(true, 'El orden textual del ENUM no debe importar, solo el conjunto.');
     }
 
+    public function test_it_does_not_throw_when_mysql_returns_extra_whitespace_around_values(): void
+    {
+        // Distintas versiones/configuraciones de MySQL pueden formatear
+        // SHOW COLUMNS con espacios después de la coma o comillas
+        // ligeramente distintas. El guard compara el CONJUNTO de valores,
+        // no el string completo — no debe fallar por esto.
+        DB::shouldReceive('selectOne')
+            ->once()
+            ->with("SHOW COLUMNS FROM classes LIKE 'status'")
+            ->andReturn((object) ['Type' => "enum('scheduled', 'paid',  'pending_parent_confirmation','completed', 'cancelled', 'needs_admin_review')"]);
+
+        $this->callGuard();
+
+        $this->assertTrue(true, 'Diferencias de espaciado en el ENUM real no deben producir un falso positivo de drift.');
+    }
+
     public function test_it_throws_when_a_canonical_status_is_missing(): void
     {
         DB::shouldReceive('selectOne')

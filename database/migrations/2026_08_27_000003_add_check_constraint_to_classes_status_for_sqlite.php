@@ -94,10 +94,21 @@ return new class extends Migration
 
         // A diferencia de 2026_08_27_000002 (revertir ahí podía dejar filas
         // en un valor que ya no sería válido), revertir esto siempre es
-        // seguro: pasar de un CHECK estricto a un VARCHAR libre nunca puede
-        // invalidar una fila existente — un string libre acepta un
-        // superconjunto estricto de lo que el enum aceptaba. No hace falta
-        // guard de datos.
+        // seguro PARA LOS DATOS: pasar de un CHECK estricto a un VARCHAR
+        // libre nunca puede invalidar una fila existente — un string libre
+        // acepta un superconjunto estricto de lo que el enum aceptaba. No
+        // hace falta guard de datos por esa razón.
+        //
+        // Eso NO lo convierte en una operación rutinaria de negocio. Es un
+        // rollback de esquema: quita la segunda capa de defensa que esta
+        // migración añadió (SQLite vuelve a aceptar cualquier string en
+        // `status`, tal como estaba antes). En un entorno con datos reales
+        // debe tratarse como lo que es — un paso de recuperación de
+        // despliegue, ejecutado deliberadamente, no una reversión
+        // despreocupada — no porque el código lo impida, sino porque
+        // revertir esta protección sin una razón operativa concreta
+        // reintroduce a propósito el mismo riesgo de paridad que
+        // 2026_08_27_000003 (este archivo) existe para cerrar.
         $this->dropStatusIndexes();
 
         Schema::table('classes', function (Blueprint $table) {
