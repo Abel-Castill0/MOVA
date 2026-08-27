@@ -77,6 +77,18 @@ que efectivamente comunica el límite del control. En oscuro `--line-strong`
 sí alcanza 3:1 real (3.35:1) porque la escala tonal ahí lo permite sin ese
 costo visual. Se documenta como mejora pendiente, no como "resuelto".
 
+**Regla de uso explícita (para no reservar `--line-strong` de forma
+inconsistente página por página):**
+- `--line` (decorativo, ~1:1) → separadores dentro de una superficie que ya
+  tiene su propio borde/sombra de tarjeta (divisores de lista, filas de
+  tabla) — el contexto ya comunica la estructura.
+- `--line-strong` (funcional) → borde de reposo de controles interactivos
+  (input, select, checkbox) que dependen del foco + label, no del borde en
+  sí, para comunicar el límite — nunca el único canal.
+- Nunca usar `--line` donde el elemento sea la única señal de un límite
+  interactivo (eso es trabajo de `--line-strong` + foco + label juntos, no
+  de un separador decorativo).
+
 ### Foco
 
 `--focus-ring`: `brand-500` (`#246ACC`) en claro, `brand-400` (`#4F8ADB`) en
@@ -146,12 +158,22 @@ un sistema de color semántico existe para evitar.
 | `rejected` / `teacher_rejected` | `danger` (el segundo con un tono distinto, `rose`, porque ya existía así en el código antes de esta sesión y sigue siendo una decisión válida: distingue "rechazada" en general de "un profesor específico la rechazó") | Terminal negativo. |
 | `completed` | `success` | Terminal positivo. |
 
-**Consecuencia práctica:** los cuatro sitios que pintan estos colores
-(`utils/statusColors.js`, `Dashboard/Parent.vue::dotColor()`,
-`TeacherLessonCard.vue`, `ParentLessonCard.vue`) ya usan `violet`/`cyan`
-consistentemente para `paid`/`open` respectivamente — la deduplicación real
-(que los tres últimos importen `statusStyle()` en vez de repetir el mapeo)
-sigue pendiente, registrada en `docs/MOVA_DESIGN_AUDIT_FINAL.md`.
+**Consecuencia práctica — resuelta:** los cuatro sitios que pintan estos
+colores (`utils/statusColors.js`, `Dashboard/Parent.vue::dotColor()`,
+`TeacherLessonCard.vue`, `ParentLessonCard.vue`) ya importan `statusStyle()`
+en vez de repetir el mapeo — un solo lugar que cambiar si un estado necesita
+otro color. `statusColors.js` expone `stripe`/`dot` (pesos sólidos) junto al
+`color`/`ring` (tinte de badge) que ya tenía, todos derivados del mismo hue
+por estado.
+
+**Verificado, no asumido — el color nunca es el único canal:** todo
+consumidor de `statusStyle()` que muestra el color también muestra
+`.label` como texto real junto a él (`StatusBadge.vue` siempre renderiza
+`{{ style.label }}`; los timelines con solo un punto de color —
+`Dashboard/Parent.vue`, `Dashboard/Teacher.vue` — siempre lo muestran junto
+a un `<StatusBadge>` en la misma fila, nunca el punto solo). Un usuario con
+daltonismo o alto contraste identifica el estado por texto sin depender del
+color — confirmado leyendo cada template, no supuesto.
 
 ## Border radius
 
@@ -195,7 +217,15 @@ su propio guard con `matchMedia`, igual que ya hacen `Welcome.vue` y
 `Dashboard/Parent.vue`). Nunca deja contenido invisible esperando una
 animación que no se va a disparar.
 
-## Activación del modo oscuro: diferida a propósito
+## Modo oscuro: infraestructura lista, activación diferida (no es una feature en vivo)
+
+**Estado real, sin redondear:** "dark mode" no debe contarse todavía como una
+característica que el usuario tiene — es infraestructura completa (tokens,
+escala de contraste verificada, mecanismo de activación manual) a la espera
+de que la migración de páginas avance lo suficiente para encenderla sin
+producir una app mitad clara/mitad oscura. La activación automática por
+`prefers-color-scheme` es la ÚLTIMA fase de la migración de tokens, no una
+casilla ya marcada.
 
 `prefers-color-scheme` está **deliberadamente desactivado** en `app.css` por
 ahora — no es un olvido. Se encontró verificando en el navegador real (Fase

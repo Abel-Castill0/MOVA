@@ -62,13 +62,35 @@ estado, botones de acción) — verificado archivo por archivo, no asumido.
 | `SEMANTIC` | Codifica un estado de negocio real (ver "Sistema de estados semánticos" en `DESIGN.md`) | Conservar el ROL, no necesariamente el tono `indigo` — reasignar al rol semántico correcto |
 | `DECORATIVE` | Parte de un degradado/fondo sin significado de estado | Evaluar si el degradado en sí debe existir (ver el caso del CTA de diagnóstico, abajo) |
 | `THIRD_PARTY` | Vendría de una librería externa no tocada por MOVA | No modificar |
+| `BRAND_CONFLICT` | Un azul/índigo técnicamente válido (no Breeze, no un estado) que compite visualmente con el propio `brand` de MOVA | Reasignar — la pregunta correcta es "¿este color pertenece semánticamente al sistema?", no "¿contiene la palabra indigo?" |
 
 Todo el `indigo` encontrado hasta ahora ha sido `LEGACY` (focus rings,
 botones, checkboxes heredados de Breeze) o `SEMANTIC` mal asignado (los
 estados `paid`/`open`, que sí necesitaban un rol propio pero nunca debieron
 llamarse "indigo porque sí" — ver `DESIGN.md`, sección "Sistema de estados
 semánticos", con la justificación de por qué cada uno es un `accent` propio
-y no una elección estética). Ninguna aparición ha sido `THIRD_PARTY`.
+y no una elección estética). Ninguna aparición ha sido `THIRD_PARTY` ni
+`BRAND_CONFLICT` — pero la deduplicación de `statusColors.js` sí expuso un
+caso adyacente real: el "scheduled" de las tarjetas de clase usaba `brand-500`
+(el azul de MARCA) donde el badge ya usaba `blue` genérico — dos azules
+para un mismo estado, uno de los cuales competía con el rol de `brand`
+(acciones/identidad). Corregido: `scheduled` usa `blue` en los tres
+consumidores; `brand` queda reservado para acciones y marca.
+
+### Severidad de la deuda (para no pulir P3 mientras hay P0/P1 abiertos)
+
+| Severidad | Qué significa | Ejemplo real de esta sesión |
+|---|---|---|
+| `P0` | Rompe flujo, confianza o comprensión — bloquea al usuario | `active_offer` (ver "🚨 PRODUCT BLOCKERS" arriba) |
+| `P1` | Inconsistencia importante o fricción real | `Students/Create.vue` vs `Edit.vue` con dos estilos distintos para el mismo formulario (Fase 3, slice 3) |
+| `P2` | Mejora relevante de UX/UI | Migración de emoji a Lucide, tokens de color |
+| `P3` | Pulido | Un radio o un tamaño de icono ligeramente distinto |
+
+`active_offer` es P0/P1 — se trató como tal (sección propia, no perdido en
+la matriz). El resto de esta sesión ha sido P2 (el grueso del trabajo) con
+algunos P1 reales encontrados en el camino (la divergencia Create/Edit, las
+tildes eliminadas en `Teacher/Credits/Index.vue`, el texto en inglés de
+`ConfirmPassword.vue`).
 
 ### Qué significa cada columna de la matriz
 
@@ -131,6 +153,44 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 - **Padre (gestión de hijos)**: crear/editar/eliminar estudiante.
 - **Admin**: login → dashboard → revisión (profesores/solicitudes/recargas) →
   auditoría.
+
+---
+
+## 🚨 PRODUCT BLOCKERS — decisiones de negocio pendientes (no ocultar entre hallazgos visuales)
+
+Sección propia, no una fila más de la matriz — para que un hallazgo de
+producto real no se pierda entre 139 conteos de emoji. Ninguno de estos se
+resolvió aquí: no le corresponde a una auditoría de diseño decidir lógica de
+negocio o backend.
+
+### P0/P1 — `active_offer` en el checklist de perfil de profesor
+
+- **Dónde**: `Dashboard/Teacher.vue`, `profile_checklist.active_offer` /
+  `checklistLabels.active_offer` ("Al menos una oferta activa").
+- **Comportamiento actual**: el checklist de "perfil completo" exige que el
+  profesor tenga al menos una oferta (`ClassOffer`) activa para llegar a 100%.
+- **Comportamiento esperado (inferido, no confirmado con el equipo de
+  producto)**: el propio código ya documenta que el flujo de crear ofertas
+  fue retirado para profesores nuevos (`HANDOFF_FINAL.md §21` — el profesor
+  ahora acepta solicitudes abiertas, no publica anuncios). Si `active_offer`
+  sigue viniendo del backend sin que exista ninguna UI para cumplirlo, un
+  profesor nuevo puede quedar permanentemente por debajo de 100% sin ninguna
+  acción disponible para resolverlo.
+- **Evidencia**: comentario explícito ya presente en el código antes de esta
+  sesión (`Dashboard/Teacher.vue`, tarjeta "Mis ofertas anteriores"); el
+  campo `active_offer` sigue en `checklistLabels` sin control de acceso.
+- **Riesgo**: onboarding/conversión de profesores nuevos — un checklist que
+  nunca puede completarse mina la confianza en la plataforma justo en la
+  etapa de activación.
+- **Posibles soluciones (no elegidas aquí)**: (a) retirar `active_offer` del
+  checklist para profesores sin ofertas legacy; (b) redefinirlo para que se
+  cumpla automáticamente al aceptar la primera solicitud; (c) confirmar que
+  el backend ya lo excluye para cuentas nuevas y que esto es solo una lectura
+  incorrecta del frontend — verificar `DashboardController` antes de
+  cualquier cambio.
+- **Depende de**: decisión de producto/negocio, no de diseño. Mismo
+  tratamiento que `PRIV-STUDENT-RETENTION` en `docs/MOVA_AUDIT_PHASE0.md` —
+  documentado y dejado abierto, no resuelto por inferencia.
 
 ---
 
@@ -286,8 +346,8 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `Components/JitsiModal.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingFooter.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingNavbar.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/Lessons/ParentLessonCard.vue` | 6 | 0 | **PARCIAL** — solo el color `paid` (indigo→violet) corregido, mismo motivo que `statusColors.js`; emoji propios sin migrar todavía | pendiente | pendiente | pendiente | pendiente |
-| `Components/Lessons/TeacherLessonCard.vue` | 5 | 0 | **PARCIAL** — mismo color `paid` corregido (dot + alerta de "sin reporte"); emoji propios sin migrar todavía | pendiente | pendiente | pendiente | pendiente |
+| `Components/Lessons/ParentLessonCard.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — deduplicado de `statusColors.js` (`statusStripe()`/`statusLabel()` locales eliminados, ahora consume `statusStyle().stripe/.label`); 6 emoji→Icon (estrellas de reseña ahora `<Icon fill>`, no texto `★`). Personalización menor descartada a propósito: el label local decía "Esperando **tu** calificación" (2ª persona), la fuente compartida dice "Esperando calificación" (genérica) — se prioriza una sola fuente de verdad sobre el matiz de copy, documentado aquí en vez de silenciado. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ |
+| `Components/Lessons/TeacherLessonCard.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — mismo deduplicado; 5 emoji→Icon. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ |
 | `Components/Lessons/WeeklyCalendar.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/Modal.vue` | 0 | 0 | **COMPLETA** (Fase 2, ver commit `1b58bc2`) | ✅ (hoja móvil / diálogo centrado, medido en 1280px) | ✅ (tokens) | ✅ (dialog/aria-modal/focus trap/restauración de foco — verificado con teclado real) | ✅ |
 | `Components/MovaLogo.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
@@ -312,8 +372,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `rounded-*` con nombres propios (`chip/control/card/elevated/pill`) en vez de `sm/md/lg/xl` | Evita colisión silenciosa con la escala default de Tailwind — ver `DESIGN.md`. |
 | `Checkbox.vue` "indigo restante"=1 | Es un comentario del propio código explicando el reemplazo (`// reemplaza el indigo heredado...`), no una clase activa — falso positivo del grep mecánico, documentado aquí en vez de re-escribir el comentario para "limpiar el número". |
 | `Register.vue` (wizard) y `PhoneVerification.vue` migrados solo en color/iconos, no en componentes | Ambos usan botones/inputs `<button>`/`<input>` propios en vez de `BaseButton`/`TextInput`/`Checkbox` — una conversión real (wizard de 5-6 pasos con estados condicionales de validación; formulario de código con estilos centrados/tracking-widest específicos) que merece su propia revisión, no un cambio apurado dentro del barrido de iconos/color. Queda como pendiente explícito, no oculto. |
-| Color del estado "pagada"/"abierta" (antes `indigo`) corregido en 4 lugares independientes, no unificado en 1 | `utils/statusColors.js` (fuente ya declarada "única" en su propio comentario, pero `Dashboard/Parent.vue::dotColor()`, `TeacherLessonCard.vue` y `ParentLessonCard.vue` la duplican con su propio mapeo en vez de importarla) pasaron de `indigo` a `violet`/`cyan` — mismo color en los 4 sitios, pero la deduplicación real (que los 3 componentes importen `statusStyle()` en vez de repetirla) es un cambio de mayor alcance que un barrido de color, y queda pendiente explícito. |
-| **Hallazgo de producto real, no de diseño** — `Dashboard/Teacher.vue`: el checklist de perfil sigue exigiendo `active_offer` ("Al menos una oferta activa") para llegar a 100%, pero el flujo de creación de ofertas ya no existe para profesores nuevos (el profesor acepta solicitudes abiertas, no publica anuncios — ver el comentario `HANDOFF_FINAL.md §21` ya presente en el código). Un profesor nuevo podría quedar atascado por debajo de 100% sin ninguna acción visible para resolverlo. **No se tocó lógica de backend** — no le corresponde a una auditoría de diseño decidir si `active_offer` se retira del checklist, se recalcula distinto, o si el requisito ya no aplica. Anotado aquí y en el propio código (`Dashboard/Teacher.vue`) para que se decida explícitamente, igual que `PRIV-STUDENT-RETENTION` en `docs/MOVA_AUDIT_PHASE0.md`. |
+| ~~Color del estado "pagada"/"abierta" duplicado en 4 lugares~~ **RESUELTO** | `utils/statusColors.js` extendido con campos `stripe` (barra sólida) y `dot` (punto de timeline) junto al `color`/`ring` que ya tenía. `Dashboard/Parent.vue::dotColor()`, `TeacherLessonCard.vue` y `ParentLessonCard.vue` ya NO tienen su propio mapeo — los tres importan `statusStyle()`. De paso se corrigió una inconsistencia real que el propio dedup expuso: el color "scheduled" de las tarjetas usaba `brand-500` (azul de marca) mientras el badge usaba `blue` genérico — dos azules distintos para el mismo estado; ahora los tres consumidores usan el mismo `blue`, reservando `brand` para acciones/marca. |
 
 ## Lo que este documento NO afirma todavía
 
