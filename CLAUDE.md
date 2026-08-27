@@ -14,7 +14,7 @@ Stack: Laravel 10 + Vue 3 + Inertia + Tailwind. Plataforma de tutorías online e
 Antes de proponer cambios complejos o arquitectónicos: observar el código real primero (no asumir), orientarse contra los patrones ya existentes en el repo, decidir explícitamente el enfoque, y recién ejecutar. Si algo no está claro, preguntar antes de tocar código — no adivinar sobre partes críticas (dinero, menores, autenticación).
 
 ### Diseño (frontend Vue/Tailwind)
-Todo componente debe verse elegante, profesional y "caro": profundidad sutil (sombras), tipografía limpia, microinteracciones fluidas, espaciado generoso, bordes redondeados suaves. Nada genérico ni sobrecargado. Animaciones a 60fps.
+Todo componente debe verse elegante, profesional y "caro": profundidad sutil (sombras), tipografía limpia, microinteracciones fluidas, espaciado generoso, bordes redondeados suaves. Nada genérico ni sobrecargado. Movimiento fluido y apropiado al dispositivo, priorizando 60fps cuando sea razonablemente alcanzable, sin sacrificar accesibilidad ni rendimiento.
 
 ---
 
@@ -34,6 +34,9 @@ Deben llevar meta tags, Open Graph y structured data cuando se toquen.
 
 ### Si el usuario escribe `/handoff`
 Generar `docs/SESSION_HANDOFF.md` con: objetivos de la sesión, qué se probó, qué falló, qué se logró, y siguientes pasos concretos.
+
+### Dependency Budget — antes de añadir cualquier dependencia nueva a MOVA
+No basta con que una librería resuelva el problema. Antes de instalarla, evaluar explícitamente: impacto en bundle/runtime, mantenimiento del proyecto upstream, licencia, vulnerabilidades conocidas, compatibilidad con Vue/Laravel, duplicación con algo ya instalado, y — la pregunta que más filtra — si el mismo resultado se logra con código propio de pocas líneas. Nunca añadir una dependencia solo para ahorrar unas pocas líneas de código.
 
 ### Si evalúas herramientas, skills, librerías o MCPs nuevos (para MOVA o para mi propia configuración de Claude Code)
 No instalar algo solo porque es bueno, popular o apareció en una lista — debe justificar: problema real de MOVA, beneficio concreto, ausencia de solución equivalente ya instalada, coste de mantenimiento/contexto, riesgo de seguridad/supply-chain. Clasificar siempre en una de cuatro categorías: **INSTALL NOW** (brecha real, se implementa ya), **INSTALL LATER** (útil, pero depende de una fase futura del roadmap — ej. UX/UI premium), **OPTIONAL** (solo ante una necesidad concreta que aún no existe), **REJECT** (con motivo explícito: incompatible con el stack, redundante con algo que ya existe, o sin caso de uso). No acumular herramientas redundantes entre sí (dos librerías de animación, dos MCPs de browser, dos sistemas de memoria) — un stack pequeño y coherente gana sobre uno grande. Cuando el tooling compite con otro trabajo por prioridad: seguridad/producción > integridad de negocio (créditos/pagos/reservas) > QA > performance > UX/UI > SEO > growth/marketing. "Analiza/evalúa todo" nunca significa "instala todo" — significa evaluar cada ítem contra este filtro y ejecutar solo lo que lo supera.
