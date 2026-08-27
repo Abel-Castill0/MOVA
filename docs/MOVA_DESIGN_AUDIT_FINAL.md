@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.08
-generated_at:     2026-08-27T12:06:22Z
-repository_head:  92e71c4   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (50 commits detrás de local, sin push)
+audit_revision:   2026-08-27.09
+generated_at:     2026-08-27T12:17:02Z
+repository_head:  904ea07   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (52 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -199,7 +199,7 @@ de verdad mueven la aguja:
 | Auth | ~100% | Nada pendiente de este barrido — 2 páginas siguen `BLOCKED_VISUAL_VERIFICATION` (requieren sesión) |
 | Parent — core journey | ~35% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar` hechos; `Marketplace/Index`, `Teachers/Show`, `ClassRequests/Create`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
 | Teacher — core journey | ~50% | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
-| Marketplace/descubrimiento | ~90% (2/2 páginas) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + un P0 de seguridad real encontrado y corregido (ver sección propia arriba). Falta: filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño — no inventada aquí) y `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` (bloqueados: MySQL local no disponible en este sandbox ahora mismo) |
+| Marketplace/descubrimiento | ~90% (2/2 páginas) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + **2 P0 de exposición pública real** encontrados y corregidos, uno de ellos en la home pública (`WelcomeController`, no un archivo de Marketplace en sí — ver sección propia arriba, incluye auditoría acotada de las 10 rutas públicas de MOVA). Falta: filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño — no inventada aquí) y `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` (bloqueados: MySQL local no disponible en este sandbox ahora mismo) |
 | Booking/Checkout | 0% | `ClassRequests/Create.vue`, `ClassOffers/*`, `Diagnostics/*` — sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
 | Class experience (Jitsi) | 0% (deliberado) | `JitsiModal.vue` diferido a propósito para su revisión de seguridad dedicada — no es un olvido |
 | Admin | ~25% | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
@@ -305,69 +305,176 @@ frontend.
 
 ---
 
-## 🔴 INCIDENTE DE SEGURIDAD REAL — fuga de datos en `/marketplace` · ✅ CORREGIDO LOCALMENTE, NO DESPLEGADO TODAVÍA
+## 🔴 INCIDENTE DE SEGURIDAD REAL — exposición pública de `TeacherProfile` en 2 rutas · CONTENIDO LOCALMENTE, NO DESPLEGADO
 
-Encontrado el primer día de trabajo real sobre Marketplace (no en la
-auditoría de estados/migraciones) — merece su propia sección por la misma
-regla que ya rige `active_offer` y el bug de `teacher_rejected`: nunca
-enterrado entre hallazgos visuales.
+### Clasificación formal
 
-**Qué pasaba, verificado con `json_encode()` del resultado real de la
-query, no inferido**: `MarketplaceController::index()` pasaba su allow-list
-de columnas como segundo argumento de `paginate(24, ['id', 'user_id',
-'bio', 'hourly_rate'])`. Ese argumento se ignora en silencio en cuanto el
-query ya tiene `withAvg()`/`withCount()` encadenados (ambos usan
-`addSelect()` internamente). El resultado real, confirmado antes de tocar
-nada:
-
-```json
-{"id":1,"user_id":1,"bio":"x","hourly_rate":"30.00","is_verified":true,
- "rejected_at":null,"rejection_reason":null,"reviewed_by":null,
- "reviewed_at":null,"credits_available":0,"credits_reserved":0,
- "yape_number":null,"plin_number":null,"referral_code":"TCDH7K", ...}
+```text
+CLASE:                P0 — PUBLIC SENSITIVE DATA EXPOSURE
+Exposición confirmada: SÍ (verificada con json_encode() del resultado
+                       real, en ambos endpoints, antes de corregir nada)
+Explotación confirmada: DESCONOCIDA — no hay forma de saberlo desde este
+                       repositorio; no se afirma ni se descarta
+Fix implementado:     SÍ, local, en ambos endpoints
+Fix en producción:    NO — sigue bajo la misma regla de "no push mientras
+                       F-26/F-27 sigan alcanzables en el HEAD de origin"
+Staging:              NO EXISTE un entorno de staging separado en este
+                       proyecto (ver docs/MOVA_SYSTEM_KNOWLEDGE.md)
+Estado desplegado:    NO VERIFICADO — sin acceso a Railway desde esta
+                       sesión (mismo límite que el resto de este documento)
 ```
 
-**Toda la fila de `TeacherProfile`** — incluyendo `yape_number`/
-`plin_number` (números de cuenta de pago personales de cada profesor
-verificado) y `referral_code` — viajaba al frontend en cada visita a
-`/marketplace`. Es una ruta pública, sin autenticación, y está en el
-sitemap con `changefreq: daily` — cualquiera que visite la página (o
-cualquier crawler de Google/Bing) recibe ese JSON embebido en el HTML
-inicial (visible con "ver código fuente", sin necesitar devtools).
+**No se describe esto como "resuelto" a secas.** Mientras el entorno
+desplegado siga corriendo el código anterior a `0b1bc13`/`904ea07`, la
+exposición sigue existiendo en producción — lo que existe hoy es un fix
+verificado y listo, no un incidente cerrado de punta a punta.
 
-**Ventana de exposición real, no solo "el código tenía un bug"**: `git log`
-ubica la línea exacta en el commit `2fb22fd` (2026-08-22), y
-`git merge-base --is-ancestor 2fb22fd origin/master` confirma que ese
-commit ya es ancestro de `origin/master` — es decir, **este código muy
-probablemente lleva ~5 días desplegado en producción** antes de encontrarse
-aquí. No se afirma que alguien específico haya extraído los datos — no hay
-forma de saberlo desde este repositorio — pero la superficie de exposición
-fue real y pública, no teórica.
+### Precisión técnica del mecanismo (corregida)
 
-**Qué NO se hizo, deliberadamente**: no se rota nada. `yape_number`/
-`plin_number` son los propios números de cuenta de pago de cada profesor,
-no una credencial que esta sesión pueda o deba rotar — es una decisión que
-depende de ti (si quieres avisar a los profesores verificados, o
-monitorear uso indebido). Se separan aquí las mismas dimensiones que ya
-rigen F-26/F-27: exposición histórica (~5 días en producción, ruta pública
-+ sitemap) vs. corrección del código (hecha, local, no desplegada aún) vs.
-decisión sobre las cuentas de pago en sí (tuya, no técnica).
+La formulación inicial — "`paginate()`/`get()` ignoran su segundo
+argumento" — era una simplificación excesiva. La mecánica real, verificada
+empíricamente (no solo leída en la documentación): una vez que
+`withAvg()`/`withCount()` ya establecieron una proyección en el query
+builder (ambos llaman `addSelect()` internamente), pasar una lista de
+columnas más tarde a `get($columns)` — y por extensión a `paginate($n,
+$columns)`, que llama a `get($columns)` internamente — **no garantiza que
+esa lista termine siendo la proyección final servida**. No es que el
+argumento se ignore siempre y en todo contexto; es que la combinación
+`select previo (por agregado) + columnas tardías` no es determinista, y en
+ambos casos reales de este repositorio terminó sirviendo la fila completa.
+La solución determinista es fijar la proyección ANTES de los agregados:
 
-**Corregido** (commit `0b1bc13`): `->select([...])` explícito antes de
-`with()`/`withAvg()`/`withCount()` en vez de pasarlo a `paginate()` —
-verificado que si se aplica en ese orden, si se respeta. `TeacherPublicVisibilityTest.php`
-(8 tests nuevos — ninguno de los dos controllers públicos tenía un solo
-test dedicado hasta ahora) prueba explícitamente que `yape_number`,
-`plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`,
-`credits_available`/`reserved` nunca aparecen en el listado. Verificado
-que el test detecta la regresión real: se restauró temporalmente el
-código con el bug, el test falló exactamente con
-`Property [teachers.data.0.referral_code] was found while it was expected
-to be missing`, se restauró la corrección.
+```text
+->select([...])   ← fija el contrato ANTES
+->with(...)
+->withCount(...)  ← addSelect() ya no puede pisar nada
+->withAvg(...)
+->paginate()/->get()  ← sin argumento de columnas, no hace falta
+```
 
-**No desplegado**: sigue bajo la misma regla de "no push mientras F-26/F-27
-sigan alcanzables en el HEAD actual de origin" — este fix está listo,
-local, esperando junto con el resto del trabajo de esta sesión.
+### Los dos incidentes, lado a lado
+
+| | `/marketplace` | `/` (home pública) |
+|---|---|---|
+| Controller | `MarketplaceController::index()` | `WelcomeController::index()` |
+| Commit que lo introdujo | `2fb22fd` (2026-08-22) | `03db9f5` — **el primer commit de todo el repositorio** (2026-06-10) |
+| ¿Ancestro de `origin/master`? | Sí (`git merge-base --is-ancestor`) | Sí (`git merge-base --is-ancestor`) |
+| Ventana de exposición estimada | ~5 días | **~11 semanas** |
+| Tráfico relativo | Alto (listado completo) | **El más alto de todo MOVA** (home) |
+| En sitemap con crawling | Sí, `changefreq: daily` | Sí, `changefreq: weekly`, prioridad `1.0` (la más alta del sitemap) |
+| Campos confirmados expuestos | `yape_number`, `plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`, `credits_available`/`reserved`, `completed_classes_count`, `is_experienced`, `mentorship_slots_taken` | Los mismos, salvo los que `TeacherProfile::$hidden` (añadido después, commit `92e71c4`) ya venía cubriendo cuando se encontró este segundo caso |
+| Fix | `->select()` explícito antes de agregados (`0b1bc13`) | `->select()` explícito antes de agregados (`904ea07`) |
+| Tests de regresión | `TeacherPublicVisibilityTest.php` (8) | `WelcomeFeaturedTeachersExposureTest.php` (3) — negative + positive contract, y la combinación completa `select+with+withCount+withAvg` ejercitada end-to-end vía request HTTP real, no mockeada |
+
+El segundo caso se encontró exactamente por la razón correcta: la
+auditoría acotada de superficies públicas recomendada después del primero,
+no una casualidad. Confirma que el patrón no era un error aislado de un
+archivo, sino algo que había que buscar deliberadamente en cualquier lugar
+con la misma forma.
+
+### Auditoría acotada de superficies públicas (completa, no una muestra)
+
+Las 10 rutas registradas fuera de cualquier middleware de autenticación,
+revisadas una por una:
+
+| Ruta | Controller | Resultado |
+|---|---|---|
+| `/` | `WelcomeController` | 🔴 Vulnerable → corregido (`904ea07`) |
+| `/marketplace` | `MarketplaceController` | 🔴 Vulnerable → corregido (`0b1bc13`) |
+| `/teachers/{id}` | `TeacherPublicController` | ✅ Seguro — array armado a mano, sin serializar el modelo |
+| `/quienes-somos` | `AboutController` | ✅ Seguro — solo `count()`, ningún modelo devuelto |
+| `/invitacion/profesor` | `TeacherInvitationController` | ✅ Seguro — sin props en absoluto |
+| `/invitacion/alumno` | `StudentInvitationController` | ✅ Seguro — sin props en absoluto |
+| `/sitemap.xml` | `SitemapController` | ✅ Seguro — sin agregados encadenados (la mecánica ni siquiera aplica) y `->map()` reconstruye la salida explícitamente |
+| `/terminos`, `/privacidad` | `LegalController` | ✅ Seguro — sin props en absoluto |
+| `/robots.txt`, `/healthz` | closures | ✅ Seguro — strings estáticos |
+
+**Resultado: 2 de 10 rutas públicas vulnerables, ambas ya corregidas.** No
+se auditaron rutas autenticadas (fuera del alcance acordado — esta fue una
+auditoría de exposición **pública**, no una re-auditoría general).
+
+### Clasificación de sensibilidad de `TeacherProfile` (contrato por campo)
+
+| Campo | Clasificación | Dónde puede aparecer |
+|---|---|---|
+| `id`, `bio`, `hourly_rate`, `is_verified` | **PUBLIC** | Marketplace, home, perfil público |
+| `subjects` (relación), `user.name`, `user.avatar_url` | **PUBLIC** | Marketplace, home, perfil público |
+| `avg_rating`/`review_count` (calculados) | **PUBLIC** | Marketplace, home, perfil público |
+| `referral_code` | **OWNER_ONLY / REPEAT_CUSTOMER** | Solo perfil propio o padre con clase completada (`TeacherPublicController::referralCodeVisibleTo()`) |
+| `yape_number`, `plin_number` | **OWNER_ONLY** | Solo `Teacher/Edit.vue`/`Setup.vue` (perfil propio) |
+| `mentorship_slots_total` | **OWNER_ONLY** | Solo `Teacher/Edit.vue`/`Setup.vue` |
+| `credits_available`, `credits_reserved` | **OWNER_ONLY** | Solo `Teacher/Credits/Index.vue`, vía array armado a mano — nunca por serialización del modelo |
+| `rejection_reason`, `rejected_at` | **ADMIN_ONLY** | Solo `Admin/PendingTeachers.vue` |
+| `reviewed_by` (relación cargada) | **ADMIN_ONLY** | Solo `Admin/PendingTeachers.vue` — ver la nota sobre colisión de nombre abajo |
+| `user_id` | **INTERNAL** | Ningún frontend lo lee nunca — solo necesario en memoria para resolver la relación `user` |
+| `completed_classes_count`, `is_experienced`, `mentorship_slots_taken` | **INTERNAL** | Solo lógica de negocio en `TeacherProfile.php`/servicios — ningún frontend los lee |
+| `reviewed_at` | **INTERNAL** | Ningún frontend lo lee (solo se muestra `rejected_at`) |
+
+**Defensa en profundidad, en capas explícitas — ninguna es "la" solución:**
+
+```text
+Capa 0 — proyección explícita por endpoint (->select() antes de agregados)
+         ← la que realmente define el contrato público de cada ruta
+Capa 1 — TeacherProfile::$hidden (campos INTERNAL, sin lector en ningún
+         frontend) ← defensa adicional, no sustituto de la Capa 0
+Capa 2 — tests de contrato negativo + positivo, por endpoint
+```
+
+**No se introduce un `TeacherPublicResource`/DTO formal en esta pasada.**
+Es la evolución correcta si el número de superficies públicas de MOVA
+sigue creciendo, pero con 3 superficies públicas reales hoy (`/`,
+`/marketplace`, `/teachers/{id}`) y ya con proyección explícita + tests en
+las tres, introducir una clase de Resource ahora sería la abstracción
+antes de la necesidad — la misma regla anti-sobreingeniería que ya rige
+este documento. Se revisa si aparece una cuarta superficie pública con
+necesidades de proyección similares.
+
+### Evaluación de exposición (acotada, con lo que este repositorio puede responder)
+
+```text
+1. ¿Desde cuándo?           /marketplace: commit 2fb22fd (2026-08-22, ~5
+                            días). /: commit 03db9f5 (2026-06-10, ~11
+                            semanas) — el primer commit del repositorio.
+2. ¿Cuántos profesores?     NO VERIFICABLE desde esta sesión — requiere
+                            acceso a la base de datos de producción, que
+                            esta sesión no tiene.
+3. ¿Cacheada?               NO VERIFICABLE — sin visibilidad de
+                            infraestructura (CDN/proxy) desde este
+                            repositorio.
+4. ¿En logs de aplicación?  NO VERIFICABLE desde este repositorio.
+5. ¿Accesible sin sesión?   SÍ, confirmado — ambas rutas están fuera de
+                            cualquier middleware de autenticación
+                            (verificado en routes/web.php).
+6. ¿Indexada por buscadores? Comprobación real hecha (WebSearch, no
+                            asumida): sin resultados que confirmen
+                            indexación del dominio de producción
+                            (mova-production-8750.up.railway.app, citado
+                            en docs/FINAL_PRODUCTION_SIGNOFF.md) ni de su
+                            contenido. Ausencia de evidencia no es
+                            evidencia de ausencia — un motor de búsqueda
+                            puede no haber re-crawleado todavía, o este
+                            buscador puede no reflejar el índice completo
+                            de Google/Bing — pero no se encontró indicio
+                            positivo de indexación.
+7. ¿Producción corre el código vulnerable ahora mismo? NO VERIFICADO —
+                            sin acceso a Railway desde esta sesión.
+```
+
+### Contención — qué se hizo y qué NO se hizo
+
+**Hecho**: proyección explícita en ambos controllers (`0b1bc13`,
+`904ea07`), `TeacherProfile::$hidden` como capa adicional (`92e71c4`), 11
+tests de regresión nuevos entre los tres commits, todos verificados como
+detección real (revertidos temporalmente, confirmado que fallan,
+restaurados).
+
+**Deliberadamente NO hecho**: no se rotó `yape_number`/`plin_number` —
+son los números de cuenta de pago de cada profesor, no credenciales
+técnicas; rotarlos no es una decisión que competa a esta sesión ni una
+acción automática razonable sin que tú definas el alcance real y decidas
+si amerita avisar a los profesores verificados. No se hizo push — sigue
+bajo la regla F-26/F-27. No se intentó verificar producción directamente
+(sin credenciales, sin acceso).
 
 ---
 
