@@ -51,6 +51,9 @@ import {
   Sunset,
   RefreshCw,
   ArrowLeft,
+  MessageSquareText,
+  Send,
+  Info,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -119,6 +122,11 @@ export const icons = {
   'verified-badge': BadgeCheck,      // "Verificado por MOVA" — antes SVG crudo duplicado en 2 archivos
   'online-class': Video,            // "Clases online por videollamada" / "Videollamada automática" (sección de confianza) — mismo icono que `join-room`, distinto contexto (aquí describe la modalidad, no es un botón de acción)
   reminders: Bell,                  // "Recordatorios incluidos" (sección de confianza) — distinto de `notification` (toast en tiempo real)
+
+  // ClassRequests/Create.vue
+  'help-needed': MessageSquareText, // "¿En qué necesita ayuda?" — la descripción libre del padre
+  send: Send,                       // CTA "Enviar solicitud"
+  info: Info,                       // nota explicativa neutra (no es error ni éxito) — distinto de `warning`
 }
 
 /**
