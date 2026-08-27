@@ -459,7 +459,35 @@ Panel disperso en `AdminController` + `Admin/RechargeController` + `TeacherRevie
 
 **No se realizó auditoría dedicada de performance ni de seguridad activa en esta pasada** (el prompt pidió una fotografía, no una auditoría de hallazgos nuevos) — lo que sigue son observaciones que surgieron naturalmente al leer el código, no un barrido sistemático:
 
-- `TeacherPublicController::show()` y `MarketplaceController::index()` seleccionan columnas explícitas para nunca exponer `referral_code` a un visitante público (`MarketplaceController.php:1722-1725`) — patrón consistente de minimizar el payload público.
+- **Corrección a una nota anterior de esta misma sección**: la fila de
+  arriba solía afirmar que `MarketplaceController::index()` "selecciona
+  columnas explícitas para nunca exponer `referral_code`" como si eso
+  fuera un hecho verificado — no lo era. Una auditoría posterior
+  (2026-08-27, ver `docs/MOVA_DESIGN_AUDIT_FINAL.md`, sección P0) encontró
+  con `json_encode()` real que el código SÍ tenía la intención documentada
+  en un comentario, pero el mecanismo real (`paginate($n, $columns)` tras
+  `withAvg()`/`withCount()`) no la cumplía — el modelo completo, incluido
+  `referral_code`, sí llegaba al público. Corregido en `0b1bc13`/`904ea07`/
+  `607f9ec`/`1c1ac31`. Lección: un comentario que describe la intención de
+  seguridad de un query no es evidencia de que el query la cumpla —
+  siempre verificar con la respuesta real, no con el comentario.
+- **Política arquitectónica establecida a partir de ese incidente**:
+  ninguna superficie pública debe depender de la serialización implícita
+  de un modelo Eloquent. Todo endpoint público (o `role`-gated con datos
+  ajenos, como el caso de `AdminController::pendingTeachers()`) debe:
+  (1) fijar `->select([...])` explícito ANTES de cualquier `with()`/
+  `withCount()`/`withAvg()` — nunca pasar el allow-list como argumento
+  tardío de `get()`/`paginate()`, que no es determinista una vez que un
+  agregado ya estableció una proyección; (2) si carga una relación
+  `belongsToMany` con `withPivot()`, ocultar el pivot explícitamente
+  (`$collection->each->makeHidden('pivot')`) salvo que el pivot sea
+  genuinamente parte del contrato público — restringir columnas del
+  modelo relacionado (`'subjects:id,name'`) NO suprime el pivot, son
+  mecanismos independientes; (3) para superficies con más de un
+  consumidor real, un test de allowlist forward-looking (las claves del
+  payload son subconjunto de las permitidas) además de los tests de lista
+  negra — ver `tests/Feature/PublicTeacherProfileExposureContractTest.php`
+  como referencia del patrón.
 - El OTP y los secretos de WhatsApp/Culqi están confirmados NO logueados en texto plano (verificado con tests en esta sesión: `MetaCloudApiProviderTest::test_otp_code_never_ends_up_in_the_audit_log_error_field`).
 - `LessonController::confirmPayment()` bloquea confirmar antes de que la clase termine, sin bypass por query param ni entorno (comentario explícito, línea 1281-1284) — el único bypass es un comando de consola gateado a `local`/`testing`.
 - No se auditaron N+1, índices, ni bundle size del frontend en esta pasada.

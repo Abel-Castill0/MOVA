@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.09
-generated_at:     2026-08-27T12:17:02Z
-repository_head:  904ea07   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (52 commits detrás de local, sin push)
+audit_revision:   2026-08-27.10
+generated_at:     2026-08-27T13:10:23Z
+repository_head:  1c1ac31   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (55 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -305,29 +305,75 @@ frontend.
 
 ---
 
-## 🔴 INCIDENTE DE SEGURIDAD REAL — exposición pública de `TeacherProfile` en 2 rutas · CONTENIDO LOCALMENTE, NO DESPLEGADO
+## 🔴 P0 — PUBLIC SENSITIVE DATA EXPOSURE / PUBLIC MODEL SERIALIZATION DRIFT · CONTENIDO LOCALMENTE, NO DESPLEGADO
 
-### Clasificación formal
+**Una sola clase de vulnerabilidad, no incidentes independientes.** Las
+primeras dos correcciones (`0b1bc13`, `904ea07`) se documentaron primero
+como "el bug de Marketplace" y "el bug de Welcome" — eso subestimaba lo
+que realmente pasó. Ambos son instancias de la misma causa raíz genérica
+(ver abajo), y el propio proceso de cierre de esta clase encontró **dos
+instancias más** (el pivot de `subjects`, y una fuga hermana en un
+endpoint de admin) — evidencia de que valía la pena tratarlo como
+categoría, no como archivo por archivo.
+
+### Causa raíz (formulación genérica y reusable, no "un bug de paginate")
 
 ```text
-CLASE:                P0 — PUBLIC SENSITIVE DATA EXPOSURE
-Exposición confirmada: SÍ (verificada con json_encode() del resultado
-                       real, en ambos endpoints, antes de corregir nada)
-Explotación confirmada: DESCONOCIDA — no hay forma de saberlo desde este
-                       repositorio; no se afirma ni se descarta
-Fix implementado:     SÍ, local, en ambos endpoints
-Fix en producción:    NO — sigue bajo la misma regla de "no push mientras
-                       F-26/F-27 sigan alcanzables en el HEAD de origin"
-Staging:              NO EXISTE un entorno de staging separado en este
-                       proyecto (ver docs/MOVA_SYSTEM_KNOWLEDGE.md)
-Estado desplegado:    NO VERIFICADO — sin acceso a Railway desde esta
-                       sesión (mismo límite que el resto de este documento)
+Las superficies públicas dependían de la serialización de modelos
+Eloquent sin imponer un contrato de proyección pública suficientemente
+estricto. La composición de agregados (withAvg/withCount) y relaciones
+(belongsTo/belongsToMany con pivot) podía provocar que se serializaran
+atributos internos — de la columna base o de una relación cargada — no
+destinados al público, incluso cuando el código ya intentaba restringir
+columnas.
+```
+
+No es "un bug de `paginate()`" ni "un bug de `get()`": ambos métodos
+estaban afectados por la misma causa (`get($columns)` es lo que
+`paginate($n, $columns)` llama internamente), y una tercera variante del
+mismo problema (pivot de relación `belongsToMany`) no pasaba por ninguno
+de los dos.
+
+### Incident Response Status (formal)
+
+```text
+classification:                P0 — PUBLIC SENSITIVE DATA EXPOSURE /
+                                PUBLIC MODEL SERIALIZATION DRIFT
+exposure_confirmed:             YES (json_encode() real, las 4 instancias,
+                                antes de corregir cada una)
+exploitation_confirmed:         UNKNOWN — no verificable desde este
+                                repositorio; no se afirma ni se descarta
+affected_public_endpoints:      / (Welcome), /marketplace — 2 rutas
+                                PÚBLICAS reales
+affected_authenticated_endpoint: /admin/pending-teachers — admin-only,
+                                severidad menor, mismo patrón de raíz
+first_known_vulnerable_commit:  03db9f5 (home, 2026-06-10, primer commit
+                                del repo) · 2fb22fd (marketplace,
+                                2026-08-22) — ambos confirmados ancestros
+                                de origin/master
+local_fix:                      YES — las 3 superficies (2 públicas + 1
+                                admin), verificado con tests de regresión
+                                en las 3
+staging:                        N/A — no existe entorno de staging
+                                separado en este proyecto
+production_fix:                 NOT VERIFIED / NOT DEPLOYED
+data_scope:                     atributos públicos/internos de
+                                TeacherProfile (incl. datos de contacto de
+                                pago y metadata interna de moderación) +
+                                atributos internos de User (solo en la
+                                variante admin) + tarifa específica por
+                                materia vía pivot
+credential_rotation:            NOT CURRENTLY JUSTIFIED BY EVIDENCE — ver
+                                razonamiento abajo
+user_notification:              PRODUCT/SECURITY DECISION PENDING — tuya,
+                                no técnica
 ```
 
 **No se describe esto como "resuelto" a secas.** Mientras el entorno
-desplegado siga corriendo el código anterior a `0b1bc13`/`904ea07`, la
+desplegado siga corriendo el código anterior a estos commits, la
 exposición sigue existiendo en producción — lo que existe hoy es un fix
-verificado y listo, no un incidente cerrado de punta a punta.
+verificado y listo en las 3 superficies encontradas, no un incidente
+cerrado de punta a punta.
 
 ### Precisión técnica del mecanismo (corregida)
 
@@ -352,25 +398,27 @@ La solución determinista es fijar la proyección ANTES de los agregados:
 ->paginate()/->get()  ← sin argumento de columnas, no hace falta
 ```
 
-### Los dos incidentes, lado a lado
+### Las cuatro instancias de la misma causa raíz, lado a lado
 
-| | `/marketplace` | `/` (home pública) |
-|---|---|---|
-| Controller | `MarketplaceController::index()` | `WelcomeController::index()` |
-| Commit que lo introdujo | `2fb22fd` (2026-08-22) | `03db9f5` — **el primer commit de todo el repositorio** (2026-06-10) |
-| ¿Ancestro de `origin/master`? | Sí (`git merge-base --is-ancestor`) | Sí (`git merge-base --is-ancestor`) |
-| Ventana de exposición estimada | ~5 días | **~11 semanas** |
-| Tráfico relativo | Alto (listado completo) | **El más alto de todo MOVA** (home) |
-| En sitemap con crawling | Sí, `changefreq: daily` | Sí, `changefreq: weekly`, prioridad `1.0` (la más alta del sitemap) |
-| Campos confirmados expuestos | `yape_number`, `plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`, `credits_available`/`reserved`, `completed_classes_count`, `is_experienced`, `mentorship_slots_taken` | Los mismos, salvo los que `TeacherProfile::$hidden` (añadido después, commit `92e71c4`) ya venía cubriendo cuando se encontró este segundo caso |
-| Fix | `->select()` explícito antes de agregados (`0b1bc13`) | `->select()` explícito antes de agregados (`904ea07`) |
-| Tests de regresión | `TeacherPublicVisibilityTest.php` (8) | `WelcomeFeaturedTeachersExposureTest.php` (3) — negative + positive contract, y la combinación completa `select+with+withCount+withAvg` ejercitada end-to-end vía request HTTP real, no mockeada |
+| | `/marketplace` | `/` (home pública) | `subjects` pivot (ambas rutas) | `/admin/pending-teachers` |
+|---|---|---|---|---|
+| Severidad | 🔴 P0 público | 🔴 P0 público | 🟠 P1 público (menor) | 🟡 P2/P3 — admin-only, no es la clase pública |
+| Mecanismo exacto | `paginate($n, $columns)` no determinista tras `withAvg()`/`withCount()` | `get($columns)` (lo mismo que llama `paginate()` internamente) | pivot de `belongsToMany` con `withPivot()` no se suprime restringiendo columnas del modelo relacionado | relación `belongsTo('user')` cargada sin restricción de columnas |
+| Commit que lo introdujo | `2fb22fd` (2026-08-22) | `03db9f5` — el primer commit del repo (2026-06-10) | mismo origen que las dos anteriores (el pivot nunca se restringió) | no rastreado individualmente — encontrado al verificar `reviewedBy`, no por sí solo |
+| ¿Ancestro de `origin/master`? | Sí | Sí | Sí | Sí |
+| Ventana de exposición estimada | ~5 días | ~11 semanas | igual que las dos anteriores | N/A (requiere `role:admin`, no es exposición pública) |
+| Campos expuestos | `yape_number`, `plin_number`, `referral_code`, `rejection_reason`, `reviewed_by`, `credits_*`, etc. | los mismos, salvo lo que `$hidden` ya cubría | `specific_rate` (tarifa por materia) + IDs de la tabla pivote | `User` completo salvo `password`/`remember_token`: `phone_verification_code_hash`, `suspension_reason`, `whatsapp_opt_in_at`, etc. |
+| Fix | `0b1bc13` | `904ea07` | `607f9ec` (ambos endpoints) | `1c1ac31` |
+| Tests | `TeacherPublicVisibilityTest.php` (8) | `WelcomeFeaturedTeachersExposureTest.php` (3) | `PublicTeacherProfileExposureContractTest.php` (2, allowlist forward-looking) | `AdminPendingTeachersExposureTest.php` (2) |
 
-El segundo caso se encontró exactamente por la razón correcta: la
-auditoría acotada de superficies públicas recomendada después del primero,
-no una casualidad. Confirma que el patrón no era un error aislado de un
-archivo, sino algo que había que buscar deliberadamente en cualquier lugar
-con la misma forma.
+Los tres hallazgos posteriores al primero se encontraron exactamente por
+las razones correctas, no por casualidad: el segundo por la auditoría
+acotada de superficies públicas recomendada tras el primero; el tercero
+(pivot) al construir el test de allowlist forward-looking y descubrir que
+`subjects[0]` traía una clave que nadie había puesto en la lista permitida;
+el cuarto (admin) al verificar explícitamente que `reviewedBy` no
+escondiera una fuga hermana — que no la escondía, pero reveló que su
+vecino `user` sí tenía una.
 
 ### Auditoría acotada de superficies públicas (completa, no una muestra)
 
@@ -462,11 +510,14 @@ necesidades de proyección similares.
 
 ### Contención — qué se hizo y qué NO se hizo
 
-**Hecho**: proyección explícita en ambos controllers (`0b1bc13`,
-`904ea07`), `TeacherProfile::$hidden` como capa adicional (`92e71c4`), 11
-tests de regresión nuevos entre los tres commits, todos verificados como
-detección real (revertidos temporalmente, confirmado que fallan,
-restaurados).
+**Hecho**: proyección explícita en las 3 superficies (`0b1bc13`,
+`904ea07`, `1c1ac31`), pivot de `subjects` cerrado en ambos endpoints
+públicos (`607f9ec`), `TeacherProfile::$hidden` como capa adicional
+(`92e71c4`), un test de contrato allowlist forward-looking además de los
+de lista negra (`607f9ec`) — **19 tests de regresión nuevos en total**
+entre los cinco commits, todos verificados como detección real
+(revertidos temporalmente, confirmado que fallan con el mensaje exacto
+esperado, restaurados).
 
 **Deliberadamente NO hecho**: no se rotó `yape_number`/`plin_number` —
 son los números de cuenta de pago de cada profesor, no credenciales
@@ -474,7 +525,43 @@ técnicas; rotarlos no es una decisión que competa a esta sesión ni una
 acción automática razonable sin que tú definas el alcance real y decidas
 si amerita avisar a los profesores verificados. No se hizo push — sigue
 bajo la regla F-26/F-27. No se intentó verificar producción directamente
-(sin credenciales, sin acceso).
+(sin credenciales, sin acceso). No se introdujo un `TeacherPublicResource`/
+DTO formal: con la proyección explícita + el allowlist ya cubriendo las 2
+superficies públicas reales, la abstracción precedería a la necesidad —
+se reconsidera si aparece una tercera superficie pública con proyección
+similar. No se auditaron rutas autenticadas más allá del hallazgo
+incidental de `/admin/pending-teachers` (encontrado verificando
+`reviewedBy`, no por una nueva búsqueda deliberada) — no se abrió una
+segunda auditoría general.
+
+### Checklist de cierre de esta clase de vulnerabilidad
+
+```text
+[x] Causa raíz documentada de forma genérica y reusable
+[x] Las 10 rutas públicas de MOVA auditadas (2 vulnerables, 8 seguras)
+[x] / corregido (904ea07)
+[x] /marketplace corregido (0b1bc13)
+[x] TeacherProfile revisado campo por campo (contrato de sensibilidad)
+[x] reviewedBy verificado — correcto, sin cambios necesarios
+[x] Hallazgo hermano de reviewedBy (relación `user` sin acotar) corregido (1c1ac31)
+[x] Pivot de `subjects` (specific_rate) corregido en ambos endpoints públicos (607f9ec)
+[x] Positive response contracts (tests)
+[x] Negative response contracts (tests)
+[x] Allowlist forward-looking (protege contra campos futuros, no solo los conocidos)
+[x] Tests de regresión — 19 nuevos, todos verificados como detección real
+[x] Suite completa — 530/530
+[ ] Build de frontend — no aplica, ningún archivo .vue/.js tocado en este bloque
+[x] Audit document actualizado (esta sección)
+[x] MOVA_SYSTEM_KNOWLEDGE.md actualizado (§19-20: nota correctiva +
+    política arquitectónica de proyección pública explícita)
+[x] Git state — 55 ahead / 0 behind, verificado con fetch, limpio salvo package-lock.json
+```
+
+**Cierre de esta clase de vulnerabilidad.** No se reabre esta auditoría
+salvo que aparezca evidencia nueva de una fuga P0/P1 real — el siguiente
+trabajo de esta sesión retoma el core product journey
+(`ClassRequests/Create.vue` → `Diagnostics` → checkout), no una quinta
+ronda de búsqueda de exposición.
 
 ---
 
