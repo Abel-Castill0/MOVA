@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.17
-generated_at:     2026-08-27T21:46:52Z
-repository_head:  a4a3c1d   (rama master — directorio de trabajo real, no worktree aislado; NO un checkout de git worktree separado — ver nota de proceso abajo)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (71 commits detrás de local, sin push)
+audit_revision:   2026-08-27.18
+generated_at:     2026-08-27T22:19:06Z
+repository_head:  0fdc1c2   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (75 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: re-sync tras Register.vue/RegisteredUserController/InputError/i18n)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: ClassRequests/Accept.vue audit closure)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1057,6 +1057,138 @@ realmente se verificó, con su método, no una afirmación de intención.
 | Navegador (`BROWSER_VERIFIED`) | ✅ Interacción real, no solo build | Login real (`ana@mova.test`), llenado de formulario con datos reales, envío con código inválido → error confirmado llegando al usuario (antes era código muerto), envío happy-path → fila real creada en MySQL local (`ClassRequest#19`, verificado por `tinker`, no solo por la UI) con `is_mentorship=true` y el resto de campos exactos, redirect + flash "Solicitud enviada." confirmado |
 | Riesgos remanentes | `InputError` sin `role="alert"` (arriba); tablet sin verificar explícitamente; activación por teclado (Enter/Espacio) de los botones de horario/modalidad no se pudo re-confirmar con esta herramienta de automatización por una limitación del dispatch sintético de teclas (el click con mouse sí togglea correctamente, y el código es un `<button type="button">` nativo sin ningún `@keydown` que intercepte — la activación por Enter/Espacio es comportamiento por defecto del navegador para cualquier botón nativo enfocado, no algo que la app implemente o pueda romper, así que el riesgo real es bajo, pero no está re-verificado con teclado físico) | — |
 | Git | ✅ Commit atómico `f7b03b7`, separado del fix de backend (`206d886`) y de la documentación de la matriz (`abff3ff`) | Sin push — sigue bloqueado por la rotación pendiente de F-26, no relacionado con este cambio |
+
+---
+
+## 🔍 `ClassRequests/Accept.vue` — auditoría de seguridad + integridad financiera (backend primero, antes de tocar UI)
+
+Instrucción explícita para esta pasada: `Register.vue` y
+`ClassRequests/Create.vue` quedan cerrados salvo evidencia nueva — no se
+reabren aquí. El siguiente objetivo del journey
+(Discovery→Request→**Acceptance/Scheduling**→Lesson→Settlement) es esta
+pantalla, y por ser la superficie donde se deciden duración, horario,
+precio y créditos, se audita como operación transaccional de negocio, no
+como formulario — exactamente el mismo orden que `Create.vue`: leer el
+contrato real primero, reproducir los caminos de riesgo, corregir solo lo
+que de verdad está roto, verificar, y recién después UX.
+
+### GET/prepare — `ClassRequestController::accept()`
+
+```text
+GET /teacher/requests/{classRequest}/accept
+```
+
+Verificado leyendo el archivo completo, no asumido:
+
+| Invariante | Estado | Evidencia |
+|---|---|---|
+| Autorización del profesor | ✅ ya sólida, sin tocar | `$this->authorize('accept', $classRequest)` → `ClassRequestPolicy::accept()`: exige `is_verified` (hallazgo crítico ya corregido en 2026-08-22, con test), respeta el código de referido exclusivo si existe, y si no, matchea por oferta o por materia — nunca confía en `class_offer_id`/`subject_id` del cliente porque ninguno de los dos viene del cliente en este endpoint (son del modelo ya cargado) |
+| Proyección de datos | 🔧 **corregido en esta pasada** | `$classRequest->load(['student', 'subject'])` sin restricción de columnas serializaba `Student` completo — incluye `birth_date` y `school`, datos reales de un menor, a un profesor que ni siquiera aceptó todavía la solicitud. Ninguno de los dos se renderiza en `Accept.vue` (confirmado leyendo el `<template>`: solo `subject.name`, `student.first_name`/`last_name`, `help_needed`). Restringido a `student:id,parent_user_id,first_name,last_name,grade_level` y `subject:id,name` |
+| Estado de la solicitud antes de renderizar | ⚠️ **gap real, menor, no corregido aquí** | El GET no comprueba `status === 'open'` — un profesor puede abrir el formulario completo de una solicitud ya aceptada por otro, y solo se entera al enviar (el POST sí lo bloquea correctamente). No es un problema de seguridad (nada se filtra ni se ejecuta de más), es UX: llenar un formulario entero para recién ahí ver el error. Se documenta para la fase de UX, no se resuelve ahora — cambiar el GET también implica decidir qué mostrar en su lugar (fuera del alcance "solo backend" de esta pasada) |
+
+### POST/accept — `LessonController::store()` (`Accept.vue` envía a `route('lessons.store')`, no a un endpoint de `ClassRequestController`)
+
+**Hallazgo principal, corregido**: 5 instancias de `abort()`/`abort_if()`/`abort_unless()` — el mismo patrón de fallo silencioso ya corregido dos veces antes en esta sesión (`ClassRequestController`, `RegisteredUserController`), encontrado aquí por tercera vez. La diferencia que eleva la severidad: el chequeo `status !== 'open'` (una vez antes de la transacción como fail-fast, y otra vez bajo `lockForUpdate()` dentro de ella) **es** el mecanismo real que impide aceptar la misma solicitud dos veces — no una validación decorativa. Con `abort_if()`, el profesor que pierde la carrera veía la página de error genérica de Laravel en vez de cualquier indicación de qué pasó. Las otras tres instancias (perfil de profesor inexistente, créditos insuficientes, cupo de mentoría lleno) tenían el mismo problema — y créditos insuficientes es, de las cinco, la más alcanzable en uso normal.
+
+Las 5 se convirtieron a `throw ValidationException::withMessages([...])`, con el campo elegido por relevancia semántica, no al azar:
+
+| Chequeo | Campo elegido | Por qué |
+|---|---|---|
+| Sin perfil de profesor | `class_request_id` | No hay ningún campo más cercano; caso casi inalcanzable en uso normal (el middleware de rol ya debería impedirlo), corregido igual por consistencia |
+| Solicitud ya no `open` (×2: fail-fast + re-chequeo bajo lock) | `class_request_id` | Es el campo real, oculto, que identifica QUÉ se está intentando aceptar — el problema no es la fecha ni la duración, es que esta solicitud puntual ya no está disponible |
+| Créditos insuficientes | `duration_minutes` | Es el único campo que el profesor puede cambiar en este mismo formulario para resolverlo — una duración menor cuesta menos créditos. Atarlo a un campo sin acción posible (como `class_request_id`) habría sido menos útil |
+| Cupo de mentoría lleno | `class_request_id` | Mismo razonamiento que "ya no open": no es un problema del formulario, es que esta solicitud puntual no se puede aceptar |
+
+`Accept.vue` se actualizó para renderizar ambos campos nuevos (antes solo existía `form.errors.start_time`): un banner con `role="alert"` para `class_request_id`, y un mensaje bajo el selector de duración para `duration_minutes` — explícitamente distinto del aviso ya existente basado en `creditsAvailable` (un snapshot cargado al abrir la página, que puede quedar desactualizado si el profesor aceptó otra clase en otra pestaña).
+
+### Matriz de invariantes (pedida explícitamente, verificada línea por línea contra `LessonController::store()`)
+
+| Campo/Regla | Fuente | Cliente controla | Backend valida | Backend recalcula |
+|---|---|---|---|---|
+| `class_request_id` | Cliente (elige cuál aceptar) | ✅ | ✅ `exists:class_requests,id` + `authorize('accept', …)` + re-chequeo de `status` bajo lock | — |
+| `start_time` | Cliente | ✅ | ✅ `required\|date\|after:now` + `hasScheduleOverlap()` (fail-fast y de nuevo bajo lock) | Normalizado a UTC ISO8601 (`Carbon::parse()->utc()->toIso8601String()`) — transformación, no recálculo de negocio |
+| `duration_minutes` | Cliente | ✅ | ✅ `required\|integer\|min:30\|max:240` | — se usa tal cual para créditos/precio, nunca se re-deriva de otra fuente |
+| `price` (`price_frozen_pen`) | Servidor | ❌ — no existe en el `validate()`, un intento de enviarlo se ignora silenciosamente | — | ✅ `round($rate * $creditsNeeded, 2)`; `$rate` viene de `classOffer.specific_rate` o `teacherProfile.hourly_rate`, ninguno del cliente |
+| `credits` (`creditsNeeded`) | Servidor | ❌ | ✅ contra `credits_available` bajo `lockForUpdate()` | ✅ `Lesson::creditCostForMinutes($duration)` — función server-side, 1 crédito por hora iniciada (`ceil`), el cliente nunca envía un número de créditos |
+| `teacher_profile_id` | Servidor (`auth()->user()`) | ❌ | ✅ implícito vía sesión + policy | — |
+| `student_id` | DB (vía `classRequest`) | ❌ | ✅ viene de `$classRequest->student_id`, nunca del request | — |
+
+Confirma el principio ya establecido esta sesión: *el cliente expresa intención (qué solicitud, cuándo, cuánto dura), el servidor determina el resultado (con quién, cuánto cuesta, cuántos créditos)*.
+
+### Duración — auditoría solicitada explícitamente
+
+`min:30|max:240`, sin restricción de múltiplos de 30 en el backend — aunque el frontend solo ofrece 4 valores fijos (30/60/90/120), el servidor acepta cualquier entero intermedio (p. ej. 37, 241 sí lo bloquea `max:240` pero 239 no). **No es un bug de negocio**: `Lesson::creditCostForMinutes()` recalcula correctamente para cualquier duración (`ceil(minutos/60)`, mínimo 1 crédito) y `hasScheduleOverlap()` extiende la ventana de solapamiento con la duración real recibida, no con un valor asumido — verificado leyendo ambas funciones. Es una permisividad del backend mayor que la que el frontend ofrece, documentada como tal, no corregida (correspondería a agregar una regla `in:` o `multiple_of` si se decide cerrarla, decisión de producto, no de seguridad).
+
+### `start_time`/disponibilidad
+
+`hasScheduleOverlap()` se ejecuta dos veces: una vez fuera de la transacción (fail-fast, sin lock, para dar feedback rápido) y otra vez dentro, con `lockForUpdate()` sobre las lecciones candidatas — el mismo patrón que el resto de invariantes financieras de esta sesión. Reutilizada también por `reschedule()` (con `$excludeLessonId` para no chocar consigo misma) en vez de una segunda implementación divergente — ya evitó una deuda real documentada en el propio código (comentario `C-2`).
+
+### Concurrencia — terminología precisa, no colapsada
+
+`test_the_same_class_request_cannot_be_accepted_twice` (ya existente, no escrito en esta pasada) prueba dos llamadas HTTP **secuenciales** sobre el mismo recurso — PHPUnit es un proceso único y síncrono, esto no es paralelismo real. Lo que sí demuestra, con evidencia real:
+
+- **Orden de lock verificado**: `lockForUpdate()` sobre `ClassRequest` antes del re-chequeo de `status`, y sobre `TeacherProfile` antes de tocar créditos.
+- **Rollback atómico verificado**: el profesor que pierde la carrera termina con `credits_available`/`credits_reserved` sin tocar (10/0, confirmado por el test) y sin fila en `classes` — no créditos parcialmente reservados con una lección inexistente.
+- **Creación única de `Lesson` verificada**: `assertDatabaseCount('classes', 1)` tras el intento duplicado.
+- **Ejecución paralela real**: **NO EJERCITADA** — ni por este test ni por la verificación en vivo de esta pasada (dos requests HTTP reales, pero secuenciales: el profesor A completó su aceptación antes de que el profesor B siquiera cargara la página). No se afirma paralelismo real en ningún punto de este documento para este hallazgo.
+
+### Rollback — verificado, no asumido
+
+Mismo test: created `Lesson` + `credit_transactions.reservation` + `class_requests.status='accepted'` para el ganador, CERO cambios para el perdedor — la transacción de este último nunca llegó a ejecutar ninguna escritura (el `throw` ocurre antes de `Lesson::create()`). No hay escenario de "créditos actualizados pero lección no creada" porque todas las escrituras viven dentro del mismo `DB::transaction()` y el `throw` de cualquier `ValidationException` lo revierte completo (Laravel captura cualquier `Throwable` dentro de `DB::transaction()`, no solo excepciones de base de datos).
+
+### Máquina de estados
+
+`class_requests.status`: `pending_parent_approval → open → accepted | rejected | completed` (enum verificado en la migración). `accepted` es terminal respecto a una segunda aceptación — verificado, no asumido: el re-chequeo bajo lock dentro de la transacción es exactamente lo que lo hace terminal en la práctica, no solo el enum.
+
+### Notificaciones — verificado el orden exacto
+
+Preocupación explícita de esta pasada: que "clase aceptada" nunca se le diga al padre antes de que la transacción haya comprometido de verdad. Confirmado leyendo ambos archivos:
+
+```text
+DB::transaction() { … Lesson::create() … $teacherProfile->update() … }  ← termina, commit real
+        ↓ (línea siguiente, fuera de la transacción)
+event(new ClassConfirmed($lesson))
+        ↓
+SendClassConfirmationNotifications implements ShouldQueue  ← encolado, no síncrono
+```
+
+El evento se dispara en la línea inmediatamente posterior al cierre de `DB::transaction()`, nunca dentro — si la transacción hubiera lanzado, la ejecución nunca llega a esa línea. El listener implementa `ShouldQueue`, así que además de estar correctamente secuenciado, no bloquea la respuesta HTTP al profesor.
+
+### Taxonomía de errores — cubiertos en esta pasada
+
+`request no encontrada` (`findOrFail`, 404 nativo de Laravel) · `sin perfil de profesor` · `no autorizado` (policy) · `solicitud ya no open` (×2, fail-fast y bajo lock) · `horario ocupado` (×2, ya estaba bien antes de esta pasada) · `créditos insuficientes` · `cupo de mentoría lleno`. Cada uno ahora resulta en un redirect-back con `session('errors')`, nunca en la página de error genérica de Laravel.
+
+### Lo que esta pasada deliberadamente NO hizo
+
+- **No tocó `join()`/`confirmPayment()`/`cancel()`/`reschedule()`** — mismo patrón de `abort_if()` crudo presente ahí también, pero pertenecen a páginas distintas (`Lessons/ParentIndex.vue`, `Lessons/TeacherIndex.vue`), fuera del alcance de "Accept.vue". Flageado por separado (`task_29e7c685`), no corregido aquí para no exceder el alcance.
+- **No corrigió el gap del GET** (no comprueba `status==='open'` antes de renderizar el formulario) — es UX, no seguridad, y su solución correcta depende de decisiones de UX que corresponden a la fase siguiente, no a esta auditoría de backend.
+- **No rediseñó `Accept.vue`** — instrucción explícita: primero backend verificado, después UX. La pantalla sigue siendo el formulario original salvo los dos nuevos slots de error.
+- **No afirma paralelismo real** en ningún punto — ver sección de concurrencia arriba.
+
+### Cierre — estado formal, por dimensión
+
+| Dimensión | Estado | Evidencia |
+|---|---|---|
+| Contrato GET | ✅ Auditado, 1 corrección (proyección) | `ClassRequestController::accept()` |
+| Contrato POST | ✅ Auditado, 5 correcciones (mensajes) | `LessonController::store()` |
+| Autorización | ✅ Ya sólida, verificada, sin tocar | `ClassRequestPolicy::accept()` |
+| Duración | ✅ Auditada, permisividad documentada, no es bug | `min:30\|max:240`, recálculo correcto en cualquier punto del rango |
+| Horario/disponibilidad | ✅ Ya sólida, verificada, sin tocar | `hasScheduleOverlap()`, doble chequeo con lock |
+| Precio | ✅ 100% servidor, cliente no puede imponerlo | Verificado: no existe en `validate()` |
+| Créditos | ✅ 100% servidor, verificado bajo lock | `Lesson::creditCostForMinutes()` |
+| Transacción/locking | ✅ Ya sólida, verificada, sin tocar | `lockForUpdate()` en `ClassRequest` y `TeacherProfile` |
+| Rollback | ✅ Verificado (test existente + repro en vivo) | 0 cambios para el perdedor de la carrera |
+| Máquina de estados | ✅ Verificada | `accepted` terminal, re-chequeo bajo lock |
+| Notificaciones | ✅ Verificado el orden (post-commit, encolado) | `event()` después de `DB::transaction()`, listener `ShouldQueue` |
+| Taxonomía de errores | ✅ 5 casos convertidos a `ValidationException` | Ver tabla arriba |
+| Tests | ✅ 544/544 — 4 tests existentes corregidos (mismo punto ciego de "solo status code" ya visto 2 veces antes esta sesión), 0 tests nuevos (la cobertura de escenario ya existía) | `FinancialConcurrencyTest`, `MentorshipRequestTest`, `MonetizationIntegrityTest` |
+| Regression proof | ✅ `git stash` sobre `LessonController.php` reprodujo los 4 fallos reales antes de restaurar | Revert-confirm-restore |
+| Build | ✅ Sin errores/warnings nuevos | `npm run build` |
+| Navegador (`BROWSER_VERIFIED`) | ✅ Dos escenarios reales, no solo build/PHPUnit | Carrera de dos profesores reales (`profesor@mova.test` gana, `profesor-relleno-1@mova.test` ve el error real); créditos insuficientes (`carlos@mova.test`, 0 créditos) vía `fetch()` real (el botón está deshabilitado en el cliente, así que el camino de servidor se verificó con una request real, no simulada) |
+| Concurrencia real | ❌ **NO EJERCITADA** — ver sección propia, terminología no colapsada | — |
+| UX/UI | **Deliberadamente no tocado** — siguiente fase | — |
+| Riesgos remanentes | GET no chequea `status` antes de renderizar (UX, no seguridad); 4 `abort_if()` restantes en el mismo controlador, otras páginas (`task_29e7c685`); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
+| Git | ✅ Commit atómico `0fdc1c2`, separado de la documentación de este cierre | Sin push — sigue bloqueado por F-26 |
 
 ---
 
