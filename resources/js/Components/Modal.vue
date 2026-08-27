@@ -1,6 +1,22 @@
 <script setup>
-import { computed, onMounted, onUnmounted, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
+/**
+ * Reescrito con checklist de accesibilidad explícito (no solo "focus trap"):
+ * role="dialog" + aria-modal + aria-labelledby opcional; trampa de foco real
+ * (Tab/Shift+Tab cicla dentro); foco restaurado al elemento que abrió el
+ * modal al cerrarse; Escape cierra; bloqueo de scroll del body; clic en el
+ * overlay no interactúa con el contenido de detrás (ya lo hacía, se
+ * conserva). En móvil se convierte en hoja inferior (curva de iOS); desde
+ * `sm:` vuelve al diálogo centrado de siempre.
+ *
+ * API sin cambios respecto del Modal anterior — mismos props (`show`,
+ * `maxWidth`, `closeable`) y mismo evento `close` que ya usan sus 6
+ * call-sites reales (inventariado antes de tocar esto). `titleId` es nuevo
+ * y opcional: si el caller le pasa el id de su propio <h2>, el modal queda
+ * con nombre accesible real; si no lo pasa (ningún caller lo hace todavía),
+ * se degrada exactamente al estado de accesibilidad de antes — nunca peor.
+ */
 const props = defineProps({
     show: {
         type: Boolean,
@@ -14,17 +30,41 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    titleId: {
+        type: String,
+        default: null,
+    },
 });
 
 const emit = defineEmits(['close']);
 
+const panel = ref(null);
+let lastFocusedElement = null;
+
+const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableElements() {
+    if (!panel.value) return [];
+    return Array.from(panel.value.querySelectorAll(FOCUSABLE_SELECTOR));
+}
+
 watch(
     () => props.show,
-    () => {
-        if (props.show) {
+    (show) => {
+        if (show) {
             document.body.style.overflow = 'hidden';
+            lastFocusedElement = document.activeElement;
+            nextTick(() => {
+                const [first] = focusableElements();
+                (first ?? panel.value)?.focus();
+            });
         } else {
             document.body.style.overflow = null;
+            // Restaura el foco a quien abrió el modal — sin esto, tras
+            // cerrar, el foco del teclado queda perdido en el <body>.
+            lastFocusedElement?.focus?.();
+            lastFocusedElement = null;
         }
     }
 );
@@ -35,16 +75,36 @@ const close = () => {
     }
 };
 
-const closeOnEscape = (e) => {
-    if (e.key === 'Escape' && props.show) {
-        close();
-    }
-};
+function onKeydown(e) {
+    if (!props.show) return;
 
-onMounted(() => document.addEventListener('keydown', closeOnEscape));
+    if (e.key === 'Escape') {
+        close();
+        return;
+    }
+
+    if (e.key === 'Tab') {
+        const elements = focusableElements();
+        if (elements.length === 0) {
+            e.preventDefault();
+            return;
+        }
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+}
+
+onMounted(() => document.addEventListener('keydown', onKeydown));
 
 onUnmounted(() => {
-    document.removeEventListener('keydown', closeOnEscape);
+    document.removeEventListener('keydown', onKeydown);
     document.body.style.overflow = null;
 });
 
@@ -63,33 +123,39 @@ const maxWidthClass = computed(() => {
 
 <template>
     <Teleport to="body">
-        <Transition leave-active-class="duration-200">
-            <div v-show="show" class="fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50" scroll-region>
+        <Transition leave-active-class="duration-ui">
+            <div v-show="show" class="fixed inset-0 overflow-y-auto z-50 sm:px-4 sm:py-6" scroll-region>
                 <Transition
-                    enter-active-class="ease-out duration-300"
+                    enter-active-class="ease-out-expo duration-ui"
                     enter-from-class="opacity-0"
                     enter-to-class="opacity-100"
-                    leave-active-class="ease-in duration-200"
+                    leave-active-class="ease-out-expo duration-ui"
                     leave-from-class="opacity-100"
                     leave-to-class="opacity-0"
                 >
-                    <div v-show="show" class="fixed inset-0 transform transition-all" @click="close">
-                        <div class="absolute inset-0 bg-gray-500 opacity-75" />
-                    </div>
+                    <div v-show="show" class="fixed inset-0 bg-black/40" @click="close" />
                 </Transition>
 
+                <!-- Base (< sm): hoja inferior, curva estilo iOS.
+                     sm+: vuelve al diálogo centrado de siempre. -->
                 <Transition
-                    enter-active-class="ease-out duration-300"
-                    enter-from-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                    enter-to-class="opacity-100 translate-y-0 sm:scale-100"
-                    leave-active-class="ease-in duration-200"
-                    leave-from-class="opacity-100 translate-y-0 sm:scale-100"
-                    leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                    enter-active-class="ease-sheet duration-ui sm:ease-out-expo"
+                    enter-from-class="translate-y-full sm:translate-y-4 sm:scale-95 opacity-0 sm:opacity-0"
+                    enter-to-class="translate-y-0 sm:scale-100 opacity-100"
+                    leave-active-class="ease-sheet duration-ui sm:ease-out-expo"
+                    leave-from-class="translate-y-0 sm:scale-100 opacity-100"
+                    leave-to-class="translate-y-full sm:translate-y-4 sm:scale-95 opacity-0 sm:opacity-0"
                 >
                     <div
                         v-show="show"
-                        class="mb-6 bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full sm:mx-auto"
+                        ref="panel"
+                        role="dialog"
+                        aria-modal="true"
+                        :aria-labelledby="titleId ?? undefined"
+                        tabindex="-1"
+                        class="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-surface rounded-t-elevated shadow-elevation-3 outline-none pb-[env(safe-area-inset-bottom)] sm:static sm:mb-6 sm:mx-auto sm:max-h-none sm:rounded-elevated sm:overflow-visible sm:pb-0 sm:w-full"
                         :class="maxWidthClass"
+                        @click.stop
                     >
                         <slot v-if="show" />
                     </div>

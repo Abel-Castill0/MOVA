@@ -1,17 +1,18 @@
 <script setup>
+import BaseButton from '@/Components/BaseButton.vue'
+
+// type="button" ya era el default de este componente antes del refactor —
+// se conserva igual (sus 4 call-sites son todos "Cancelar" con @click,
+// nunca dependen de submit).
 defineProps({
-    type: {
-        type: String,
-        default: 'button',
-    },
-});
+  type: { type: String, default: 'button' },
+  disabled: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+})
 </script>
 
 <template>
-    <button
-        :type="type"
-        class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150"
-    >
-        <slot />
-    </button>
+  <BaseButton variant="secondary" :type="type" :disabled="disabled" :loading="loading">
+    <slot />
+  </BaseButton>
 </template>

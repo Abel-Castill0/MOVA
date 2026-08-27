@@ -1,7 +1,24 @@
+<script setup>
+import BaseButton from '@/Components/BaseButton.vue'
+
+/**
+ * Capa fina sobre BaseButton — mismo nombre de archivo/import que ya usan
+ * sus 8 call-sites reales (Auth/*, Profile/*, Teacher/Credits/Index),
+ * misma API (slot por defecto, :class, :disabled, ningún prop nuevo
+ * obligatorio). type="submit" por defecto porque las 8 usan
+ * `<form @submit.prevent="...">` con este botón dentro sin type explícito
+ * — dependen del type=submit nativo del <button> para disparar el submit;
+ * verificado archivo por archivo antes de fijar este default.
+ */
+defineProps({
+  type: { type: String, default: 'submit' },
+  disabled: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+})
+</script>
+
 <template>
-    <button
-        class="inline-flex items-center justify-center px-5 py-2.5 bg-brand-600 border border-transparent rounded-xl font-semibold text-sm text-white hover:bg-brand-700 focus:bg-brand-700 active:bg-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors duration-150"
-    >
-        <slot />
-    </button>
+  <BaseButton variant="primary" :type="type" :disabled="disabled" :loading="loading">
+    <slot />
+  </BaseButton>
 </template>
