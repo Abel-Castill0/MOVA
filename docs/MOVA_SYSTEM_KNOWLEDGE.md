@@ -606,6 +606,40 @@ Meta → POST /api/webhooks/whatsapp → WhatsAppWebhookController::handle()
 8. `phone_verified_normalized` es único entre cuentas — un mismo número no puede verificarse en dos `User` distintos.
 9. `credits_settled_at` (Lesson) y `referral_code` (TeacherProfile) solo se escriben desde su capa autorizada — fuera de `$fillable` a propósito.
 10. Un admin nunca puede suspender a otro admin.
+11. `ClassRequestController::store()`: dos envíos con exactamente la misma
+    huella de intención (`student_id`, `subject_id`, `help_needed`,
+    `is_mentorship`, `class_offer_id`, `teacher_profile_id` ya resuelto)
+    dentro de 30 segundos colapsan en una sola `ClassRequest` — **Temporal
+    Semantic Deduplication**, no `Idempotency-Key` formal (ver
+    `docs/MOVA_DESIGN_AUDIT_FINAL.md` para la distinción completa y sus
+    límites documentados). No hay garantía fuera de esa ventana ni entre
+    sesiones/dispositivos distintos — deliberado para el alcance actual,
+    no un descuido.
+
+### Regla arquitectónica: el cliente expresa intención, el servidor determina el resultado
+
+Confirmada con evidencia real durante la auditoría de contrato de negocio
+de `ClassRequests/Create.vue` (2026-08-27, ver el mapa de flujo de datos
+completo en `docs/MOVA_DESIGN_AUDIT_FINAL.md`), no una aspiración —
+verificado que se cumple en el código real, campo por campo:
+
+```text
+Cliente (Vue)                         Servidor (Laravel)
+──────────────────                    ──────────────────
+"Quiero pedir clase de Matemáticas    Determina: ¿el student es del padre?
+ para mi hijo con el profesor X"      ¿el offer está activo y verificado?
+                                       ¿qué precio corresponde? ¿cuántos
+                                       créditos? ¿hay horario disponible?
+```
+
+Ningún campo financiero (`price`, `credits`) o de autorización
+(`teacher_profile_id` resuelto de un código, `student_id` validado contra
+el padre autenticado) llega del cliente como valor final — todos se
+derivan o se verifican contra la base de datos en el momento de la
+operación, nunca se confía en lo que Vue ya calculó o mostró. Regla a
+mantener en cualquier flujo nuevo que toque dinero, créditos o
+autorización: el frontend construye la solicitud de intención, nunca el
+resultado.
 
 ---
 

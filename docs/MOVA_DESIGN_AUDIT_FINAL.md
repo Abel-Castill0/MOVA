@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.13
-generated_at:     2026-08-27T20:06:25Z
-repository_head:  19518a5   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (60 commits detrás de local, sin push)
+audit_revision:   2026-08-27.14
+generated_at:     2026-08-27T20:17:27Z
+repository_head:  5f9a926   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (62 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -724,33 +724,87 @@ protecciones correctas antes de esta sesión.
 Revisión aceptada: "el botón se deshabilita" es deduplicación de UI, no
 idempotencia de request; y "la aceptación bloquea el daño después" no es
 lo mismo que "no crear un estado inválido desde el principio". Ambos se
-resolvieron en el código, no se dejaron como nota (commit `19518a5`):
+resolvieron en el código, no se dejaron como nota (commit `19518a5`).
 
-- **Deduplicación de reintento de red** (P2 → RESOLVED). La pregunta
-  correcta, como se pidió, no era "¿existe idempotencia?" sino "¿qué debe
-  pasar cuando la misma intención llega dos veces?" — se decidió
-  explícitamente: dos solicitudes con exactamente la misma intención
+#### Corrección de terminología: **NO es idempotencia estricta**
+
+El mecanismo implementado se nombra correctamente **Temporal Semantic
+Deduplication**, no *idempotencia*. La diferencia es real, no solo de
+vocabulario:
+
+```text
+Idempotency-Key (no implementado)     Temporal Semantic Deduplication (esto)
+──────────────────────────────────    ───────────────────────────────────────
+El cliente genera un identificador    El servidor infiere "misma intención"
+único por intento de envío            a partir del contenido del payload
+El mismo request se reconoce          Dos requests con contenido idéntico
+de forma inequívoca, sin importar     dentro de una ventana de 30s se tratan
+cuánto tiempo pase                    como el mismo — fuera de la ventana,
+                                       o entre sesiones/dispositivos
+                                       distintos, NO hay garantía
+```
+
+**Límite documentado explícitamente, no escondido**: esta deduplicación
+NO protege contra un reintento que llegue después de 30 segundos, ni
+contra dos clientes/pestañas distintos enviando la misma intención de
+forma independiente fuera de esa ventana. Para el alcance actual de MOVA
+(creación de una `ClassRequest`, sin dinero/créditos de por medio en ese
+paso — eso ocurre recién en la aceptación, ya protegida por
+`lockForUpdate()`) esto es una decisión de diseño proporcionada, no un
+atajo. Si en el futuro el flujo de creación empieza a mover dinero
+directamente, o necesita reconciliarse entre sesiones/dispositivos, ahí sí
+correspondería una `Idempotency-Key` formal generada por el cliente — se
+deja registrado como deuda de diseño futura, no como bug actual.
+
+- **Deduplicación temporal de reintento de red** (P2 → RESOLVED). La
+  pregunta correcta, como se pidió, no era "¿existe idempotencia?" sino
+  "¿qué debe pasar cuando la misma intención llega dos veces?" — se
+  decidió explícitamente: dos solicitudes con exactamente la misma huella
   (mismo alumno, materia, texto de `help_needed`, `is_mentorship`,
   `class_offer_id`, `teacher_profile_id` ya resuelto) dentro de 30
   segundos son la MISMA solicitud lógica y deben colapsar en una fila; la
   misma intención minutos después es una solicitud nueva y legítima, y no
   debe bloquearse. Implementado sin migración de esquema ni clave de
-  idempotencia generada por el cliente: la transacción bloquea (`lockForUpdate()`)
-  la fila del `Student` ya autorizado — el mismo patrón ya establecido en
-  `LessonController::store()` con `TeacherProfile` — y busca una
-  `ClassRequest` con la misma huella creada dentro de la ventana antes de
-  insertar.
+  idempotencia generada por el cliente: la transacción bloquea
+  (`lockForUpdate()`) la fila del `Student` ya autorizado — el mismo
+  patrón ya establecido en `LessonController::store()` con
+  `TeacherProfile` — y busca una `ClassRequest` con la misma huella creada
+  dentro de la ventana antes de insertar. **Orden verificado, no
+  asumido**: el lock ocurre ANTES de buscar el duplicado y ANTES de
+  crear (`Student::lockForUpdate()` → `ClassRequest::where(...)` →
+  `new ClassRequest(...)`) — el orden inverso (buscar duplicado, luego
+  bloquear) sí tendría TOCTOU; este no lo tiene.
 - **Validación temprana de oferta** (P2 → RESOLVED). Antes solo se
-  comprobaba `is_active`/`is_verified` en el camino de mentoría. Ahora se
-  comprueba para las dos rutas, reutilizando la misma oferta/perfil ya
-  cargados para el check de cupos existente (una consulta menos, no una
-  más).
+  comprobaba el estado de la oferta en el camino de mentoría.
+  **Disambiguado explícitamente, como se pidió**: son dos campos de dos
+  modelos distintos, no un flag ambiguo — `ClassOffer.is_active`
+  (¿el profesor sigue ofreciendo esto?) y `TeacherProfile.is_verified`
+  (¿el profesor pasó verificación de admin?), comprobados juntos:
+  `$offer->is_active && $offerTeacherProfile?->is_verified`. Ahora se
+  comprueba para las dos rutas (mentoría y regular), reutilizando la
+  misma oferta/perfil ya cargados para el check de cupos existente.
+  **Se mantiene, explícitamente, que esto NO sustituye la validación de
+  `ClassRequestPolicy::accept()`** — entre crear y aceptar, el estado de
+  la oferta/profesor puede cambiar (un admin podría desverificar al
+  profesor, o el profesor desactivar la oferta), así que `accept()` sigue
+  revalidando desde cero, no confía en que `create()` ya lo comprobó.
 
-`tests/Feature/ClassRequestStoreIntegrityTest.php` (5 tests): oferta
-inactiva rechazada (422, cero filas), oferta de profesor no verificado
-rechazada (422, cero filas), una oferta válida sigue funcionando, dos
-reenvíos idénticos colapsan en una fila, dos intenciones genuinamente
-distintas (materia distinta) NO se deduplican. Verificados los 5 como
+#### Matriz de comportamiento de la deduplicación (pedida explícitamente, verificada, no asumida)
+
+| Situación | Resultado | Test |
+|---|---|---|
+| Mismo intento, reenviado inmediatamente | 1 fila | `test_resubmitting_the_exact_same_intent_within_the_window_does_not_duplicate` |
+| Mismo intento, exactamente a los 30s | 1 fila (límite inclusivo) | `test_the_30_second_window_boundary_is_inclusive_then_expires` |
+| Mismo intento, a los 31s | 2 filas (nueva solicitud) | mismo test, tercer paso |
+| Distinta materia | 2 filas | `test_a_genuinely_different_request_right_after_is_not_treated_as_a_duplicate` |
+| Distinto profesor (código de referido) | 2 filas | `distinctIntentProvider` |
+| Distinto `is_mentorship` | 2 filas | `distinctIntentProvider` |
+| Distinto texto de `help_needed` (aunque sea un edit mínimo) | 2 filas — **deliberado, heurístico documentado, no un bug** | `distinctIntentProvider` |
+| Duración (`duration_minutes`) | N/A — no es un campo de `store()`, se decide en `LessonController::store()` al aceptar, no en la creación | — |
+| Dos envíos "simultáneos" (mismo proceso PHPUnit, secuencial) | 1 fila | `test_two_sequential_submissions_for_the_same_intent_never_produce_two_rows_matching_the_locking_order` — **no es una prueba de concurrencia real** (PHPUnit no ejecuta en paralelo); sigue la misma técnica ya establecida en `FinancialConcurrencyTest::test_the_same_class_request_cannot_be_accepted_twice()` (llamada A, luego B, se confirma que B ve el estado que A ya confirmó). La garantía real contra concurrencia VERDADERA viene del orden lock→check→create dentro de la transacción, no de este test — el test documenta y protege ese orden, no lo demuestra bajo hilos paralelos reales |
+
+`tests/Feature/ClassRequestStoreIntegrityTest.php` — 10 tests en total
+(5 originales + 5 de esta pasada). Verificados los 5 originales como
 detección real: revertido el controller, confirmado que 3 de los 5
 fallaban con el comportamiento exacto de antes (302 en vez de 422, 2 filas
 en vez de 1), restaurado. Re-ejecutados `MentorshipRequestTest`/
@@ -781,30 +835,41 @@ validez, precio, créditos y disponibilidad. Ningún campo financiero o de
 autorización llega del cliente como valor final — todos se derivan o se
 verifican contra la base de datos en el momento de la operación.
 
-### Cierre de esta pasada — autorización a entrar en UX/UI
+### Cierre de esta pasada — estado formal, por dimensión (nunca colapsado en una sola palabra)
 
 ```text
-[x] Root cause de ?offer_id determinado con evidencia: data minimization,
-    NO object-level authorization (ver arriba)
-[x] Contrato de ClassOffer/oferta verificado contra el código real, no inventado
-[x] Student ownership verificado — ya correcto
-[x] Teacher/subject/offer integrity verificado — ya correcto
-[x] Pricing verificado como autoritativo del servidor — ya correcto
-[x] Credits verificado como autoritativo + a prueba de carrera — ya correcto
-[x] Availability verificado server-side — ya correcto
-[x] Concurrencia verificada (lock de TeacherProfile como mutex) — ya correcto
-[x] "Idempotencia" de aceptación verificada (lock sobre ClassRequest) — ya correcto
-[x] Deduplicación de reintento de red — RESUELTO (19518a5), no solo documentado
-[x] Validación temprana de oferta — RESUELTO (19518a5), no solo documentado
-[x] Mapa de flujo de datos completo (tabla arriba)
-[x] Suite completa — 536/536
+Business contract:                VERIFIED
+Root cause de ?offer_id:          DATA MINIMIZATION — object-level
+                                   authorization evaluada y descartada
+                                   con evidencia (ver arriba), no BOLA
+Student ownership:                VERIFIED
+Teacher/subject/offer integrity:  VERIFIED
+Pricing (server-authoritative):   VERIFIED
+Credits (server-authoritative +
+race-safe):                       VERIFIED
+Availability (server-side):       VERIFIED
+Accept-time concurrency:          VERIFIED (lock de TeacherProfile como
+                                   mutex; lock de ClassRequest para
+                                   doble-aceptación)
+Temporal semantic deduplication:  VERIFIED (ventana de 30s, matriz
+                                   completa de comportamiento arriba)
+Strict request idempotency:       NOT IMPLEMENTED / NOT REQUIRED FOR
+                                   CURRENT SCOPE — registrado como deuda
+                                   de diseño futura, no como bug
+Early offer validation:           VERIFIED (is_active de ClassOffer +
+                                   is_verified de TeacherProfile,
+                                   disambiguado explícitamente)
+Data-flow map:                    COMPLETO (tabla arriba)
+Full suite:                       541/541
 ```
 
-Con esto, el contrato de negocio de `ClassRequests/Create.vue` está
-verificado y los dos hallazgos reales quedaron resueltos, no solo
-anotados — la fase de UX/UI puede empezar sin dejar sin comprobar ningún
-invariante de dinero/autorización/concurrencia/duplicación detrás del
-diseño.
+**Nunca se afirma "fully idempotent"** para describir el mecanismo
+actual — es deduplicación semántica temporal, con su límite documentado
+explícitamente, no una garantía de idempotencia formal. Con esto, el
+contrato de negocio de `ClassRequests/Create.vue` queda verificado y los
+dos hallazgos reales resueltos con evidencia — la fase de UX/UI puede
+empezar sin dejar sin comprobar ningún invariante de dinero/autorización/
+concurrencia/duplicación detrás del diseño.
 
 ---
 
