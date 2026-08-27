@@ -39,9 +39,19 @@ class CreditController extends Controller
                     'id', 'package_code', 'package_name', 'credits', 'amount_pen',
                     'payment_method', 'operation_number', 'status', 'rejection_reason', 'created_at',
                 ]),
+            // F-16: price_per_credit se calcula aquí, en el servidor, desde el
+            // propio paquete. Antes el frontend rotulaba "1 crédito equivale a
+            // S/ 2.00" con el valor escrito a mano en la plantilla: si alguien
+            // ajustaba config/credits.php, esa línea mentía al profesor
+            // justo en la pantalla donde decide comprar.
             'packages' => collect(config('credits.packages'))
-                ->map(fn (array $package, string $code) => ['code' => $code] + $package)
+                ->map(fn (array $package, string $code) => ['code' => $code] + $package + [
+                    'price_per_credit' => $package['credits'] > 0
+                        ? number_format((float) $package['amount_pen'] / $package['credits'], 2, '.', '')
+                        : null,
+                ])
                 ->values(),
+            'currency' => 'S/',
             'paymentMethods' => config('credits.payment_methods'),
             'rechargesEnabled' => $this->rechargesEnabled(),
             'paymentDestination' => $this->rechargesEnabled()

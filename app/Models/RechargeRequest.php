@@ -24,6 +24,9 @@ class RechargeRequest extends Model
         'approved_at',
         'rejected_at',
         'rejection_reason',
+        'reversed_at',
+        'reversed_by',
+        'reversal_reason',
     ];
 
     protected $casts = [
@@ -32,6 +35,7 @@ class RechargeRequest extends Model
         'reviewed_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'reversed_at' => 'datetime',
     ];
 
     public function teacherProfile()
@@ -47,5 +51,15 @@ class RechargeRequest extends Model
     public function creditTransaction()
     {
         return $this->hasOne(CreditTransaction::class);
+    }
+
+    public function reversedBy()
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
+    }
+
+    public function paymentOrder()
+    {
+        return $this->hasOne(PaymentOrder::class);
     }
 }

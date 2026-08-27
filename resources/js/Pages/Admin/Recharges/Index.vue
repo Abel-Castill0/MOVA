@@ -56,7 +56,7 @@
                       type="button"
                       class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
                       :disabled="isProcessing(recharge.id)"
-                      @click="approve(recharge)"
+                      @click="openActionModal('approve', recharge)"
                     >
                       Aprobar
                     </button>
@@ -64,7 +64,7 @@
                       type="button"
                       class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
                       :disabled="isProcessing(recharge.id)"
-                      @click="reject(recharge)"
+                      @click="openActionModal('reject', recharge)"
                     >
                       Rechazar
                     </button>
@@ -76,6 +76,76 @@
           </table>
         </div>
       </div>
+
+      <!--
+        F-13: antes esto era window.confirm() + window.prompt(). Eran la única
+        superficie de la app con diálogos nativos, en la aprobación de un abono
+        de dinero real, y prompt() está bloqueado en contextos sandbox. Se
+        adopta el patrón que ya usaba Admin/Lessons.vue: modal con el efecto
+        financiero explícito y motivo obligatorio validado.
+      -->
+      <Modal :show="!!actionModal" max-width="lg" @close="closeActionModal">
+        <div class="p-6">
+          <h3 class="text-lg font-black text-slate-900">{{ activeConfig.title }}</h3>
+
+          <div v-if="actionModal" class="mt-4 rounded-xl border border-gray-100 bg-slate-50 p-4 text-sm">
+            <dl class="space-y-1.5">
+              <div class="flex justify-between gap-4">
+                <dt class="text-slate-500">Profesor</dt>
+                <dd class="font-semibold text-slate-900">
+                  {{ actionModal.recharge.teacher_profile?.user?.name ?? 'No disponible' }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-slate-500">Paquete</dt>
+                <dd class="font-semibold text-slate-900">{{ actionModal.recharge.package_name }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-slate-500">Créditos</dt>
+                <dd class="font-semibold text-slate-900">{{ actionModal.recharge.credits }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-slate-500">Monto</dt>
+                <dd class="font-semibold text-slate-900">S/ {{ money(actionModal.recharge.amount_pen) }}</dd>
+              </div>
+              <div class="flex justify-between gap-4">
+                <dt class="text-slate-500">Operación</dt>
+                <dd class="font-semibold text-slate-900">{{ actionModal.recharge.operation_number }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <p class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            {{ activeConfig.warning }}
+          </p>
+
+          <div v-if="activeConfig.requiresReason" class="mt-4">
+            <InputLabel for="action_reason" value="Motivo (obligatorio)" />
+            <textarea
+              id="action_reason"
+              v-model="actionReason"
+              rows="3"
+              class="mt-1 block w-full rounded-xl border-gray-200 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+              placeholder="Indica el motivo del rechazo"
+            />
+          </div>
+
+          <p v-if="actionError" class="mt-3 text-sm font-semibold text-red-600">{{ actionError }}</p>
+
+          <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <SecondaryButton type="button" :disabled="submitting" @click="closeActionModal">Cancelar</SecondaryButton>
+            <button
+              type="button"
+              class="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50"
+              :class="activeConfig.confirmClass"
+              :disabled="submitting"
+              @click="submitAction"
+            >
+              {{ submitting ? 'Procesando…' : activeConfig.confirmLabel }}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <div v-if="recharges.last_page > 1" class="flex flex-wrap gap-1">
         <component
@@ -96,44 +166,81 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import InputLabel from '@/Components/InputLabel.vue'
+import Modal from '@/Components/Modal.vue'
+import SecondaryButton from '@/Components/SecondaryButton.vue'
 
 defineProps({
   recharges: Object,
 })
 
-const processing = ref({ id: null, action: null })
+// Mismo patrón que Admin/Lessons.vue: cada acción declara su copy y, sobre
+// todo, el EFECTO que tendrá — aprobar una recarga abona créditos reales.
+const ACTION_CONFIG = {
+  approve: {
+    title: 'Aprobar recarga',
+    routeName: 'admin.recharges.approve',
+    confirmLabel: 'Aprobar y abonar',
+    confirmClass: 'bg-green-600 hover:bg-green-700',
+    warning: 'Esto abonará los créditos al profesor de inmediato y quedará registrado en el ledger.',
+    requiresReason: false,
+  },
+  reject: {
+    title: 'Rechazar recarga',
+    routeName: 'admin.recharges.reject',
+    confirmLabel: 'Rechazar',
+    confirmClass: 'bg-red-600 hover:bg-red-700',
+    warning: 'No se abonará ningún crédito. El profesor verá el motivo que indiques.',
+    requiresReason: true,
+  },
+}
+
+const actionModal = ref(null) // { type: 'approve'|'reject', recharge }
+const actionReason = ref('')
+const actionError = ref('')
+const submitting = ref(false)
+
+const activeConfig = computed(() => actionModal.value ? ACTION_CONFIG[actionModal.value.type] : {})
 
 function isProcessing(id) {
-  return processing.value.id === id
+  return submitting.value && actionModal.value?.recharge.id === id
 }
 
-function approve(recharge) {
-  if (!confirm(`Aprobar recarga de ${recharge.credits} créditos para ${recharge.teacher_profile?.user?.name ?? 'este profesor'}?`)) {
+function openActionModal(type, recharge) {
+  actionModal.value = { type, recharge }
+  actionReason.value = ''
+  actionError.value = ''
+}
+
+function closeActionModal() {
+  if (submitting.value) return
+  actionModal.value = null
+  actionReason.value = ''
+  actionError.value = ''
+}
+
+function submitAction() {
+  const config = activeConfig.value
+
+  if (config.requiresReason && actionReason.value.trim().length < 5) {
+    actionError.value = 'El motivo debe tener al menos 5 caracteres.'
     return
   }
 
-  processing.value = { id: recharge.id, action: 'approve' }
-  router.post(route('admin.recharges.approve', recharge.id), {}, {
-    preserveScroll: true,
-    onFinish: () => { processing.value = { id: null, action: null } },
-  })
-}
-
-function reject(recharge) {
-  const reason = prompt('Indica el motivo del rechazo:')
-
-  if (!reason?.trim()) {
-    return
-  }
-
-  processing.value = { id: recharge.id, action: 'reject' }
-  router.post(route('admin.recharges.reject', recharge.id), { reason: reason.trim() }, {
-    preserveScroll: true,
-    onFinish: () => { processing.value = { id: null, action: null } },
-  })
+  submitting.value = true
+  router.post(
+    route(config.routeName, actionModal.value.recharge.id),
+    config.requiresReason ? { reason: actionReason.value.trim() } : {},
+    {
+      preserveScroll: true,
+      onSuccess: () => { submitting.value = false; actionModal.value = null },
+      onError: (errors) => { actionError.value = errors.reason ?? 'No se pudo completar la acción.' },
+      onFinish: () => { submitting.value = false },
+    }
+  )
 }
 
 function fmtDate(value) {
@@ -151,11 +258,14 @@ function money(value) {
   return Number(value ?? 0).toFixed(2)
 }
 
+// F-08: 'reversed' existe en el backend desde la preparación de pagos, pero no
+// estaba mapeado aquí; el fallback `?? status` mostraba la palabra cruda.
 function statusLabel(status) {
   return {
     pending: 'Pendiente',
     approved: 'Aprobada',
     rejected: 'Rechazada',
+    reversed: 'Revertida',
   }[status] ?? status
 }
 
@@ -166,6 +276,7 @@ function statusBadge(status) {
       pending: 'bg-amber-50 text-amber-700',
       approved: 'bg-green-50 text-green-700',
       rejected: 'bg-red-50 text-red-700',
+      reversed: 'bg-rose-50 text-rose-700',
     }[status] ?? 'bg-slate-100 text-slate-700',
   ]
 }

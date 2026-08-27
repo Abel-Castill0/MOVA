@@ -4,10 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\RechargeRequest;
-use App\Models\TeacherProfile;
 use App\Notifications\RechargeApprovedNotification;
 use App\Notifications\RechargeRejectedNotification;
-use Illuminate\Database\UniqueConstraintViolationException;
+use App\Services\RechargeApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -27,50 +26,12 @@ class RechargeController extends Controller
     public function approve(RechargeRequest $recharge)
     {
         $this->authorize('approve', $recharge);
-        $reviewerId = auth()->id();
 
-        try {
-            $result = DB::transaction(function () use ($recharge, $reviewerId) {
-                $recharge = RechargeRequest::whereKey($recharge->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if ($recharge->status === 'approved') {
-                    return ['recharge' => $recharge->load('teacherProfile.user'), 'changed' => false];
-                }
-
-                abort_if($recharge->status === 'rejected', 422, 'Una recarga rechazada no puede aprobarse.');
-
-                $teacherProfile = TeacherProfile::whereKey($recharge->teacher_profile_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $teacherProfile->creditTransactions()->create([
-                    'idempotency_key' => "recharge:{$recharge->id}:deposit",
-                    'recharge_request_id' => $recharge->id,
-                    'type' => 'deposit',
-                    'amount' => $recharge->credits,
-                    'description' => 'Recarga de paquete: '.$recharge->package_name,
-                ]);
-
-                $teacherProfile->update([
-                    'credits_available' => $teacherProfile->credits_available + $recharge->credits,
-                ]);
-
-                $recharge->update([
-                    'status' => 'approved',
-                    'reviewed_at' => now(),
-                    'reviewed_by' => $reviewerId,
-                    'approved_at' => now(),
-                    'rejected_at' => null,
-                    'rejection_reason' => null,
-                ]);
-
-                return ['recharge' => $recharge->load('teacherProfile.user'), 'changed' => true];
-            });
-        } catch (UniqueConstraintViolationException) {
-            abort(409, 'La recarga presenta una inconsistencia de idempotencia y requiere revisión manual.');
-        }
+        // Delegado a RechargeApprovalService: el mismo método que usará la
+        // acreditación automática por webhook de pago (PaymentWebhookService)
+        // cuando exista un proveedor real — un solo camino para tocar el
+        // ledger, no dos que puedan divergir.
+        $result = app(RechargeApprovalService::class)->credit($recharge, auth()->id());
 
         if ($result['changed']) {
             $result['recharge']->teacherProfile?->user?->notify(

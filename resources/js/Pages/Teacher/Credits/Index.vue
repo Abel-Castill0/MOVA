@@ -40,7 +40,10 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h4 class="text-lg font-black text-slate-900">{{ pack.name }}</h4>
-                <p class="mt-1 text-sm text-slate-500">1 crédito equivale a S/ 2.00.</p>
+                <!-- F-16: derivado del catálogo del servidor, no escrito a mano. -->
+                <p v-if="pack.price_per_credit" class="mt-1 text-sm text-slate-500">
+                  1 crédito equivale a {{ currency }} {{ pack.price_per_credit }}.
+                </p>
               </div>
               <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} creditos</span>
             </div>
@@ -93,7 +96,12 @@
                 <td class="px-4 py-3">
                   <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
                 </td>
-                <td class="px-4 py-3 text-slate-700">{{ transaction.description }}</td>
+                <td class="px-4 py-3 text-slate-700">
+                  {{ transaction.description }}
+                  <span v-if="transactionDetail(transaction.type)" class="mt-0.5 block text-xs text-rose-600">
+                    {{ transactionDetail(transaction.type) }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 text-right font-bold text-slate-900">{{ transaction.amount }}</td>
               </tr>
             </tbody>
@@ -230,6 +238,10 @@ defineProps({
     type: String,
     default: null,
   },
+  currency: {
+    type: String,
+    default: 'S/',
+  },
 })
 
 const activeTab = ref('transactions')
@@ -287,13 +299,24 @@ function money(value) {
   return Number(value ?? 0).toFixed(2)
 }
 
+// F-08: 'reversal' y 'reversed' existen en el backend desde que se preparó la
+// arquitectura de pagos, pero no estaban aquí. El fallback `?? type` hacía que
+// el profesor viera la palabra cruda en inglés junto a un movimiento que le
+// había restado créditos, sin ninguna explicación de por qué.
 function transactionLabel(type) {
   return {
-    deposit: 'Deposito',
+    deposit: 'Depósito',
     reservation: 'Reserva',
     consumption: 'Consumo',
-    refund: 'Devolucion',
+    refund: 'Devolución',
+    reversal: 'Movimiento revertido',
   }[type] ?? type
+}
+
+function transactionDetail(type) {
+  return {
+    reversal: 'El pago asociado a esta recarga fue revertido, así que los créditos se descontaron.',
+  }[type] ?? null
 }
 
 function transactionBadge(type) {
@@ -304,6 +327,7 @@ function transactionBadge(type) {
       reservation: 'bg-amber-50 text-amber-700',
       consumption: 'bg-slate-100 text-slate-700',
       refund: 'bg-blue-50 text-blue-700',
+      reversal: 'bg-rose-50 text-rose-700',
     }[type] ?? 'bg-slate-100 text-slate-700',
   ]
 }
@@ -313,6 +337,7 @@ function rechargeLabel(status) {
     pending: 'Pendiente',
     approved: 'Aprobada',
     rejected: 'Rechazada',
+    reversed: 'Recarga revertida',
   }[status] ?? status
 }
 
@@ -323,6 +348,7 @@ function rechargeBadge(status) {
       pending: 'bg-amber-50 text-amber-700',
       approved: 'bg-green-50 text-green-700',
       rejected: 'bg-red-50 text-red-700',
+      reversed: 'bg-rose-50 text-rose-700',
     }[status] ?? 'bg-slate-100 text-slate-700',
   ]
 }
