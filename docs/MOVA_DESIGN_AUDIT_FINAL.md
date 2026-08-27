@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.07
-generated_at:     2026-08-27T11:56:00Z
-repository_head:  cd0c8ee   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (48 commits detrás de local, sin push)
+audit_revision:   2026-08-27.08
+generated_at:     2026-08-27T12:06:22Z
+repository_head:  92e71c4   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (50 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -978,6 +978,7 @@ que un humano se acuerde de revisar ambos lados.
 | `Checkbox.vue` "indigo restante"=1 | Es un comentario del propio código explicando el reemplazo (`// reemplaza el indigo heredado...`), no una clase activa — falso positivo del grep mecánico, documentado aquí en vez de re-escribir el comentario para "limpiar el número". |
 | `Register.vue` (wizard) y `PhoneVerification.vue` migrados solo en color/iconos, no en componentes | Ambos usan botones/inputs `<button>`/`<input>` propios en vez de `BaseButton`/`TextInput`/`Checkbox` — una conversión real (wizard de 5-6 pasos con estados condicionales de validación; formulario de código con estilos centrados/tracking-widest específicos) que merece su propia revisión, no un cambio apurado dentro del barrido de iconos/color. Queda como pendiente explícito, no oculto. |
 | ~~Color del estado "pagada"/"abierta" duplicado en 4 lugares~~ **RESUELTO** | `utils/statusColors.js` extendido con campos `stripe` (barra sólida) y `dot` (punto de timeline) junto al `color`/`ring` que ya tenía. `Dashboard/Parent.vue::dotColor()`, `TeacherLessonCard.vue` y `ParentLessonCard.vue` ya NO tienen su propio mapeo — los tres importan `statusStyle()`. De paso se corrigió una inconsistencia real que el propio dedup expuso: el color "scheduled" de las tarjetas usaba `brand-500` (azul de marca) mientras el badge usaba `blue` genérico — dos azules distintos para el mismo estado; ahora los tres consumidores usan el mismo `blue`, reservando `brand` para acciones/marca. |
+| ~~`TeacherProfile` sin `$hidden`~~ **RESUELTO (P3, defensa en profundidad)** | Encontrado en paralelo al P0 de `/marketplace` (commit `92e71c4`, tarea independiente): `User` ya tenía `$hidden = ['password', 'remember_token']`, `TeacherProfile` no tenía ninguno pese a cargar `yape_number`/`plin_number`/`credits_*`/campos de moderación interna. Sin fuga activa (verificado: cada consumidor real que pasa el modelo completo ya está correctamente acotado por contexto — perfil propio o admin). Se ocultaron solo los campos con CERO lectores reales en todo el frontend (`user_id`, `credits_available`, `credits_reserved`, `completed_classes_count`, `is_experienced`, `mentorship_slots_taken`, `reviewed_at`) — verificado con `grep` campo por campo antes de decidir, no una lista intuida. `reviewed_by` deliberadamente FUERA de la lista pese a no tener lector "obvio": oculta la relación `reviewedBy` ya cargada bajo la misma clave, rompería `Admin/PendingTeachers.vue`. 18 tests nuevos en `TeacherProfileHiddenFieldsTest.php`, verificados como regresión real. |
 
 ## Lo que este documento NO afirma todavía
 
