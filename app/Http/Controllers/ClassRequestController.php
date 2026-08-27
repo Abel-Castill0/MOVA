@@ -17,7 +17,27 @@ class ClassRequestController extends Controller
 {
     public function create(Request $request)
     {
-        $offer = $request->offer_id ? ClassOffer::with(['subject', 'teacherProfile.user'])->findOrFail($request->offer_id) : null;
+        // Encontrado durante el cierre de la familia P0 de exposición
+        // pública (docs/MOVA_DESIGN_AUDIT_FINAL.md): esta ruta exige
+        // `role:parent`, no es pública — pero CUALQUIER padre autenticado
+        // puede pasar `?offer_id=N` (IDs secuenciales, fáciles de
+        // enumerar) y antes recibía el `ClassOffer` completo con
+        // `teacherProfile.user` SIN ninguna restricción de columnas.
+        // Verificado con json_encode() antes de corregir: filtraba
+        // yape_number/plin_number/referral_code del profesor (además de
+        // lo que TeacherProfile::$hidden ya cubre) y el `User` completo
+        // del profesor — email, phone, phone_verification_code_hash,
+        // suspension_reason, etc. — a un padre que no tiene ninguna
+        // relación todavía con ese profesor. Mismo patrón de raíz que
+        // MarketplaceController/WelcomeController/AdminController: una
+        // relación cargada sin proyección explícita. Create.vue solo lee
+        // subject.name, teacher_profile.hourly_rate y
+        // teacher_profile.user.name (verificado leyendo la plantilla).
+        $offer = $request->offer_id
+            ? ClassOffer::select(['id', 'teacher_profile_id', 'subject_id', 'specific_rate'])
+                ->with(['subject:id,name', 'teacherProfile:id,user_id,hourly_rate', 'teacherProfile.user:id,name'])
+                ->findOrFail($request->offer_id)
+            : null;
 
         // ?code=ABC123 desde "Solicitar clase" en el marketplace — prellena
         // el input, pero el valor real sigue resolviéndose en store() contra
