@@ -26,6 +26,16 @@ class RescheduleTest extends TestCase
 
     // ── 1-2. Duración prohibida ──────────────────────────────────────────────
 
+    /**
+     * assertStatus(422) era la aserción original en ambas pruebas de esta
+     * sección — un abort_if() crudo también produce 422, pero como
+     * HttpException plano, no como ValidationException real: Inertia nunca
+     * lo traducía a form.errors, así que ninguna de las dos demostró jamás
+     * que el mensaje llegara al usuario (mismo punto ciego ya encontrado 3
+     * veces antes esta sesión). Corregidas a assertSessionHasErrors() con
+     * el texto exacto tras convertir ese abort_if() a un ValidationException
+     * real — verificado con revert-confirm-restore.
+     */
     public function test_reschedule_rejects_a_different_duration(): void
     {
         [$teacher, $profile, $lesson, $parent] = $this->scenario();
@@ -35,7 +45,9 @@ class RescheduleTest extends TestCase
             'duration_minutes' => 120, // original es 60
         ]);
 
-        $response->assertStatus(422);
+        $response->assertRedirect()->assertSessionHasErrors([
+            'duration_minutes' => 'No puedes cambiar la duración de una clase agendada. Contacta al profesor.',
+        ]);
         $this->assertUnchanged($lesson, $profile, 60);
     }
 
@@ -52,7 +64,9 @@ class RescheduleTest extends TestCase
             'duration_minutes' => 60, // igual al original
         ]);
 
-        $response->assertStatus(422);
+        $response->assertRedirect()->assertSessionHasErrors([
+            'duration_minutes' => 'No puedes cambiar la duración de una clase agendada. Contacta al profesor.',
+        ]);
         $this->assertUnchanged($lesson, $profile, 60);
     }
 
@@ -78,6 +92,10 @@ class RescheduleTest extends TestCase
     // ── 4. Estados no reprogramables ─────────────────────────────────────────
 
     /**
+     * assertStatus(422) era la aserción original — corregida al mismo
+     * ValidationException real que reemplazó el abort_unless() crudo
+     * (ver comentario de la sección de duración arriba para el porqué).
+     *
      * @dataProvider nonScheduledStatusProvider
      */
     public function test_reschedule_is_rejected_for_every_non_scheduled_status(string $status): void
@@ -88,7 +106,9 @@ class RescheduleTest extends TestCase
             'start_time' => now()->addDays(2)->toIso8601String(),
         ]);
 
-        $response->assertStatus(422);
+        $response->assertRedirect()->assertSessionHasErrors([
+            'reschedule' => 'Solo se pueden reprogramar clases programadas.',
+        ]);
         $lesson->refresh();
         $this->assertSame($status, $lesson->status);
     }
@@ -187,7 +207,9 @@ class RescheduleTest extends TestCase
             'start_time' => now()->addDays(2)->toIso8601String(),
         ]);
 
-        $response->assertStatus(422);
+        $response->assertRedirect()->assertSessionHasErrors([
+            'reschedule' => 'Solo se pueden reprogramar clases programadas.',
+        ]);
         $lesson->refresh();
         $this->assertSame('cancelled', $lesson->status);
     }
@@ -265,7 +287,9 @@ class RescheduleTest extends TestCase
             'start_time' => now()->addDays(2)->toIso8601String(),
         ]);
 
-        $response->assertStatus(422);
+        $response->assertRedirect()->assertSessionHasErrors([
+            'reschedule' => 'Solo se pueden reprogramar clases programadas.',
+        ]);
         $this->assertSame('cancelled', $lesson->fresh()->status);
     }
 

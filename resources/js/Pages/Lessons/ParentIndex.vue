@@ -223,7 +223,10 @@ function submitReschedule() {
     },
     {
       onSuccess: () => { rescheduleTarget.value = null },
-      onError: (e) => { rescheduleError.value = e.start_time || 'Error al reprogramar.' },
+      // Mismo hallazgo que en Lessons/TeacherIndex.vue: solo leía
+      // e.start_time, ignorando `reschedule`/`duration_minutes` — el
+      // backend ya los devuelve con mensajes reales.
+      onError: (e) => { rescheduleError.value = e.start_time || e.reschedule || e.duration_minutes || 'Error al reprogramar.' },
       onFinish: () => { rescheduling.value = false },
     }
   )

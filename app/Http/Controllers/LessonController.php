@@ -187,9 +187,27 @@ class LessonController extends Controller
     {
         $studentIds = auth()->user()->students()->pluck('id');
 
+        // Proyección explícita — mismo hallazgo, mismo root cause que
+        // ClassRequestController::accept() (auditoría de Accept.vue):
+        // `ParentLessonCard.vue` solo lee `teacher_profile.user.name`,
+        // `teacher_profile.yape_number`/`plin_number` (legítimo — así paga
+        // el padre) y `student.first_name`/`last_name` (verificado leyendo
+        // el componente, no supuesto). Sin restricción, `teacherProfile.user`
+        // serializaba el `User` completo del profesor (email, teléfono,
+        // hash de verificación, motivo de suspensión...) a cada padre que
+        // ve su lista de clases. `student` va menos restringido en severidad
+        // real (es el propio hijo del padre, que ya ve completo en
+        // `Students/Edit.vue`), pero se acota igual por disciplina de
+        // minimización, no por necesidad de seguridad aquí.
         return Inertia::render('Lessons/ParentIndex', [
             'lessons' => Lesson::whereIn('student_id', $studentIds)
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject', 'teacherReview'])
+                ->with([
+                    'teacherProfile:id,user_id,yape_number,plin_number',
+                    'teacherProfile.user:id,name',
+                    'student:id,parent_user_id,first_name,last_name,grade_level',
+                    'classRequest.subject:id,name',
+                    'teacherReview',
+                ])
                 ->orderBy('start_time', 'desc')
                 ->get(),
         ]);
@@ -199,9 +217,18 @@ class LessonController extends Controller
     {
         $profile = auth()->user()->teacherProfile;
 
+        // Mismo hallazgo que ClassRequestController::accept(): `student`
+        // completo (incluye `birth_date`/`school`, datos reales de un
+        // menor) se serializaba sin restricción a cada profesor con
+        // clases — `TeacherLessonCard.vue` solo lee `first_name`/
+        // `last_name` (verificado, no supuesto).
         return Inertia::render('Lessons/TeacherIndex', [
             'lessons' => Lesson::where('teacher_profile_id', $profile->id)
-                ->with(['student', 'classRequest.subject', 'lessonReport'])
+                ->with([
+                    'student:id,parent_user_id,first_name,last_name,grade_level',
+                    'classRequest.subject:id,name',
+                    'lessonReport',
+                ])
                 ->orderBy('start_time', 'desc')
                 ->get(),
         ]);
@@ -419,16 +446,36 @@ class LessonController extends Controller
 
         // Used below to word the notification from the right party's perspective.
         $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
-        abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden reprogramar clases programadas.');
+
+        // Mismo hallazgo/clasificación que el Final Integrity Gate de
+        // Accept.vue: el estado de la lección ya no es un problema de
+        // ningún campo del formulario (start_time/reason) — es un
+        // conflicto de estado del recurso, recuperable (el usuario puede
+        // entender por qué y actuar en consecuencia), así que usa
+        // `ValidationException` con una clave de negocio propia
+        // (`reschedule`), no atada a `start_time` para no sugerir que la
+        // hora elegida es el problema. Antes era `abort_unless(422)` — el
+        // mismo patrón de fallo silencioso ya corregido 3 veces antes esta
+        // sesión, confirmado aquí empíricamente (expectsJson()===false para
+        // un POST normal, y los tests existentes solo comprobaban
+        // assertStatus(422), nunca el mensaje real).
+        if ($lesson->status !== 'scheduled') {
+            throw ValidationException::withMessages([
+                'reschedule' => 'Solo se pueden reprogramar clases programadas.',
+            ]);
+        }
 
         // Rechazo explícito, no silencioso: si el campo llega (con cualquier
         // valor, incluso igual al actual) se informa por qué no se aplicó, en
         // vez de ignorarlo y dejar que el cliente crea que sí tuvo efecto.
-        abort_if(
-            request()->has('duration_minutes'),
-            422,
-            'No puedes cambiar la duración de una clase agendada. Contacta al profesor.'
-        );
+        // Este SÍ se ata a `duration_minutes` — a diferencia del caso de
+        // arriba, el mensaje es genuinamente sobre ese campo concreto que el
+        // cliente envió, no un error de negocio disfrazado de error de campo.
+        if (request()->has('duration_minutes')) {
+            throw ValidationException::withMessages([
+                'duration_minutes' => 'No puedes cambiar la duración de una clase agendada. Contacta al profesor.',
+            ]);
+        }
 
         $data = request()->validate([
             'start_time' => 'required|date|after:now',
@@ -445,7 +492,12 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden reprogramar clases programadas.');
+            if ($lesson->status !== 'scheduled') {
+                // Re-chequeo bajo lock: mismo razonamiento que el de arriba.
+                throw ValidationException::withMessages([
+                    'reschedule' => 'Solo se pueden reprogramar clases programadas.',
+                ]);
+            }
 
             // Reutiliza el mismo chequeo de solapamiento (con lock) que usa
             // store() para aceptar clases nuevas, en vez de una segunda query

@@ -202,7 +202,14 @@ function submitReschedule() {
     },
     {
       onSuccess: () => { rescheduleTarget.value = null },
-      onError: (e) => { rescheduleError.value = e.start_time || 'Error al reprogramar.' },
+      // Encontrado en auditoría: solo leía e.start_time — el backend ya
+      // devuelve mensajes reales bajo `reschedule` (estado de la lección,
+      // p. ej. ya no está `scheduled`) y `duration_minutes` (intento de
+      // cambiar la duración), pero este modal los ignoraba y mostraba
+      // siempre el genérico "Error al reprogramar." — el mismo patrón ya
+      // encontrado en Register.vue: un fix de backend sin consumo en
+      // frontend sigue siendo invisible para el usuario.
+      onError: (e) => { rescheduleError.value = e.start_time || e.reschedule || e.duration_minutes || 'Error al reprogramar.' },
       onFinish: () => { rescheduling.value = false },
     }
   )
