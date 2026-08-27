@@ -6,18 +6,16 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nombre</label>
-            <input v-model="form.first_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
-            <p v-if="form.errors.first_name" class="text-xs text-red-500 mt-1">{{ form.errors.first_name }}</p>
+            <input v-model="form.first_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" /><InputError class="mt-1" :message="form.errors.first_name" />
           </div>
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Apellidos</label>
-            <input v-model="form.last_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
-            <p v-if="form.errors.last_name" class="text-xs text-red-500 mt-1">{{ form.errors.last_name }}</p>
+            <input v-model="form.last_name" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" /><InputError class="mt-1" :message="form.errors.last_name" />
           </div>
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">Fecha de nacimiento</label>
-          <input v-model="form.birth_date" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+          <input v-model="form.birth_date" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" /><InputError class="mt-1" :message="form.errors.birth_date" />
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nivel educativo</label>
@@ -26,10 +24,11 @@
             <option value="secundaria">Secundaria</option>
             <option value="universidad">Universidad</option>
           </select>
+          <InputError class="mt-1" :message="form.errors.grade_level" />
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">Centro educativo</label>
-          <input v-model="form.school" type="text" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+          <input v-model="form.school" type="text" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" /><InputError class="mt-1" :message="form.errors.school" />
         </div>
         <div class="flex gap-3 pt-2">
           <button type="submit" :disabled="form.processing"
@@ -46,6 +45,8 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+// F-19: mismo hueco que Students/Edit.
+import InputError from '@/Components/InputError.vue'
 
 const form = useForm({
   first_name: '',
