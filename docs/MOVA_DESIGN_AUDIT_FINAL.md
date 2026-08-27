@@ -117,9 +117,31 @@ tildes eliminadas en `Teacher/Credits/Index.vue`, el texto en inglés de
 | Pages | 53 |
 | Components | 26 |
 | Layouts | 3 |
-| Emoji restantes (suma) | 120 en 31 archivos (139/36 tras Teacher, 199/43 al inicio de la Fase 3) — de estos, 1 es `CONTENT` deliberadamente conservado (`LandingFooter.vue`), el resto sigue sin clasificar |
-| `indigo` restante (suma) | 26 en 11 archivos (33/13 tras Teacher, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
-| Archivos con algún trabajo de esta sesión | 33 de 82 |
+| Emoji restantes (suma) | 113 en 30 archivos (199/43 al inicio de la Fase 3) — de estos, 1 es `CONTENT` deliberadamente conservado (`LandingFooter.vue`), el resto sigue sin clasificar |
+| `indigo` restante (suma) | 26 en 11 archivos (72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
+
+### Panel de cobertura (la métrica real — no cantidad de commits)
+
+No usar el conteo de commits como indicador de avance. Esta tabla es la que
+importa:
+
+| | Cantidad |
+|---|---:|
+| Vistas/componentes totales (baseline oficial, filesystem real) | 82 |
+| `AUDITED` (leídos completos, con o sin cambios) | ~35 |
+| `IMPLEMENTED` (código modificado) | ~30 |
+| `BUILD_VERIFIED` | ~30 |
+| `TEST_VERIFIED` | ~30 |
+| `BROWSER_VERIFIED` (real, no bloqueado) | 6 (`Login`, `Register`, `ForgotPassword`, `ResetPassword`, `GuestLayout` indirecto, `Terms`) |
+| `BLOCKED_VISUAL_VERIFICATION` (auth+DB, no reproducible en este sandbox) | ~24 |
+| `A11Y_VERIFIED` / `RESPONSIVE_VERIFIED` / `DARK_VERIFIED` / `PERFORMANCE_VERIFIED` (por página, no heredado de primitivos) | 0 |
+| `DONE` | **0** |
+| Duplicaciones arquitectónicas reales encontradas y corregidas | 3 (`statusColors.js`, `rechargeStatusColors.js`, `timeSlots.js`) — 1 de ellas era un bug de color en producción (`open` azul vs. cyan), no solo una limpieza de código |
+| Product blockers elevados | 1 (`active_offer`, P1 + `PRODUCT DECISION REQUIRED`) |
+
+Los números `~` son aproximados porque se derivan de contar filas
+`AUDITED`/`IMPLEMENTED` en la matriz de abajo a mano — la matriz en sí,
+fila por fila, es la fuente exacta, no este resumen.
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -163,7 +185,14 @@ producto real no se pierda entre 139 conteos de emoji. Ninguno de estos se
 resolvió aquí: no le corresponde a una auditoría de diseño decidir lógica de
 negocio o backend.
 
-### P0/P1 — `active_offer` en el checklist de perfil de profesor
+### P1 · `PRODUCT DECISION REQUIRED` — `active_offer` en el checklist de perfil de profesor
+
+Dos etiquetas distintas, no una sola: `P1` es la severidad (fricción real de
+onboarding, no un bloqueo total de un flujo crítico de dinero — por eso no
+es `P0`); `PRODUCT DECISION REQUIRED` es ortogonal a la severidad y significa
+"la solución depende de una decisión de negocio que el código no puede
+inferir con seguridad" — nunca se resuelve a ciegas solo por tener severidad
+asignada.
 
 - **Dónde**: `Dashboard/Teacher.vue`, `profile_checklist.active_offer` /
   `checklistLabels.active_offer` ("Al menos una oferta activa").
@@ -191,6 +220,63 @@ negocio o backend.
 - **Depende de**: decisión de producto/negocio, no de diseño. Mismo
   tratamiento que `PRIV-STUDENT-RETENTION` en `docs/MOVA_AUDIT_PHASE0.md` —
   documentado y dejado abierto, no resuelto por inferencia.
+
+---
+
+## 🔍 Auditoría de consistencia cruzada — patrones duplicados entre páginas
+
+`statusColors.js` no era el único caso. Búsqueda dirigida
+(`grep` de funciones locales `*Color()`/`*Badge()`/`*Style()`/`*Label()` en
+todo `resources/js`) para verificar si existían más — en vez de asumir que
+un hallazgo ya cerraba el tema. Resultado: **2 duplicaciones reales
+encontradas y corregidas, 1 confirmada como drift real de color, no solo
+duplicación de código.**
+
+### Bug real de deriva de color: `open` (ClassRequest) — RESUELTO
+
+- **Dónde**: `Admin/Requests.vue::badgeClass()` tenía su propio mapeo
+  independiente del mismo dominio que `utils/statusColors.js` ya cubre.
+- **El bug**: `open` se pintaba `bg-blue-50 text-blue-700` en la tabla de
+  Admin, pero `cyan` en cualquier `StatusBadge` del resto de la app (padre,
+  profesor) — el mismo estado de negocio con dos colores distintos según qué
+  pantalla lo mostrara. Exactamente el tipo de drift que la duplicación de
+  `paid`/`scheduled` ya había demostrado que podía pasar.
+- **Corregido**: `Admin/Requests.vue` ahora importa `statusStyle()`. Se
+  conservó una excepción deliberada y documentada: el label local
+  distingue "Rechazada (padre)" de "Rechazada (prof.)" para `rejected`/
+  `teacher_rejected` — una tabla de administrador se beneficia de saber
+  quién rechazó, algo que el label genérico compartido no necesita en el
+  resto de la app. El color, en cambio, no tiene excepción — viene 100% de
+  la fuente única.
+
+### Duplicación de código sin drift (por suerte) — RESUELTA
+
+- **RechargeRequest** (`pending`/`approved`/`rejected`/`reversed`):
+  `Teacher/Credits/Index.vue` (`rechargeLabel`/`rechargeBadge`) y
+  `Admin/Recharges/Index.vue` (`statusLabel`/`statusBadge`) implementaban el
+  mismo mapeo por separado, con nombres de función distintos. Los colores
+  coincidían exactamente (sin drift esta vez), pero el label de `reversed`
+  ya divergía: "Recarga revertida" vs. "Revertida". Extraído a
+  `utils/rechargeStatusColors.js` (dominio propio, no fusionado con
+  `statusColors.js` — son dos ciclos de vida de negocio distintos); ambos
+  consumidores importan `rechargeStatusStyle()` ahora.
+- **Franjas horarias de disponibilidad**: `TimeSlotPicker.vue` (el widget
+  donde el padre elige su disponibilidad) y
+  `ClassRequests/TeacherIndex.vue` (donde el profesor ve qué eligió el
+  padre) tenían la lista de 6 franjas — mismas claves, mismo texto, mismos
+  emoji — duplicada palabra por palabra. Extraído a `utils/timeSlots.js`;
+  ambos consumidores la importan y ambos migraron sus emoji a `Icon` de paso.
+
+### Revisado y descartado como duplicación (dominios genuinamente distintos)
+
+- `Admin/AiUsage.vue::statusBadge` — estados de una llamada de IA
+  (success/fallback/error/skipped), dominio propio, un solo consumidor.
+- `Diagnostics/Create.vue::gradeLevelLabel` — nivel educativo del alumno, no
+  relacionado con estados de clase/solicitud/recarga.
+- `Welcome.vue::levelColor` — mismo nivel educativo, pero en la landing
+  pública; un solo consumidor hoy, sin otro sitio con el que compararlo
+  todavía. No se fusiona especulativamente con `gradeLevelLabel` sin un
+  segundo caso real que lo justifique.
 
 ---
 
@@ -228,7 +314,7 @@ negocio o backend.
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
 | `Pages/Dashboard/Teacher.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 21 emoji→Icon; banner post-clase de `indigo` (LEGACY) a `blue`/info (SEMANTIC: "escribe tu reporte" es rutina, no alarma — el rojo queda reservado a la alerta real de "reporte atrasado" más abajo, evita que dos avisos usen el mismo color con urgencia distinta); unificado el icono de "Solicitudes abiertas" (antes 📬) con el de la acción rápida "Solicitudes" (📋) — mismo concepto, dos emoji distintos en la misma pantalla. **Hallazgo de producto real, no solo visual, documentado en el propio código:** el checklist de perfil sigue pidiendo "Al menos una oferta activa" cuando el flujo de crear ofertas ya no existe para profesores nuevos (ver comentario en el `<script>`) — no se tocó backend, queda anotado explícitamente como pendiente de decisión de producto, no oculto. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`MovaCriticalFlowTest` y otros ejercitan estas rutas) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (requiere sesión de profesor con datos reales) |
-| `Pages/Teacher/Credits/Index.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 💳→Icon, botón "x" de cerrar→`Icon name="close"`. **Hallazgo de copy real:** el archivo entero tenía las tildes españolas eliminadas de forma sistemática (creditos/Creditos, Numero, Operacion, Descripcion, Aun) — corregido en cada aparición, no solo en el título. Los badges de estado de transacción/recarga (green/amber/slate/blue/rose) ya seguían un criterio semántico razonable antes de esta sesión — no se tocaron. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`FinancialConcurrencyTest`, `PaymentOrderTest`, `SpecificRatePricingTest` tocan esta área) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
+| `Pages/Teacher/Credits/Index.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 💳→Icon, botón "x" de cerrar→`Icon name="close"`; tildes españolas eliminadas sistemáticamente corregidas (creditos, Numero, Operacion, Descripcion, Aun). **Deduplicado** (ver "Auditoría de consistencia cruzada" arriba): `rechargeLabel`/`rechargeBadge` locales → `rechargeStatusStyle()` compartido con `Admin/Recharges/Index.vue`. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`FinancialConcurrencyTest`, `PaymentOrderTest`, `SpecificRatePricingTest`) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 | `Pages/Teacher/Edit.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — "✓ Copiado"→`Icon name="check"`; el badge de tier "Experto" pasó de `indigo` (LEGACY, sin significado propio) a `blue`, como paso intermedio deliberado de una escala Base(gris)→Experto(azul)→Élite(ámbar) — no una recoloración estética suelta. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`TeacherReferralCodeTest`, `TeacherReferralRequestTest` ejercitan esta página) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 | `Pages/Teacher/Setup.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 13 indigo→brand (todos `LEGACY`, resto de Breeze, verificado uno por uno: focus rings, chip de tarifa inicial, chips de materias, botón de envío). Flujo ya claro (bio → tarifa informativa, no editable → materias → guardar) — responde directamente "¿qué información necesita introducir el profesor?": solo bio y materias, la tarifa es automática. Sin cambios de estructura. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 
@@ -239,8 +325,8 @@ negocio o backend.
 | `Pages/Admin/AiUsage.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/Admin/Lessons.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/Admin/PendingTeachers.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Admin/Recharges/Index.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Admin/Requests.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Admin/Recharges/Index.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — deduplicado: `statusLabel`/`statusBadge` locales → `rechargeStatusStyle()` compartido (ver arriba). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
+| `Pages/Admin/Requests.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — **bug real de color corregido**: `open` se pintaba azul aquí, cyan en el resto de la app (ver "Auditoría de consistencia cruzada"). Ahora importa `statusStyle()`; conserva el label admin-específico "(padre)"/"(prof.)" para las dos variantes de rechazo, documentado como excepción deliberada. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 | `Pages/Admin/Reviews.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/Admin/Users.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/Dashboard/Admin.vue` | 12 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
@@ -261,7 +347,7 @@ negocio o backend.
 | `Pages/ClassRequests/Accept.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/ClassRequests/Create.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/ClassRequests/Index.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/ClassRequests/TeacherIndex.vue` | 7 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/ClassRequests/TeacherIndex.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 7 emoji→Icon (📋 vacío + 6 en `TIME_SLOT_LABELS`, ahora deduplicado con `TimeSlotPicker.vue` vía `utils/timeSlots.js`). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 
 ### Clases/Reportes (6 archivos)
 
@@ -357,7 +443,7 @@ negocio o backend.
 | `Components/Skeleton.vue` | 0 | 0 | **COMPLETA** (nuevo, Fase 2) — sin consumidores todavía | ✅ | ✅ | ✅ (aria-hidden) | pendiente |
 | `Components/StatusBadge.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/TextInput.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
-| `Components/TimeSlotPicker.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 6 emoji→Icon (semántico por hora del día: Sunrise/Sun/Sunset/RefreshCw, no genérico); 3 indigo→brand. **A11y real**: añadido `aria-pressed` a los botones de selección múltiple (no anunciaban su estado activado/desactivado). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (usado en `ClassRequests/Create.vue`, autenticado) |
+| `Components/TimeSlotPicker.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 6 emoji→Icon (semántico por hora del día: Sunrise/Sun/Sunset/RefreshCw, no genérico); 3 indigo→brand; `aria-pressed` añadido. **Deduplicado**: la lista de franjas horarias se movió a `utils/timeSlots.js`, compartida con `ClassRequests/TeacherIndex.vue` (antes duplicada palabra por palabra). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (usado en `ClassRequests/Create.vue`, autenticado) |
 <!-- MATRIZ:FIN -->
 
 ---

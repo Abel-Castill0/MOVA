@@ -72,6 +72,7 @@
 <script setup>
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { statusStyle } from '@/utils/statusColors'
 
 defineProps({
   requests:     { type: Object, required: true },
@@ -94,23 +95,21 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Deduplicado: antes tenía su propio mapeo estado→color independiente de
+// utils/statusColors.js, y había divergido de verdad ("open" era bg-blue-*
+// aquí pero cyan en StatusBadge.vue) — hallazgo real de la auditoría de
+// consistencia cruzada, no solo teórico. El color ahora sale de la fuente
+// única. El label conserva la variante "(padre)"/"(prof.)" para rejected/
+// teacher_rejected — una tabla de administrador se beneficia de saber quién
+// rechazó de un vistazo, algo que el label genérico de la fuente compartida
+// no necesita en el resto de la app.
 function statusLabel(s) {
-  return {
-    open: 'Abierta',
-    accepted: 'Aceptada',
-    rejected: 'Rechazada (padre)',
-    teacher_rejected: 'Rechazada (prof.)',
-    pending_parent_approval: 'Pend. aprobación',
-  }[s] ?? s
+  if (s === 'rejected') return 'Rechazada (padre)'
+  if (s === 'teacher_rejected') return 'Rechazada (prof.)'
+  return statusStyle(s).label
 }
 
 function badgeClass(s) {
-  return {
-    open: 'bg-blue-50 text-blue-700',
-    accepted: 'bg-green-50 text-green-700',
-    rejected: 'bg-red-50 text-red-700',
-    teacher_rejected: 'bg-orange-50 text-orange-700',
-    pending_parent_approval: 'bg-yellow-50 text-yellow-700',
-  }[s] ?? 'bg-gray-100 text-gray-600'
+  return statusStyle(s).color
 }
 </script>

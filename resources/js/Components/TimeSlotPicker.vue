@@ -16,18 +16,12 @@
 <script setup>
 import { ref, watch } from 'vue'
 import Icon from '@/Components/Icon.vue'
+import { TIME_SLOTS } from '@/utils/timeSlots'
 
 const props = defineProps({ modelValue: Array })
 const emit = defineEmits(['update:modelValue'])
 
-const slots = [
-  { value: 'morning_weekday', label: 'Mañana (L-V)', icon: 'morning' },
-  { value: 'afternoon_weekday', label: 'Tarde (L-V)', icon: 'afternoon' },
-  { value: 'evening_weekday', label: 'Noche (L-V)', icon: 'evening' },
-  { value: 'morning_weekend', label: 'Mañana (S-D)', icon: 'morning' },
-  { value: 'afternoon_weekend', label: 'Tarde (S-D)', icon: 'afternoon' },
-  { value: 'flexible', label: 'Flexible', icon: 'flexible' },
-]
+const slots = TIME_SLOTS
 
 const selected = ref(props.modelValue ?? [])
 

@@ -10,7 +10,7 @@
         </h3>
 
         <div v-if="!requests.length" class="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <div class="text-4xl mb-2">📋</div>
+          <div class="mb-2 flex justify-center text-gray-300"><Icon name="requests" :size="32" :stroke-width="1.5" /></div>
           <p class="text-gray-400 text-sm">No hay solicitudes abiertas</p>
         </div>
 
@@ -23,7 +23,8 @@
                 <p class="text-sm text-gray-600 mt-2 line-clamp-3">{{ r.help_needed }}</p>
                 <div v-if="r.preferred_times?.length" class="mt-2 flex flex-wrap gap-1">
                   <span v-for="t in r.preferred_times" :key="t"
-                    class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    class="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    <Icon :name="timeSlotIconName(t)" :size="12" />
                     {{ timeSlotLabel(t) }}
                   </span>
                 </div>
@@ -96,6 +97,8 @@
 import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Icon from '@/Components/Icon.vue'
+import { timeSlotLabel, timeSlotIconName } from '@/utils/timeSlots'
 
 defineProps({
   requests:         { type: Array, default: () => [] },
@@ -106,19 +109,6 @@ const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
 const rejecting    = ref(false)
-
-const TIME_SLOT_LABELS = {
-  morning_weekday:   '🌅 Mañana (L-V)',
-  afternoon_weekday: '☀️ Tarde (L-V)',
-  evening_weekday:   '🌆 Noche (L-V)',
-  morning_weekend:   '🌅 Mañana (S-D)',
-  afternoon_weekend: '☀️ Tarde (S-D)',
-  flexible:          '🔄 Flexible',
-}
-
-function timeSlotLabel(t) {
-  return TIME_SLOT_LABELS[t] ?? t.replace(/_/g, ' ')
-}
 
 function openRejectModal(r) {
   rejectTarget.value = r

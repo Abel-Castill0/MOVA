@@ -48,7 +48,7 @@
                   </span>
                 </td>
                 <td class="px-5 py-3.5">
-                  <span :class="statusBadge(recharge.status)">{{ statusLabel(recharge.status) }}</span>
+                  <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(recharge.status).color]">{{ rechargeStatusStyle(recharge.status).label }}</span>
                 </td>
                 <td class="px-5 py-3.5">
                   <div v-if="recharge.status === 'pending'" class="flex justify-end gap-2">
@@ -172,6 +172,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import InputLabel from '@/Components/InputLabel.vue'
 import Modal from '@/Components/Modal.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
+import { rechargeStatusStyle } from '@/utils/rechargeStatusColors'
 
 defineProps({
   recharges: Object,
@@ -258,26 +259,4 @@ function money(value) {
   return Number(value ?? 0).toFixed(2)
 }
 
-// F-08: 'reversed' existe en el backend desde la preparación de pagos, pero no
-// estaba mapeado aquí; el fallback `?? status` mostraba la palabra cruda.
-function statusLabel(status) {
-  return {
-    pending: 'Pendiente',
-    approved: 'Aprobada',
-    rejected: 'Rechazada',
-    reversed: 'Revertida',
-  }[status] ?? status
-}
-
-function statusBadge(status) {
-  return [
-    'inline-flex rounded-full px-2.5 py-1 text-xs font-bold',
-    {
-      pending: 'bg-amber-50 text-amber-700',
-      approved: 'bg-green-50 text-green-700',
-      rejected: 'bg-red-50 text-red-700',
-      reversed: 'bg-rose-50 text-rose-700',
-    }[status] ?? 'bg-slate-100 text-slate-700',
-  ]
-}
 </script>

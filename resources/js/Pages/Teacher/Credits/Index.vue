@@ -127,7 +127,7 @@
                 <td class="px-4 py-3 text-slate-700">{{ request.operation_number }}</td>
                 <td class="px-4 py-3 text-right text-slate-700">S/ {{ money(request.amount_pen) }}</td>
                 <td class="px-4 py-3">
-                  <span :class="rechargeBadge(request.status)">{{ rechargeLabel(request.status) }}</span>
+                  <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(request.status).color]">{{ rechargeStatusStyle(request.status).label }}</span>
                 </td>
               </tr>
             </tbody>
@@ -212,6 +212,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
 import Icon from '@/Components/Icon.vue'
+import { rechargeStatusStyle } from '@/utils/rechargeStatusColors'
 
 defineProps({
   teacherProfile: Object,
@@ -333,24 +334,4 @@ function transactionBadge(type) {
   ]
 }
 
-function rechargeLabel(status) {
-  return {
-    pending: 'Pendiente',
-    approved: 'Aprobada',
-    rejected: 'Rechazada',
-    reversed: 'Recarga revertida',
-  }[status] ?? status
-}
-
-function rechargeBadge(status) {
-  return [
-    'inline-flex rounded-full px-2.5 py-1 text-xs font-bold',
-    {
-      pending: 'bg-amber-50 text-amber-700',
-      approved: 'bg-green-50 text-green-700',
-      rejected: 'bg-red-50 text-red-700',
-      reversed: 'bg-rose-50 text-rose-700',
-    }[status] ?? 'bg-slate-100 text-slate-700',
-  ]
-}
 </script>
