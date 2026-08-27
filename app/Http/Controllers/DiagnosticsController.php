@@ -9,7 +9,9 @@ use App\Models\StudentDiagnostic;
 use App\Models\Subject;
 use App\Services\DiagnosticAiEnrichmentService;
 use App\Services\DiagnosticRecommendationService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class DiagnosticsController extends Controller
@@ -42,27 +44,71 @@ class DiagnosticsController extends Controller
 
         $student = $user->students()->findOrFail($data['student_id']);
 
-        $diagnostic = StudentDiagnostic::create(array_merge($data, [
-            'parent_user_id' => $user->id,
-            'level'          => $student->grade_level,
+        // BUG-2 (docs/MOVA_AUDIT_PHASE0.md, sección Q) — este era el único
+        // flujo de creación de datos reales sin ningún guard de idempotencia:
+        // un doble-click o un reintento de red creaba dos diagnósticos y dos
+        // solicitudes de clase. La clave es un hash del CONTENIDO real (no
+        // aleatoria, no acotada por tiempo): el mismo padre reenviando el
+        // mismo diagnóstico para el mismo alumno es el mismo diagnóstico;
+        // un texto distinto genera una clave distinta y crea uno legítimo.
+        $idempotencyKey = hash('sha256', implode('|', [
+            $user->id, $student->id, $data['subject_id'], $data['difficulty_text'],
+            $data['goal'], $data['urgency'],
         ]));
 
-        $aiService->enrich($diagnostic);
-        $service->compute($diagnostic->fresh());
+        $isNewDiagnostic = false;
 
-        $classRequest = ClassRequest::create([
-            'student_id'            => $student->id,
-            'subject_id'            => $diagnostic->subject_id,
-            'class_offer_id'        => null,
-            'is_mentorship'         => $diagnostic->goal === 'continuous_support',
-            'help_needed'           => $this->buildHelpNeeded($diagnostic->fresh()),
-            'status'                => $user->parental_control ? 'pending_parent_approval' : 'open',
-            'student_diagnostic_id' => $diagnostic->id,
-        ]);
+        $diagnostic = DB::transaction(function () use ($data, $user, $student, $idempotencyKey, &$isNewDiagnostic) {
+            try {
+                $diagnostic = StudentDiagnostic::create(array_merge($data, [
+                    'parent_user_id'  => $user->id,
+                    'level'           => $student->grade_level,
+                    'idempotency_key' => $idempotencyKey,
+                ]));
+                $isNewDiagnostic = true;
 
-        $diagnostic->update(['status' => 'converted']);
+                return $diagnostic;
+            } catch (UniqueConstraintViolationException) {
+                // Ya existe un diagnóstico idéntico — no crear un segundo.
+                return StudentDiagnostic::where('idempotency_key', $idempotencyKey)->lockForUpdate()->firstOrFail();
+            }
+        });
 
-        event(new ClassRequestCreated($classRequest));
+        // Fuera de la transacción: enrich() llama a un proveedor de IA
+        // externo por HTTP, no debe mantener un lock de BD abierto durante
+        // esa llamada. Solo se enriquece si el diagnóstico es nuevo en esta
+        // request — el camino idempotente no debe volver a llamar a la IA.
+        if ($isNewDiagnostic) {
+            $aiService->enrich($diagnostic);
+            $service->compute($diagnostic->fresh());
+        }
+
+        $classRequest = DB::transaction(function () use ($diagnostic, $student, $user) {
+            $existing = $diagnostic->classRequest()->lockForUpdate()->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $classRequest = ClassRequest::create([
+                'student_id'            => $student->id,
+                'subject_id'            => $diagnostic->subject_id,
+                'class_offer_id'        => null,
+                'is_mentorship'         => $diagnostic->goal === 'continuous_support',
+                'help_needed'           => $this->buildHelpNeeded($diagnostic->fresh()),
+                'status'                => $user->parental_control ? 'pending_parent_approval' : 'open',
+                'student_diagnostic_id' => $diagnostic->id,
+            ]);
+
+            $diagnostic->update(['status' => 'converted']);
+
+            return $classRequest;
+        });
+
+        // El evento solo se dispara cuando la solicitud es realmente nueva en
+        // esta request — no en el camino idempotente de "ya existía".
+        if ($classRequest->wasRecentlyCreated) {
+            event(new ClassRequestCreated($classRequest));
+        }
 
         return redirect()->route('class-requests.index')
             ->with('success', 'Diagnóstico completado. Enviamos una solicitud genérica a los profesores verificados de la materia.');

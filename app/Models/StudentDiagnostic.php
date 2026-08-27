@@ -12,7 +12,7 @@ class StudentDiagnostic extends Model
     protected $fillable = [
         'parent_user_id', 'student_id', 'subject_id', 'level',
         'difficulty_text', 'school_feedback',
-        'goal', 'urgency', 'status',
+        'goal', 'urgency', 'status', 'idempotency_key',
         'ai_keywords', 'ai_detected_level', 'ai_summary', 'ai_suggested_goal',
         'ai_risk_flags', 'ai_confidence', 'ai_used_fallback', 'ai_enriched_at',
     ];
