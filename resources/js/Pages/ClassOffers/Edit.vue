@@ -11,7 +11,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
-          <input v-model="form.title" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input v-model="form.title" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" /><InputError class="mt-1" :message="form.errors.title" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
@@ -19,7 +19,7 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa específica (S//h)</label>
-          <input v-model="form.specific_rate" type="number" min="0" step="0.5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input v-model="form.specific_rate" type="number" min="0" step="0.5" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" /><InputError class="mt-1" :message="form.errors.specific_rate" />
         </div>
 
         <!-- Availability -->
@@ -30,7 +30,14 @@
             <span class="text-slate-400 text-xs">{{ showAvailability ? '▲ ocultar' : '▼ ver' }}</span>
           </button>
           <div v-if="showAvailability" class="p-4">
-            <AvailabilityPicker v-model="form.availability_schedule" />
+            <AvailabilityPicker v-model="form.availability_schedule" /><InputError class="mt-1" :message="form.errors.availability_schedule" />
+            <!-- F-19 (validación anidada): el backend valida cada franja individual
+                 (availability_schedule.days.{dia}.{indice}.start/end), no solo la clave
+                 raíz. Sin esto, un horario mal formado (ej. "25:00") fallaba en el
+                 servidor sin que el usuario viera ningún error. -->
+            <ul v-if="availabilityFieldErrors.length" class="mt-2 space-y-1">
+              <li v-for="err in availabilityFieldErrors" :key="err.key" class="text-xs text-red-600">{{ err.message }}</li>
+            </ul>
           </div>
         </div>
 
@@ -47,14 +54,44 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, watchEffect } from 'vue';
 import { Link, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import AppLayout from '@/Layouts/AppLayout.vue'
+// F-19: sin visualización de errores de validación.
+import InputError from '@/Components/InputError.vue';
 import AvailabilityPicker from '@/Components/AvailabilityPicker.vue';
 
 const props = defineProps({ offer: Object, subjects: Array });
 
 const showAvailability = ref(!!props.offer.availability_schedule);
+
+const DAY_LABELS = {
+  monday: 'Lunes', tuesday: 'Martes', wednesday: 'Miércoles',
+  thursday: 'Jueves', friday: 'Viernes', saturday: 'Sábado', sunday: 'Domingo',
+};
+
+// F-19 (validación anidada): Laravel devuelve un error por cada franja inválida
+// bajo una clave como "availability_schedule.days.monday.0.start" — form.errors
+// nunca colapsa esas claves en la raíz "availability_schedule", así que sin esto
+// ningún error de horario específico llegaba a mostrarse.
+const availabilityFieldErrors = computed(() => {
+  return Object.entries(form.errors)
+    .filter(([key]) => key.startsWith('availability_schedule.days.'))
+    .map(([key, message]) => {
+      const [, , day, slotIndex, field] = key.split('.');
+      const dayLabel = DAY_LABELS[day] ?? day;
+      const fieldLabel = field === 'start' ? 'hora de inicio' : field === 'end' ? 'hora de fin' : field;
+      return { key, message: `${dayLabel}, franja ${Number(slotIndex) + 1}: ${fieldLabel} — ${message}` };
+    });
+});
+
+// Si el servidor devuelve un error de horario y la sección estaba colapsada,
+// el usuario no vería el error nunca — expandirla automáticamente en ese caso.
+watchEffect(() => {
+  if (availabilityFieldErrors.value.length || form.errors.availability_schedule) {
+    showAvailability.value = true;
+  }
+});
 
 const emptySchedule = () => ({
   timezone: 'America/Lima',
