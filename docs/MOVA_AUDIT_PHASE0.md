@@ -235,11 +235,11 @@ Tabla completa de clasificación (13 integraciones) en [A5](phase0-appendices/A5
 | ID | Severidad | Categoría | Estado real (checkout principal, re-verificado) | Evidencia |
 |---|---|---|---|---|
 | **BUG-1** | — | DATA INTEGRITY | ✅ **YA CORREGIDO en el checkout principal.** Originalmente: borrar un `Student` con historial producía un 500 crudo en MySQL (FK `RESTRICT` sin manejar). Verificado ahora: `Student` usa `SoftDeletes` (migración `2026_08_24_000003_add_soft_deletes_to_students_table.php`, sin commitear), `StudentController::destroy()` hace soft-delete + anonimización de datos del menor, y `Student::forceDelete()` sobre un alumno con historial lanza `RuntimeException` explícita en vez de permitir el borrado físico. **`tests/Feature/StudentDeletionIntegrityTest.php` — 12/12 tests passed, ejecutado ahora mismo contra el checkout principal** (no un worktree aislado). El propio docblock del test cita el hallazgo original como "F-18, hallazgo de la reauditoría post-Fase 3" — es decir, ya se había encontrado y corregido en una ronda de esta misma auditoría anterior a la Fase 0, en un archivo que simplemente nunca se commiteó. | Ejecución real, `tests/Feature/StudentDeletionIntegrityTest.php` |
-| BUG-2 | 🟠 **P2** | FUNCTIONAL | ❌ **Sigue abierto** — re-confirmado por grep directo: `DiagnosticsController.php` no está en la lista de archivos modificados del checkout principal (no cambió desde que el agente lo vio) y sigue sin `DB::transaction()`, sin idempotencia, sin constraint UNIQUE. Doble-click crea dos diagnósticos y dos solicitudes de clase reales. | [A6](phase0-appendices/A6_modelo_negocio_flujos_bugs.md) §4 |
-| BUG-3 | 🟠 **P2** | BUSINESS LOGIC | ❌ **Sigue abierto** — re-confirmado: `LessonSettlementService::CONSUMABLE_STATES` (línea 38) sigue incluyendo `'paid'` sin exigir `lessonReport()->exists()`; `TeacherReviewController::assertReviewable()` (línea 127) sigue exigiéndolo para calificar. La contradicción persiste en el código actual. | ídem, re-verificado por grep directo |
-| BUG-4 | 🟡 **P3** | BUSINESS LOGIC | ❌ **Sigue abierto** — re-confirmado: `grep specific_rate app/Http/Controllers/LessonController.php` (versión actual, modificada) → cero resultados. El campo se sigue sin usar para el cobro real pese a los cambios recientes en ese controlador. | ídem |
-| BUG-5 | 🟡 **P3** | FUNCTIONAL / TIMEZONE | ❌ **Sigue abierto** — re-confirmado: `config/app.php` (sin cambios en el checkout principal) sigue en `'timezone' => 'UTC'`. | ídem |
-| N1 | 🟢 **P3** | DATA INTEGRITY | ❌ **Sigue abierto** — `app/Models/Subject.php` no está en la lista de archivos modificados; `firstOrCreateByName()` sigue sin `try/catch` de `UniqueConstraintViolationException`. | [A1](phase0-appendices/A1_rutas_db_permisos.md) §3.6 |
+| BUG-2 | — | FUNCTIONAL | ✅ **CERRADO** (ver sección AA) — `DiagnosticsController::store()` ahora usa idempotencia por contenido, con transacción. | [AA](#aa-cierre-de-bug-2-bug-3-bug-4-bug-5-y-n1), `DiagnosticIdempotencyTest` |
+| BUG-3 | — | BUSINESS LOGIC | ✅ **CERRADO** (ver sección AA) — `consume()` automático exige reporte pedagógico; sin él, escala a `needs_admin_review`. | [AA](#aa-cierre-de-bug-2-bug-3-bug-4-bug-5-y-n1), `LessonSettlementScenariosTest` |
+| BUG-4 | — | BUSINESS LOGIC | ✅ **CERRADO** (ver sección AA) — `price_frozen_pen` ahora usa `specific_rate` de la oferta cuando existe. | [AA](#aa-cierre-de-bug-2-bug-3-bug-4-bug-5-y-n1), `SpecificRatePricingTest` |
+| BUG-5 | — | FUNCTIONAL / TIMEZONE | ✅ **CERRADO** (ver sección AA) — los 3 sitios identificados usan `LimaClock::todayRangeUtc()`, no `today()` en UTC. | [AA](#aa-cierre-de-bug-2-bug-3-bug-4-bug-5-y-n1), `LimaTimezoneTest` |
+| N1 | — | DATA INTEGRITY | ✅ **CERRADO** (ver sección AA) — `firstOrCreateByName()` captura `UniqueConstraintViolationException` y refetch. | [AA](#aa-cierre-de-bug-2-bug-3-bug-4-bug-5-y-n1), `SubjectRaceConditionTest` |
 
 **Balance real: de 5 "bugs confirmados" + N1 reportados por la Fase 0, 5 siguen abiertos hoy y 1 (BUG-1, el único P1) ya está corregido** — pero solo en el checkout principal sin commitear, lo que refuerza que N-02 (sección G) no es un tecnicismo: mientras ese trabajo no se commitee, "ya está corregido" y "nunca existió el fix" son indistinguibles para cualquiera que clone el repositorio.
 
@@ -281,14 +281,15 @@ Consolidado de los 6 apéndices (`UNKNOWN / REQUIERE VERIFICACIÓN` explícito e
 | N-02 | SECURITY / PROCESS | Todo el trabajo de seguridad de esta auditoría sin commitear | 🟠 Alto | Alta | Alto (pérdida de trabajo + falsa sensación de seguridad) | PROVEN | **P0** |
 | BUG-1 | DATA INTEGRITY / FUNCTIONAL | Borrar `Student` con historial → 500 crudo | — | — | — | ✅ **FIXED** (verificado, 12 tests en verde contra checkout principal) — ver Q | **Ninguna, cerrado** |
 | F-21 | BUSINESS LOGIC / ARCHITECTURE | Webhook de Culqi inexistente | 🟠 Alto (bloqueante de negocio) | N/A (sin tráfico) | Alto (bloquea pagos automáticos) | STILL OPEN | **P1** |
-| BUG-3 | BUSINESS LOGIC | Auto-liquidación sin reporte pedagógico obligatorio | 🟠 Medio | Media | Medio (erosiona diferenciador de producto) | CONFIRMED | **P2** |
-| BUG-2 | FUNCTIONAL | Diagnóstico sin protección de doble-envío | 🟡 Medio | Media (doble-click/red lenta) | Bajo-Medio (datos duplicados, no dinero) | CONFIRMED | **P2** |
+| PRIV-STUDENT-RETENTION | PRIVACY | PII de un alumno sin historial sobrevive indefinidamente sin anonimizar | 🟡 Medio | — | Medio (privacidad de un menor, no explotable) | OPEN — política pendiente, no un parche | **P2** |
+| BUG-3 | BUSINESS LOGIC | Auto-liquidación sin reporte pedagógico obligatorio | — | — | — | ✅ **FIXED** (ver AA) | **Ninguna, cerrado** |
+| BUG-2 | FUNCTIONAL | Diagnóstico sin protección de doble-envío | — | — | — | ✅ **FIXED** (ver AA) | **Ninguna, cerrado** |
 | A4 | AUTHORIZATION | Admin sin permisos finos, sin separación de funciones | 🟡 Medio | Baja (requiere insider) | Medio | STILL OPEN | **P2** |
 | N-11 | SECURITY | `SESSION_SECURE_COOKIE` no definida | 🟡 Bajo-Medio | Baja | Medio si se explota | LIKELY | **P2** |
 | K (cobertura) | TESTING | Panel admin de moderación sin ningún test | 🟡 Medio | — | Medio (riesgo de regresión futura) | CONFIRMED | **P2** |
-| BUG-4 | BUSINESS LOGIC | `specific_rate` no se cobra realmente | 🟢 Bajo | Media | Bajo (expectativa incorrecta del profesor) | CONFIRMED | **P3** |
-| BUG-5 | FUNCTIONAL | Contadores "de hoy" en UTC, no hora de Lima | 🟢 Bajo | Alta (ocurre siempre) | Bajo | CONFIRMED | **P3** |
-| N1 | DATA INTEGRITY | `Subject::firstOrCreateByName` sin manejo de carrera | 🟢 Bajo | Baja (requiere concurrencia real) | Bajo | CONFIRMED | **P3** |
+| BUG-4 | BUSINESS LOGIC | `specific_rate` no se cobra realmente | — | — | — | ✅ **FIXED** (ver AA) | **Ninguna, cerrado** |
+| BUG-5 | FUNCTIONAL | Contadores "de hoy" en UTC, no hora de Lima | — | — | — | ✅ **FIXED** (ver AA) | **Ninguna, cerrado** |
+| N1 | DATA INTEGRITY | `Subject::firstOrCreateByName` sin manejo de carrera | — | — | — | ✅ **FIXED** (ver AA) | **Ninguna, cerrado** |
 | I-UI1 | UX/UI | Contraste `slate-400` en 151 ocurrencias | 🟢 Bajo | — | Bajo (accesibilidad) | CONFIRMED | **P3** |
 | I-UI4 | UX/UI / SEO | Sin OG/JSON-LD en páginas públicas clave | 🟢 Bajo | — | Bajo (SEO, no funcional) | CONFIRMED | **P3** |
 | L-1 | AUTOMATION | `mova:reconcile-ledger` no está en el scheduler ni en CI | 🟡 Medio | — | Medio (detección tardía de descuadres) | CONFIRMED | **P2** |
@@ -591,6 +592,26 @@ Adoptando explícitamente tu distinción: el **código** está listo para conver
 **PUSH BLOCKERS:** F-26/F-27 en `origin/master` — hacer `git push` de los commits nuevos sin antes rotar la credencial y decidir sobre el historial **no soluciona la exposición existente**, solo añade commits limpios encima de un remoto que ya tiene el secreto. Orden correcto, ya documentado en `MOVA_CREDENTIAL_EXPOSURE.md`: commits locales → (opcional) revisión de diff vs. `origin/master` → rotación de credencial → verificación → recién entonces decidir push/purga de historial. **No se ha hecho push de nada.**
 
 **Criterio de éxito de esta fase — respuesta explícita:** sí, el working tree actual representa un conjunto de cambios coherente, revisado línea por línea por 4 dominios + 2 revisiones de seguridad dedicadas, testeado (454/454), libre de secretos nuevos, y preparado para convertirse en los 9 checkpoints de git propuestos — **con la salvedad explícita, no oculta, de que 5 de esos archivos futuros deben ser una eliminación, no una adición, y de que ningún push debe ocurrir antes de rotar la credencial de F-26.**
+
+---
+
+## AA. Cierre de BUG-2, BUG-3, BUG-4, BUG-5 y N1
+
+Los 5 hallazgos abiertos de la sección Q se corrigieron, cada uno con test nuevo o extendido, ejecutando la suite completa antes y después (454→470 tests, 0 regresiones). Ninguno toca F-26/F-27, ninguno rota credenciales, ninguno hace push. `PRIV-STUDENT-RETENTION` **no se tocó** — sigue `OPEN`, tal como se exigió explícitamente.
+
+| ID | Fix | Test(s) | Estado |
+|---|---|---|---|
+| BUG-2 | `DiagnosticsController::store()` ahora usa un `idempotency_key` (hash de contenido, no de tiempo) con `UNIQUE` a nivel de BD — mismo patrón que el resto del ledger. Un doble-click/reintento con el mismo contenido ya no crea un segundo diagnóstico ni una segunda solicitud; un contenido genuinamente distinto sí crea uno nuevo. | `DiagnosticIdempotencyTest` (4) | ✅ CLOSED |
+| BUG-3 | `LessonSettlementService::consume()` rechaza auto-liquidar (actorId=null) un `paid`/`pending_parent_confirmation` sin `LessonReport` — se escala a `needs_admin_review` en su lugar (mismo tratamiento que un `scheduled` sin confirmar). Un admin humano sigue pudiendo force-complete sin reporte a propósito. | 4 tests nuevos en `LessonSettlementScenariosTest` (21 en total en el archivo) | ✅ CLOSED |
+| BUG-4 | `LessonController::store()` usa `classRequest->classOffer->specific_rate ?? teacherProfile->hourly_rate` para congelar `price_frozen_pen` — antes ignoraba `specific_rate` siempre. | `SpecificRatePricingTest` (3) | ✅ CLOSED |
+| BUG-5 | Nuevo `App\Support\LimaClock::todayRangeUtc()` reemplaza `today()`/`whereDate(..., today())` en los 3 sitios identificados (`DashboardController`, `AiUsageController`, `DiagnosticAiEnrichmentService`) — el corte de "hoy" ahora es medianoche en Lima, no medianoche UTC. | `LimaTimezoneTest` (3) | ✅ CLOSED |
+| N1 | `Subject::firstOrCreateByName()` ahora captura `UniqueConstraintViolationException` y refetch — mismo patrón que `idempotency_key`/`operation_number_normalized`/`phone_verified_normalized`. | `SubjectRaceConditionTest` (3) — con la limitación honestamente documentada de que SQLite de una sola conexión no reproduce la ventana exacta de la carrera, igual que `FinancialConcurrencyTest` ya documenta para el resto del sistema | ✅ CLOSED |
+
+**No se corrigió, deliberadamente:**
+- **`PRIV-STUDENT-RETENTION`** (P2, OPEN) — requiere una decisión de política, no un parche; se deja exactamente como estaba.
+- **F-26/F-27** — sin cambios; siguen bloqueados en la decisión de rotación del usuario.
+- **Database Privilege Audit** — sigue pendiente de quien administra Railway.
+- **Production Parity** (matriz W) — no se ejecutó como iniciativa formal; los bugs de esta ronda se corrigieron puntualmente, no se montó la suite parcial contra MySQL real que la sección W recomienda como trabajo futuro.
 
 ---
 
