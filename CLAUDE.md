@@ -2,34 +2,41 @@
 
 Stack: Laravel 10 + Vue 3 + Inertia + Tailwind. Plataforma de tutorías online en Perú (padres, profesores, alumnos menores de edad).
 
-## Diseño (frontend Vue/Tailwind)
+---
 
-Todo componente debe verse elegante, profesional y "caro": profundidad sutil (sombras), tipografía limpia, microinteracciones fluidas, espaciado generoso, bordes redondeados suaves. Nada genérico ni sobrecargado. Animaciones a 60fps. Antes de tocar UI compleja, invoca las skills `ui-ux-pro-max` e `impeccable`.
+## Reglas que SIEMPRE aplican (en cualquier tarea, sin excepción)
 
-## Código
-
+### Código
 - Respeta el patrón ya establecido: controladores delgados + Policies para autorización (`app/Policies/`), transacciones con `lockForUpdate()` en toda mutación financiera, ledger de `credit_transactions` append-only con `idempotency_key` único.
-- No introduzcas vulnerabilidades. Cambios sensibles (auth, dinero, datos de menores) requieren una pasada explícita de revisión de seguridad antes de darse por terminados.
+- No introduzcas vulnerabilidades.
 
-## Razonamiento
-
+### Razonamiento
 Antes de proponer cambios complejos o arquitectónicos: observar el código real primero (no asumir), orientarse contra los patrones ya existentes en el repo, decidir explícitamente el enfoque, y recién ejecutar. Si algo no está claro, preguntar antes de tocar código — no adivinar sobre partes críticas (dinero, menores, autenticación).
 
-## SEO
+### Diseño (frontend Vue/Tailwind)
+Todo componente debe verse elegante, profesional y "caro": profundidad sutil (sombras), tipografía limpia, microinteracciones fluidas, espaciado generoso, bordes redondeados suaves. Nada genérico ni sobrecargado. Animaciones a 60fps.
 
-Páginas públicas (`Welcome`, `Marketplace`, perfiles públicos de profesor) deben llevar meta tags, Open Graph y structured data cuando se toquen.
+---
 
-## `/handoff`
+## Reglas CONDICIONALES (aplican solo cuando la tarea toca el área indicada)
 
-Cuando el usuario escriba `/handoff`, generar `docs/SESSION_HANDOFF.md` con: objetivos de la sesión, qué se probó, qué falló, qué se logró, y siguientes pasos concretos.
+### Si tocas UI compleja (nueva página, rediseño, componente visual no trivial)
+Invoca las skills `ui-ux-pro-max` e `impeccable` antes de escribir el componente.
 
-## Legal / menores de edad
+### Si tocas cambios sensibles (auth, dinero, datos de menores)
+Requieren una pasada explícita de revisión de seguridad antes de darse por terminados — no basta con que los tests pasen.
 
-MOVA maneja videollamadas y datos de menores (alumnos). Cualquier cambio en Jitsi, en el manejo de datos de estudiantes, o en el modelo `Student`/`teacher_profiles` debe pasar por una revisión de seguridad explícita antes de mergear.
+### Si tocas Jitsi, el manejo de datos de estudiantes, o el modelo `Student`/`teacher_profiles`
+Debe pasar por una revisión de seguridad explícita antes de mergear (MOVA maneja videollamadas y datos de menores).
 
-## Auditorías y verificación — Audit Snapshot Contract
+### Si tocas páginas públicas (`Welcome`, `Marketplace`, perfiles públicos de profesor)
+Deben llevar meta tags, Open Graph y structured data cuando se toquen.
 
-Una auditoría de esta base de código encontró, de forma verificada, que un checkout aislado (`git worktree` desde `HEAD`) puede describir un estado del código distinto al del directorio de trabajo real cuando hay cambios sin commitear — y que confundir ambos produjo un hallazgo de seguridad reportado como abierto cuando ya estaba corregido. Regla derivada, obligatoria para cualquier verificación futura (auditoría, revisión de seguridad, o cualquier afirmación de tipo "esto ya está arreglado/verificado"):
+### Si el usuario escribe `/handoff`
+Generar `docs/SESSION_HANDOFF.md` con: objetivos de la sesión, qué se probó, qué falló, qué se logró, y siguientes pasos concretos.
+
+### Si haces una auditoría, revisión de seguridad, o cualquier afirmación de tipo "esto ya está arreglado/verificado" — Audit Snapshot Contract
+Una auditoría de esta base de código encontró, de forma verificada, que un checkout aislado (`git worktree` desde `HEAD`) puede describir un estado del código distinto al del directorio de trabajo real cuando hay cambios sin commitear — y que confundir ambos produjo un hallazgo de seguridad reportado como abierto cuando ya estaba corregido.
 
 Toda verificación debe declarar explícitamente, antes de cualquier conclusión, el snapshot exacto contra el que se hizo: `HEAD` (hash), `origin/<rama>` (hash y si diverge), si se usó un checkout aislado o el directorio de trabajo real, estado del working tree (limpio / N archivos modificados-untracked), y la marca de tiempo. Nunca declarar algo "verificado" o "corregido" sin decir contra qué snapshot — y nunca mezclar evidencia de un checkout aislado con evidencia del directorio de trabajo real sin señalarlo explícitamente.
 
