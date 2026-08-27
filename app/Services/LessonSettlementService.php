@@ -91,6 +91,30 @@ class LessonSettlementService
                 );
             }
 
+            // BUG-3 (docs/MOVA_AUDIT_PHASE0.md, sección Q) — el reporte
+            // pedagógico es "el diferenciador" del producto (MOVA_MASTER_
+            // CONTEXT.md §1). Antes, el scheduler auto-liquidaba una clase
+            // 'paid'/'pending_parent_confirmation' sin exigirlo, dejando que
+            // un profesor perezoso se saliera gratis de esa obligación, y
+            // LessonSettledNotification le prometía al padre "puedes
+            // calificar cuando quieras" cuando el backend luego lo rechazaba
+            // con 403 (sin reporte no hay calificación posible).
+            //
+            // Este guard es SOLO para el camino automático (actorId=null):
+            // un admin humano en force-complete (actorId real) sigue
+            // pudiendo completar sin reporte a propósito — es una decisión
+            // informada de un humano que ya sabe lo que está aprobando, no
+            // el sistema decidiendo solo. needs_admin_review ya pasó por
+            // este guard antes (fue escalada precisamente por esto), así
+            // que no se re-evalúa aquí.
+            if ($actorId === null && in_array($lesson->status, ['paid', 'pending_parent_confirmation'], true)
+                && ! $lesson->lessonReport()->exists()) {
+                throw new \RuntimeException(
+                    "No se puede auto-liquidar Lesson {$lesson->id}: sin reporte pedagógico del profesor. "
+                    .'Debe escalarse a needs_admin_review para que un admin decida, no completarse automáticamente.'
+                );
+            }
+
             $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)->lockForUpdate()->firstOrFail();
             $amount = $lesson->reservedCreditAmount();
 

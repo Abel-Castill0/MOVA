@@ -62,6 +62,12 @@ class SettleLessons extends Command
                 'would_consume' => $consume['candidates'],
                 'consumed' => $dryRun ? 0 : $consume['succeeded'],
                 'consume_errors' => $consume['failed'],
+                // BUG-3: candidatas 'paid'/'pending_parent_confirmation' sin
+                // reporte pedagógico — se escalan a needs_admin_review en vez
+                // de auto-completarse. Contador separado de 'would_consume'
+                // a propósito, para que un dry-run muestre la distinción.
+                'would_escalate_missing_report' => $consume['missing_report_candidates'],
+                'escalated_missing_report' => $dryRun ? 0 : $consume['missing_report_succeeded'],
                 'would_review' => $review['candidates'],
                 'escalated_to_review' => $dryRun ? 0 : $review['succeeded'],
                 'review_errors' => $review['failed'],
@@ -77,7 +83,7 @@ class SettleLessons extends Command
         return self::SUCCESS;
     }
 
-    /** @return array{candidates: int, succeeded: int, failed: int, anomalies: array} */
+    /** @return array{candidates: int, succeeded: int, failed: int, anomalies: array, missing_report_candidates: int, missing_report_succeeded: int} */
     private function settleGraceExpired(LessonSettlementService $settlement, bool $dryRun, bool $json): array
     {
         $graceDays = (int) config('credits.settlement_grace_days', 7);
@@ -91,14 +97,30 @@ class SettleLessons extends Command
             ->orderBy('id')
             ->pluck('id');
 
-        if (!$json) {
-            $this->info("Consumo automático (gracia: {$graceDays}d, corte: {$cutoff->toDateTimeString()}) — candidatas: {$ids->count()}");
+        // BUG-3: separar, ANTES de tocar nada, las candidatas que sí tienen
+        // reporte (se liquidan normalmente) de las que no (se escalan a
+        // needs_admin_review — el reporte pedagógico es la garantía central
+        // del producto, no algo que una clase pueda saltarse solo porque
+        // pasó el plazo de gracia).
+        $withReport = [];
+        $missingReport = [];
+        foreach ($ids as $id) {
+            if (Lesson::whereKey($id)->whereHas('lessonReport')->exists()) {
+                $withReport[] = $id;
+            } else {
+                $missingReport[] = $id;
+            }
         }
 
-        // Preflight: cuántas reservas de ledger respaldan a cada candidata,
-        // ANTES de intentar liquidar nada. Exactamente 1 es el único caso sano.
+        if (!$json) {
+            $this->info("Consumo automático (gracia: {$graceDays}d, corte: {$cutoff->toDateTimeString()}) — candidatas: {$ids->count()} (".count($withReport)." con reporte, ".count($missingReport)." sin reporte → se escalan)");
+        }
+
+        // Preflight: cuántas reservas de ledger respaldan a cada candidata con
+        // reporte, ANTES de intentar liquidar nada. Exactamente 1 es el único
+        // caso sano. Las que se escalan no tocan el ledger, así que no aplica.
         $anomalies = [];
-        foreach ($ids as $id) {
+        foreach ($withReport as $id) {
             $reservations = CreditTransaction::where('lesson_id', $id)->where('type', 'reservation')->count();
             if ($reservations !== 1) {
                 $anomalies[] = ['lesson_id' => $id, 'reservations_found' => $reservations];
@@ -108,7 +130,7 @@ class SettleLessons extends Command
         $settled = 0;
         $failed = 0;
 
-        foreach ($ids as $id) {
+        foreach ($withReport as $id) {
             if ($dryRun) {
                 if (!$json) {
                     $this->line("  [dry-run] liquidaría Lesson {$id}");
@@ -137,11 +159,70 @@ class SettleLessons extends Command
             }
         }
 
-        if (!$json) {
-            $this->info(($dryRun ? '[dry-run] ' : '')."Consumo automático: {$ids->count()} candidata(s), {$settled} liquidada(s), {$failed} error(es), ".count($anomalies).' anomalía(s).');
+        $escalatedMissingReport = 0;
+        foreach ($missingReport as $id) {
+            if ($dryRun) {
+                if (!$json) {
+                    $this->line("  [dry-run] escalaría Lesson {$id} a needs_admin_review (sin reporte pedagógico)");
+                }
+                continue;
+            }
+
+            if ($this->escalateToReview($id, "Sin reporte pedagógico del profesor {$graceDays} días tras el fin de la clase") !== 'error') {
+                $escalatedMissingReport++;
+                if (!$json) {
+                    $this->line("  Lesson {$id}: escalada a needs_admin_review (sin reporte pedagógico).");
+                }
+            }
         }
 
-        return ['candidates' => $ids->count(), 'succeeded' => $settled, 'failed' => $failed, 'anomalies' => $anomalies];
+        if (!$json) {
+            $this->info(($dryRun ? '[dry-run] ' : '')."Consumo automático: ".count($withReport)." con reporte ({$settled} liquidada(s), {$failed} error(es)), ".count($missingReport)." sin reporte ({$escalatedMissingReport} escalada(s)), ".count($anomalies).' anomalía(s).');
+        }
+
+        return [
+            'candidates' => $ids->count(),
+            'succeeded' => $settled,
+            'failed' => $failed,
+            'anomalies' => $anomalies,
+            'missing_report_candidates' => count($missingReport),
+            'missing_report_succeeded' => $escalatedMissingReport,
+        ];
+    }
+
+    /**
+     * Escala una lección a needs_admin_review de forma segura bajo lock,
+     * releyendo el estado real antes de escribir — compartido entre el
+     * escalado por falta de reporte (BUG-3) y el escalado por falta de
+     * confirmación (comportamiento original).
+     *
+     * @return string 'escalated' (se movió), 'raced' (otro proceso ya la
+     *                movió — no es un error), o 'error' (excepción real).
+     */
+    private function escalateToReview(int $id, string $reason): string
+    {
+        try {
+            return DB::transaction(function () use ($id, $reason) {
+                $lesson = Lesson::whereKey($id)->lockForUpdate()->firstOrFail();
+
+                // Releído bajo lock: si otro proceso ya la movió, no hay nada
+                // que escalar — no es un error, es la carrera resuelta.
+                if (! in_array($lesson->status, ['scheduled', 'paid', 'pending_parent_confirmation'], true)) {
+                    return 'raced';
+                }
+
+                $lesson->update(['status' => 'needs_admin_review']);
+
+                ClassEvent::log('class_needs_review', null, $lesson->id, $lesson->class_request_id, $reason);
+
+                return 'escalated';
+            });
+        } catch (\Throwable $e) {
+            $this->error("  Lesson {$id}: {$e->getMessage()}");
+            report($e);
+
+            return 'error';
+        }
     }
 
     /** @return array{candidates: int, succeeded: int, failed: int} */
@@ -170,37 +251,15 @@ class SettleLessons extends Command
                 continue;
             }
 
-            try {
-                DB::transaction(function () use ($id, $unconfirmedDays) {
-                    $lesson = Lesson::whereKey($id)->lockForUpdate()->firstOrFail();
-
-                    // Releído bajo lock: si otro proceso ya la movió (cancel,
-                    // reschedule, u otra pasada concurrente), no hay nada que
-                    // escalar — no es un error, es la carrera resuelta.
-                    if ($lesson->status !== 'scheduled') {
-                        return;
-                    }
-
-                    $lesson->update(['status' => 'needs_admin_review']);
-
-                    ClassEvent::log(
-                        'class_needs_review',
-                        null,
-                        $lesson->id,
-                        $lesson->class_request_id,
-                        "Sin confirmar {$unconfirmedDays} días tras el fin de la clase"
-                    );
-                });
+            if ($this->escalateToReview($id, "Sin confirmar {$unconfirmedDays} días tras el fin de la clase") === 'error') {
+                $failed++;
+            } else {
+                // 'escalated' o 'raced' (otro proceso ya la movió) cuentan
+                // igual que en el comportamiento original: no es un error.
                 $escalated++;
                 if (!$json) {
                     $this->line("  Lesson {$id}: escalada a needs_admin_review.");
                 }
-            } catch (\Throwable $e) {
-                $failed++;
-                if (!$json) {
-                    $this->error("  Lesson {$id}: {$e->getMessage()}");
-                }
-                report($e);
             }
         }
 

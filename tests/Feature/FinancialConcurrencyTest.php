@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ClassRequest;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
+use App\Models\LessonReport;
 use App\Models\RechargeRequest;
 use App\Models\Student;
 use App\Models\Subject;
@@ -318,6 +319,22 @@ class FinancialConcurrencyTest extends TestCase
             'type'               => 'reservation',
             'amount'             => 1,
             'description'        => 'Reserva por aceptación de clase',
+        ]);
+
+        // BUG-3 (docs/MOVA_AUDIT_PHASE0.md): consume() automático (actorId
+        // null) ya no acepta liquidar 'paid'/'pending_parent_confirmation'
+        // sin reporte pedagógico — una lección "liquidable" de verdad ahora
+        // exige uno. Sin esto, los 3 tests de este archivo que llaman
+        // consume()/mova:settle-lessons sobre esta lección chocarían con el
+        // nuevo guard en vez de ejercitar lo que realmente prueban
+        // (idempotencia del ledger bajo repetición).
+        LessonReport::create([
+            'lesson_id' => $lesson->id,
+            'teacher_profile_id' => $profile->id,
+            'student_id' => $lesson->student_id,
+            'topic_covered' => 'Tema de prueba',
+            'student_performance' => 'Buen desempeño',
+            'sent_to_parent_at' => now(),
         ]);
 
         return [$profile, $lesson];

@@ -56,11 +56,12 @@ class LessonSettlementScenariosTest extends TestCase
         parent::tearDown();
     }
 
-    // ── A: consumo automático desde 'paid' ──────────────────────────────
+    // ── A: consumo automático desde 'paid' (CON reporte) ────────────────
 
-    public function test_paid_lesson_past_grace_with_no_report_auto_consumes(): void
+    public function test_paid_lesson_past_grace_with_report_auto_consumes(): void
     {
         [, $profile, $lesson] = $this->lesson('paid', now()->subDays(8)); // terminó hace 8d > 7d de gracia
+        $this->reportFor($lesson);
 
         $this->artisan('mova:settle-lessons')->assertExitCode(0);
 
@@ -71,6 +72,67 @@ class LessonSettlementScenariosTest extends TestCase
         $this->assertSame(0, $profile->credits_reserved);
         $this->assertSame(1, $profile->completed_classes_count);
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "lesson:{$lesson->id}:consumption")->count());
+    }
+
+    // ── A2: BUG-3 (docs/MOVA_AUDIT_PHASE0.md) — SIN reporte, escala en vez
+    // de auto-completarse. Antes de este fix, este mismo escenario se
+    // auto-consumía (era el bug): el reporte pedagógico —"el diferenciador"
+    // del producto— podía eludirse simplemente dejando pasar el plazo de
+    // gracia, y LessonSettledNotification le prometía al padre "puedes
+    // calificar cuando quieras" cuando TeacherReviewController lo habría
+    // rechazado con 403 por falta de reporte.
+
+    public function test_paid_lesson_past_grace_with_no_report_escalates_to_review_instead_of_auto_completing(): void
+    {
+        [, $profile, $lesson] = $this->lesson('paid', now()->subDays(8));
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        $lesson->refresh();
+        $profile->refresh();
+        $this->assertSame('needs_admin_review', $lesson->status);
+        $this->assertNull($lesson->credits_settled_at);
+        // Sigue reservado: escalar no es liquidar, es señalar para revisión.
+        $this->assertSame(1, $profile->credits_reserved);
+        $this->assertSame(0, $profile->completed_classes_count);
+        $this->assertDatabaseMissing('credit_transactions', ['lesson_id' => $lesson->id, 'type' => 'consumption']);
+        $this->assertDatabaseHas('class_events', [
+            'lesson_id' => $lesson->id,
+            'event_type' => 'class_needs_review',
+        ]);
+    }
+
+    public function test_pending_parent_confirmation_past_grace_with_no_report_also_escalates(): void
+    {
+        [, $profile, $lesson] = $this->lesson('pending_parent_confirmation', now()->subDays(8));
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        $lesson->refresh();
+        $this->assertSame('needs_admin_review', $lesson->status);
+        $this->assertNull($lesson->credits_settled_at);
+        $this->assertSame(1, $profile->fresh()->credits_reserved);
+    }
+
+    public function test_admin_can_still_force_complete_a_lesson_with_no_report(): void
+    {
+        // El guard de BUG-3 es exclusivo del camino automático (actorId=null)
+        // — un admin humano force-completando a propósito, con actorId real,
+        // sigue pudiendo hacerlo sin reporte: es una decisión informada de un
+        // humano, no el sistema decidiendo solo.
+        [, $profile, $lesson] = $this->lesson('paid', now()->subDays(8));
+        $this->artisan('mova:settle-lessons'); // escala a needs_admin_review (sin reporte)
+        $this->assertSame('needs_admin_review', $lesson->fresh()->status);
+
+        $admin = $this->userWithRole('admin');
+        $this->actingAs($admin)
+            ->post(route('admin.lessons.force-complete', $lesson), ['reason' => 'Profesor confirmó por WhatsApp que sí dictó la clase, sin reporte formal.'])
+            ->assertRedirect();
+
+        $lesson->refresh();
+        $this->assertSame('completed', $lesson->status);
+        $this->assertNotNull($lesson->credits_settled_at);
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
     }
 
     // ── B: consumo automático desde 'pending_parent_confirmation' ──────
@@ -215,6 +277,7 @@ class LessonSettlementScenariosTest extends TestCase
     public function test_running_the_sweep_twice_settles_and_escalates_exactly_once(): void
     {
         [, $paidProfile, $paidLesson] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($paidLesson);
         [, $schedProfile, $schedLesson] = $this->lesson('scheduled', now()->subDays(8));
 
         $this->artisan('mova:settle-lessons')->assertExitCode(0);
@@ -253,7 +316,9 @@ class LessonSettlementScenariosTest extends TestCase
     public function test_a_failure_on_one_lesson_does_not_abort_the_rest_of_the_sweep(): void
     {
         [, , $brokenLesson] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($brokenLesson);
         [, $healthyProfile, $healthyLesson] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($healthyLesson);
 
         // Contamina deliberadamente el ledger de una sola lección para forzar
         // que reservedCreditAmount() lance — simula una anomalía real sin
@@ -328,6 +393,7 @@ class LessonSettlementScenariosTest extends TestCase
         Notification::fake();
 
         [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($lesson);
 
         $this->artisan('mova:settle-lessons')->assertExitCode(0);
 
@@ -374,6 +440,7 @@ class LessonSettlementScenariosTest extends TestCase
         Notification::fake();
 
         [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($lesson);
         // Simula que la clase sí tenía sala asignada — exactamente el dato que
         // C-3 (533a799) prohibió que viajara en el payload de una notificación.
         $lesson->forceFill(['jitsi_room' => 'mova-lesson-secret-room'])->save();
@@ -398,6 +465,7 @@ class LessonSettlementScenariosTest extends TestCase
         Notification::fake();
 
         [$teacher, , $lesson, $parent] = $this->lesson('paid', now()->subDays(8));
+        $this->reportFor($lesson);
 
         $this->artisan('mova:settle-lessons')->assertExitCode(0);
         // Mismo cruce de minuto real que el resto de los tests de idempotencia
