@@ -6,6 +6,7 @@ use App\Events\ClassRequestCreated;
 use App\Models\ClassEvent;
 use App\Models\ClassOffer;
 use App\Models\ClassRequest;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
@@ -88,6 +89,16 @@ class ClassRequestController extends Controller
         ]);
     }
 
+    /**
+     * Ventana de deduplicación: un reintento de red (no un doble-click —
+     * eso ya lo cubre `form.processing` en Create.vue) que reenvía
+     * exactamente la misma intención debe colapsar en UNA sola solicitud,
+     * no crear una segunda. 30s cubre con margen cualquier timeout/retry
+     * de red real; no bloquea que el mismo padre pida la misma materia
+     * otra vez minutos después, que es una intención distinta y legítima.
+     */
+    private const DUPLICATE_SUBMISSION_WINDOW_SECONDS = 30;
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -101,7 +112,7 @@ class ClassRequestController extends Controller
         ]);
 
         // Ensure the student belongs to the authenticated parent
-        auth()->user()->students()->findOrFail($data['student_id']);
+        $student = auth()->user()->students()->findOrFail($data['student_id']);
 
         $status = auth()->user()->parental_control ? 'pending_parent_approval' : 'open';
         $data['is_mentorship'] = (bool) ($data['is_mentorship'] ?? false);
@@ -120,28 +131,71 @@ class ClassRequestController extends Controller
             $teacherProfileId = $teacherProfile->id;
         }
 
-        if ($data['is_mentorship'] && !empty($data['class_offer_id'])) {
-            $teacherProfile = ClassOffer::with('teacherProfile')
-                ->findOrFail($data['class_offer_id'])
-                ->teacherProfile;
+        // P2 → RESOLVED (docs/MOVA_DESIGN_AUDIT_FINAL.md): antes solo se
+        // validaba `is_active`/`is_verified` de la oferta en el camino de
+        // mentoría — una solicitud normal podía quedar vinculada a una
+        // oferta inactiva o de un profesor no verificado y nacer ya
+        // muerta (nadie autorizado podría aceptarla nunca). Se valida
+        // temprano para las DOS rutas, no solo mentoría, y se reutiliza
+        // el mismo offer/teacherProfile ya cargado para el check de cupos.
+        $offerTeacherProfile = null;
+        if (! empty($data['class_offer_id'])) {
+            $offer = ClassOffer::with('teacherProfile')->findOrFail($data['class_offer_id']);
+            $offerTeacherProfile = $offer->teacherProfile;
 
             abort_unless(
-                $teacherProfile?->hasAvailableMentorshipSlots(),
+                $offer->is_active && $offerTeacherProfile?->is_verified,
                 422,
-                'Este profesor tiene la agenda llena para acompañamiento continuo.'
+                'Esta oferta ya no está disponible.'
             );
+
+            if ($data['is_mentorship']) {
+                abort_unless(
+                    $offerTeacherProfile->hasAvailableMentorshipSlots(),
+                    422,
+                    'Este profesor tiene la agenda llena para acompañamiento continuo.'
+                );
+            }
         }
 
-        $classRequest = new ClassRequest($data);
-        $classRequest->status = $status;
-        // teacher_profile_id/teacher_referral_code quedan fuera de $fillable
-        // a propósito (ver ClassRequest.php) — asignación directa, solo tras
-        // la validación de arriba.
-        $classRequest->teacher_profile_id = $teacherProfileId;
-        $classRequest->teacher_referral_code = $teacherProfileId ? strtoupper($rawCode) : null;
-        $classRequest->save();
+        // P2 → RESOLVED: dedup de intención repetida (reintento de red,
+        // no doble-click — Create.vue ya deshabilita el botón mientras
+        // `form.processing`, eso no cubre un timeout/reconexión real que
+        // reenvía el mismo POST). Se serializa por el Student — es el
+        // recurso más específico ya validado como propio del padre, y
+        // ninguna solicitud legítima distinta puede compartir exactamente
+        // los mismos 6 campos de intención para el mismo alumno en 30s.
+        // No se añade columna/idempotency-key nueva: se reutiliza el
+        // propio contenido de la solicitud como huella de intención.
+        $classRequest = DB::transaction(function () use ($student, $data, $status, $teacherProfileId, $rawCode) {
+            Student::whereKey($student->id)->lockForUpdate()->first();
 
-        event(new ClassRequestCreated($classRequest));
+            $duplicate = ClassRequest::where('student_id', $data['student_id'])
+                ->where('subject_id', $data['subject_id'])
+                ->where('help_needed', $data['help_needed'])
+                ->where('is_mentorship', $data['is_mentorship'])
+                ->where('class_offer_id', $data['class_offer_id'] ?? null)
+                ->where('teacher_profile_id', $teacherProfileId)
+                ->where('created_at', '>=', now()->subSeconds(self::DUPLICATE_SUBMISSION_WINDOW_SECONDS))
+                ->first();
+
+            if ($duplicate) {
+                return $duplicate;
+            }
+
+            $classRequest = new ClassRequest($data);
+            $classRequest->status = $status;
+            // teacher_profile_id/teacher_referral_code quedan fuera de
+            // $fillable a propósito (ver ClassRequest.php) — asignación
+            // directa, solo tras la validación de arriba.
+            $classRequest->teacher_profile_id = $teacherProfileId;
+            $classRequest->teacher_referral_code = $teacherProfileId ? strtoupper($rawCode) : null;
+            $classRequest->save();
+
+            event(new ClassRequestCreated($classRequest));
+
+            return $classRequest;
+        });
 
         return redirect()->route('class-requests.index')->with('success', 'Solicitud enviada.');
     }
