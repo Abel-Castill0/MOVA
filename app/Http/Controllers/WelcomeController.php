@@ -35,7 +35,14 @@ class WelcomeController extends Controller
                 ->withAvg('visibleReviews as avg_rating', 'rating')
                 ->orderByDesc('classes_count')
                 ->limit(6)
-                ->get(),
+                ->get()
+                // Mismo hallazgo que MarketplaceController::index() (misma
+                // familia de raíz, encontrado por el test de allowlist): el
+                // pivot de `subjects` (specific_rate) viaja igual aunque se
+                // restrinja 'subjects:id,name' — no es una columna del
+                // modelo relacionado, Eloquent la adjunta aparte desde la
+                // tabla pivote.
+                ->each(fn (TeacherProfile $teacher) => $teacher->subjects->each->makeHidden('pivot')),
 
             'stats' => [
                 'teachers'  => TeacherProfile::where('is_verified', true)->count(),

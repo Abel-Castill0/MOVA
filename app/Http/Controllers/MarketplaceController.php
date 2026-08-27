@@ -48,7 +48,23 @@ class MarketplaceController extends Controller
                 ->withAvg('visibleReviews as avg_rating', 'rating')
                 ->withCount('visibleReviews as review_count')
                 ->orderByDesc('review_count')
-                ->paginate(24),
+                ->paginate(24)
+                // Segundo hallazgo de la misma familia de raíz, encontrado por
+                // un test de allowlist (no por inspección manual): el pivot de
+                // `subjects` (belongsToMany con withPivot('specific_rate') en
+                // TeacherProfile::subjects()) viaja igual aunque se restrinja
+                // 'subjects:id,name' — el allow-list de columnas del modelo
+                // relacionado no suprime las columnas del pivot, que Eloquent
+                // adjunta aparte. Verificado con json_encode(): sin esto,
+                // cada materia llegaba con
+                // `pivot: {teacher_profile_id, subject_id, specific_rate}` —
+                // la tarifa específica que el profesor fijó por materia,
+                // nunca pensada como dato público.
+                ->through(function (TeacherProfile $teacher) {
+                    $teacher->subjects->each->makeHidden('pivot');
+
+                    return $teacher;
+                }),
 
             // Mismos conteos que WelcomeController::index() (misma fuente de
             // verdad, sin duplicar la consulta de forma distinta) — refuerzan
