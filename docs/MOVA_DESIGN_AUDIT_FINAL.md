@@ -10,13 +10,29 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.16
-generated_at:     2026-08-27T21:03:26Z
-repository_head:  f7b03b7   (rama master — directorio de trabajo real, no worktree aislado; incluye el commit del rediseño de Create.vue)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (66 commits detrás de local, sin push)
-working_tree:     limpio salvo package-lock.json (ajeno a este documento y a este cambio)
-authoring_commit: f7b03b7 (feat(class-requests): redesign Create.vue around what actually exists at this stage)
+audit_revision:   2026-08-27.17
+generated_at:     2026-08-27T21:46:52Z
+repository_head:  a4a3c1d   (rama master — directorio de trabajo real, no worktree aislado; NO un checkout de git worktree separado — ver nota de proceso abajo)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (71 commits detrás de local, sin push)
+working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: re-sync tras Register.vue/RegisteredUserController/InputError/i18n)
 ```
+
+**Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
+esta revisión y todos los `php artisan test`/`npm run build` citados en las
+secciones de Register/RegisteredUserController/InputError/i18n de más abajo
+se ejecutaron directamente en `C:/Users/ABEL/OneDrive/Desktop/ProyectoMOVA`
+— el directorio de trabajo real, con su propio `vendor/`, no un worktree
+aislado ni un `vendor` compartido por junction/symlink. `git worktree list`
+en este momento muestra dos worktrees adicionales
+(`.claude/worktrees/jolly-hellman-5ca1a1`, `.claude/worktrees/serene-davinci-30dfbd`),
+pero son de tareas en segundo plano lanzadas por esta sesión (spawn_task),
+ejecutadas de forma independiente — ninguna evidencia de test citada en
+este documento proviene de ellos. El riesgo real que señala esta nota (un
+autoloader optimizado con rutas absolutas resolviendo fuera del worktree
+activo) es una precaución válida para *cualquier* ejecución futura sobre un
+worktree con `vendor` compartido — no algo que haya ocurrido en esta
+revisión, y no debe leerse como que sí ocurrió.
 
 El header de la revisión anterior (`2026-08-27.04`) citaba `HEAD ed96447`
 como si fuera el `master` de este repositorio — **era, en realidad, el HEAD
@@ -117,16 +133,19 @@ consumidores; `brand` queda reservado para acciones y marca.
 
 | Severidad | Qué significa | Ejemplo real de esta sesión |
 |---|---|---|
-| `P0` | Rompe flujo, confianza o comprensión — bloquea al usuario | `active_offer` (ver "🚨 PRODUCT BLOCKERS" arriba) |
-| `P1` | Inconsistencia importante o fricción real | `Students/Create.vue` vs `Edit.vue` con dos estilos distintos para el mismo formulario (Fase 3, slice 3) |
+| `P0` | Rompe flujo, confianza o comprensión — bloquea al usuario o expone datos que no deberían ser públicos | La exposición pública de `specific_rate`/pivot/fila completa de `User` (sección "🔴 P0 — PUBLIC SENSITIVE DATA EXPOSURE" arriba) |
+| `P1` | Inconsistencia importante o fricción real, o una decisión de negocio pendiente que bloquea una mejora concreta | `active_offer` en el checklist de perfil de profesor (`PRODUCT DECISION REQUIRED`, ver sección propia) — **corregido aquí**: una versión anterior de esta tabla lo listaba como ejemplo de `P0`, contradiciendo la propia sección que lo clasifica y explica por qué no lo es; también `Students/Create.vue` vs `Edit.vue` con dos estilos distintos para el mismo formulario (Fase 3, slice 3) |
 | `P2` | Mejora relevante de UX/UI | Migración de emoji a Lucide, tokens de color |
 | `P3` | Pulido | Un radio o un tamaño de icono ligeramente distinto |
 
-`active_offer` es P0/P1 — se trató como tal (sección propia, no perdido en
-la matriz). El resto de esta sesión ha sido P2 (el grueso del trabajo) con
-algunos P1 reales encontrados en el camino (la divergencia Create/Edit, las
-tildes eliminadas en `Teacher/Credits/Index.vue`, el texto en inglés de
-`ConfirmPassword.vue`).
+`active_offer` es `P1` — nunca `P0` (severidad real: fricción de onboarding,
+no bloqueo de un flujo crítico de dinero; ver razonamiento completo en su
+sección propia). Se trató como tal desde el principio (sección propia, no
+perdido en la matriz) — la fila de ejemplo de arriba simplemente citaba mal
+el caso, y quedó corregida en esta misma revisión. El resto de esta sesión
+ha sido P2 (el grueso del trabajo) con algunos P1 reales encontrados en el
+camino (la divergencia Create/Edit, las tildes eliminadas en
+`Teacher/Credits/Index.vue`, el texto en inglés de `ConfirmPassword.vue`).
 
 ### Qué significa cada columna de la matriz
 
@@ -197,17 +216,21 @@ de verdad mueven la aguja:
 | Superficie crítica | Estimado | Qué falta |
 |---|---:|---|
 | Auth | ~100% | Nada pendiente de este barrido — 2 páginas siguen `BLOCKED_VISUAL_VERIFICATION` (requieren sesión) |
-| Parent — core journey | ~35% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar` hechos; `Marketplace/Index`, `Teachers/Show`, `ClassRequests/Create`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
+| Parent — core journey | ~40% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar`, `ClassRequests/Create` hechos; `Marketplace/Index`, `Teachers/Show`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
 | Teacher — core journey | ~50% | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
 | Marketplace/descubrimiento | ~90% (2/2 páginas) | `Marketplace/Index.vue`, `Teachers/Show.vue` migrados + **2 P0 de exposición pública real** encontrados y corregidos, uno de ellos en la home pública (`WelcomeController`, no un archivo de Marketplace en sí — ver sección propia arriba, incluye auditoría acotada de las 10 rutas públicas de MOVA). Falta: filtros/búsqueda (brecha de funcionalidad ya documentada, no de diseño — no inventada aquí) y `BROWSER_VERIFIED`/`DARK_VERIFIED`/`RESPONSIVE_VERIFIED` (bloqueados: MySQL local no disponible en este sandbox ahora mismo) |
-| Booking/Checkout | 0% | `ClassRequests/Create.vue`, `ClassOffers/*`, `Diagnostics/*` — sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
+| Booking/Checkout | ~15% (1/6 páginas: `ClassRequests/Create.vue`) | **Corregido aquí** — esta fila decía `0%` y listaba `ClassRequests/Create.vue` como "sin tocar" en una revisión anterior de este documento, contradiciendo directamente la sección de cierre de su propio rediseño más abajo (commits `f7b03b7`/`a266f7d`). `ClassOffers/*`, `Diagnostics/*`, `LessonReports/Create.vue`, `Reviews/Create.vue` siguen sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
 | Class experience (Jitsi) | 0% (deliberado) | `JitsiModal.vue` diferido a propósito para su revisión de seguridad dedicada — no es un olvido |
 | Admin | ~25% | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
 
 **Lectura correcta de esta tabla:** el trabajo de mayor impacto real para el
-negocio (Marketplace, Booking/Checkout, Class experience) sigue en 0%. El
-orden de dominios restante prioriza esto explícitamente — ver "Flujos
-críticos" abajo.
+negocio (Marketplace, Booking/Checkout, Class experience) sigue
+mayoritariamente sin tocar — `Booking/Checkout` pasó de `0%` a un primer
+paso real (`ClassRequests/Create.vue`), no a completo. El orden de dominios
+restante prioriza esto explícitamente — ver "Flujos críticos" abajo. El
+siguiente tramo lógico de este mismo journey es `ClassRequests/TeacherIndex.vue`
+→ `ClassRequests/Accept.vue` (donde se decide duración, precio y créditos —
+la parte económicamente sensible), no una página de un dominio distinto.
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -302,6 +325,66 @@ el bloque de integridad fue 100% backend (migraciones + tests PHP), cero
 archivos `.vue`/`.js` tocados; correrlo no habría probado nada sobre este
 cambio. Se ejecutará antes/durante el trabajo de Marketplace, que sí toca
 frontend.
+
+---
+
+## Integration Gate (2026-08-27, re-sincronización tras el bloque `Register.vue`/`RegisteredUserController`/`InputError`/i18n)
+
+Disparado por una revisión externa que señaló, correctamente, que este
+documento se estaba quedando atrás del código real — encabezado con hash
+desactualizado, filas de la matriz contradiciendo sus propias secciones de
+cierre, y un ejemplo de severidad mal clasificado. Antes de corregir una
+sola línea, se verificó el estado real, no se asumió nada de lo señalado:
+
+```text
+git status --short --branch                              → master, limpio salvo package-lock.json (preexistente, ajeno a esta sesión)
+git worktree list                                         → 2 worktrees paralelos (jolly-hellman-5ca1a1, serene-davinci-30dfbd) — tareas en segundo plano de esta sesión, NINGUNA evidencia de este documento proviene de ellos
+git rev-list --left-right --count HEAD...origin/master     → 71 ahead / 0 behind / no diverged
+php artisan test                                            → 544/544 (1723 assertions) ✅ — ejecutado en el directorio de trabajo real, vendor propio, no worktree aislado
+npm run build                                                → limpio, sin warnings nuevos ✅
+```
+
+**Trabajo real de este bloque, verificado uno por uno antes de escribirlo
+(ninguno inventado ni asumido por la crítica externa)**:
+
+| Commit | Qué corrige | Evidencia |
+|---|---|---|
+| `0f507fe` | `Register.vue`: el wizard dejaba al usuario varado en el último paso cuando un error de servidor (email duplicado) caía en un campo de un paso anterior sin montar. `stepForField()` genérico (no solo `email`) + `onError` navega al paso más temprano con error | Revert-confirm-restore real (`git stash` sobre el archivo reprodujo el fallo); repro en vivo con `ana@mova.test` — el wizard salta a "PASO 3 DE 5" con el error visible |
+| `b8c157c` | `RegisteredUserController::store()`: mismo patrón `abort_if()` → `HttpException` plano ya corregido antes en `ClassRequestController` (`206d886`). Escribir el test de regresión encontró un segundo bug más serio en las mismas líneas: `User`/`TeacherProfile` se creaban ANTES del chequeo de materias, sin transacción — una lista de materias vacía dejaba una cuenta huérfana a medio crear incluso con el mensaje ya corregido. Envuelto en `DB::transaction()` | `git stash` reprodujo ambos fallos (422 crudo + fila huérfana); verificado en vivo contra el servidor real vía `fetch()` (el wizard no puede alcanzar este estado por sus propios guards de cliente) + `tinker` confirmando 0 filas huérfanas |
+| `bc84e70` | `InputError.vue` (13 call-sites reales, no supuestos): sin `role`/`aria-live` de ningún tipo — un error de validación no se anunciaba a un lector de pantalla. Añadido `role="alert"` + `aria-atomic="true"` | Verificado en vivo en Login (real, campo poblado vs. campo vacío sin doble anuncio), Register y Teacher/Credits/Index (mismo patrón `:message="form.errors.X"`, confirmado por grep) |
+| `a4a3c1d` | `APP_LOCALE` nunca leía de `env()` (hardcodeado a `en`); cero archivos `lang/` en el proyecto — cualquier validación sin mensaje custom salía en inglés en una app 100% en español. `lang/es/{validation,auth,passwords}.php` escritos a mano (evaluado contra el filtro de dependencias de `CLAUDE.md`: un paquete de terceros no se justifica para texto estático de un solo idioma) | Verificado en vivo vía `fetch()` real contra el servidor corriendo: email duplicado y fallo de login ahora en español, confirmados con sesión/CSRF reales, no solo en `tinker` |
+
+**Contradicciones reales encontradas y corregidas en el propio documento**
+(no en el código) durante esta re-sincronización:
+
+1. La tabla de severidad (línea ~120) usaba `active_offer` como ejemplo de
+   `P0`, contradiciendo su propia sección de cierre (`P1 · PRODUCT DECISION
+   REQUIRED`, que ya explicaba por qué no es `P0`) — corregido, con el
+   ejemplo de `P0` real (la exposición pública de datos) en su lugar.
+2. `Pages/Marketplace/Index.vue` y `Pages/Teachers/Show.vue` seguían
+   marcados `NO` en la matriz de 82 archivos pese a estar migrados y
+   cerrados hace varios commits — corregido, con un re-conteo real de
+   emoji/indigo (no reutilizado del original): se encontró un 💡 suelto en
+   `Marketplace/Index.vue` que ninguna revisión anterior había detectado.
+3. `Pages/ClassRequests/Create.vue` seguía marcado `NO` pese a tener su
+   propia sección de cierre completa un poco más abajo en el mismo
+   documento — corregida la fila.
+4. La fila de accesibilidad de `Create.vue` decía "`InputError.vue` no
+   tiene `role='alert'`" — cierto cuando se escribió, falso desde `bc84e70`
+   — corregida.
+5. El resumen de dominios ("Booking/Checkout | 0%") seguía listando
+   `ClassRequests/Create.vue` como sin tocar — corregido a `~15%`.
+
+**Lo que esta re-sincronización NO hizo** (alcance deliberado, no
+descuido): no se regeneró mecánicamente el panel completo de 82 archivos
+desde cero (`42/82`, `24/82`, etc.) — solo se corrigieron las filas
+verificadas una por una arriba. Un script real de inventario
+(`filesystem → estado → resumen generado`) sigue siendo trabajo futuro, no
+hecho aquí; los números agregados de la sección "Resumen numérico" pueden
+seguir subcontando el trabajo real por esta misma razón, y se señala en vez
+de ocultarlo.
+
+**INTEGRATION GATE: PASS.**
 
 ---
 
@@ -936,7 +1019,7 @@ realmente se verificó, con su método, no una afirmación de intención.
 | Campos mostrados | Alumno, materia, profesor/oferta (si aplica), modalidad, código de referido, necesidad, preferencia horaria, resumen pre-envío | — |
 | Campos omitidos deliberadamente | Precio final, duración, créditos — ninguno existe en este punto del flujo (ver matriz arriba); no es una omisión de diseño, es la ausencia real del dato | — |
 | Estados implementados | Inicial/vacío, carga (`Enviando...` + `aria-busy` vía `PrimaryButton`), CTA deshabilitado hasta alumno+materia, error de validación por campo (`InputError`), código de referido no encontrado (verificado en vivo, dos veces: feedback live-lookup + `form.errors`), oferta inactiva/no verificada, cupo de mentoría lleno — estos tres últimos vía `ValidationException` real, no simulados | Suite completa 542/542; happy path y error de código verificados en navegador real |
-| Accesibilidad | Parcial, verificado con evidencia real, no asumido | `aria-pressed` en las tarjetas de modalidad y en los botones de horario (confirmado por grep); orden de tabulación llega a todos los controles incluidas las tarjetas y los botones de horario (confirmado con `document.activeElement`, no solo visualmente); anillo de foco visualmente distinto del indicador de "seleccionado". **Gap real, preexistente, no introducido aquí**: `InputError.vue` no tiene `role="alert"` — un error de validación no se anuncia automáticamente a un lector de pantalla, requiere que el usuario navegue hasta él. No corregido en este commit porque es un componente compartido por toda la app; corregirlo exige su propia pasada de verificación en cada formulario que lo usa, no una edición aislada aquí |
+| Accesibilidad | Parcial, verificado con evidencia real, no asumido | `aria-pressed` en las tarjetas de modalidad y en los botones de horario (confirmado por grep); orden de tabulación llega a todos los controles incluidas las tarjetas y los botones de horario (confirmado con `document.activeElement`, no solo visualmente); anillo de foco visualmente distinto del indicador de "seleccionado". **Gap cerrado en `bc84e70` (esta fila quedó desactualizada tras ese commit — corregido aquí)**: `InputError.vue` ya tiene `role="alert"` + `aria-atomic="true"` (commit `bc84e70`), verificado en vivo en 3 formularios reales (Login, Register, Teacher/Credits), no solo por build. Sigue sin `aria-describedby`/`aria-invalid` conectando cada `<input>` con su `InputError` correspondiente — ese es el gap real que queda abierto (clasificado `P2 — accessibility`, deliberadamente no resuelto en la misma pasada por ser un componente compartido por toda la app que merece su propia auditoría, no un ajuste aislado) |
 | Responsive | ✅ Verificado en navegador real a 375px | Grid de horario 2 columnas sin overflow, tarjetas de modalidad legibles, CTA deshabilitado correctamente renderizado; no verificado en tablet (768px) — pendiente, bajo riesgo dado que el layout es una sola columna fluida sin breakpoints intermedios en este archivo |
 | Modo oscuro | ⚠️ BLOCKED — no aplicable todavía, no es una regresión de este cambio | Confirmado por grep: `darkMode` está configurado en `tailwind.config.js` pero cero archivos `.vue` usan clases `dark:` y nada escribe `[data-theme]` — el modo oscuro no existe en ninguna pantalla de la app todavía (es la Fase 1 de un plan de sistema de diseño más amplio, sin empezar; ver plan `jolly-squishing-kazoo.md`). Emulé `prefers-color-scheme: dark` y, correctamente, no cambió nada — eso es lo esperado, no un fallo |
 | Performance | No medido específicamente para este archivo | `npm run build` completó sin errores/warnings nuevos; no se capturó el tamaño de bundle antes/después de este cambio puntual (la línea base de bundle completo de la app está en el plan de sistema de diseño, no en esta pasada específica) |
@@ -1387,7 +1470,7 @@ que un humano se acuerde de revisar ambos lados.
 | `Pages/Auth/ForgotPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (`/forgot-password` real, sin DB necesaria) |
 | `Pages/Auth/Login.vue` | 0 | 0 | **COMPLETA** — 🚧 → `Icon name="pending"` (Construction) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (modal probado con clic real, icono Construction confirmado en pantalla) |
 | `Pages/Auth/PhoneVerification.vue` | 0 | 0 | **PARCIAL** — 7 indigo→brand corregidos; sigue con markup propio (no usa TextInput/Checkbox/PrimaryButton) — deferred, ver nota | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED: no hay test que cubra esta página · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (requiere sesión con teléfono pendiente de verificar, no reproducible sin DB) |
-| `Pages/Auth/Register.vue` | 0 | 0 | **PARCIAL** — 5 emoji migrados a Icon (`pending`/`role-parent`/`role-teacher`); wizard sigue con botones propios en vez de BaseButton — deferred, ver nota | ✅ | ✅ (tokens en lo migrado) | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (selector de rol + modal probados con clic real) |
+| `Pages/Auth/Register.vue` | 0 | 0 | **PARCIAL** — 5 emoji migrados a Icon (`pending`/`role-parent`/`role-teacher`); wizard sigue con botones propios en vez de BaseButton — deferred, ver nota. **Bug real corregido en `0f507fe`** (sesión posterior a la migración visual): el wizard dejaba al usuario varado en el último paso, sin ningún mensaje visible, cuando un error de validación del servidor (el único caso real alcanzable: email duplicado — `unique:users`) caía en un campo de un paso anterior no montado en el DOM. `submit()` ahora pasa `onError` a `form.post()`, que mapea cada campo posible (`role`/`name`/`email`/`phone`/`teacher_subject_names`/`password`/`accepted_terms`, leídos directamente de `RegisteredUserController::store()`) al paso que lo renderiza vía `stepForField()`, y navega al más temprano si hay varios | ✅ | ✅ (tokens en lo migrado) | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`RegistrationTest`, incluye el caso de email duplicado) · BROWSER_VERIFIED ✅ (repro real con `ana@mova.test`: el wizard salta automáticamente a "PASO 3 DE 5" con el error visible) |
 | `Pages/Auth/ResetPassword.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre primitivos migrados, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (`/reset-password/{token}` real con token de prueba — la página solo renderiza el formulario, la validación real del token ocurre en el POST) |
 | `Pages/Auth/VerifyEmail.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en español, ya sobre PrimaryButton migrado, sin indigo) | ✅ | ✅ | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (ruta tras middleware `auth`, redirige a `/login` sin sesión) |
 
@@ -1431,8 +1514,8 @@ que un humano se acuerde de revisar ambos lados.
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Marketplace/Index.vue` | 4 | 1 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Teachers/Show.vue` | 6 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Marketplace/Index.vue` | 1 (`💡` en la línea 38, texto plano — **hallazgo real de esta re-sincronización, no migrado, no visto antes**) | 0 | **COMPLETA (parcial)** — tokens/tipografía migrados y **2 P0 de exposición pública de datos corregidos** (ver sección propia arriba) durante el rediseño de Marketplace; el 💡 suelto quedó fuera de esa pasada | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: pendiente de re-confirmar en esta revisión (dato de conteo corregido, no la verificación visual) |
+| `Pages/Teachers/Show.vue` | 0 (re-contado, verificado con regex Unicode real — no el conteo original de 6) | 0 | **COMPLETA** — tokens/iconos migrados junto con Marketplace/Index.vue, mismo commit del P0 de exposición pública | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: pendiente de re-confirmar en esta revisión |
 
 ### Reservas/Solicitudes (6 archivos)
 
@@ -1441,7 +1524,7 @@ que un humano se acuerde de revisar ambos lados.
 | `Pages/ClassOffers/Edit.vue` | 1 | 6 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/ClassOffers/Index.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/ClassRequests/Accept.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/ClassRequests/Create.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/ClassRequests/Create.vue` | 0 (re-contado, verificado con regex Unicode real) | 0 | **COMPLETA** — rediseño completo (commits `f7b03b7`/`a266f7d`): estructura intención→revisión→confirmación, tarjetas de modalidad, resumen "antes de enviar" restringido a campos genuinamente finales. **Corregido aquí**: esta fila decía `NO` en una revisión anterior de este mismo documento pese a que la sección de cierre del rediseño (ver "Cierre del rediseño de `Create.vue`" más abajo) ya documentaba el trabajo terminado — contradicción real, no intencional | mobile 375px verificado en navegador real | ⚠️ BLOCKED — no aplicable, la app no tiene modo oscuro implementado en ningún lado todavía (ver sección de cierre) | parcial — `aria-pressed` + orden de tabulación verificados; `role="alert"` en `InputError.vue` verificado por separado (ver sección de `InputError` más abajo) | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED ✅ (happy path real: `ClassRequest#19` creado en MySQL local, confirmado por `tinker`) |
 | `Pages/ClassRequests/Index.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Pages/ClassRequests/TeacherIndex.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 7 emoji→Icon (📋 vacío + 6 en `TIME_SLOT_LABELS`, ahora deduplicado con `TimeSlotPicker.vue` vía `utils/timeSlots.js`). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 
@@ -1523,7 +1606,7 @@ que un humano se acuerde de revisar ambos lados.
 | `Components/Icon.vue` | 0 | 0 | **COMPLETA** (nuevo, Fase 3) | ✅ | ✅ (currentColor) | ✅ (aria-hidden/aria-label explícito) | ✅ |
 | `Components/Illustrations/FamilyIllustration.vue` | 6 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/Illustrations/TeacherIllustration.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Components/InputError.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
+| `Components/InputError.vue` | 0 | 0 | **COMPLETA** (Fase 2) + **`role="alert"`/`aria-atomic="true"` añadidos en `bc84e70`** — componente compartido por 13 páginas reales (grep, no supuesto): `Auth/{Login,Register,ConfirmPassword,ResetPassword,ForgotPassword}`, `Profile/Partials/*` (3), `Students/{Create,Edit}`, `ClassOffers/Edit`, `Teacher/Credits/Index`, `ClassRequests/Create`. Verificado que no colisiona con el único otro `role="alert"` existente en la app (`Admin/Lessons.vue`, componente distinto, sin anidamiento) | ✅ | ✅ | **parcial** — `role="alert"` sí, `aria-describedby`/`aria-invalid` conectando el `<input>` con su error NO (clasificado `P2`, pendiente, ver nota en el cierre de `ClassRequests/Create.vue`) | BUILD_VERIFIED ✅ · TEST_VERIFIED: no aplica (no hay runner JS en el proyecto, confirmado revisando `package.json`) · BROWSER_VERIFIED ✅ (error real de Laravel visible/oculto correctamente en Login; error real de servidor visible en Register tras el fix de `stepForField`) |
 | `Components/InputLabel.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
 | `Components/JitsiModal.vue` | 2 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
 | `Components/LandingFooter.vue` | 1 | 0 | **AUDITED — NO CHANGE (CONTENT)** — el ❤ es "Desarrollado con ❤ por Abel Castillo", copy/crédito personal, no un icono de interfaz. Clasificado `CONTENT` explícitamente, no omitido por descuido. | pendiente | pendiente | pendiente | pendiente |
