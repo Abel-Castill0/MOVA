@@ -10,6 +10,18 @@ php artisan storage:link
 """
 
 [deploy]
-startCommand = "php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=90 --backoff=5 --no-interaction"
+# F-20 — `--timeout` DEBE ser estrictamente menor que `retry_after`
+# (config/queue.php -> connections.database.retry_after = 90).
+#
+# Estaban ambos en 90. Con valores iguales, un job que se acerca a su límite
+# puede ser liberado a la cola y recogido por un SEGUNDO worker mientras el
+# primero sigue ejecutándose: el mismo WhatsApp o correo sale dos veces.
+#
+# 60 deja 30 s de margen y coincide con lo que docs/DEPLOY_RAILWAY.md ya
+# documentaba (el .toml se había desviado de su propia documentación).
+#
+# Si algún día un job legítimo necesita más de 60 s, hay que subir PRIMERO
+# retry_after y solo después el timeout — nunca al revés.
+startCommand = "php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10

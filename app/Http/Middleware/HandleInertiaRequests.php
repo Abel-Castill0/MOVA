@@ -30,6 +30,8 @@ class HandleInertiaRequests extends Middleware
                     'roles'            => $request->user()->getRoleNames(),
                     'email_verified'   => (bool) $request->user()->email_verified_at,
                     'phone_verified'   => (bool) $request->user()->phone_verified_at,
+                    // Consentimiento de WhatsApp: distinto de phone_verified.
+                    'whatsapp_opt_in'  => $request->user()->wantsWhatsAppNotifications(),
                 ] : null,
             ],
             'flash' => [

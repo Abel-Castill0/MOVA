@@ -7,9 +7,10 @@ use Illuminate\Console\Command;
 
 /**
  * TESTING ONLY. Marks a user's phone as verified directly via DB, bypassing
- * the WhatsApp/Twilio code flow entirely. Useful when Twilio sandbox
- * credentials aren't joined for a given test number. Same environment-guard
- * pattern as TestingBackdateLesson — CLI/DB access only, no HTTP bypass.
+ * the WhatsApp code flow entirely (Meta Cloud API — see
+ * docs/whatsapp-architecture.md). Useful when no real WhatsApp credentials
+ * are configured for a given test number. Same environment-guard pattern as
+ * TestingBackdateLesson — CLI/DB access only, no HTTP bypass.
  */
 class TestingVerifyPhone extends Command
 {

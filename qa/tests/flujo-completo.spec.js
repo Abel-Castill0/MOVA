@@ -4,11 +4,14 @@
 // → agendar → pago → reporte → calificación → verificación de crédito.
 //
 // IMPORTANTE — este spec corre EXCLUSIVAMENTE contra el entorno local, nunca
-// contra producción. A diferencia del resto de qa/tests/*.spec.js (que leen
-// BASE_URL desde qa/.env.qa, apuntando por defecto a la Railway de
-// producción con cuentas reales), este archivo hardcodea la URL y usa
-// exclusivamente los usuarios de LocalTestDataSeeder (padre@mova.test /
-// profesor@mova.test), que solo existen en la base de datos local.
+// contra producción. Usa exclusivamente los usuarios de LocalTestDataSeeder
+// (padre@mova.test / profesor@mova.test), que solo existen en la base de
+// datos local. El target (`baseURL`) ya NO se decide en este archivo — F-24A
+// lo centralizó en playwright.local.config.js, que además hace fallar el
+// arranque de Playwright por completo (vía enforceSafeTarget(), en
+// qa/lib/enforce-safe-target.mjs) si el host resuelto no está en la
+// allowlist local. Este spec usa rutas relativas (`page.goto('/login')`)
+// resueltas contra ese baseURL, nunca una URL absoluta propia.
 //
 // Requisitos antes de correr:
 //   - MySQL local activo, migraciones + LocalTestDataSeeder ya sembrados
@@ -18,7 +21,7 @@
 // Correr con la config local (no la compartida playwright.config.js, que
 // fuerza channel:'chrome' — el Chrome de sistema, no siempre disponible sin
 // privilegios de administrador):
-//   cd qa && npx playwright test --config=playwright.local.config.js tests/flujo-completo.spec.js
+//   cd qa && npm run test:local
 //
 // Idempotencia: cada corrida crea su propia ClassRequest/Lesson con un
 // marcador único (timestamp), por lo que no colisiona con corridas previas
@@ -35,11 +38,6 @@ import path from 'node:path';
 // que ambas copias diverjan en silencio — ver los comentarios en los pasos
 // 7 y 10 para el porqué completo.
 import { splitByWeek } from '../../resources/js/utils/weekGrouping.js';
-
-const BASE_URL = 'http://localhost:8000';
-if (/railway\.app|mova-production/.test(BASE_URL)) {
-  throw new Error('flujo-completo.spec.js nunca debe apuntar a producción.');
-}
 
 const PARENT_EMAIL = 'padre@mova.test';
 const PARENT_PASSWORD = 'password123';
@@ -61,7 +59,7 @@ function tinker(code) {
 }
 
 async function login(page, email, password) {
-  await page.goto(`${BASE_URL}/login`);
+  await page.goto('/login');
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
@@ -70,7 +68,7 @@ async function login(page, email, password) {
 
 async function logout(page) {
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-  await page.waitForURL(BASE_URL + '/', { timeout: 15000 });
+  await page.waitForURL('/', { timeout: 15000 });
 }
 
 // ClassRequests/Index.vue (padre) y ClassRequests/TeacherIndex.vue (profesor)
@@ -140,7 +138,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
     });
 
     await test.step('2. Publicar solicitud de clase', async () => {
-      await page.goto(`${BASE_URL}/class-requests/create`);
+      await page.goto('/class-requests/create');
       await page.locator('select').nth(0).selectOption({ label: 'Mateo Prueba' });
       await page.locator('select').nth(1).selectOption({ label: 'Matemáticas' });
       await page.locator('textarea').fill(`${MARKER}: ecuaciones cuadráticas para examen.`);
@@ -158,7 +156,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
     });
 
     await test.step('4. Aceptar solicitud y agendar clase', async () => {
-      await page.goto(`${BASE_URL}/teacher/requests`);
+      await page.goto('/teacher/requests');
       const card = page.locator(TEACHER_REQUEST_CARD).filter({ hasText: MARKER }).last();
       await expect(card).toBeVisible();
 
@@ -233,7 +231,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       const index = payable.findIndex((l) => l.id === lessonId);
       expect(index).toBeGreaterThanOrEqual(0);
 
-      await page.goto(`${BASE_URL}/my-classes`);
+      await page.goto('/my-classes');
 
       // Causa raíz del flake original: se hacía click en .nth(index) justo
       // después de goto(), sin esperar visibilidad — a diferencia de los
@@ -257,7 +255,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       await logout(page);
       await login(page, TEACHER_EMAIL, TEACHER_PASSWORD);
 
-      await page.goto(`${BASE_URL}/lessons/${lessonId}/report/create`);
+      await page.goto(`/lessons/${lessonId}/report/create`);
       await page.getByPlaceholder('¿Qué tema desarrollaron en esta clase?').fill(
         `${MARKER}: factorización y fórmula general.`
       );
@@ -275,7 +273,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       await logout(page);
       await login(page, PARENT_EMAIL, PARENT_PASSWORD);
 
-      await page.goto(`${BASE_URL}/lessons/${lessonId}/review/create`);
+      await page.goto(`/lessons/${lessonId}/review/create`);
       const stars = page.locator('button', { hasText: '★' });
       await stars.nth(4).click(); // 5ta estrella
       await page.locator('textarea').fill(`${MARKER}: excelente explicación.`);
@@ -325,7 +323,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       const index = domOrder.findIndex((l) => l.id === lessonId);
       expect(index).toBeGreaterThanOrEqual(0);
 
-      await page.goto(`${BASE_URL}/my-classes`);
+      await page.goto('/my-classes');
       const card = page.locator(LESSON_CARD).nth(index);
       await expect(card).toBeVisible();
       await expect(card.getByText('Completada').first()).toBeVisible();
@@ -344,7 +342,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
     });
 
     await test.step('3-4. Navegar a la página de créditos y verificar los 3 paquetes', async () => {
-      await page.goto(`${BASE_URL}/teacher/credits`);
+      await page.goto('/teacher/credits');
       await expect(page.getByText('Mis creditos MOVA')).toBeVisible();
 
       // Botón destacado de recarga en la propia página de créditos — siempre
@@ -395,11 +393,11 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
   // ni lessonId): usa las clases fijas que ya trae LocalTestDataSeeder para
   // el padre de prueba, igual que el test de recargas usa datos fijos del
   // profesor. Vive en este mismo archivo (en vez de uno nuevo) para no
-  // duplicar login/logout/BASE_URL — ya establecidos arriba.
+  // duplicar los helpers login/logout — ya establecidos arriba.
   test('Calendario semanal: pestañas, navegación de semana y bloque de clase', async ({ page }) => {
     await test.step('1. Login del padre y llegar a Mis clases', async () => {
       await login(page, PARENT_EMAIL, PARENT_PASSWORD);
-      await page.goto(`${BASE_URL}/my-classes`);
+      await page.goto('/my-classes');
       await expect(page.getByRole('tab', { name: 'Lista' })).toBeVisible();
     });
 

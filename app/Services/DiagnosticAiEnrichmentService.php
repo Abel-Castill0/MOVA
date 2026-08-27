@@ -4,20 +4,39 @@ namespace App\Services;
 
 use App\Models\AiUsageLog;
 use App\Models\StudentDiagnostic;
+use App\Support\TextRedactor;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Fase 4A.3 — Enriquecimiento opcional de diagnóstico con IA.
  *
- * Contrato de privacidad:
- *   - Solo recibe: subject_name, level, difficulty_text ANONIMIZADO, goal, urgency.
- *   - Nunca recibe: student_id, parent_id, nombre del alumno/padre, email, teléfono,
- *     school_feedback, ni IDs internos.
- *   - La IA NUNCA decide qué profesores recomendar.
- *   - DiagnosticRecommendationService es siempre el árbitro final.
+ * Contrato de privacidad (revisado en F-05 — la versión anterior prometía una
+ * garantía que la implementación no podía sostener):
+ *
+ *   GARANTIZADO POR CONSTRUCCIÓN:
+ *   - Solo se envía: subject_name, level, difficulty_text REDACTADO, goal, urgency.
+ *   - NUNCA se envían campos estructurados identificativos: student_id, parent_id,
+ *     nombre del alumno/padre, email, teléfono, school, school_feedback ni IDs
+ *     internos. No forman parte del prompt: verificable en buildPrompts().
+ *   - La IA NUNCA decide qué profesores recomendar; DiagnosticRecommendationService
+ *     es siempre el árbitro final.
  *   - Si falla, el flujo continúa con fallback determinista (nunca lanza excepción).
- *   - ai_usage_logs registra llamadas sin guardar prompts, respuestas ni difficulty_text.
+ *   - ai_usage_logs registra llamadas SIN guardar prompts, respuestas ni difficulty_text.
+ *   - goal='solve_homework' se salta la IA por completo.
+ *   - Desactivada por defecto (DIAGNOSTIC_AI_ENABLED=false).
+ *
+ *   BEST-EFFORT, NO GARANTIZADO:
+ *   - difficulty_text es texto libre escrito por un padre sobre un menor. Se pasa
+ *     por App\Support\TextRedactor (emails, URLs, secuencias numéricas de 6+
+ *     dígitos, nombres tras marcador de parentesco, nombres propios capitalizados),
+ *     pero NINGUNA redacción léxica puede garantizar la eliminación de todo
+ *     identificador. Un nombre de pila en minúscula y sin marcador no es
+ *     distinguible de una palabra común. Ver la advertencia en TextRedactor.
+ *
+ *   Por eso la protección real es la minimización y el feature flag, no la
+ *   redacción. Activar la IA en producción es una decisión que debe tomarse
+ *   sabiendo esto.
  */
 class DiagnosticAiEnrichmentService
 {
@@ -361,14 +380,21 @@ class DiagnosticAiEnrichmentService
         ];
     }
 
+    /**
+     * F-05 — La redacción vive ahora en App\Support\TextRedactor, con tests
+     * adversariales propios.
+     *
+     * El regex anterior estaba aquí y exigía DOS palabras capitalizadas con un
+     * lookbehind que impedía detectar nombres al inicio del texto. No cubría
+     * teléfonos, emails ni DNI, así que "Juan no entiende fracciones" o
+     * "llámame al 987654321" se enviaban literales al proveedor externo — pese
+     * a que el docblock de esta clase afirmaba lo contrario.
+     *
+     * Sigue siendo best-effort: ver la advertencia en TextRedactor.
+     */
     private function anonymize(string $text): string
     {
-        $text = preg_replace(
-            '/(?<=[a-záéíóúüñ ,])\b([A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)+)\b/',
-            '[NOMBRE]',
-            $text
-        );
-        return mb_substr($text, 0, 400);
+        return mb_substr(TextRedactor::redact($text), 0, 400);
     }
 
     private function saveFallback(StudentDiagnostic $diagnostic): void

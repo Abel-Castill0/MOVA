@@ -4,12 +4,8 @@
   "private": true,
   "scripts": {
     "test": "playwright test --config=playwright.config.js",
-    "test:admin": "playwright test --config=playwright.config.js tests/01-admin-flow.spec.js",
-    "test:teacher": "playwright test --config=playwright.config.js tests/02-teacher-flow.spec.js",
-    "test:parent": "playwright test --config=playwright.config.js tests/03-parent-flow.spec.js",
-    "test:marketplace": "playwright test --config=playwright.config.js tests/04-marketplace.spec.js",
-    "test:verify-teacher": "playwright test --config=playwright.config.js tests/05-admin-verify-teacher.spec.js",
-    "check:twilio": "node check-twilio.mjs",
+    "test:local": "playwright test --config=playwright.local.config.js tests/flujo-completo.spec.js",
+    "test:security": "playwright test --config=playwright.local.config.js tests/target-safety.spec.js tests/mutation-firewall.spec.js",
     "check:gmail": "node check-gmail-inbox.mjs"
   },
   "devDependencies": {

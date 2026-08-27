@@ -25,6 +25,13 @@ yarn-error.log
 
 .vercel
 .env*
+# F-24A: plantilla sin secretos — debe poder commitearse aunque calce con
+# el patrón .env* de arriba.
+!qa/.env.qa.example
+# F-24A.1: storageState de Playwright (cookies/sesión reales) — encontrado
+# tracked y pusheado en qa/auth/admin.json con una sesión real de
+# producción. Nunca debe volver a versionarse.
+qa/auth/
 
 # Entregables crudos de diseño (fuente de la identidad de marca, ya
 # extraídos/convertidos a public/images/brand/ y public/fonts/)
