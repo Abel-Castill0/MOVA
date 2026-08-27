@@ -41,6 +41,9 @@ import {
   CalendarX,
   PenLine,
   Check,
+  Gift,
+  Archive,
+  FileWarning,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -88,6 +91,11 @@ export const icons = {
   topic: BookOpen,                 // 📚 "Tema" (reporte) / "Pasadas" (historial) — contenido de estudio
   'no-classes': CalendarX,         // 📭 "No hay clases próximas"
   'new-request': PenLine,          // ✏️ "Solicitar una clase"
+
+  // Dashboard/Teacher.vue
+  incentive: Gift,                 // 🎁 "verifica tu celular y desbloquea créditos gratis"
+  'past-offers': Archive,          // 📚 "Mis ofertas anteriores" — distinto de `topic` (📚 "Pasadas"/"Tema"): mismo emoji original, roles distintos en la misma página
+  'report-due': FileWarning,       // 📝 alerta "clases sin reporte" — el reporte en sí ya usa `my-reports` (FileText); esta es la variante de alerta/pendiente
 }
 
 /**

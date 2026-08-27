@@ -7,10 +7,10 @@
       <form @submit.prevent="submit" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Presentación / Bio</label>
-          <textarea v-model="form.bio" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Describe tu experiencia y metodología..."></textarea>
+          <textarea v-model="form.bio" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Describe tu experiencia y metodología..."></textarea>
         </div>
-        <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2.5">
-          <p class="text-sm text-indigo-900">
+        <div class="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2.5">
+          <p class="text-sm text-brand-900">
             Tu tarifa inicial es <span class="font-bold">S/20 por hora</span>. Aumentará automáticamente según tu experiencia y calificaciones.
           </p>
         </div>
@@ -19,14 +19,14 @@
           <div v-if="subjects.length" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
             <label v-for="s in subjects" :key="s.id"
               :class="['flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm',
-                form.subject_ids.includes(s.id) ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-gray-200 text-gray-700']">
+                form.subject_ids.includes(s.id) ? 'bg-brand-50 border-brand-400 text-brand-700' : 'bg-white border-gray-200 text-gray-700']">
               <input type="checkbox" :value="s.id" v-model="form.subject_ids" class="sr-only" />
               {{ s.name }}
             </label>
           </div>
           <div class="flex gap-2">
             <input v-model="subjectDraft" type="text" list="subject-suggestions" placeholder="Escribe una materia nueva y presiona Enter"
-              class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               @keydown.enter.prevent="addSubjectName" />
             <datalist id="subject-suggestions">
               <option v-for="s in subjects" :key="s.id" :value="s.name" />
@@ -38,7 +38,7 @@
           </div>
           <div v-if="form.subject_names.length" class="flex flex-wrap gap-2 mt-2">
             <button v-for="name in form.subject_names" :key="name" type="button" @click="removeSubjectName(name)"
-              class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">
+              class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition-colors">
               {{ name }} ×
             </button>
           </div>
@@ -46,7 +46,7 @@
           <p v-if="form.errors.subject_ids" class="text-xs text-red-500 mt-1">{{ form.errors.subject_ids }}</p>
         </div>
         <button type="submit" :disabled="form.processing"
-          class="px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors">
           Guardar y continuar
         </button>
       </form>

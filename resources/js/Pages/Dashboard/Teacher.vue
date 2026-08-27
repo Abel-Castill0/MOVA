@@ -9,38 +9,52 @@
           <h2 class="text-xl sm:text-2xl font-black mt-0.5">Tu panel de clases</h2>
           <p class="text-white/60 text-sm mt-1">{{ today }}</p>
         </div>
-        <div class="text-5xl sm:text-6xl hidden sm:block opacity-80">👨‍🏫</div>
+        <Icon name="teachers" :size="56" :stroke-width="1.25" class="hidden sm:block opacity-30 flex-shrink-0" />
       </div>
 
-      <!-- Banner post-clase: recién salió de la videollamada -->
-      <div v-if="postClassLessonId && postClassEnded" class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📝</div>
+      <!-- Banner post-clase: recién salió de la videollamada. Antes usaba
+           indigo (resto de Breeze); azul/info porque "escribe tu reporte" es
+           el siguiente paso de rutina, no una alarma — la alerta roja de
+           abajo ("clases sin reporte") ya reserva el rojo para cuando el
+           reporte realmente está atrasado. -->
+      <div v-if="postClassLessonId && postClassEnded" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+          <Icon name="my-reports" :size="20" />
+        </div>
         <div class="flex-1">
-          <p class="font-semibold text-indigo-900">La clase ha terminado.</p>
-          <p class="text-sm text-indigo-700 mt-0.5">Escribe el reporte pedagógico.</p>
+          <p class="font-semibold text-blue-900">La clase ha terminado.</p>
+          <p class="text-sm text-blue-700 mt-0.5">Escribe el reporte pedagógico.</p>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
           <Link :href="route('lesson-reports.create', postClassLessonId)"
-            class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors">
+            class="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors">
             Escribir reporte
           </Link>
           <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-            class="px-2 py-2 text-indigo-500 hover:text-indigo-700 transition-colors">✕</button>
+            class="px-2 py-2 text-blue-500 hover:text-blue-700 transition-colors">
+            <Icon name="close" :size="16" />
+          </button>
         </div>
       </div>
       <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🕐</div>
+        <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
+          <Icon name="in-progress" :size="20" />
+        </div>
         <div class="flex-1">
           <p class="font-semibold text-slate-800">La clase está en curso.</p>
           <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
         </div>
         <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">
+          <Icon name="close" :size="16" />
+        </button>
       </div>
 
       <!-- Phone verification incentive banner -->
       <div v-if="!user?.phone_verified" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">🎁</div>
+        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+          <Icon name="incentive" :size="20" />
+        </div>
         <div class="flex-1">
           <p class="font-semibold text-blue-900">¡Verifica tu número de celular para desbloquear tus 5 créditos gratis y empezar a aceptar solicitudes de clases!</p>
         </div>
@@ -50,20 +64,23 @@
         </Link>
       </div>
 
-      <!-- Stats — 1 col mobile, 3 desktop -->
+      <!-- Stats — 1 col mobile, 3 desktop. El icono de "Solicitudes abiertas"
+           es el mismo (`requests`) que el de la acción rápida "Solicitudes"
+           más abajo — antes eran dos emoji distintos (📬/📋) para el mismo
+           concepto en la misma página. -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div class="text-2xl mb-3">📅</div>
+          <div class="text-brand-600 mb-3"><Icon name="classes" :size="24" /></div>
           <p class="text-3xl font-black text-brand-600">{{ upcoming.length }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Clases próximas</p>
         </div>
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div class="text-2xl mb-3">📬</div>
+          <div class="text-orange-500 mb-3"><Icon name="requests" :size="24" /></div>
           <p class="text-3xl font-black text-orange-500">{{ pending_requests }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Solicitudes abiertas</p>
         </div>
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <div class="text-2xl mb-3">📝</div>
+          <div :class="pending_reports > 0 ? 'text-red-500' : 'text-green-600'" class="mb-3"><Icon name="my-reports" :size="24" /></div>
           <p class="text-3xl font-black" :class="pending_reports > 0 ? 'text-red-500' : 'text-green-600'">{{ pending_reports }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Reportes pendientes</p>
         </div>
@@ -71,7 +88,9 @@
 
       <!-- Pending reports alert -->
       <div v-if="pending_reports > 0" class="bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📝</div>
+        <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center text-red-600 flex-shrink-0">
+          <Icon name="report-due" :size="20" />
+        </div>
         <div class="flex-1">
           <p class="font-semibold text-red-900">{{ pending_reports }} clase(s) completada(s) sin reporte</p>
           <p class="text-sm text-red-600 mt-0.5">Los padres esperan el reporte de aprendizaje de sus hijos.</p>
@@ -90,7 +109,9 @@
         </div>
         <template v-if="upcoming.length">
           <div class="px-5 sm:px-6 pt-4">
-            <p class="text-xs font-bold text-slate-400 uppercase tracking-wide">📅 Esta semana</p>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Icon name="classes" :size="14" /> Esta semana
+            </p>
           </div>
           <div v-if="upcomingThisWeek.length" class="divide-y divide-gray-50">
             <div v-for="l in upcomingThisWeek" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -105,7 +126,7 @@
               </div>
               <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
                 class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
-                📝 Escribir reporte
+                <Icon name="my-reports" :size="14" /> Escribir reporte
               </Link>
             </div>
           </div>
@@ -113,7 +134,9 @@
 
           <template v-if="upcomingPast.length">
             <div class="px-5 sm:px-6 pt-4 border-t border-gray-50">
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide">📚 Pasadas</p>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                <Icon name="topic" :size="14" /> Pasadas
+              </p>
             </div>
             <div class="divide-y divide-gray-50">
               <div v-for="l in upcomingPast" :key="l.id" class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -128,14 +151,14 @@
                 </div>
                 <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
                   class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors shadow-sm self-start sm:self-auto">
-                  📝 Escribir reporte
+                  <Icon name="my-reports" :size="14" /> Escribir reporte
                 </Link>
               </div>
             </div>
           </template>
         </template>
         <div v-else class="px-6 py-10 text-center text-slate-400">
-          <div class="text-4xl mb-2">📭</div>
+          <div class="mb-2 flex justify-center"><Icon name="no-classes" :size="32" :stroke-width="1.5" /></div>
           <p class="text-sm">No tienes clases próximas</p>
         </div>
       </div>
@@ -155,9 +178,10 @@
         </div>
         <div class="px-5 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div v-for="(done, key) in profile_checklist" :key="key" class="flex items-center gap-2.5">
-            <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+            <div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
               :class="done ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'">
-              {{ done ? '✓' : '○' }}
+              <Icon v-if="done" name="check" :size="12" :stroke-width="3" />
+              <span v-else class="w-1.5 h-1.5 rounded-full bg-current"></span>
             </div>
             <span class="text-sm" :class="done ? 'text-slate-700' : 'text-slate-400'">{{ checklistLabel(key) }}</span>
           </div>
@@ -175,7 +199,9 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link :href="route('teacher.requests')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="w-11 h-11 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📋</div>
+            <div class="w-11 h-11 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 mb-3 transition-colors">
+              <Icon name="requests" :size="20" />
+            </div>
             <p class="font-bold text-slate-900">Solicitudes</p>
             <p class="text-sm text-slate-400 mt-0.5">{{ pending_requests }} abiertas</p>
           </Link>
@@ -185,19 +211,25 @@
                previas que gestionar — la ruta de creación ya no existe. -->
           <Link v-if="hasOffers" :href="route('class-offers.index')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">📚</div>
+            <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-brand-600 mb-3 transition-colors">
+              <Icon name="past-offers" :size="20" />
+            </div>
             <p class="font-bold text-slate-900">Mis ofertas anteriores</p>
             <p class="text-sm text-slate-400 mt-0.5">Gestiona tarifa y cupos ya configurados</p>
           </Link>
           <Link :href="route('teacher.credits.index')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">💳</div>
+            <div class="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 mb-3 transition-colors">
+              <Icon name="credits" :size="20" />
+            </div>
             <p class="font-bold text-slate-900">Recargar créditos</p>
             <p class="text-sm text-slate-400 mt-0.5">Yape / Plin</p>
           </Link>
           <Link :href="route('teacher.profile')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
-            <div class="w-11 h-11 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">👤</div>
+            <div class="w-11 h-11 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 mb-3 transition-colors">
+              <Icon name="profile" :size="20" />
+            </div>
             <p class="font-bold text-slate-900">Mi perfil</p>
             <p class="text-sm text-slate-400 mt-0.5">Actualiza tu información</p>
           </Link>
@@ -212,6 +244,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Icon from '@/Components/Icon.vue'
 import { splitByWeek } from '@/utils/weekGrouping'
 
 const props = defineProps({
@@ -251,6 +284,16 @@ onMounted(() => {
   }
 })
 
+// PRODUCT AUDIT (hallazgo real, no solo visual): este checklist todavía
+// pide "Al menos una oferta activa" como requisito de perfil completo, pero
+// el flujo de creación de ofertas ya no existe para profesores nuevos (ver
+// el comentario de "Mis ofertas anteriores" más abajo — el profesor acepta
+// solicitudes abiertas, no publica anuncios). Si `active_offer` sigue
+// viniendo del backend como parte de `profile_checklist`, un profesor nuevo
+// puede quedar atascado en <100% sin ninguna acción visible para resolverlo.
+// No se toca la lógica de backend en este pase (fuera del alcance de una
+// auditoría de diseño) — se deja marcado aquí y en
+// docs/MOVA_DESIGN_AUDIT_FINAL.md para que se decida explícitamente.
 const checklistLabels = {
   bio:            'Biografía completa',
   subjects:       'Materias asignadas',

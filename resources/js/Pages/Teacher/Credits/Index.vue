@@ -1,26 +1,26 @@
 <template>
-  <AppLayout title="Mis creditos">
+  <AppLayout title="Mis créditos">
     <div class="space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 class="text-xl font-black text-slate-900">Mis creditos MOVA</h2>
+          <h2 class="text-xl font-black text-slate-900">Mis créditos MOVA</h2>
           <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
         </div>
         <a href="#recargas"
           class="flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-          💳 Recargar créditos (Yape/Plin)
+          <Icon name="credits" :size="18" /> Recargar créditos (Yape/Plin)
         </a>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <section class="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
-          <p class="text-sm font-semibold text-slate-500">Creditos Disponibles</p>
+          <p class="text-sm font-semibold text-slate-500">Créditos disponibles</p>
           <p class="mt-3 text-4xl font-black text-brand-700">{{ teacherProfile.credits_available }}</p>
           <p class="mt-2 text-sm text-slate-500">Listos para aceptar nuevas clases.</p>
         </section>
 
         <section class="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p class="text-sm font-semibold text-slate-500">Creditos Reservados</p>
+          <p class="text-sm font-semibold text-slate-500">Créditos reservados</p>
           <p class="mt-3 text-4xl font-black text-amber-600">{{ teacherProfile.credits_reserved }}</p>
           <p class="mt-2 text-sm text-slate-500">Apartados para clases programadas.</p>
         </section>
@@ -45,7 +45,7 @@
                   1 crédito equivale a {{ currency }} {{ pack.price_per_credit }}.
                 </p>
               </div>
-              <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} creditos</span>
+              <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
             </div>
             <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
             <button
@@ -83,13 +83,13 @@
               <tr>
                 <th class="px-4 py-3">Fecha</th>
                 <th class="px-4 py-3">Tipo</th>
-                <th class="px-4 py-3">Descripcion</th>
-                <th class="px-4 py-3 text-right">Creditos</th>
+                <th class="px-4 py-3">Descripción</th>
+                <th class="px-4 py-3 text-right">Créditos</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-if="!creditTransactions.length">
-                <td colspan="4" class="px-4 py-8 text-center text-slate-500">Aun no tienes movimientos de creditos.</td>
+                <td colspan="4" class="px-4 py-8 text-center text-slate-500">Aún no tienes movimientos de créditos.</td>
               </tr>
               <tr v-for="transaction in creditTransactions" :key="transaction.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(transaction.created_at) }}</td>
@@ -112,18 +112,18 @@
               <tr>
                 <th class="px-4 py-3">Fecha</th>
                 <th class="px-4 py-3">Paquete</th>
-                <th class="px-4 py-3">Operacion</th>
+                <th class="px-4 py-3">Operación</th>
                 <th class="px-4 py-3 text-right">Monto</th>
                 <th class="px-4 py-3">Estado</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-if="!rechargeRequests.length">
-                <td colspan="5" class="px-4 py-8 text-center text-slate-500">Aun no has enviado solicitudes de recarga.</td>
+                <td colspan="5" class="px-4 py-8 text-center text-slate-500">Aún no has enviado solicitudes de recarga.</td>
               </tr>
               <tr v-for="request in rechargeRequests" :key="request.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(request.created_at) }}</td>
-                <td class="px-4 py-3 font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} creditos</td>
+                <td class="px-4 py-3 font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</td>
                 <td class="px-4 py-3 text-slate-700">{{ request.operation_number }}</td>
                 <td class="px-4 py-3 text-right text-slate-700">S/ {{ money(request.amount_pen) }}</td>
                 <td class="px-4 py-3">
@@ -145,7 +145,7 @@
           </div>
           <button type="button" class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" @click="closeRecharge">
             <span class="sr-only">Cerrar</span>
-            x
+            <Icon name="close" :size="18" aria-hidden="true" />
           </button>
         </div>
 
@@ -155,7 +155,7 @@
             <p class="mt-2 text-lg font-black text-slate-900">{{ paymentDestination }}</p>
             <p class="mt-2 text-sm text-slate-500">
               Monto: <strong class="text-slate-900">S/ {{ money(selectedPackage?.amount_pen) }}</strong>
-              · Creditos: <strong class="text-slate-900">{{ selectedPackage?.credits }}</strong>
+              · Créditos: <strong class="text-slate-900">{{ selectedPackage?.credits }}</strong>
             </p>
           </div>
         </div>
@@ -175,7 +175,7 @@
         </div>
 
         <div class="mt-5">
-          <InputLabel for="operation_number" value="Numero de Operacion" />
+          <InputLabel for="operation_number" value="Número de operación" />
           <TextInput
             id="operation_number"
             v-model="form.operation_number"
@@ -211,6 +211,7 @@ import Modal from '@/Components/Modal.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
+import Icon from '@/Components/Icon.vue'
 
 defineProps({
   teacherProfile: Object,

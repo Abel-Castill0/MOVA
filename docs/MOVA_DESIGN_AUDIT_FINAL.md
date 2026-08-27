@@ -95,9 +95,9 @@ y no una elección estética). Ninguna aparición ha sido `THIRD_PARTY`.
 | Pages | 53 |
 | Components | 26 |
 | Layouts | 3 |
-| Emoji restantes (suma) | 160 en 38 archivos (191/40 tras Auth, 199/43 al inicio de la Fase 3) |
-| `indigo` restante (suma) | 54 en 14 archivos (65/17 tras Auth, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
-| Archivos con algún trabajo de esta sesión (`PARCIAL`/`COMPLETA`/`NO CHANGE — VERIFIED`) | 24 de 82 |
+| Emoji restantes (suma) | 139 en 36 archivos (160/38 tras Parent, 199/43 al inicio de la Fase 3) |
+| `indigo` restante (suma) | 33 en 13 archivos (54/14 tras Parent, 72/18 al inicio; el 1 de `Checkbox.vue` es un falso positivo documentado abajo) |
+| Archivos con algún trabajo de esta sesión | 28 de 82 |
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -167,10 +167,10 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Dashboard/Teacher.vue` | 21 | 9 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Teacher/Credits/Index.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Teacher/Edit.vue` | 1 | 2 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Teacher/Setup.vue` | 0 | 13 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Dashboard/Teacher.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 21 emoji→Icon; banner post-clase de `indigo` (LEGACY) a `blue`/info (SEMANTIC: "escribe tu reporte" es rutina, no alarma — el rojo queda reservado a la alerta real de "reporte atrasado" más abajo, evita que dos avisos usen el mismo color con urgencia distinta); unificado el icono de "Solicitudes abiertas" (antes 📬) con el de la acción rápida "Solicitudes" (📋) — mismo concepto, dos emoji distintos en la misma pantalla. **Hallazgo de producto real, no solo visual, documentado en el propio código:** el checklist de perfil sigue pidiendo "Al menos una oferta activa" cuando el flujo de crear ofertas ya no existe para profesores nuevos (ver comentario en el `<script>`) — no se tocó backend, queda anotado explícitamente como pendiente de decisión de producto, no oculto. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`MovaCriticalFlowTest` y otros ejercitan estas rutas) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (requiere sesión de profesor con datos reales) |
+| `Pages/Teacher/Credits/Index.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 💳→Icon, botón "x" de cerrar→`Icon name="close"`. **Hallazgo de copy real:** el archivo entero tenía las tildes españolas eliminadas de forma sistemática (creditos/Creditos, Numero, Operacion, Descripcion, Aun) — corregido en cada aparición, no solo en el título. Los badges de estado de transacción/recarga (green/amber/slate/blue/rose) ya seguían un criterio semántico razonable antes de esta sesión — no se tocaron. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`FinancialConcurrencyTest`, `PaymentOrderTest`, `SpecificRatePricingTest` tocan esta área) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
+| `Pages/Teacher/Edit.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — "✓ Copiado"→`Icon name="check"`; el badge de tier "Experto" pasó de `indigo` (LEGACY, sin significado propio) a `blue`, como paso intermedio deliberado de una escala Base(gris)→Experto(azul)→Élite(ámbar) — no una recoloración estética suelta. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ (`TeacherReferralCodeTest`, `TeacherReferralRequestTest` ejercitan esta página) · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
+| `Pages/Teacher/Setup.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 13 indigo→brand (todos `LEGACY`, resto de Breeze, verificado uno por uno: focus rings, chip de tarifa inicial, chips de materias, botón de envío). Flujo ya claro (bio → tarifa informativa, no editable → materias → guardar) — responde directamente "¿qué información necesita introducir el profesor?": solo bio y materias, la tarifa es automática. Sin cambios de estructura. | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** |
 
 ### Admin (8 archivos)
 
@@ -313,6 +313,7 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 | `Checkbox.vue` "indigo restante"=1 | Es un comentario del propio código explicando el reemplazo (`// reemplaza el indigo heredado...`), no una clase activa — falso positivo del grep mecánico, documentado aquí en vez de re-escribir el comentario para "limpiar el número". |
 | `Register.vue` (wizard) y `PhoneVerification.vue` migrados solo en color/iconos, no en componentes | Ambos usan botones/inputs `<button>`/`<input>` propios en vez de `BaseButton`/`TextInput`/`Checkbox` — una conversión real (wizard de 5-6 pasos con estados condicionales de validación; formulario de código con estilos centrados/tracking-widest específicos) que merece su propia revisión, no un cambio apurado dentro del barrido de iconos/color. Queda como pendiente explícito, no oculto. |
 | Color del estado "pagada"/"abierta" (antes `indigo`) corregido en 4 lugares independientes, no unificado en 1 | `utils/statusColors.js` (fuente ya declarada "única" en su propio comentario, pero `Dashboard/Parent.vue::dotColor()`, `TeacherLessonCard.vue` y `ParentLessonCard.vue` la duplican con su propio mapeo en vez de importarla) pasaron de `indigo` a `violet`/`cyan` — mismo color en los 4 sitios, pero la deduplicación real (que los 3 componentes importen `statusStyle()` en vez de repetirla) es un cambio de mayor alcance que un barrido de color, y queda pendiente explícito. |
+| **Hallazgo de producto real, no de diseño** — `Dashboard/Teacher.vue`: el checklist de perfil sigue exigiendo `active_offer` ("Al menos una oferta activa") para llegar a 100%, pero el flujo de creación de ofertas ya no existe para profesores nuevos (el profesor acepta solicitudes abiertas, no publica anuncios — ver el comentario `HANDOFF_FINAL.md §21` ya presente en el código). Un profesor nuevo podría quedar atascado por debajo de 100% sin ninguna acción visible para resolverlo. **No se tocó lógica de backend** — no le corresponde a una auditoría de diseño decidir si `active_offer` se retira del checklist, se recalcula distinto, o si el requisito ya no aplica. Anotado aquí y en el propio código (`Dashboard/Teacher.vue`) para que se decida explícitamente, igual que `PRIV-STUDENT-RETENTION` en `docs/MOVA_AUDIT_PHASE0.md`. |
 
 ## Lo que este documento NO afirma todavía
 

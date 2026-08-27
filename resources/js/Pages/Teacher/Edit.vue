@@ -21,7 +21,7 @@
         </div>
         <button type="button" @click="copyReferralCode"
           class="flex items-center gap-2 px-4 py-2 bg-white border border-brand-200 text-brand-700 text-sm font-bold rounded-xl hover:bg-brand-100 active:scale-95 transition-all whitespace-nowrap">
-          <span v-if="copied">✓ Copiado</span>
+          <span v-if="copied" class="inline-flex items-center gap-1.5"><Icon name="check" :size="16" /> Copiado</span>
           <span v-else class="font-mono tracking-widest">{{ profile.referral_code }}</span>
         </button>
       </div>
@@ -107,6 +107,7 @@ import { computed, ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import UpdateAvatarForm from '@/Pages/Profile/Partials/UpdateAvatarForm.vue'
+import Icon from '@/Components/Icon.vue'
 
 const props = defineProps({ profile: Object, subjects: Array })
 
@@ -119,10 +120,14 @@ const form = useForm({
   subject_names: [],
 })
 
+// Escala de tiers, no un color suelto: gris (Base) → azul (Experto) → ámbar
+// (Élite) es una progresión de intensidad reconocible (como medallas
+// bronce/plata/oro), no "indigo porque estaba disponible" — el indigo
+// original no codificaba ningún significado propio de este sistema.
 const tier = computed(() => {
   const rate = Number(props.profile?.hourly_rate ?? 20)
   if (rate >= 30) return { label: 'Élite', badgeClass: 'bg-amber-100 text-amber-700' }
-  if (rate >= 25) return { label: 'Experto', badgeClass: 'bg-indigo-100 text-indigo-700' }
+  if (rate >= 25) return { label: 'Experto', badgeClass: 'bg-blue-100 text-blue-700' }
   return { label: 'Base', badgeClass: 'bg-gray-200 text-gray-700' }
 })
 
