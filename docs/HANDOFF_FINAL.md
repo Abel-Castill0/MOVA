@@ -1523,3 +1523,337 @@ contra una oferta preexistente.
   clase completada (código visible), profesor dueño (código visible, copy
   distinto), y el modal de Jitsi mostrando el código durante una clase real.
 - `git diff --check` → limpio.
+
+## 22. Base de pagos automáticos — Culqi todavía sin cuenta (2026-08-23)
+
+### Auditoría previa (sin código)
+
+Antes de tocar nada se auditó a fondo el sistema de recargas/créditos
+existente (`RechargeRequest`, `credit_transactions`, balance en
+`teacher_profiles.credits_available/reserved`, `mova:reconcile-ledger`,
+todos los `lockForUpdate()` financieros, C-1/C-2/C-3, tests existentes,
+Redis, y confirmación de que no existía ninguna integración de pasarela de
+pago previa). Confirmado con el usuario: quien recarga es el **profesor**
+comprándole créditos a MOVA — el padre le sigue pagando al profesor por
+fuera de la plataforma, sin cambios. Sin cuenta comercial de Culqi todavía.
+
+### Decisión de arquitectura
+
+Se descartó crear `PaymentOrder + PaymentAttempt + PaymentWebhook + Recharge`
+como 4 entidades nuevas (propuesta original de un mensaje relayado) —
+`Recharge` ya existe, es `RechargeRequest`. Se agregó solo lo que
+genuinamente faltaba: `payment_orders` (1:1 con una `RechargeRequest`,
+específico de proveedor) y `payment_webhooks` (log de eventos,
+`UNIQUE(provider, event_id)`). Ver `docs/payments-architecture.md` para el
+detalle completo del flujo, idempotencia y refunds/chargebacks.
+
+### Lo que se construyó
+
+- Migraciones: tipo `reversal` en `credit_transactions.type`, estado
+  `reversed` (+`reversed_at/reversed_by/reversal_reason`) en
+  `recharge_requests`, tablas `payment_orders`/`payment_webhooks`. El
+  widening de los dos enums existentes se hizo **sin** `Blueprint::change()`
+  — Doctrine DBAL no sabe introspeccionar "enum" en SQLite (los tests corren
+  sobre sqlite `:memory:`) — reconstruyendo la columna a mano en SQLite y con
+  `ALTER MODIFY` directo en MySQL. Probado en ambos motores (sqlite vía
+  suite de tests, MySQL real vía `migrate` + `migrate:rollback --step=4` +
+  `migrate` de nuevo).
+- `App\Payment\Contracts\PaymentProviderContract`, `FakePaymentProvider`
+  (test/desarrollo, nunca produce cobros reales), `CulqiPaymentProvider`
+  (stub que lanza excepción explícita — no implementar hasta tener cuenta).
+- `RechargeApprovalService`: extrae la lógica de abono que antes vivía
+  inline en `Admin\RechargeController::approve()`, y agrega `reverse()`
+  (refund/chargeback). La aprobación manual de un admin y la futura
+  acreditación automática por webhook comparten ahora el mismo método —
+  mismo lock, misma transacción, misma idempotencia.
+- `PaymentWebhookService`: único punto que traduce un evento ya verificado
+  en una transición de `PaymentOrder` + una llamada a
+  `RechargeApprovalService::credit()`.
+- **No** se agregó ninguna ruta HTTP de webhook ni UI de "pagar con
+  Yape/Plin/tarjeta" — exponer un endpoint sin firma real que verificar
+  sería superficie de ataque sin beneficio, y una UI de pago que no completa
+  nada real sería engañosa. Ambas quedan para la ronda que conecte Culqi de
+  verdad.
+
+### Verificación (2026-08-23)
+
+- `php artisan test` → **189/189** (176 previos + 13 nuevos en
+  `tests/Feature/PaymentOrderTest.php`), sin regresión.
+- `npm run build` → limpio.
+- `mova:reconcile-ledger` → GREEN, antes y después de aplicar las
+  migraciones en la base de datos MySQL real (no solo en el sqlite de test).
+- `git diff --check` → limpio.
+- Migraciones aplicadas y revertidas contra MySQL real (`migrate` →
+  `migrate:rollback --step=4` → `migrate`), sin errores.
+
+## 23. Migración de WhatsApp: Twilio → Meta Cloud API directo (2026-08-23)
+
+### Hallazgo previo (auditoría, no asumido)
+
+Un mensaje relayado llegó pidiendo "construir WhatsApp desde cero" (crear
+número, Meta Business Portfolio, WABA, App ID/Secret, webhook) como si MOVA
+no tuviera nada. Verificado con `grep` antes de escribir una sola línea:
+MOVA **ya tenía** WhatsApp completamente construido desde una ronda
+anterior ("Fase Final 4: WhatsApp opcional"), vía **Twilio**, no Meta
+directo — `app/Channels/WhatsAppChannel.php`, 10 de las 21
+`Notification::toWhatsApp()` ya implementadas,
+`docs/WHATSAPP_PRODUCTION_NOTES.md` ya documentando el estado (apagado por
+defecto, en sandbox de Twilio). Se le presentó esto al usuario antes de
+tocar código; confirmó que sí quería migrar a Meta Cloud API directo en vez
+de simplemente pasar Twilio a producción.
+
+### Decisión de arquitectura
+
+**No se tocó ninguna de las 21 clases `*Notification`** — sus
+`toWhatsApp(): string` siguen generando el mismo texto de siempre. En vez
+de rediseñar 21 plantillas de Meta (trabajo real, y especialmente
+arriesgado para las que tocan Jitsi/datos de clase — C-3, exige revisión de
+seguridad explícita por `CLAUDE.md`), se registra en Meta **una sola
+plantilla "utility" genérica** con un parámetro de texto libre, y el texto
+que ya generaba cada `toWhatsApp()` se envía como ese único parámetro. Ver
+`docs/whatsapp-architecture.md` para el detalle completo y el plan de
+migración incremental futuro por notificación.
+
+### Lo que se construyó
+
+- `App\WhatsApp\Contracts\WhatsAppProviderContract` +
+  `App\WhatsApp\MetaCloudApiProvider` (real, Graph API vía `Http` facade —
+  no es un stub, ya funciona hoy si se configuran credenciales y
+  plantillas reales) + `App\WhatsApp\FakeWhatsAppProvider` (test/desarrollo).
+- `WhatsAppChannel` y `PhoneVerificationController::sendWhatsAppCode()`
+  reescritos para delegar en el contrato en vez de instanciar
+  `\Twilio\Rest\Client` directamente — el código OTP (verificación de
+  teléfono) usa su propia clave de plantilla (`phone_verification_code`,
+  categoría "authentication" de Meta), separada de la genérica de
+  notificaciones.
+- `config/services.php`: bloque `meta_whatsapp` (credenciales + mapa de
+  plantillas) y `whatsapp.provider` (`fake`|`meta`), mismo patrón que
+  `payments.provider` para Culqi.
+- Dependencia `twilio/sdk` eliminada de `composer.json` (confirmado sin
+  referencias restantes en `app/` antes de quitarla).
+- **No** se agregó ninguna ruta de webhook de Meta — no hay nada real que
+  verificar todavía (mismo criterio que con Culqi).
+
+### Verificación (2026-08-23)
+
+- `php artisan test` → **199/199** (189 previos + 10 nuevos en
+  `tests/Feature/WhatsAppChannelTest.php`,
+  `tests/Feature/MetaCloudApiProviderTest.php`,
+  `tests/Feature/PhoneVerificationWhatsAppTest.php`), sin regresión —
+  incluido `NotificationSecurityTest.php` (C-3) intacto, sin modificarse.
+- `composer remove twilio/sdk` → limpio, sin referencias residuales.
+- `git diff --check` → limpio.
+
+## 24. Auditoría de la migración a Meta WhatsApp (2026-08-23, segunda pasada)
+
+Una revisión externa de la §23 señaló puntos reales que se corrigieron, y
+otros que ya estaban resueltos desde antes y no requerían cambio — el
+detalle completo de cada punto (qué se corrigió, qué ya estaba bien, qué se
+evaluó y descartó a propósito) está en `docs/whatsapp-architecture.md`,
+sección "Ronda de auditoría".
+
+**Corregido de verdad:**
+- Plantilla de autenticación (OTP): faltaba el componente `button` que
+  Meta exige para plantillas con botón "Copiar código" — agregado, con
+  advertencia explícita de que el `sub_type` exacto se verificó contra dos
+  BSP (no contra developers.facebook.com directamente, inaccesible en esta
+  sesión) y debe confirmarse antes de production real.
+- `whatsapp_messages`: nueva tabla de auditoría post-envío
+  (`provider_message_id`, `status`, `error`, `delivered_at`, `read_at`).
+- `/api/webhooks/whatsapp`: diseñado (handshake GET + firma HMAC-SHA256
+  POST), inerte sin credenciales configuradas — actualiza el estado real
+  de entrega cuando Meta lo reporta.
+- Cobertura de fallos de `MetaCloudApiProvider` ampliada (400/401/429/
+  500/503, JSON malformado, timeout, respuesta sin id) — este trabajo
+  encontró y corrigió un bug real: `WhatsAppMessage` apuntaba a la tabla
+  equivocada (`whats_app_messages` por convención de Eloquent en vez de
+  `whatsapp_messages`) y el error quedaba enmascarado en el log porque el
+  registro de auditoría nunca debe hacer fallar un envío ya resuelto.
+
+**Ya estaba resuelto (verificado, no asumido, antes de tocar nada):** OTP
+hasheado (`Hash::make`), expiración/límite de intentos/cooldown del código,
+rate limiting del envío (`throttle:3,1` + sesión autenticada), el contrato
+ya se llamaba `sendTemplate()` no `send()` genérico, WhatsApp nunca dentro
+de una transacción financiera (auditados los 11 archivos con
+`DB::transaction()` del repo — todo `notify()` ocurre después del commit),
+y un barrido completo de las 21 notificaciones sin hallazgos de fuga de
+datos sensibles más allá del ya cubierto por `NotificationSecurityTest`.
+
+**Evaluado y descartado explícitamente:** un "outbox" propio (ya lo cubre
+`ShouldQueue` de Laravel — un registro paralelo sería duplicar ese
+mecanismo, no reemplazarlo), retry automático tras timeout (Meta no da
+idempotency key propia; reintentar a ciegas es el riesgo de doble envío
+que se quiere evitar, no la solución), botón `ONE_TAP` de OTP (necesita una
+app Android que MOVA no tiene), y el rediseño de las 21 `toWhatsApp()` a
+plantillas individuales (deuda técnica documentada, no omisión — riesgo
+real para las que tocan Jitsi sin beneficio inmediato con una sola
+plantilla genérica todavía).
+
+### Verificación (2026-08-23)
+
+- `php artisan test` → **217/217** (199 previos + 18 nuevos:
+  `tests/Feature/WhatsAppWebhookTest.php` y ampliación de
+  `tests/Feature/MetaCloudApiProviderTest.php`).
+- `mova:reconcile-ledger` → healthy tras aplicar la nueva migración en
+  MySQL real.
+- `npm run build` → limpio.
+- `git diff --check` → limpio.
+
+## 25. Auditoría de endurecimiento de WhatsApp — tercera pasada (2026-08-23)
+
+Última ronda antes de considerar la base de código de WhatsApp cerrada
+(pendiente solo de credenciales reales de Meta). Auditoría de
+endurecimiento, sin reescritura — cambios únicamente donde había un
+problema real. Detalle completo en `docs/whatsapp-architecture.md`.
+
+### Findings y fixes
+
+**Critical:** ninguno.
+
+**High:**
+- El webhook no respetaba el orden real de los eventos de Meta (que
+  advierte explícitamente que pueden llegar desordenados) — un `delivered`
+  tardío podía retroceder un mensaje que ya estaba en `read`. **Fix:**
+  `WhatsAppMessageStatus::deliveryRank()` + `WhatsAppWebhookController::
+  shouldApply()`, bajo `lockForUpdate()` transaccional. 9 tests nuevos
+  cubriendo cada transición (avance, regresión bloqueada, duplicado,
+  timestamps fuera de orden, `failed` terminal).
+- Un timeout/excepción de red se registraba como `failed` (rechazo
+  definitivo) cuando en realidad es un resultado INCIERTO — Meta podría
+  haber aceptado el mensaje igual. **Fix:** nuevo estado `unknown` en
+  `WhatsAppMessageStatus`, distinto de `failed`.
+- Sin forma de encontrar mensajes en `unknown` o estancados en `sent` sin
+  auditar la tabla a mano. **Fix:** `php artisan mova:reconcile-whatsapp
+  --json` (solo lectura, mismo espíritu que `mova:reconcile-ledger`).
+- Un atacante podía crear múltiples cuentas con el mismo número de
+  teléfono (no verificado todavía en ninguna) para saltarse el
+  `throttle:3,1` — que es por usuario, no por número — y generar OTPs
+  ilimitados hacia un mismo número ajeno. **Fix:** `RateLimiter` por
+  número de teléfono en `PhoneVerificationController::send()` (5/hora,
+  cruza cuentas).
+
+**Medium:**
+- El fallo de persistencia de `whatsapp_messages` ya se logueaba (no era
+  silencioso, verificado antes de "corregirlo"), pero sin contexto de
+  correlación. **Fix:** el log ahora incluye `client_reference`,
+  `provider_message_id` y el estado que se intentaba guardar.
+- Sin forma de rastrear qué notificación/flujo disparó un envío de
+  WhatsApp para soporte. **Fix:** `whatsapp_messages.client_reference`
+  (p. ej. `"ClassConfirmedNotification#482"`, `"phone_verification:91"` —
+  nunca el código OTP en sí).
+- `status` era un string libre a nivel de aplicación (ya era `enum` a
+  nivel de columna DB). **Fix:** `App\WhatsApp\WhatsAppMessageStatus`,
+  backed enum de PHP 8.1, cast en el modelo.
+- El endpoint de webhook no tenía límite de tamaño de payload. **Fix:**
+  1MB, defensa barata dado que Meta nunca manda payloads grandes.
+
+**Low:**
+- Sin pruebas específicas del handshake GET con parámetros incompletos, ni
+  de que la firma HMAC se calcule sobre el body crudo (no un JSON
+  reconstruido). **Fix:** ambas cubiertas — la segunda con un payload de
+  espaciado no canónico a propósito, para que la prueba solo pase si de
+  verdad se firma el string crudo.
+- Sin prueba que confirme que un fallo del proveedor nunca se propaga como
+  excepción del canal (lo que activaría el retry de `ShouldQueue` de
+  Laravel y arriesgaría un envío duplicado). **Fix:** cubierta con un
+  provider de prueba que siempre devuelve `false`.
+- Documentación imprecisa sobre por qué no se usa un Transactional Outbox
+  (la razón real es que el evento se despacha después del commit, no que
+  "`ShouldQueue` ya lo cubre todo" sin más). **Fix:** reescrita en
+  `docs/whatsapp-architecture.md`.
+
+**Ya verificado, no re-corregido (falsos positivos de la revisión externa):**
+- Firma HMAC-SHA256 ya se calculaba sobre `$request->getContent()` (raw
+  body), no sobre un JSON reconstruido — ya era correcto.
+- El fallo de persistencia del audit log ya se logueaba (`Log::error`), no
+  desaparecía en silencio — solo se le agregó contexto de correlación
+  (arriba).
+- Consumo/reemplazo de OTP ya funcionaba correctamente desde antes de esta
+  sesión: el hash se anula tras verificar con éxito (no reutilizable), y
+  se sobrescribe al pedir uno nuevo (invalida el anterior). Se agregaron
+  tests que lo prueban explícitamente contra la ruta HTTP real, donde
+  antes solo se sabía por lectura de código.
+
+### Advertencia que se mantiene, no se resolvió (no se podía)
+
+El `sub_type='url'` del componente `button` en la plantilla OTP sigue sin
+confirmarse contra `developers.facebook.com` directamente (inaccesible en
+esta sesión) — verificado solo contra documentación de dos BSP (MessageBird,
+360dialog). Marcado explícitamente como "requiere smoke test real contra
+Meta" en `docs/whatsapp-architecture.md`, no como confirmado.
+
+### Verificación (2026-08-23)
+
+- `php artisan test` → **243/243** (217 previos + 26 nuevos).
+- Migración `whatsapp_messages` (ampliada con `client_reference`,
+  `status_updated_at`, estado `unknown`) — round-trip completo contra
+  MySQL real (`migrate:rollback --step=1` → `migrate`).
+- `mova:reconcile-ledger` → healthy.
+- `mova:reconcile-whatsapp --json` → healthy (tabla vacía en dev).
+- `npm run build` → limpio.
+- `git diff --check` → limpio.
+
+### Bloqueadores externos restantes (sin cambios respecto a §23/§24)
+
+Cuenta comercial de Meta Business, WABA, número verificado, plantillas
+aprobadas (incluida la confirmación real del formato del botón OTP),
+credenciales de producción. Nada de esto es código — ver
+`docs/WHATSAPP_PRODUCTION_NOTES.md`.
+
+## 26. Auditoría de cierre de WhatsApp — cuarta pasada (2026-08-23)
+
+Última ronda, limitada exactamente a los 4 puntos que pidió la revisión
+externa antes de considerar el commit. Detalle completo en
+`docs/whatsapp-architecture.md` §"Ronda de auditoría (tercera pasada)".
+
+1. **Constraints de idempotencia en BD** — `UNIQUE(provider,
+   provider_message_id)` en `whatsapp_messages` ya existía desde la
+   migración original (se corrigió un reclamo falso de la revisión de que
+   faltaba). Se agregó la capa que sí faltaba: `whatsapp_webhook_events`
+   (`UNIQUE(event_key)`) para deduplicar reentregas del webhook a nivel de
+   EVENTO, no solo de mensaje.
+2. **Queue retry + timeout** — verificado leyendo el código fuente de
+   Laravel (`NotificationSender::queueNotification()`): cada canal de una
+   notificación ya se despacha en su PROPIO job, así que un fallo de mail
+   nunca puede reintentar WhatsApp. El único vector real es a nivel de
+   infraestructura (worker muriendo a mitad de un envío) — documentado,
+   no "solucionado" con código porque no hay nada que el dominio pueda
+   hacer ahí; `retry_after=90s` de la cola ya es mucho mayor que el
+   `Http::timeout(10)` de Meta.
+3. **Política de vida de `unknown`** — antes se señalaba de inmediato,
+   incluso a los 10 segundos de enviado. Ahora respeta el mismo umbral que
+   `stuck_in_sent`: `unknown_still_waiting` (bajo el umbral, normal) vs.
+   `needs_attention` (sobre el umbral). Nunca hay transición automática
+   `unknown → failed`.
+4. **Deduplicación de eventos de webhook** — implementada (punto 1).
+
+Otras precisiones sin cambio de comportamiento, solo de documentación/
+claridad: `failed` es terminal por `WhatsAppMessage` (un intento de
+envío), no por evento de negocio; `client_reference` deliberadamente NO
+es único (representa tipo+destinatario, no un evento — forzar unicidad
+bloquearía envíos legítimos como los 3 recordatorios de una misma clase);
+`template_version` explícitamente no implementado (la propia revisión lo
+calificó de no crítico).
+
+**Bug real encontrado de nuevo por las pruebas, mismo patrón que en §25**:
+`WhatsAppWebhookEvent` cometió el mismo error de nombre de tabla que
+`WhatsAppMessage` (`whats_app_webhook_events` en vez de
+`whatsapp_webhook_events`) — detectado inmediatamente porque los tests
+fallaron al correrlos. Se agregó
+`tests/Feature/WhatsAppModelTableNamesTest.php` como guarda de regresión
+explícita para que un tercer modelo `WhatsApp*` no repita el error una
+tercera vez.
+
+### Verificación (2026-08-23)
+
+- `php artisan test` → **248/248** (243 previos + 5 nuevos: 3 en
+  `WhatsAppWebhookTest`, 2 en `WhatsAppModelTableNamesTest`, más ajustes a
+  tests existentes de `WhatsAppReconciliationTest` para la nueva política
+  de `unknown`).
+- Migración `whatsapp_webhook_events` — round-trip completo contra MySQL
+  real.
+- `mova:reconcile-ledger` y `mova:reconcile-whatsapp --json` → healthy.
+- `npm run build` → limpio.
+- `git diff --check` → limpio.
+
+Sin commit — a la espera de la aprobación final del usuario.

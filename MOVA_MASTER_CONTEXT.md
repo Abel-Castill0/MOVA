@@ -71,7 +71,7 @@ Puertas de acceso, en orden (definidas en `routes/web.php`):
 3. **`role:parent|teacher|admin`** — rol correcto.
 4. **`not.suspended`** (`EnsureNotSuspended`) — cuenta no suspendida por admin.
 
-Verificación de teléfono (`/verify-phone`, `PhoneVerificationController`): código de 6 dígitos enviado por **WhatsApp/Twilio**, hasheado en BD (`phone_verification_code_hash`), TTL 10 minutos, máximo 5 intentos, con throttle de ruta (`throttle:3,1` para envío, `throttle:10,1` para verificación).
+Verificación de teléfono (`/verify-phone`, `PhoneVerificationController`): código de 6 dígitos enviado por **WhatsApp (Meta Cloud API)**, hasheado en BD (`phone_verification_code_hash`), TTL 10 minutos, máximo 5 intentos, con throttle de ruta (`throttle:3,1` para envío, `throttle:10,1` para verificación).
 
 **El profesor debe verificar su teléfono para desbloquear sus 5 créditos de bienvenida** (ver §1.4).
 
@@ -156,9 +156,15 @@ scheduled ──(padre: "Ya pagué")──> paid ──(profesor sube reporte)�
 | `paid → pending_parent_confirmation` | `POST /lessons/{id}/report` | Profesor | Estado debe ser `paid`. Crea `LessonReport` (único por clase) y avanza el estado en la misma transacción. |
 | `pending_parent_confirmation → completed` | `POST /lessons/{id}/review` | Padre | Estado debe ser `pending_parent_confirmation`. **Aquí se consume el crédito** (ver §1.4). |
 
-**Diseño clave:** el crédito reservado **no se consume al terminar la clase**, sino cuando el padre califica. Esto alinea el incentivo económico del profesor con el cierre completo del circuito de calidad (reporte + calificación).
+**Diseño clave:** el crédito reservado **no se consume al terminar la clase**, sino cuando el padre califica — o, si nadie califica, cuando la liquidación automática (C-1, `mova:settle-lessons`) lo consume tras la ventana de gracia. Esto alinea el incentivo económico del profesor con el cierre completo del circuito de calidad (reporte + calificación) sin dejar créditos varados para siempre.
 
-Videollamada: el botón **"🎥 Ingresar a la Sala Virtual"** aparece en las tarjetas de clase (`ParentIndex.vue` / `TeacherIndex.vue`) cuando `jitsi_room != null` **y** (`status === 'paid'` **o** `status === 'scheduled'` con ≤ 15 min para el inicio). Abre un `<iframe src="https://meet.jit.si/{jitsi_room}">` dentro de un modal — nunca en pestaña nueva.
+> **Nota (F-02):** la liquidación automática está implementada y probada, pero el scheduler la ejecuta en modo `dry_run` por defecto (`LESSON_SETTLEMENT_MODE`). Mientras siga así en producción, el consumo automático **no ocurre**. Ver `docs/MOVA_FULL_AUDIT.md` F-02.
+
+**Videollamada (JaaS, no meet.jit.si).** MOVA usa **JaaS — Jitsi as a Service, dominio `8x8.vc`**, no el `meet.jit.si` público: ese último muestra un banner de demo y **corta el embed a los 5 minutos**. El acceso se autentica con un **JWT firmado con RS256** (`JaasService`) que lleva el `room` en el payload y `kid` en la cabecera; no hay contraseña de sala (la columna `jitsi_password` se eliminó en F-07 por ser un residuo sin uso).
+
+El botón **"🎥 Ingresar a la Sala Virtual"** aparece en las tarjetas de clase (`ParentIndex.vue` / `TeacherIndex.vue`) cuando hay sala asignada y la clase está dentro de la **ventana de acceso**: desde 15 min antes del inicio hasta 2 h después del fin (`config/jaas.php`), o siempre si `status === 'paid'`. Esa ventana la aplica el **backend** (`LessonController::join()`), no solo el frontend — antes de F-06 vivía únicamente en JavaScript y el servidor concedía el token en cualquier momento.
+
+El room y el token se piden a `lessons.join` justo antes de abrir la sala, nunca vienen en el listado de clases (`Lesson::$hidden`), y se abren en un `<iframe>` dentro de un modal — nunca en pestaña nueva.
 
 #### Fase F — Cancelación y reprogramación
 
@@ -277,7 +283,7 @@ El profesor publica sus números en su perfil (`teacher_profiles.yape_number`, `
 | SPA bridge | `inertiajs/inertia-laravel ^0.6.8` |
 | Rutas en JS | `tightenco/ziggy ^2.6` |
 | Monitoreo | `sentry/sentry-laravel ^4.26` |
-| WhatsApp/SMS | `twilio/sdk ^8.11` |
+| WhatsApp | Meta Cloud API vía cliente `Http` nativo (sin SDK) |
 | WebSockets | `pusher/pusher-php-server ^7.2` |
 | Email alternativo | `resend/resend-laravel ^1.4` |
 | HTTP client | `guzzlehttp/guzzle ^7.2` |
@@ -432,18 +438,27 @@ Endpoint de autorización: `GET|POST /broadcasting/auth`.
 
 ## 3. INTEGRACIONES DE TERCEROS (APIs Y SERVICIOS)
 
-### 3.1 Twilio — verificación de teléfono por WhatsApp
+### 3.1 WhatsApp — Meta Cloud API (antes Twilio)
+
+> **Migrado desde Twilio.** `twilio/sdk` ya no es dependencia del proyecto. MOVA
+> habla directamente con la Cloud API de Meta, sin BSP intermediario.
 
 | | |
 |---|---|
-| **Paquete** | `twilio/sdk ^8.11` |
-| **Config** | `config/services.php` → `services.twilio.{sid,token,whatsapp_from}` |
-| **Env** | `TWILIO_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
-| **Estado** | ✅ Credenciales configuradas en `.env` local |
+| **Paquete** | ninguno — cliente `Http` nativo de Laravel |
+| **Contrato** | `App\WhatsApp\Contracts\WhatsAppProviderContract` |
+| **Implementaciones** | `MetaCloudApiProvider` (real) · `FakeWhatsAppProvider` (local/tests) |
+| **Config** | `config/services.php` → `services.whatsapp.*` y `services.meta_whatsapp.*` |
+| **Env** | `WHATSAPP_ENABLED`, `WHATSAPP_PROVIDER`, `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_APP_SECRET`, `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_TEMPLATE_*` |
+| **Estado** | ⏳ Código completo, **sin cuenta de Meta conectada**. `WHATSAPP_PROVIDER=fake` por defecto |
+
+> **F-03:** un `WHATSAPP_PROVIDER` desconocido, o `fake` en producción con
+> `WHATSAPP_ENABLED=true`, **detiene el arranque** (`App\Support\ProviderGuard`).
+> Antes cualquier valor no reconocido caía en silencio al proveedor falso.
 
 **Dos usos distintos:**
 
-1. **Verificación de teléfono** (`PhoneVerificationController::sendWhatsAppCode`) — envío directo, **no** pasa por el canal de notificaciones. Código de 6 dígitos, mensaje formateado. Maneja explícitamente el error Twilio **63007** ("número no unido al Sandbox").
+1. **Verificación de teléfono** (`PhoneVerificationController::sendWhatsAppCode`) — envío directo, **no** pasa por el canal de notificaciones. Código de 6 dígitos hasheado en BD, TTL 10 min, máx. 5 intentos, con rate limit por teléfono además del de ruta. Usa la plantilla de categoría AUTHENTICATION de Meta.
 
 2. **Canal de notificaciones** (`App\Channels\WhatsAppChannel`) — para avisos de clase. Tiene **tres puertas de seguridad**:
    - Kill-switch global: `WHATSAPP_ENABLED` (default **`false`**).
@@ -452,9 +467,9 @@ Endpoint de autorización: `GET|POST /broadcasting/auth`.
 
    Si cualquiera falla, **loguea y retorna** — nunca lanza excepción.
 
-> ⚠️ **No existe `TWILIO_PHONE_NUMBER`.** MOVA no usa SMS: usa exclusivamente WhatsApp vía `TWILIO_WHATSAPP_FROM`.
+> ⚠️ **MOVA no usa SMS.** Solo WhatsApp, vía la Cloud API de Meta.
 >
-> ⚠️ El canal de notificaciones WhatsApp está **apagado por defecto** (`WHATSAPP_ENABLED=false`) hasta salir del Sandbox de Twilio. Ver `docs/WHATSAPP_PRODUCTION_NOTES.md`.
+> ⚠️ El canal WhatsApp está **apagado por defecto** (`WHATSAPP_ENABLED=false`) y el proveedor por defecto es `fake`: sin una cuenta de Meta conectada y plantillas aprobadas, no sale ningún mensaje real. Ver `docs/WHATSAPP_PRODUCTION_NOTES.md` y `docs/whatsapp-architecture.md`.
 
 ### 3.2 Pusher Channels — notificaciones en tiempo real
 
@@ -758,7 +773,7 @@ La credencial autentica pero devuelve `429 insufficient_quota`. Si alguien cambi
 | Módulo | Estado |
 |---|---|
 | Recargas de crédito | ✅ Backend completo, ⚠️ **desactivado** por `RECHARGES_ENABLED=false` (falta destino de pago verificado) |
-| WhatsApp (notificaciones) | ✅ Canal implementado, ⚠️ **apagado** por `WHATSAPP_ENABLED=false` (falta salir del sandbox de Twilio) |
+| WhatsApp (notificaciones) | ✅ Canal implementado sobre Meta Cloud API, ⏳ **apagado** por `WHATSAPP_ENABLED=false` y `WHATSAPP_PROVIDER=fake` (falta conectar la cuenta de Meta y aprobar plantillas) |
 | IA de diagnóstico | ✅ Activada con Gemini en local, ⚠️ pendiente de activar y validar en producción |
 | Tiempo real (Pusher) | ✅ Verificado en local, ⚠️ credenciales pendientes de configurar en Railway |
 | Facturación por duración | ✅ Implementada — 1 crédito por hora o fracción (`Lesson::creditCostForMinutes()`) |

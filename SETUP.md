@@ -6,8 +6,8 @@
 - Composer 2.x
 - Node.js 18+ y npm
 - MySQL 8.0+ o MariaDB 10.6+
-- Cuenta de Zoom con app **Server-to-Server OAuth** activa (`meeting:write:admin`)
-- Cuenta de Twilio con **Sandbox de WhatsApp** activo
+- Cuenta de JaaS (8x8 / Jitsi as a Service) con `JAAS_APP_ID`, `JAAS_PRIVATE_KEY`, `JAAS_KEY_ID` — Zoom ya no se usa (eliminado del código, ver migraciones `2026_07_18_000001_drop_zoom_columns.php` y `2026_07_26_153152_drop_zoom_meeting_id_column.php`)
+- (Opcional) Cuenta de Meta Business con WhatsApp Business Cloud API — solo si se quiere WhatsApp real; por defecto `WHATSAPP_PROVIDER=fake` y no se envía nada
 - Cuenta de Gmail con **App Password** de 16 caracteres generada
 
 ---
@@ -101,8 +101,8 @@ El scheduler ejecuta `classmate:send-reminders` cada minuto para recordatorios 1
 
 ## Notas importantes
 
-- **Zoom:** Si las credenciales no están configuradas, `LessonController::store()` lanzará un error visible en la UI. Zoom es **requerido** para crear clases.
-- **Twilio WhatsApp:** El número destinatario debe haberse unido al Sandbox enviando `join <código>` al número `+14155238886` desde WhatsApp.
+- **JaaS/Jitsi:** si `JAAS_APP_ID`/`JAAS_PRIVATE_KEY`/`JAAS_KEY_ID` no están configurados, `LessonController::join()` responde con un 500 explícito en vez de servir una sala sin protección — es una decisión de seguridad deliberada (nunca degrada a una sala pública), no un bug. Ver `app/Services/JaasService.php`.
+- **WhatsApp (Meta Cloud API):** el número destinatario debe tener el teléfono verificado en MOVA y las plantillas deben estar aprobadas por Meta. Con `WHATSAPP_PROVIDER=fake` (por defecto) no se envía nada real. Ver `docs/WHATSAPP_PRODUCTION_NOTES.md`.
 - **Gmail App Password:** Usa la contraseña de aplicación de 16 caracteres, **no** la contraseña de tu cuenta Google.
 - **QUEUE_CONNECTION=database:** Las notificaciones se procesan en segundo plano. Sin el worker corriendo, los emails y WhatsApp no se enviarán.
 - **Teléfono para WhatsApp:** Formato internacional sin espacios: `+51987654321`

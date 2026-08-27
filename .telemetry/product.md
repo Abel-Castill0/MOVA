@@ -7,7 +7,7 @@
 
 ## Product Identity
 
-- **One-liner:** Padres buscan profesores verificados, solicitan clases online para sus hijos, y el sistema confirma la sesión con Zoom automático, recordatorios y seguimiento post-clase — todo sin coordinar por WhatsApp o correo manual.
+- **One-liner:** Padres buscan profesores verificados, solicitan clases online para sus hijos, y el sistema confirma la sesión con una videollamada JaaS/Jitsi protegida por token, recordatorios y seguimiento post-clase — todo sin coordinar por WhatsApp o correo manual.
 - **Category:** Marketplace B2C con componente de gestión educativa
 - **Product type:** B2C hybrid — padres (compradores), profesores (proveedores), admin (operador). No hay cuentas organizacionales; la unidad es el usuario individual.
 - **Collaboration:** multiplayer — padre + profesor + alumno + admin interactúan en el mismo flujo
@@ -29,8 +29,8 @@
 - **Database:** MySQL (Railway, tabla `classes` — no `lessons`)
 - **Background jobs:** Laravel Queue (driver: database), worker separado en Railway (`mova-queue`), scheduler separado (`mova-scheduler`, cada 60s)
 - **Email:** Gmail API vía HTTPS (no SMTP) — `GmailApiMailService` + `GmailApiMailChannel` + `SafeMailChannel`
-- **WhatsApp:** Twilio Sandbox — `WhatsAppChannel`, teléfonos normalizados a E.164 (+51)
-- **Video:** Zoom API — `ZoomService`, reuniones creadas automáticamente al aceptar clase
+- **WhatsApp:** Meta WhatsApp Business Cloud API — `WhatsAppChannel` + `MetaCloudApiProvider`, teléfonos normalizados a E.164 (+51)
+- **Video:** JaaS (8x8/Jitsi as a Service) — `JaasService`, JWT RS256 firmado por el backend con ventana de acceso acotada a la clase (server-authoritative), `livestreaming`/`recording`/`transcription` deshabilitados
 - **Auth:** Laravel Breeze + Spatie Roles (admin, teacher, parent)
 - **Deploy:** Railway (3 servicios: web, queue worker, scheduler)
 
@@ -39,13 +39,13 @@
 ## Value Mapping
 
 ### Primary Value Action
-**Padre solicita y obtiene una clase confirmada con Zoom para su hijo** — Si este flujo cae a cero, el producto ha fallado.
+**Padre solicita y obtiene una clase confirmada con acceso a videollamada para su hijo** — Si este flujo cae a cero, el producto ha fallado.
 
 ### Core Features (entregan valor directamente)
 1. **Marketplace público** — Padres sin cuenta pueden explorar profesores verificados y sus ofertas
 2. **Solicitud de clase** — Padre elige oferta, describe la necesidad del alumno, envía solicitud
-3. **Aceptación de clase** — Profesor acepta, el sistema crea reunión Zoom automáticamente
-4. **Notificaciones multicanal** — Email (Gmail API) + WhatsApp (Twilio) + in-app para todos los eventos clave
+3. **Aceptación de clase** — Profesor acepta, el sistema genera la sala JaaS/Jitsi (el JWT de acceso real se emite recién al unirse, dentro de la ventana de la clase)
+4. **Notificaciones multicanal** — Email (Gmail API) + WhatsApp (Meta Cloud API) + in-app para todos los eventos clave
 5. **Recordatorios automáticos** — 10 min antes de clase vía scheduler
 
 ### Supporting Features (habilitan el core)
@@ -74,7 +74,7 @@
 ### TeacherProfile
 - **ID format:** integer autoincrement
 - **Relación:** `user_id → users.id` (1:1)
-- **Campos actuales:** bio, hourly_rate, zoom_account_id, is_verified
+- **Campos actuales:** bio, hourly_rate, is_verified (el campo `zoom_account_id` fue eliminado junto con la integración de Zoom)
 - **Campos faltantes (gap):** experience_years, methodology, availability_schedule real, profile_completeness_score, response_time_avg, classes_completed_count, photo_url
 
 ### Subjects
@@ -94,8 +94,8 @@
 
 ### Lesson (tabla: `classes`)
 - **Relación:** `teacher_profile_id`, `student_id`, `class_request_id`, `class_offer_id`
-- **Campos:** start_time, duration_minutes, zoom_meeting_id, zoom_link, zoom_password, status, reminder_sent
-- **Estados:** `scheduled`, `in_progress`, `completed`, `cancelled`
+- **Campos:** start_time, duration_minutes, jitsi_room, status, reminder_sent (`jitsi_password` se eliminó por ser un secreto en texto plano sin función real; `zoom_meeting_id`/`zoom_link`/`zoom_password` se eliminaron junto con la integración de Zoom)
+- **Estados:** `scheduled`, `paid`, `pending_parent_confirmation`, `completed`, `cancelled`, `needs_admin_review` (`in_progress` se eliminó en F-09 por ser un valor muerto)
 
 ---
 
@@ -127,12 +127,12 @@ No se necesita group tracking al estilo B2B. Los eventos ocurren a nivel `User` 
 7. Profesor ve solicitud en /teacher/requests
 8. Profesor va a /teacher/requests/{id}/accept
 9. Profesor elige fecha/duración → POST /lessons
-10. Zoom creado automáticamente
+10. Sala JaaS/Jitsi asociada a la clase (el token de acceso real se emite después, solo dentro de la ventana de la clase)
 11. ClassRequest → status: accepted
 12. Lesson creada (status: scheduled)
 13. ClassConfirmedNotification → padre + profesor (email + WhatsApp + in-app)
 14. 10 min antes: ClassReminderNotification (scheduler)
-15. Clase ocurre en Zoom
+15. Clase ocurre en la videollamada JaaS/Jitsi
 ```
 
 ### Flujo 2: Admin verifica profesor
@@ -220,7 +220,7 @@ No se necesita group tracking al estilo B2B. Los eventos ocurren a nivel `User` 
 |---|--------|------------|---------|----------------|-----------|
 | 1 | Recordatorio 24h antes | Padre + Profesor | `classes.start_time - 24h` | `classes` (ya existe) | Alta |
 | 2 | Recordatorio 2h antes | Padre + Profesor | `classes.start_time - 2h` | `classes` | Alta |
-| 3 | Link Zoom 10min antes | Padre + Profesor | scheduler actual | `classes` | Alta (ya parcial) |
+| 3 | Acceso a videollamada JaaS/Jitsi 10min antes | Padre + Profesor | scheduler actual | `classes` | Alta (ya parcial) |
 | 4 | Alerta si nadie entró 5min después | Admin + Padre | `start_time + 5min, no attendance` | `class_attendance` | Alta |
 | 5 | Solicitar reporte al profesor post-clase | Profesor | `classes.status = completed` | `lesson_reports` | Alta |
 | 6 | Recordar reporte pendiente 2h después | Profesor | Si no hay reporte 2h post-clase | `lesson_reports` | Alta |
