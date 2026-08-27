@@ -50,6 +50,7 @@ import {
   Sun,
   Sunset,
   RefreshCw,
+  ArrowLeft,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -112,6 +113,12 @@ export const icons = {
   afternoon: Sun,                  // ☀️ "Tarde"
   evening: Sunset,                 // 🌆 "Noche"
   flexible: RefreshCw,             // 🔄 "Flexible"
+
+  // Marketplace/Index.vue, Teachers/Show.vue
+  back: ArrowLeft,                  // "← Volver al marketplace" — antes SVG crudo repetido
+  'verified-badge': BadgeCheck,      // "Verificado por MOVA" — antes SVG crudo duplicado en 2 archivos
+  'online-class': Video,            // "Clases online por videollamada" / "Videollamada automática" (sección de confianza) — mismo icono que `join-room`, distinto contexto (aquí describe la modalidad, no es un botón de acción)
+  reminders: Bell,                  // "Recordatorios incluidos" (sección de confianza) — distinto de `notification` (toast en tiempo real)
 }
 
 /**
