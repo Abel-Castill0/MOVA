@@ -66,4 +66,38 @@ class RegistrationTest extends TestCase
         $this->assertGuest();
         $this->assertSame(1, \App\Models\User::where('email', 'ya-existe@example.com')->count());
     }
+
+    /**
+     * Cubre app/Http/Controllers/Auth/RegisteredUserController.php:72 (el
+     * abort_if() convertido a ValidationException tras encontrar, en el
+     * mismo controlador, el bug ya corregido de Register.vue: un mensaje
+     * que nunca llega a form.errors porque no es una ValidationException
+     * real). El array pasa el validate() inicial intacto (cada elemento es
+     * un string bajo max:100, no vacío según trim() dentro de NotProfane,
+     * y no está en la lista de palabras bloqueadas — NotProfane.php
+     * confirma que retorna sin fallar ante un string solo de espacios),
+     * pero termina vacío tras el trim()->filter() de store() que arma
+     * $subjectIds — el escenario real que el wizard ya bloquea en el
+     * cliente (addSubject()/isCurrentStepValid), pero que el backend debe
+     * rechazar igual de bien si se alcanza por otra vía (una request
+     * directa, por ejemplo). No existía ninguna prueba para este camino
+     * (grepeado tests/Feature antes de asumir que no había ninguna).
+     */
+    public function test_teacher_registration_with_only_blank_subject_names_fails_with_a_clear_message(): void
+    {
+        $response = $this->post('/register', [
+            'name' => 'Test Teacher',
+            'email' => 'blank-subjects@example.com',
+            'role' => 'teacher',
+            'accepted_terms' => true,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'teacher_subject_names' => ['   ', ''],
+        ]);
+
+        $response->assertRedirect()->assertSessionHasErrors(['teacher_subject_names']);
+        $this->assertGuest();
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('teacher_profiles', 0);
+    }
 }
