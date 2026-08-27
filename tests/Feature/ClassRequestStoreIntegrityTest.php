@@ -151,6 +151,135 @@ class ClassRequestStoreIntegrityTest extends TestCase
         $this->assertSame(2, ClassRequest::count(), 'Dos intenciones genuinamente distintas (materia distinta) no deben deduplicarse.');
     }
 
+    /**
+     * Matriz completa de la huella de deduplicación — pedida explícitamente
+     * para que la regla quede mantenible, no solo "funciona en el caso
+     * feliz". `duration_minutes` NO forma parte de esta huella a propósito:
+     * no existe como campo en `ClassRequestController::store()` en absoluto
+     * — la duración se decide recién en `LessonController::store()`, al
+     * aceptar, no al crear la solicitud.
+     *
+     * @dataProvider distinctIntentProvider
+     */
+    public function test_changing_any_field_of_the_intent_produces_a_new_request(string $label, \Closure $mutate): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
+        $teacherA = $this->verifiedTeacherWithReferralCode();
+
+        $basePayload = [
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'help_needed' => 'Necesita reforzar el tema.',
+            'is_mentorship' => false,
+            'teacher_referral_code' => $teacherA->referral_code,
+        ];
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $basePayload)->assertRedirect();
+        $this->actingAs($parent)->post(route('class-requests.store'), $mutate($basePayload, $this))->assertRedirect();
+
+        $this->assertSame(2, ClassRequest::count(), "'{$label}' debe producir una segunda solicitud distinta, no deduplicarse.");
+    }
+
+    public static function distinctIntentProvider(): array
+    {
+        return [
+            'distinto profesor (código de referido)' => ['distinto profesor', function (array $payload, self $test) {
+                $payload['teacher_referral_code'] = $test->verifiedTeacherWithReferralCode()->referral_code;
+
+                return $payload;
+            }],
+            'distinto is_mentorship' => ['distinto is_mentorship', function (array $payload) {
+                $payload['is_mentorship'] = true;
+
+                return $payload;
+            }],
+            'distinto texto de help_needed' => ['distinto mensaje', function (array $payload) {
+                // Deliberado: el texto SÍ participa en la huella de
+                // deduplicación hoy. Un cambio mínimo de texto produce una
+                // solicitud nueva — es el comportamiento heurístico
+                // documentado, no un bug. Ver la nota de "Temporal Semantic
+                // Deduplication" en docs/MOVA_DESIGN_AUDIT_FINAL.md.
+                $payload['help_needed'] = $payload['help_needed'].' (editado)';
+
+                return $payload;
+            }],
+        ];
+    }
+
+    /**
+     * El límite es determinista e inclusivo — "creada durante los últimos
+     * 30 segundos" — verificado en ambos bordes, no asumido de la lectura
+     * del código: exactamente a los 30s todavía deduplica, a los 31s ya no.
+     */
+    public function test_the_30_second_window_boundary_is_inclusive_then_expires(): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
+        $payload = [
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'help_needed' => 'Necesita reforzar el tema.',
+        ];
+
+        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:00');
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
+
+        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:30');
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
+        $this->assertSame(1, ClassRequest::count(), 'A exactamente 30s todavía debe deduplicarse (límite inclusivo).');
+
+        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:31');
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
+        $this->assertSame(2, ClassRequest::count(), 'A 31s de la solicitud ORIGINAL (10:00:00) ya debe ser una solicitud nueva.');
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    /**
+     * No es una prueba de concurrencia real (dos requests en paralelo,
+     * hilos/procesos distintos) — PHPUnit ejecuta un test por proceso,
+     * secuencial. Sigue exactamente el mismo patrón ya establecido en
+     * FinancialConcurrencyTest::test_the_same_class_request_cannot_be_accepted_twice()
+     * (llamada A, luego llamada B, se comprueba que B ve el estado que A
+     * ya confirmó) — es la técnica real que usa esta base de código para
+     * probar invariantes de carrera, no un atajo inventado aquí.
+     *
+     * La garantía real contra concurrencia VERDADERA no viene de este
+     * test — viene del ORDEN de las operaciones dentro de la transacción,
+     * verificado leyendo ClassRequestController::store(): se bloquea
+     * (`lockForUpdate()`) la fila del Student ANTES de buscar el
+     * duplicado y ANTES de crear — no al revés. Si dos requests
+     * verdaderamente simultáneos llegaran, el segundo bloquea en el lock
+     * hasta que el primero confirme, y entonces SÍ ve la fila ya creada
+     * por el primero (el motivo por el que el orden lock→check→create, y
+     * no check→lock→create, importa — ese segundo orden sí tendría TOCTOU).
+     */
+    public function test_two_sequential_submissions_for_the_same_intent_never_produce_two_rows_matching_the_locking_order(): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
+        $payload = [
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'help_needed' => 'Reintento de red simulado: la respuesta del primer POST se perdió.',
+        ];
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload);
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload);
+
+        $this->assertSame(1, ClassRequest::count());
+        $this->assertSame($student->id, ClassRequest::sole()->student_id);
+    }
+
+    private function verifiedTeacherWithReferralCode(): TeacherProfile
+    {
+        $user = User::factory()->create();
+        $user->assignRole('teacher');
+
+        return TeacherProfile::create(['user_id' => $user->id, 'is_verified' => true, 'hourly_rate' => 20]);
+    }
+
     private function verifiedTeacherWithSubject(): array
     {
         $user = User::factory()->create();
