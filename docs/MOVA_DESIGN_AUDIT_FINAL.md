@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.12
-generated_at:     2026-08-27T13:37:58Z
-repository_head:  193f9a7   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (58 commits detrás de local, sin push)
+audit_revision:   2026-08-27.13
+generated_at:     2026-08-27T20:06:25Z
+repository_head:  19518a5   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (60 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -719,30 +719,67 @@ esta pasada: la superficie más sensible de dinero/menores de MOVA
 (aceptar una solicitud, reservar créditos, fijar precio) ya tenía las
 protecciones correctas antes de esta sesión.
 
-### Dos hallazgos reales, menores, encontrados en el camino (documentados, no P0/P1)
+### Dos hallazgos reclasificados de P3 a P2 — y RESUELTOS, no solo documentados
 
-- **`ClassRequestController::store()` no protege contra doble envío por
-  reintento de red** (P3). El botón de envío en `Create.vue` ya se
-  deshabilita mientras `form.processing` (cubre el doble-click, el caso
-  común), y la ruta tiene `throttle:10,1` (limita abuso, no duplicados).
-  Pero no existe una clave de idempotencia ni una restricción de
-  unicidad — un reintento genuino de red (conexión inestable, no un
-  clic doble) podría crear dos `ClassRequest` idénticas. Impacto
-  acotado: no mueve dinero/créditos en la creación (eso ocurre solo en
-  `LessonController::store()`, ya protegido), en el peor caso dos
-  profesores distintos podrían aceptar cada una y el padre terminaría con
-  dos clases para una sola necesidad. No se implementa una clave de
-  idempotencia ahora — es una decisión de diseño (¿qué forma debe tener?)
-  que merece su propia pasada deliberada, no un parche apurado dentro de
-  esta auditoría.
-- **`ClassRequestController::store()` no valida `is_active`/`is_verified`
-  al guardar un `class_offer_id` fuera del camino de mentoría** (P3). Una
-  solicitud podría quedar vinculada a una oferta inactiva o a un profesor
-  no verificado. El daño real está acotado porque `ClassRequestPolicy::
-  accept()` ya bloquea a cualquier profesor no verificado
-  independientemente del estado de la oferta — el peor caso es una
-  solicitud huérfana que nadie puede/debe aceptar, no un problema de
-  seguridad ni de dinero.
+Revisión aceptada: "el botón se deshabilita" es deduplicación de UI, no
+idempotencia de request; y "la aceptación bloquea el daño después" no es
+lo mismo que "no crear un estado inválido desde el principio". Ambos se
+resolvieron en el código, no se dejaron como nota (commit `19518a5`):
+
+- **Deduplicación de reintento de red** (P2 → RESOLVED). La pregunta
+  correcta, como se pidió, no era "¿existe idempotencia?" sino "¿qué debe
+  pasar cuando la misma intención llega dos veces?" — se decidió
+  explícitamente: dos solicitudes con exactamente la misma intención
+  (mismo alumno, materia, texto de `help_needed`, `is_mentorship`,
+  `class_offer_id`, `teacher_profile_id` ya resuelto) dentro de 30
+  segundos son la MISMA solicitud lógica y deben colapsar en una fila; la
+  misma intención minutos después es una solicitud nueva y legítima, y no
+  debe bloquearse. Implementado sin migración de esquema ni clave de
+  idempotencia generada por el cliente: la transacción bloquea (`lockForUpdate()`)
+  la fila del `Student` ya autorizado — el mismo patrón ya establecido en
+  `LessonController::store()` con `TeacherProfile` — y busca una
+  `ClassRequest` con la misma huella creada dentro de la ventana antes de
+  insertar.
+- **Validación temprana de oferta** (P2 → RESOLVED). Antes solo se
+  comprobaba `is_active`/`is_verified` en el camino de mentoría. Ahora se
+  comprueba para las dos rutas, reutilizando la misma oferta/perfil ya
+  cargados para el check de cupos existente (una consulta menos, no una
+  más).
+
+`tests/Feature/ClassRequestStoreIntegrityTest.php` (5 tests): oferta
+inactiva rechazada (422, cero filas), oferta de profesor no verificado
+rechazada (422, cero filas), una oferta válida sigue funcionando, dos
+reenvíos idénticos colapsan en una fila, dos intenciones genuinamente
+distintas (materia distinta) NO se deduplican. Verificados los 5 como
+detección real: revertido el controller, confirmado que 3 de los 5
+fallaban con el comportamiento exacto de antes (302 en vez de 422, 2 filas
+en vez de 1), restaurado. Re-ejecutados `MentorshipRequestTest`/
+`TeacherReferralRequestTest` (10 tests que ya cubrían rutas cercanas) para
+confirmar cero regresión — ambos siguen en verde.
+
+### Mapa de flujo de datos (pedido explícitamente antes de UX/UI)
+
+| Campo | Fuente | ¿Confiable del cliente? | Validado en | ¿Recalculado? |
+|---|---|---|---|---|
+| `offer_id` (GET, prellenado) | Cliente | ❌ | Backend (`findOrFail` + proyección explícita) | — (solo lectura, informativo) |
+| `student_id` | Cliente | ❌ | Backend (`auth()->user()->students()->findOrFail()`) | — |
+| `subject_id` | Cliente | ❌ | Backend (`exists:subjects,id`) | — |
+| `class_offer_id` | Cliente | ❌ | Backend (`exists` + `is_active`+`is_verified`, nuevo) | — |
+| `teacher_referral_code` | Cliente | ❌ | Backend (resuelto contra `referral_code`+`is_verified`, nunca lo que devolvió `lookupTeacherByCode()`) | ✅ resuelto a `teacher_profile_id` server-side |
+| `is_mentorship` | Cliente | ❌ | Backend (bool coaccionado) | — |
+| `help_needed` | Cliente | ❌ | Backend (`required\|string\|max:2000`) | — |
+| `duration_minutes` (en `LessonController::store()`, no en `create()`) | Cliente | ❌ | Backend (`integer\|min:30\|max:240`) | — (es un input válido, no un precio) |
+| `start_time` | Cliente | ❌ | Backend (`date\|after:now` + `hasScheduleOverlap()` con lock) | — |
+| `specific_rate`/`hourly_rate` (precio base) | BD | ✅ | Backend | ✅ `$rate = classOffer?->specific_rate ?? teacherProfile->hourly_rate` |
+| `price_frozen_pen` | Calculado | ✅ | Backend | ✅ `round($rate * $creditsNeeded, 2)` — el cliente nunca envía un precio |
+| `credits_available`/`reserved` | BD | ✅ | Backend (`lockForUpdate()`) | ✅ recalculado bajo lock dentro de la transacción |
+| Disponibilidad del profesor | BD | ✅ | Backend (`hasScheduleOverlap()`, dos veces, la segunda con lock) | ✅ |
+
+**Principio confirmado, no solo enunciado**: el cliente expresa intención
+(`quiero pedir clase de X con el alumno Y`); el servidor determina
+validez, precio, créditos y disponibilidad. Ningún campo financiero o de
+autorización llega del cliente como valor final — todos se derivan o se
+verifican contra la base de datos en el momento de la operación.
 
 ### Cierre de esta pasada — autorización a entrar en UX/UI
 
@@ -757,12 +794,17 @@ protecciones correctas antes de esta sesión.
 [x] Availability verificado server-side — ya correcto
 [x] Concurrencia verificada (lock de TeacherProfile como mutex) — ya correcto
 [x] "Idempotencia" de aceptación verificada (lock sobre ClassRequest) — ya correcto
-[x] Dos hallazgos menores (P3) documentados, no bloquean el cierre
+[x] Deduplicación de reintento de red — RESUELTO (19518a5), no solo documentado
+[x] Validación temprana de oferta — RESUELTO (19518a5), no solo documentado
+[x] Mapa de flujo de datos completo (tabla arriba)
+[x] Suite completa — 536/536
 ```
 
 Con esto, el contrato de negocio de `ClassRequests/Create.vue` está
-verificado — la fase de UX/UI puede empezar sin dejar sin comprobar
-ningún invariante de dinero/autorización/concurrencia detrás del diseño.
+verificado y los dos hallazgos reales quedaron resueltos, no solo
+anotados — la fase de UX/UI puede empezar sin dejar sin comprobar ningún
+invariante de dinero/autorización/concurrencia/duplicación detrás del
+diseño.
 
 ---
 
