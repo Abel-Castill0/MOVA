@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\NotificationPreferencesController;
 use App\Http\Controllers\DiagnosticsController;
 use App\Http\Controllers\ClassOfferController;
 use App\Http\Controllers\ClassRequestController;
@@ -50,6 +51,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('profile.update');
+
+    // Consentimiento de notificaciones por WhatsApp. Fuera del grupo por rol:
+    // padres, profesores y admins reciben avisos y todos deben poder darse de
+    // baja. No afecta al OTP de verificación.
+    Route::patch('/profile/notifications', [NotificationPreferencesController::class, 'update'])
+        ->middleware('throttle:20,1')->name('profile.notifications.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:10,1')->name('profile.destroy');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1')->name('profile.avatar');
     Route::delete('/profile/avatar', [ProfileController::class, 'removeAvatar'])->middleware('throttle:10,1')->name('profile.avatar.remove');

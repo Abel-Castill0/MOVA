@@ -34,6 +34,24 @@
           <p v-if="form.errors.code" class="text-xs text-red-500 mt-1">{{ form.errors.code }}</p>
         </div>
 
+        <!--
+          Casilla de consentimiento EXPLÍCITA, sin marcar por defecto.
+          Verificar el número (arriba) es autenticación; esto es una decisión
+          de producto distinta que le corresponde al usuario, no algo que se
+          infiere automáticamente de haber completado el código.
+        -->
+        <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-3">
+          <input
+            v-model="form.whatsapp_notifications"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span class="text-xs text-gray-600">
+            <span class="font-medium text-gray-800">Quiero recibir recordatorios y actualizaciones de mis clases por WhatsApp.</span>
+            Puedes cambiar esto cuando quieras desde tu perfil. Esto no afecta al código de verificación, que siempre podrás pedir.
+          </span>
+        </label>
+
         <button
           type="submit"
           :disabled="form.processing"
@@ -70,7 +88,7 @@ const props = defineProps({
   phone: String,
 })
 
-const form = useForm({ code: '' })
+const form = useForm({ code: '', whatsapp_notifications: false })
 const resendForm = useForm({})
 
 function verify() {

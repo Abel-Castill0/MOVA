@@ -63,7 +63,7 @@
           <p class="text-slate-600 leading-relaxed">No vendemos tus datos personales. Los compartimos únicamente, y en la medida necesaria, con:</p>
           <ul class="list-disc pl-5 space-y-1.5 mt-2 text-slate-600">
             <li><strong class="text-slate-800">Gmail</strong> — envío de correos transaccionales y notificaciones.</li>
-            <li><strong class="text-slate-800">Twilio</strong> — envío de códigos de verificación y notificaciones por WhatsApp, si el servicio está disponible.</li>
+            <li><strong class="text-slate-800">Meta (WhatsApp Business Cloud API)</strong> — envío de códigos de verificación y notificaciones por WhatsApp, si el servicio está disponible. Recibe el número de teléfono del destinatario y el contenido del mensaje.</li>
             <li><strong class="text-slate-800">JaaS (8x8)</strong> — videollamadas de clase. El acceso a cada sala se genera mediante un token JWT único, temporal y firmado por MOVA; nadie fuera del padre y el profesor de esa clase puede unirse.</li>
             <li><strong class="text-slate-800">Railway</strong> — alojamiento (hosting) de la aplicación.</li>
             <li><strong class="text-slate-800">Google Gemini</strong> — enriquecimiento opcional del diagnóstico pedagógico (ver sección 5).</li>
