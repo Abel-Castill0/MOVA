@@ -192,3 +192,22 @@ La lista de 20 ítems (scroll suave, micro-interacciones, hover states, responsi
 1. ¿Quiero que ejecute `npx skills add leonxlnx/taste-skill` (o alguno de los otros `npx skills`) ahora mismo, o prefieres evaluarlo primero?
 2. ¿Activo Google Analytics (con la actualización correspondiente de `Privacy.vue`) o lo dejamos fuera por ahora?
 3. ¿Avanzamos ya a la Fase 4 (frontend/UX/UI premium) del roadmap, o seguimos con Production Parity / la rotación de F-26 primero?
+
+---
+
+## 🔁 Segunda opinión externa (2026-08-27) — qué se ratifica, qué se corrige, qué se adopta
+
+Recibí una revisión externa de este documento (con formato de asistente con navegación web, citas incluidas) proponiendo un "prompt maestro" de gobernanza de tooling de 20 secciones. La evalué punto por punto en vez de adoptarla completa — exactamente el criterio que ese mismo texto pedía aplicar.
+
+**Se ratifica (ya era la decisión, sin cambios):**
+- No instalar nada más ahora mismo. Orden de trabajo: seguridad/producción (F-26 → F-27 → Database Privilege Audit → Production Parity) antes que tooling/diseño/marketing.
+- "Impleméntalos todos" nunca se interpretó como "instala todo" — ya se filtró por necesidad real desde el primer pase de este documento.
+- 473/473 tests en verde no se trató como "MOVA está listo": `PRIV-STUDENT-RETENTION` sigue P2/OPEN a propósito, y ningún hallazgo de Student/JaaS se declaró "hardened" sin cambio de código real. La disciplina que la crítica pide ya estaba en marcha (Audit Snapshot Contract).
+
+**Se adopta (valor real de la propuesta, ahora política permanente):**
+- El filtro de "no instalar solo porque es bueno" + la taxonomía **INSTALL NOW / INSTALL LATER / OPTIONAL / REJECT** + el orden de prioridad (seguridad > negocio > QA > performance > UX/UI > SEO > growth) — trasladado a `CLAUDE.md` como regla condicional permanente, para que gobierne cualquier decisión de tooling futura, no solo esta.
+- `taste-skill`, `gstack`, `mattpocock/skills` — reclasificados de "requiere tu decisión" a **INSTALL LATER**: válidos en principio, pero se re-evalúan recién al llegar a la Fase 4 (UX/UI), no antes. La cautela que propone la crítica sobre `taste-skill` (discrepancias de nombre de instalación) ya estaba reflejada en la versión anterior de este documento.
+
+**Se corrige (la propuesta externa se equivoca en esto):**
+- **Playwright MCP no pasa a "candidato fuerte" — sigue en REJECT.** El argumento de la crítica es que tiene integración oficial documentada y encaja con QA de MOVA — cierto, pero irrelevante: este mismo entorno de Claude Code ya tiene el Browser pane (`mcp__Claude_Browser__*`), que cubre exactamente lo mismo (árbol de accesibilidad, clicks, screenshots, red) sin añadir una segunda dependencia MCP. Y para pruebas E2E repetibles/CI (no interactivas), MOVA ya tiene Playwright como librería en `qa/tests/*.spec.js` — ese es el lugar correcto para los flujos parent→pago→clase→reseña / teacher→disponibilidad→reporte / admin→revisión→auditoría que la crítica describe, no una MCP nueva. La necesidad real (más cobertura E2E por rol) es válida; la herramienta propuesta para resolverla es redundante. Acción: si se retoma QA, ampliar `qa/tests/` con esos 3 flujos usando lo que ya existe.
+- **Las citas sobre `gstack`/`mattpocock` en la crítica vienen de fuentes de autoridad baja** (un fork/mirror de GitHub, un README de terceros) — no se tratan como verificación real de madurez/mantenimiento. Si se retoma esa evaluación en la Fase 4, se investiga de nuevo con fuentes propias antes de decidir, no se hereda la cita externa como hecho.

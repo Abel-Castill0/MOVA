@@ -35,6 +35,9 @@ Deben llevar meta tags, Open Graph y structured data cuando se toquen.
 ### Si el usuario escribe `/handoff`
 Generar `docs/SESSION_HANDOFF.md` con: objetivos de la sesión, qué se probó, qué falló, qué se logró, y siguientes pasos concretos.
 
+### Si evalúas herramientas, skills, librerías o MCPs nuevos (para MOVA o para mi propia configuración de Claude Code)
+No instalar algo solo porque es bueno, popular o apareció en una lista — debe justificar: problema real de MOVA, beneficio concreto, ausencia de solución equivalente ya instalada, coste de mantenimiento/contexto, riesgo de seguridad/supply-chain. Clasificar siempre en una de cuatro categorías: **INSTALL NOW** (brecha real, se implementa ya), **INSTALL LATER** (útil, pero depende de una fase futura del roadmap — ej. UX/UI premium), **OPTIONAL** (solo ante una necesidad concreta que aún no existe), **REJECT** (con motivo explícito: incompatible con el stack, redundante con algo que ya existe, o sin caso de uso). No acumular herramientas redundantes entre sí (dos librerías de animación, dos MCPs de browser, dos sistemas de memoria) — un stack pequeño y coherente gana sobre uno grande. Cuando el tooling compite con otro trabajo por prioridad: seguridad/producción > integridad de negocio (créditos/pagos/reservas) > QA > performance > UX/UI > SEO > growth/marketing. "Analiza/evalúa todo" nunca significa "instala todo" — significa evaluar cada ítem contra este filtro y ejecutar solo lo que lo supera.
+
 ### Si haces una auditoría, revisión de seguridad, o cualquier afirmación de tipo "esto ya está arreglado/verificado" — Audit Snapshot Contract
 Una auditoría de esta base de código encontró, de forma verificada, que un checkout aislado (`git worktree` desde `HEAD`) puede describir un estado del código distinto al del directorio de trabajo real cuando hay cambios sin commitear — y que confundir ambos produjo un hallazgo de seguridad reportado como abierto cuando ya estaba corregido.
 
