@@ -7,6 +7,44 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Carbon;
 
+/**
+ * Máquina de estados de `classes.status`:
+ *
+ *   scheduled -> paid -> pending_parent_confirmation -> completed
+ *        \                                                 ^
+ *         \-> cancelled                                    |
+ *          \-> needs_admin_review ------(admin)------------/
+ *
+ * F-11 — ADVERTENCIA SOBRE EL SIGNIFICADO DE 'paid':
+ *
+ *   'paid' NO significa "MOVA verificó un pago". Significa: «el padre declaró
+ *   haber pagado al profesor por fuera de la plataforma». MOVA no intermedia
+ *   ese dinero (el padre paga al profesor por Yape/Plin directamente) y no
+ *   tiene ninguna evidencia de que el pago ocurriera. Es un registro
+ *   DECLARATIVO y unilateral, no una transacción procesada ni conciliada.
+ *
+ *   No debe leerse nunca como PAYMENT_VERIFIED. Esa confusión importa porque
+ *   'paid' sí gobierna consecuencias reales:
+ *     - LessonReportController: habilita al profesor a subir el reporte.
+ *     - SettleLessons: arranca el reloj de la gracia de C-1, tras la cual el
+ *       crédito del profesor se consume automáticamente.
+ *     - DashboardController / SendClassReminders: métricas y avisos.
+ *     - lessonJoin.js / LessonController::join(): acceso a la sala.
+ *
+ *   Consecuencia asumida: un padre puede declarar 'paid' sin haber pagado, y
+ *   eso terminará consumiendo el crédito del profesor. Es una asimetría
+ *   ACEPTADA —el crédito representa el coste de usar la plataforma, no el pago
+ *   del padre— pero debe ser una decisión consciente, no un efecto secundario.
+ *
+ *   El pago del PROFESOR A MOVA (recargas, y en el futuro Culqi) es un flujo
+ *   completamente distinto: vive en RechargeRequest / PaymentOrder y ese sí
+ *   se verifica. No mezclar ambos.
+ *
+ *   Separar `lesson_status` de `payment_confirmation_status` sería el modelo
+ *   más limpio, pero 'paid' aparece en 30+ ubicaciones entre PHP, Vue,
+ *   migraciones y tests: es una migración de riesgo alto que requiere decisión
+ *   de producto, no una corrección. Ver docs/MOVA_FULL_AUDIT.md F-11.
+ */
 class Lesson extends Model
 {
     use HasFactory;
@@ -16,7 +54,7 @@ class Lesson extends Model
     protected $fillable = [
         'teacher_profile_id', 'student_id', 'class_request_id', 'class_offer_id',
         'start_time', 'duration_minutes', 'price_frozen_pen',
-        'jitsi_room', 'jitsi_password', 'status', 'reminder_sent',
+        'jitsi_room', 'status', 'reminder_sent',
         'reminder_24h_sent_at', 'reminder_2h_sent_at', 'report_reminder_sent_at',
         'cancelled_at', 'cancelled_by', 'cancel_reason',
         'original_start_time', 'rescheduled_at', 'rescheduled_by', 'reschedule_reason',
@@ -49,7 +87,7 @@ class Lesson extends Model
     // unirse (y, si llega primero, fijar o saltarse el password). Nunca deben
     // salir en un listado — solo LessonController::join() los expone, tras
     // pasar por LessonPolicy::view() y validar el estado de la clase.
-    protected $hidden = ['jitsi_room', 'jitsi_password'];
+    protected $hidden = ['jitsi_room'];
 
     protected $appends = ['has_jitsi_room', 'end_time', 'credit_cost'];
 
@@ -105,9 +143,23 @@ class Lesson extends Model
         return $this->belongsTo(TeacherProfile::class);
     }
 
+    /**
+     * F-18 (regresión corregida en Fase 4) — `withTrashed()` es OBLIGATORIO.
+     *
+     * Al añadir SoftDeletes a Student, esta relación empezó a devolver NULL en
+     * cuanto el padre daba de baja al alumno. Verificado empíricamente: las
+     * clases históricas perdían su alumno, y —más grave— `?->parent?->notify()`
+     * dejaba de encontrar destinatario, así que el padre dejaba de recibir
+     * avisos de cancelación y devolución SIN ningún error visible.
+     *
+     * Un registro histórico debe seguir resolviendo su alumno aunque este ya
+     * no aparezca en la lista activa del padre. Los datos personales del menor
+     * ya se sustituyen al darlo de baja (Student::anonymize()), así que esto no
+     * reexpone información.
+     */
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(Student::class)->withTrashed();
     }
 
     public function classRequest()

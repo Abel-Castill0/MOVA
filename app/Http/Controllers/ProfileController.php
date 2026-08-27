@@ -96,7 +96,10 @@ class ProfileController extends Controller
         // Logout first so token rotation cannot persist a model after a hard delete.
         Auth::logout();
 
-        $preserveFinancialHistory = $this->hasProtectedHistory($user);
+        // F-01: la definición vive ahora en User::hasProtectedHistory(), para
+        // que TODO camino de borrado la respete (incluido el guard de
+        // User::booted()), no solo este formulario.
+        $preserveFinancialHistory = $user->hasProtectedHistory();
 
         DB::transaction(function () use ($user, $preserveFinancialHistory) {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
@@ -148,23 +151,4 @@ class ProfileController extends Controller
         return Redirect::to('/');
     }
 
-    private function hasProtectedHistory(User $user): bool
-    {
-        $teacherProfile = $user->teacherProfile;
-
-        if ($teacherProfile && (
-            $teacherProfile->creditTransactions()->exists()
-            || $teacherProfile->rechargeRequests()->exists()
-            || $teacherProfile->classes()->exists()
-        )) {
-            return true;
-        }
-
-        $studentIds = $user->students()->pluck('id');
-
-        return $studentIds->isNotEmpty() && (
-            ClassRequest::whereIn('student_id', $studentIds)->exists()
-            || Lesson::whereIn('student_id', $studentIds)->exists()
-        );
-    }
 }

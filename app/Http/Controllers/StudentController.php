@@ -58,10 +58,32 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', 'Estudiante actualizado.');
     }
 
+    /**
+     * F-18 — Antes hacía `$student->delete()` sin comprobar nada, lo que con
+     * historial académico daba un error 500 (FK RESTRICT en MySQL) o destruía
+     * las clases del alumno (CASCADE en SQLite/tests).
+     *
+     * Ahora se aplica el mismo criterio que al dar de baja una cuenta
+     * (ProfileController::destroy): si hay historial, se anonimiza en vez de
+     * borrar. El alumno desaparece de la vista del padre y sus datos
+     * personales se sustituyen, pero las clases dictadas —que respaldan
+     * movimientos del ledger— siguen siendo coherentes.
+     */
     public function destroy(Student $student)
     {
         $this->authorize('delete', $student);
+
+        // Con historial: se anonimizan los datos personales del menor ANTES del
+        // soft delete, para que la fila que sobrevive no siga conteniendo su
+        // nombre, fecha de nacimiento ni colegio.
+        if ($student->hasAcademicHistory()) {
+            $student->anonymize();
+        }
+
+        // Soft delete: desaparece de los listados del padre, pero la fila
+        // permanece y las clases que la referencian siguen siendo coherentes.
         $student->delete();
+
         return redirect()->route('students.index')->with('success', 'Estudiante eliminado.');
     }
 }
