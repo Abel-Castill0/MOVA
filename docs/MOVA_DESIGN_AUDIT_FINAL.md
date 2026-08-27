@@ -105,9 +105,9 @@ suelta en la matriz de abajo. Se marcan aquí para no perderlos de vista:
 
 | Archivo | Emoji restantes | Indigo restante | Migrada (tokens+iconos) | Responsive | Dark | A11y | QA |
 |---|---:|---:|---|---|---|---|---|
-| `Pages/Students/Create.vue` | 0 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Students/Edit.vue` | 0 | 7 | NO | pendiente | pendiente | pendiente | pendiente |
-| `Pages/Students/Index.vue` | 1 | 0 | NO | pendiente | pendiente | pendiente | pendiente |
+| `Pages/Students/Create.vue` | 0 | 0 | **NO CHANGE — VERIFIED** (ya en brand tokens, sin indigo; se usó como referencia para corregir Edit.vue) | pendiente | pendiente | pendiente | ⚠️ solo build+tests (`StudentDeletionIntegrityTest`, `AuthorizationPolicyTest` pasan — la ruta requiere sesión, no hay captura sin DB) |
+| `Pages/Students/Edit.vue` | 0 | 0 | **COMPLETA** — 7 indigo→brand, y **radio/borde alineados a Create.vue** (`rounded-lg`→`rounded-xl`, `border-gray-300`→`border-gray-200`, `shadow` del botón): eran el mismo formulario con dos estilos visiblemente distintos, hallazgo real de inconsistencia, no solo de color | pendiente | pendiente | pendiente | ⚠️ solo build+tests, misma razón que Create.vue |
+| `Pages/Students/Index.vue` | 0 | 0 | **COMPLETA** — 🎒 → `Icon name="my-students"`; botón de eliminar propio → `DangerButton` con `:loading="deleting"` (ya existía la lógica, solo faltaba el componente correcto) | pendiente | pendiente | pendiente | ⚠️ solo build+tests, misma razón que Create.vue |
 
 ### Teacher (4 archivos)
 

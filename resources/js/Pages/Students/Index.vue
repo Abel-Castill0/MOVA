@@ -10,7 +10,9 @@
       </div>
 
       <div v-if="!students.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">
-        <div class="text-5xl mb-3">🎒</div>
+        <div class="mb-3 flex justify-center text-slate-300">
+          <Icon name="my-students" :size="48" :stroke-width="1.5" />
+        </div>
         <p class="text-slate-500 mb-4">Aún no has añadido ningún hijo</p>
         <Link :href="route('students.create')" class="text-brand-600 hover:underline text-sm font-medium">Añadir ahora</Link>
       </div>
@@ -57,12 +59,9 @@
 
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <SecondaryButton type="button" :disabled="deleting" @click="closeDelete">Cancelar</SecondaryButton>
-          <button type="button"
-            class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-            :disabled="deleting"
-            @click="submitDelete">
+          <DangerButton type="button" :loading="deleting" @click="submitDelete">
             {{ deleting ? 'Eliminando…' : 'Eliminar' }}
-          </button>
+          </DangerButton>
         </div>
       </div>
     </Modal>
@@ -75,6 +74,8 @@ import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
+import DangerButton from '@/Components/DangerButton.vue'
+import Icon from '@/Components/Icon.vue'
 
 defineProps({ students: Array })
 
