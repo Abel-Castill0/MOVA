@@ -13,6 +13,24 @@
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#0D409A">
 
+        <!-- Aplica el tema ANTES del primer paint — evita el flash de tema
+             equivocado que ocurriría si esto se hiciera desde Vue montado.
+             Debe ser el mismo storage key y la misma lógica que
+             resources/js/composables/useTheme.js (fuente única de verdad). -->
+        <script>
+            (function () {
+                try {
+                    var stored = window.localStorage.getItem('mova-theme');
+                    if (stored === 'light' || stored === 'dark') {
+                        document.documentElement.setAttribute('data-theme', stored);
+                    }
+                } catch (e) {
+                    // localStorage inaccesible — se degrada a prefers-color-scheme,
+                    // que resources/css/app.css ya cubre sin necesitar el atributo.
+                }
+            })();
+        </script>
+
         <!-- Plus Jakarta Sans auto-hospedada (ver resources/css/app.css). Solo se
              precargan los 2 pesos que aparecen sobre el pliegue en toda página:
              Regular (cuerpo) y ExtraBold (títulos). Precargar los 6 pesos
@@ -24,7 +42,7 @@
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
     </head>
-    <body class="font-sans antialiased bg-white">
+    <body class="font-sans antialiased bg-canvas text-ink">
         @inertia
     </body>
 </html>

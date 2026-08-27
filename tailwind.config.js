@@ -3,6 +3,12 @@ import forms from '@tailwindcss/forms';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    // Selector manual (no solo prefers-color-scheme): useTheme.js escribe
+    // data-theme="dark" en <html> cuando el usuario elige explícitamente,
+    // y app.css ya cubre el caso "sistema oscuro sin elección manual" con
+    // su propio @media — ver resources/css/app.css.
+    darkMode: ['selector', '[data-theme="dark"]'],
+
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
@@ -62,7 +68,81 @@ export default {
                     900: '#78350F',
                     950: '#451A03',
                 },
+
+                // ── Tokens semánticos ────────────────────────────────────────
+                // Fuente de verdad: variables CSS en resources/css/app.css.
+                // Estas entradas son SOLO el enchufe de Tailwind hacia esas
+                // variables — nunca redefinir un valor de color aquí que ya
+                // vive en app.css, y ningún componente usa `dark:` porque la
+                // variable ya cambia sola según el tema. La sintaxis
+                // `rgb(var(--x) / <alpha-value>)` permite además cosas como
+                // `bg-canvas/50` con opacidad real.
+                canvas:          'rgb(var(--canvas) / <alpha-value>)',
+                surface:         'rgb(var(--surface) / <alpha-value>)',
+                'surface-raised':'rgb(var(--surface-raised) / <alpha-value>)',
+                ink:             'rgb(var(--ink) / <alpha-value>)',
+                'ink-muted':     'rgb(var(--ink-muted) / <alpha-value>)',
+                'ink-subtle':    'rgb(var(--ink-subtle) / <alpha-value>)',
+                line:            'rgb(var(--line) / <alpha-value>)',
+                'line-strong':   'rgb(var(--line-strong) / <alpha-value>)',
+                'focus-ring':    'rgb(var(--focus-ring) / <alpha-value>)',
+
+                success: {
+                    bg:     'rgb(var(--success-bg) / <alpha-value>)',
+                    border: 'rgb(var(--success-border) / <alpha-value>)',
+                    text:   'rgb(var(--success-text) / <alpha-value>)',
+                },
+                warning: {
+                    bg:     'rgb(var(--warning-bg) / <alpha-value>)',
+                    border: 'rgb(var(--warning-border) / <alpha-value>)',
+                    text:   'rgb(var(--warning-text) / <alpha-value>)',
+                },
+                danger: {
+                    bg:     'rgb(var(--danger-bg) / <alpha-value>)',
+                    border: 'rgb(var(--danger-border) / <alpha-value>)',
+                    text:   'rgb(var(--danger-text) / <alpha-value>)',
+                },
+                info: {
+                    bg:     'rgb(var(--info-bg) / <alpha-value>)',
+                    border: 'rgb(var(--info-border) / <alpha-value>)',
+                    text:   'rgb(var(--info-text) / <alpha-value>)',
+                },
             },
+
+            // Escala de radio única — reemplaza los 6 valores usados ad hoc
+            // (rounded-xl/2xl/lg/full/md/3xl repartidos sin criterio) por
+            // roles con nombre. `DEFAULT` cubre los usos existentes de
+            // `rounded` a secas.
+            borderRadius: {
+                sm: '0.5rem',    // 8px  — chips, badges pequeños
+                md: '0.75rem',   // 12px — inputs, botones secundarios
+                lg: '1rem',      // 16px — tarjetas, botones primarios
+                xl: '1.25rem',   // 20px — tarjetas elevadas, modales
+                pill: '9999px',  // botones tipo pastilla, avatares
+            },
+
+            // Elevación por capas (Fase 4): canvas plano → contenido con
+            // elevación discreta → capa funcional. Nunca valores de sombra
+            // sueltos por componente.
+            boxShadow: {
+                'elevation-1': '0 1px 2px 0 rgb(15 23 42 / 0.06)',
+                'elevation-2': '0 4px 12px -2px rgb(15 23 42 / 0.10)',
+                'elevation-3': '0 12px 32px -8px rgb(15 23 42 / 0.18)',
+            },
+
+            // Jerarquía de movimiento (Fase 5 del plan de rediseño) — nunca
+            // una duración plana para toda la app. Nivel 0 (instantáneo) no
+            // necesita token; niveles 1–4 sí.
+            transitionDuration: {
+                micro: '100ms',   // nivel 1: presión, hover, focus
+                ui: '250ms',      // nivel 2: componente (sheet, modal, tarjeta)
+                nav: '350ms',     // nivel 3: transición de página
+            },
+            transitionTimingFunction: {
+                'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',   // niveles 1–3
+                sheet: 'cubic-bezier(0.32, 0.72, 0, 1)',        // hojas contextuales, estilo iOS
+            },
+
             animation: {
                 'float': 'float 6s ease-in-out infinite',
                 'float-delayed': 'float 6s ease-in-out 2s infinite',

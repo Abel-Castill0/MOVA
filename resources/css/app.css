@@ -58,10 +58,99 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Tokens semánticos: canvas / surface / ink / line + estados ──────────
+   Fuente de verdad ÚNICA para color estructural. Tailwind (ver
+   tailwind.config.js) solo EXPONE estas variables como utilidades
+   (bg-canvas, text-ink, border-line, etc.) — ningún componente debe usar
+   dark: ni un color hardcodeado para decidir apariencia por tema. Ese es el
+   mecanismo real que evita terminar con tokens CSS + clases dark: +
+   variables duplicadas compitiendo entre sí.
+
+   El modo oscuro se DISEÑA aquí, no se invierte mecánicamente: cada valor
+   se decidió y se verificó (ratio de contraste WCAG calculado, no supuesto)
+   por separado para cada tema — el detalle completo, con los números, vive
+   en DESIGN.md. La rampa brand/accent de tailwind.config.js no cambia: solo
+   estos tokens estructurales tienen variante oscura.
+
+   Formato "R G B" (sin rgb()) para poder aplicar opacidad en Tailwind vía
+   rgb(var(--x) / <alpha-value>). */
+:root {
+  /* Canvas / superficie / elevación — claro */
+  --canvas: 248 250 252;          /* slate-50 */
+  --surface: 255 255 255;         /* blanco — elevación se logra con shadow, no con más luz */
+  --surface-raised: 255 255 255;
+
+  /* Texto — claro. ink-subtle (2.56:1 sobre blanco) es DECORATIVO: nunca
+     texto que transmita información única (ver DESIGN.md). */
+  --ink: 15 23 42;                /* slate-900 · 17.85:1 sobre canvas/surface */
+  --ink-muted: 100 116 139;       /* slate-500 · 4.76:1 — AA para cuerpo */
+  --ink-subtle: 148 163 184;      /* slate-400 · 2.56:1 — decorativo, no AA */
+
+  /* Bordes — claro. line-strong es una mejora real (2.56:1) sobre el
+     border-gray-300 heredado (1.47:1) que hoy usan TextInput/Checkbox, pero
+     sigue sin alcanzar 3:1 por sí solo — el foco visible y el label son el
+     mecanismo real de accesibilidad para límites de formulario (hallazgo
+     documentado en DESIGN.md, no escondido). */
+  --line: 243 244 246;            /* gray-100 · separador decorativo */
+  --line-strong: 148 163 184;     /* slate-400 · borde funcional (inputs, tablas) */
+
+  /* Foco — el mismo azul de marca en todo el sistema, nunca indigo */
+  --focus-ring: 36 106 204;       /* brand-500 */
+
+  /* Estados — mismo patrón tinte-claro/texto-oscuro que ya usa AppLayout.vue
+     para sus flash messages; se centraliza aquí en vez de reinventarlo. */
+  --success-bg: 240 253 244;   --success-border: 187 247 208;  --success-text: 22 101 52;
+  --warning-bg: 255 251 235;   --warning-border: 253 230 138;  --warning-text: 146 64 14;
+  --danger-bg: 254 242 242;    --danger-border: 254 202 202;   --danger-text: 153 27 27;
+  --info-bg: 240 245 253;      --info-border: 189 212 242;     --info-text: 13 52 109; /* = brand-50/200/800 */
+}
+
+/* Automático: sigue la preferencia del sistema operativo, salvo que el
+   usuario haya elegido explícitamente un tema (entonces manda
+   :root[data-theme]). Ver resources/js/composables/useTheme.js. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: 11 18 32;            /* #0B1220 */
+    --surface: 18 26 43;           /* #121A2B — 1 paso de luz sobre canvas */
+    --surface-raised: 25 35 58;    /* #19233A — 2 pasos; la elevación oscura es luz, no sombra */
+
+    --ink: 242 245 250;            /* 17.13:1 sobre canvas */
+    --ink-muted: 168 179 199;      /* 8.86:1 */
+    --ink-subtle: 130 141 166;     /* 5.63:1 — aquí sí alcanza AA, margen de seguridad */
+
+    --line: 42 54 80;              /* separador decorativo, ~1.5:1 (mismo rol que en claro) */
+    --line-strong: 90 107 160;     /* 3.35:1 — sí alcanza 3:1 real en oscuro */
+
+    --focus-ring: 79 138 219;      /* brand-400 · 5.34:1 como texto/foco sobre canvas oscuro */
+
+    --success-bg: 15 42 28;    --success-border: 21 87 55;   --success-text: 74 222 128;
+    --warning-bg: 42 31 10;    --warning-border: 146 90 14;  --warning-text: 251 191 36;
+    --danger-bg: 42 18 19;     --danger-border: 127 35 36;   --danger-text: 248 113 113;
+    --info-bg: 16 35 63;       --info-border: 30 65 112;     --info-text: 143 181 232;
+  }
+}
+
+/* Manual: gana siempre sobre prefers-color-scheme, en ambas direcciones. */
+:root[data-theme="dark"] {
+  --canvas: 11 18 32;
+  --surface: 18 26 43;
+  --surface-raised: 25 35 58;
+  --ink: 242 245 250;
+  --ink-muted: 168 179 199;
+  --ink-subtle: 130 141 166;
+  --line: 42 54 80;
+  --line-strong: 90 107 160;
+  --focus-ring: 79 138 219;
+  --success-bg: 15 42 28;    --success-border: 21 87 55;   --success-text: 74 222 128;
+  --warning-bg: 42 31 10;    --warning-border: 146 90 14;  --warning-text: 251 191 36;
+  --danger-bg: 42 18 19;     --danger-border: 127 35 36;   --danger-text: 248 113 113;
+  --info-bg: 16 35 63;       --info-border: 30 65 112;     --info-text: 143 181 232;
+}
+
 /* ── Movimiento reducido, a nivel de toda la app ──────────────────────────
    PRODUCT.md lo declara obligatorio en toda animación. Cubrirlo aquí, una
    sola vez, evita depender de que cada componente se acuerde: alcanza a las
-   utilidades de Tailwind (`animate-pulse`, `transition-*`), a los keyframes
+   utilidades de Tailwind (animate-pulse, transition-*), a los keyframes
    propios y al scroll suave.
 
    En Android de gama media el sistema suele activar esta preferencia junto
@@ -69,7 +158,10 @@
    real para buena parte de los usuarios de MOVA en Perú.
 
    Nota: GSAP anima vía JS y NO se ve afectado por esta regla — cada
-   `onMounted` con GSAP necesita su propio guard con matchMedia. */
+   onMounted con GSAP necesita su propio guard con matchMedia. Lo mismo
+   aplica a cualquier mecanismo JS nuevo (Sheet, transición de página): la
+   regla de abajo cubre CSS, no JS — ver el checklist de Fase 5 en el plan
+   de rediseño. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
