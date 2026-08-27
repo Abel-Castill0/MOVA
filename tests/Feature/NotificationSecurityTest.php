@@ -279,7 +279,6 @@ class NotificationSecurityTest extends TestCase
             'duration_minutes'   => 60,
             'status'             => 'scheduled',
             'jitsi_room'         => self::ROOM,
-            'jitsi_password'     => 'passwordSecreto',
         ]);
 
         return [$lesson, $parent, $teacher];

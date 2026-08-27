@@ -624,7 +624,7 @@ class MonetizationIntegrityTest extends TestCase
             'phone_verification_expires_at' => now()->addMinutes(10),
         ]);
 
-        // send() ya lo rechaza sin gastar Twilio — chequeo amistoso.
+        // send() ya lo rechaza sin gastar mensajes de WhatsApp — chequeo amistoso.
         $this->actingAs($secondTeacher)->post(route('phone.verification.send'))
             ->assertSessionHasErrors('phone');
 
@@ -714,8 +714,12 @@ class MonetizationIntegrityTest extends TestCase
 
     public function test_lesson_join_allows_owner_parent_and_assigned_teacher(): void
     {
-        [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
-        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+        // F-06: la clase debe estar DENTRO de la ventana de acceso (se abre 15
+        // min antes del inicio). Antes este test usaba now()->addHour() y
+        // pasaba, porque el backend no comprobaba proximidad temporal alguna:
+        // esa permisividad era justamente el hallazgo.
+        [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addMinutes(10));
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
         $parentResponse = $this->actingAs($parent)->get(route('lessons.join', $lesson))
             ->assertOk()
@@ -753,7 +757,7 @@ class MonetizationIntegrityTest extends TestCase
     public function test_lesson_join_rejects_unrelated_parent_and_teacher(): void
     {
         [, , $lesson] = $this->lesson('scheduled', now()->addHour());
-        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
         $unrelatedParent = $this->userWithRole('parent');
         $this->actingAs($unrelatedParent)->get(route('lessons.join', $lesson))->assertForbidden();
@@ -765,7 +769,7 @@ class MonetizationIntegrityTest extends TestCase
     public function test_lesson_join_rejects_guest(): void
     {
         [, , $lesson] = $this->lesson('scheduled', now()->addHour());
-        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
         $this->get(route('lessons.join', $lesson))->assertRedirect(route('login'));
     }
@@ -777,7 +781,7 @@ class MonetizationIntegrityTest extends TestCase
         // de una clase cancelada o ya finalizada.
         foreach (['cancelled', 'completed'] as $status) {
             [$teacher, , $lesson, $parent] = $this->lesson($status, now()->subHours(2));
-            $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+            $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
             $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertForbidden();
             $this->actingAs($teacher)->get(route('lessons.join', $lesson))->assertForbidden();
@@ -787,8 +791,9 @@ class MonetizationIntegrityTest extends TestCase
     public function test_lesson_join_allows_scheduled_paid_and_pending_parent_confirmation(): void
     {
         foreach (['scheduled', 'paid', 'pending_parent_confirmation'] as $status) {
-            [$teacher, , $lesson, $parent] = $this->lesson($status, now()->addHour());
-            $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+            // F-06: dentro de la ventana de acceso (ver test anterior).
+            [$teacher, , $lesson, $parent] = $this->lesson($status, now()->addMinutes(10));
+            $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
             $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertOk();
             $this->actingAs($teacher)->get(route('lessons.join', $lesson))->assertOk();
@@ -807,7 +812,7 @@ class MonetizationIntegrityTest extends TestCase
     public function test_lesson_listings_never_expose_jitsi_credentials(): void
     {
         [$teacher, , $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
-        $lesson->update(['jitsi_room' => 'mova-lesson-test-room', 'jitsi_password' => 'secret123']);
+        $lesson->update(['jitsi_room' => 'mova-lesson-test-room']);
 
         $this->actingAs($parent)->get(route('parent.lessons'))->assertInertia(fn ($page) => $page
             ->where('lessons.0.has_jitsi_room', true)

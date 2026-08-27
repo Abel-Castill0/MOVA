@@ -93,15 +93,20 @@ class RescheduleTest extends TestCase
         $this->assertSame($status, $lesson->status);
     }
 
-    /** Los 5 estados reales del enum además de 'scheduled' — ninguno inventado. */
+    /**
+     * Todos los estados reales del enum además de 'scheduled' — ninguno
+     * inventado. F-09: se retiró 'in_progress' (valor muerto eliminado del
+     * enum) y se añadió 'needs_admin_review', que sí es alcanzable
+     * (SettleLessons::escalateUnconfirmed) y tampoco debe permitir reprogramar.
+     */
     public static function nonScheduledStatusProvider(): array
     {
         return [
-            ['in_progress'],
             ['paid'],
             ['pending_parent_confirmation'],
             ['completed'],
             ['cancelled'],
+            ['needs_admin_review'],
         ];
     }
 
