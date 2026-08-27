@@ -94,11 +94,21 @@ encima de AA.
 
 ## Border radius
 
-Escala con nombre — reemplaza los 6 valores usados sin criterio hoy
-(`rounded-xl`×231, `2xl`×140, `lg`×108, `full`×71, `md`×5, `3xl`×2):
-`sm` 8px (chips/badges) · `md` 12px (inputs, botones secundarios) · `lg` 16px
-(tarjetas, botón primario) · `xl` 20px (tarjetas elevadas, modales) · `pill`
+Escala con nombre para uso deliberado en primitivos y páginas migradas —
+`rounded-chip` 8px (chips/badges) · `rounded-control` 12px (inputs, botones
+secundarios) · `rounded-card` 16px (tarjetas, botón primario) ·
+`rounded-elevated` 20px (tarjetas elevadas, modales) · `rounded-pill`
 (botones tipo pastilla, avatares).
+
+**Deliberadamente no se llaman `sm`/`md`/`lg`/`xl`.** `tailwind.config.js`
+declara este scale bajo `theme.extend.borderRadius`, que se *fusiona por
+nombre de clave* con la escala por defecto de Tailwind — usar esos nombres
+habría sobrescrito silenciosamente `rounded-sm/md/lg/xl` en los 231+140+108+5
+usos que ya existen hoy en toda la app (`rounded-xl`×231, `2xl`×140,
+`lg`×108, `md`×5), sin tocar ninguna página. Los valores existentes de
+`rounded-*` siguen significando exactamente lo mismo hasta que una página se
+migre a propósito en una fase posterior — ese es justamente el motivo de
+nombrar la escala nueva sin colisión.
 
 ## Elevación
 
@@ -123,6 +133,26 @@ para CSS; cada mecanismo JS nuevo — GSAP, Sheet, transición de página — tr
 su propio guard con `matchMedia`, igual que ya hacen `Welcome.vue` y
 `Dashboard/Parent.vue`). Nunca deja contenido invisible esperando una
 animación que no se va a disparar.
+
+## Activación del modo oscuro: diferida a propósito
+
+`prefers-color-scheme` está **deliberadamente desactivado** en `app.css` por
+ahora — no es un olvido. Se encontró verificando en el navegador real (Fase
+2, `/login`, sistema en modo oscuro): los primitivos ya tokenizados
+(`TextInput`, `Checkbox`) se oscurecían correctamente, pero `Login.vue`
+—como el resto de páginas, aún sin migrar— seguía con `bg-white`/`text-gray-*`
+hardcodeados. Resultado real: inputs oscuros sobre una página clara, una
+costura visual que afectaría hoy mismo a cualquier usuario con el sistema en
+oscuro, no solo a una captura de prueba.
+
+Por eso el tema oscuro hoy solo se activa manualmente
+(`:root[data-theme="dark"]`, para QA/pruebas) — el `@media
+(prefers-color-scheme: dark)` se reactiva como el **último** paso del
+rediseño, cuando suficientes páginas estén migradas a los tokens como para
+que activarlo no deje ninguna mezcla clara/oscura a medio camino. La
+infraestructura (variables, escala, verificación de contraste) ya existe
+completa; lo que falta es terminar de migrar el consumo antes de encender el
+interruptor automático.
 
 ## Estado de este documento
 

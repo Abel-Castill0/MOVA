@@ -109,16 +109,20 @@ export default {
                 },
             },
 
-            // Escala de radio única — reemplaza los 6 valores usados ad hoc
-            // (rounded-xl/2xl/lg/full/md/3xl repartidos sin criterio) por
-            // roles con nombre. `DEFAULT` cubre los usos existentes de
-            // `rounded` a secas.
+            // Escala de radio con nombre — deliberadamente NO usa las claves
+            // sm/md/lg/xl de Tailwind: `extend` fusiona por nombre de clave,
+            // así que reusar esos nombres habría sobrescrito silenciosamente
+            // `rounded-sm/md/lg/xl` en los 231+140+108+5 usos que YA existen
+            // en toda la app, sin tocar una sola página — exactamente el
+            // "cambio de alcance no pedido" que este proyecto evita. Nombres
+            // propios → cero colisión; `rounded-xl` etc. siguen significando
+            // lo mismo que siempre hasta que una página se migre a propósito.
             borderRadius: {
-                sm: '0.5rem',    // 8px  — chips, badges pequeños
-                md: '0.75rem',   // 12px — inputs, botones secundarios
-                lg: '1rem',      // 16px — tarjetas, botones primarios
-                xl: '1.25rem',   // 20px — tarjetas elevadas, modales
-                pill: '9999px',  // botones tipo pastilla, avatares
+                chip: '0.5rem',      // 8px  — chips, badges pequeños
+                control: '0.75rem',  // 12px — inputs, botones secundarios
+                card: '1rem',        // 16px — tarjetas, botones primarios
+                elevated: '1.25rem', // 20px — tarjetas elevadas, modales
+                pill: '9999px',      // botones tipo pastilla, avatares (no colisiona: Tailwind no trae "pill")
             },
 
             // Elevación por capas (Fase 4): canvas plano → contenido con

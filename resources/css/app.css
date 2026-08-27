@@ -105,11 +105,22 @@
   --info-bg: 240 245 253;      --info-border: 189 212 242;     --info-text: 13 52 109; /* = brand-50/200/800 */
 }
 
-/* Automático: sigue la preferencia del sistema operativo, salvo que el
-   usuario haya elegido explícitamente un tema (entonces manda
-   :root[data-theme]). Ver resources/js/composables/useTheme.js. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+/* Auto-activación por `prefers-color-scheme` DELIBERADAMENTE DESACTIVADA por
+   ahora — no es un olvido. Verificado en el navegador real durante la Fase 2
+   (Login.vue con el sistema en modo oscuro): los primitivos ya tokenizados
+   (TextInput, Checkbox) se oscurecían correctamente, pero el resto de la
+   página (Login.vue, aún con bg-white/text-gray-* hardcodeados, sin migrar)
+   seguía en claro — inputs oscuros sobre una página clara, una costura
+   visual real que afectaría a cualquier usuario con el sistema en oscuro
+   HOY MISMO, no solo en una captura de prueba. Reactivar este media query es
+   el último paso, no el primero: se vuelve a encender cuando suficientes
+   páginas estén migradas a los tokens como para que el cambio de tema no
+   deje ninguna mezcla clara/oscura a medio camino. Hasta entonces, el tema
+   oscuro solo se activa manualmente vía `data-theme="dark"` en <html> (lo
+   que escribe useTheme.js cuando exista un selector de tema, o cualquier
+   verificación manual/QA) — la regla de abajo es la única fuente de oscuro
+   por ahora. */
+:root[data-theme="dark"] {
     --canvas: 11 18 32;            /* #0B1220 */
     --surface: 18 26 43;           /* #121A2B — 1 paso de luz sobre canvas */
     --surface-raised: 25 35 58;    /* #19233A — 2 pasos; la elevación oscura es luz, no sombra */
@@ -127,24 +138,6 @@
     --warning-bg: 42 31 10;    --warning-border: 146 90 14;  --warning-text: 251 191 36;
     --danger-bg: 42 18 19;     --danger-border: 127 35 36;   --danger-text: 248 113 113;
     --info-bg: 16 35 63;       --info-border: 30 65 112;     --info-text: 143 181 232;
-  }
-}
-
-/* Manual: gana siempre sobre prefers-color-scheme, en ambas direcciones. */
-:root[data-theme="dark"] {
-  --canvas: 11 18 32;
-  --surface: 18 26 43;
-  --surface-raised: 25 35 58;
-  --ink: 242 245 250;
-  --ink-muted: 168 179 199;
-  --ink-subtle: 130 141 166;
-  --line: 42 54 80;
-  --line-strong: 90 107 160;
-  --focus-ring: 79 138 219;
-  --success-bg: 15 42 28;    --success-border: 21 87 55;   --success-text: 74 222 128;
-  --warning-bg: 42 31 10;    --warning-border: 146 90 14;  --warning-text: 251 191 36;
-  --danger-bg: 42 18 19;     --danger-border: 127 35 36;   --danger-text: 248 113 113;
-  --info-bg: 16 35 63;       --info-border: 30 65 112;     --info-text: 143 181 232;
 }
 
 /* ── Movimiento reducido, a nivel de toda la app ──────────────────────────
