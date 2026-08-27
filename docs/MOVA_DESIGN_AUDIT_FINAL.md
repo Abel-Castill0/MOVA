@@ -10,10 +10,10 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.14
-generated_at:     2026-08-27T20:17:27Z
-repository_head:  5f9a926   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (62 commits detrás de local, sin push)
+audit_revision:   2026-08-27.15
+generated_at:     2026-08-27T20:35:37Z
+repository_head:  0aa1aa8   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (63 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento)
 authoring_commit: se confirma en el mensaje del commit que introduce este cambio
 ```
@@ -710,8 +710,8 @@ que se pidió verificar, con el archivo/línea real:
 | Precio autoritativo del servidor | ✅ Ya correcto | `LessonController::store()`: `$rate = $classRequest->classOffer?->specific_rate ?? $teacherProfile->hourly_rate` — ambos valores de BD, el cliente solo envía `class_request_id`/`start_time`/`duration_minutes`, nunca un precio |
 | Créditos autoritativos + a prueba de carrera | ✅ Ya correcto | `$creditsNeeded = Lesson::creditCostForMinutes(...)` (servidor) verificado contra `TeacherProfile::lockForUpdate()` DENTRO de la transacción — no la lectura previa a la transacción, la relockeada — evita TOCTOU |
 | Disponibilidad validada server-side | ✅ Ya correcto | `hasScheduleOverlap()` se llama dos veces: una vez fuera de la transacción (fail-fast de UX) y otra vez DENTRO con `lockForUpdate()` sobre las lecciones candidatas — un segundo intento concurrente no puede colar un solape |
-| Concurrencia / doble reserva | ✅ Ya correcto | El lock de `TeacherProfile` actúa como mutex por profesor: dos `accept()` simultáneos para el mismo profesor se serializan; el segundo relee el estado ya actualizado por el primero |
-| "Idempotencia" de aceptación (doble-accept del mismo `ClassRequest`) | ✅ Ya correcto | `abort_if($classRequest->status !== 'open', ...)` reevaluado DENTRO de la transacción con `lockForUpdate()` sobre el propio `ClassRequest` — un segundo accept tras el primero ve `status === 'accepted'` y aborta |
+| Orden de lock contra doble reserva | ✅ Ya correcto — **lock ordering verificado, no paralelismo real ejecutado** | El lock de `TeacherProfile` actúa como mutex por profesor: dos `accept()` para el mismo profesor se serializan por el orden lock→check→create; verificado con dos llamadas SECUENCIALES en el test (la segunda ve el estado que la primera ya confirmó) — PHPUnit no ejecuta dos transacciones en paralelo real, ver la nota de precisión más abajo |
+| Doble-aceptación del mismo `ClassRequest` | ✅ Ya correcto — mismo matiz | `abort_if($classRequest->status !== 'open', ...)` reevaluado DENTRO de la transacción con `lockForUpdate()` sobre el propio `ClassRequest` — un segundo accept tras el primero ve `status === 'accepted'` y aborta; no es "idempotencia" en sentido estricto, es una máquina de estados protegida por lock (ver la sección de terminología más abajo) |
 
 **Nada de esto se tocó ni se "arregló" — ya estaba bien construido.**
 Documentarlo como verificado (no asumido) es en sí mismo el resultado de
@@ -848,9 +848,32 @@ Pricing (server-authoritative):   VERIFIED
 Credits (server-authoritative +
 race-safe):                       VERIFIED
 Availability (server-side):       VERIFIED
-Accept-time concurrency:          VERIFIED (lock de TeacherProfile como
+Accept-time lock ordering:        VERIFIED (lock de TeacherProfile como
                                    mutex; lock de ClassRequest para
-                                   doble-aceptación)
+                                   doble-aceptación — orden leído en el
+                                   código, no asumido)
+Transactional protection:         VERIFIED (toda mutación crítica dentro
+                                   de DB::transaction())
+Duplicate/race detection under
+lock:                             VERIFIED por ejecución serial — los
+                                   tests confirman que la SEGUNDA llamada
+                                   ve el estado que la primera ya
+                                   confirmó
+Real parallel transaction test
+(dos procesos/hilos ejecutando al
+mismo instante real):             NOT DIRECTLY EXERCISED — PHPUnit
+                                   corre en un solo proceso, secuencial;
+                                   ningún test de esta suite (tampoco
+                                   FinancialConcurrencyTest, su propio
+                                   precedente) ejecuta dos transacciones
+                                   verdaderamente simultáneas. La
+                                   garantía contra una carrera real
+                                   descansa en el ORDEN de las
+                                   operaciones dentro de la transacción
+                                   (lock→check→create), verificado por
+                                   lectura de código — no en haber
+                                   observado paralelismo real bajo carga.
+                                   No se afirma más que esto.
 Temporal semantic deduplication:  VERIFIED (ventana de 30s, matriz
                                    completa de comportamiento arriba)
 Strict request idempotency:       NOT IMPLEMENTED / NOT REQUIRED FOR
@@ -870,6 +893,35 @@ contrato de negocio de `ClassRequests/Create.vue` queda verificado y los
 dos hallazgos reales resueltos con evidencia — la fase de UX/UI puede
 empezar sin dejar sin comprobar ningún invariante de dinero/autorización/
 concurrencia/duplicación detrás del diseño.
+
+### Matriz de existencia/finalidad de datos en `Create` (verificada leyendo el código real, no asumida — corrige la premisa de diseño antes de tocar UI)
+
+Pedida explícitamente antes de diseñar, porque la respuesta cambia
+sustancialmente lo que la pantalla puede mostrar honestamente. Leído
+`ClassRequests/Create.vue` completo + `TimeSlotPicker.vue` +
+`ClassRequestController::create()`/`store()` + `LessonController::store()`:
+
+| Dato | ¿Existe en `Create`? | ¿Es definitivo en este punto? | Fuente real |
+|---|---|---|---|
+| Profesor | Solo si se llegó vía `?offer_id=` (nombre, tarifa/hora) — si no, la solicitud queda abierta a "el primer profesor disponible" (o exclusiva de un profesor si se usa código de referido) | Parcial — identificado, pero la aceptación puede no ocurrir nunca | `offer.teacher_profile.user.name` / código de referido resuelto en `store()` |
+| Alumno | Sí | Sí — elegido explícitamente, ownership verificado server-side | `form.student_id` |
+| Materia | Sí (propia o heredada de la oferta) | Sí | `form.subject_id` |
+| Modalidad (mentoría) | Sí, checkbox | Sí, es la intención declarada | `form.is_mentorship` |
+| **Horario/fecha específica** | **❌ NO EXISTE en esta pantalla** — `TimeSlotPicker` recoge una preferencia LAXA (mañana/tarde/noche/flexible vía `TIME_SLOTS`), nunca una fecha+hora concretas | No aplica — no es un slot reservable, es una preferencia orientativa | `form.preferred_times` (array de etiquetas, no de horarios) |
+| **Duración** | **❌ NO EXISTE en esta pantalla en absoluto** — no es un campo de `ClassRequestController::store()` | No aplica | Se decide recién en `LessonController::store()`, `'duration_minutes' => 'required\|integer\|min:30\|max:240'`, cuando el PROFESOR acepta y agenda |
+| **Precio** | Solo como referencia informativa cuando hay oferta (`S/ XX/h`, una tarifa por hora, no un total) | **NO** — sin duración todavía definida no puede existir un precio total; lo que se muestra hoy es una tarifa de referencia, nunca "el precio de esta clase" | `offer.specific_rate`/`teacher_profile.hourly_rate` |
+| **Créditos** | **❌ NO EXISTE — y NUNCA debe existir en esta pantalla** | No aplica al padre en ningún punto del flujo | Los créditos son exclusivamente del PROFESOR — se descuentan de `TeacherProfile.credits_available` en `LessonController::store()`, invisibles para el padre. Confirmado: `ClassRequests/Accept.vue` (donde sí aparecen créditos) es la pantalla del PROFESOR (`teacher.requests.accept`, ruta bajo `role:teacher`), no del padre — grepeado en todo `resources/js/Pages/ClassRequests` y `Dashboard/Parent.vue`: ningún archivo del lado padre muestra créditos |
+
+**Consecuencia directa para el diseño, no negociable**: `Create.vue` no
+debe mostrar "Precio final", "Duración", "Créditos utilizados" ni "Saldo
+restante" — ninguno de esos datos existe todavía en este punto del flujo,
+y "créditos" no es un concepto que el padre deba ver jamás. La pantalla
+es, honestamente, una **expresión de intención abierta** (¿qué necesita mi
+hijo, con qué profesor si ya tengo uno en mente, y cuándo suelo estar
+disponible?), no una cotización ni una reserva confirmada. El diseño debe
+comunicar exactamente eso — qué pasa después (un profesor la acepta y
+recién ahí se fija horario y precio) — no inventar una sensación de
+cierre que el backend no respalda.
 
 ---
 
