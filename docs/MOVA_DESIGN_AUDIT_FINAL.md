@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.15
-generated_at:     2026-08-27T20:35:37Z
-repository_head:  0aa1aa8   (rama master — el commit que introduce este cambio de doc queda por encima de este hash en `git log`)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (63 commits detrás de local, sin push)
-working_tree:     limpio salvo package-lock.json (ajeno a este documento)
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio
+audit_revision:   2026-08-27.16
+generated_at:     2026-08-27T21:03:26Z
+repository_head:  f7b03b7   (rama master — directorio de trabajo real, no worktree aislado; incluye el commit del rediseño de Create.vue)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (66 commits detrás de local, sin push)
+working_tree:     limpio salvo package-lock.json (ajeno a este documento y a este cambio)
+authoring_commit: f7b03b7 (feat(class-requests): redesign Create.vue around what actually exists at this stage)
 ```
 
 El header de la revisión anterior (`2026-08-27.04`) citaba `HEAD ed96447`
@@ -922,6 +922,29 @@ disponible?), no una cotización ni una reserva confirmada. El diseño debe
 comunicar exactamente eso — qué pasa después (un profesor la acepta y
 recién ahí se fija horario y precio) — no inventar una sensación de
 cierre que el backend no respalda.
+
+### Cierre del rediseño de `Create.vue` — estado formal, por dimensión
+
+Commit `f7b03b7`. Nunca colapsado en "DONE" — cada fila es lo que
+realmente se verificó, con su método, no una afirmación de intención.
+
+| Dimensión | Estado | Evidencia |
+|---|---|---|
+| Decisiones de UX | ✅ Aplicadas | Estructura intención→revisión→confirmación; tarjetas de modalidad con copy que explica la consecuencia real (`is_mentorship` → `hasAvailableMentorshipSlots()`); horario marcado explícitamente "preferencia orientativa"; resumen "Antes de enviar" inmediatamente antes del CTA |
+| Supuestos de negocio | ✅ Verificados contra código, no asumidos | Matriz de existencia/finalidad arriba — leída de `ClassRequestController::create()`/`store()`, `LessonController::store()`, `TimeSlotPicker.vue`, no inferida |
+| Contrato de backend usado | ✅ Sin cambios de contrato — solo consumo | `student_id`, `subject_id`, `class_offer_id`, `teacher_referral_code`, `is_mentorship`, `help_needed`, `preferred_times`; errores ahora vía `form.errors` gracias a `206d886` |
+| Campos mostrados | Alumno, materia, profesor/oferta (si aplica), modalidad, código de referido, necesidad, preferencia horaria, resumen pre-envío | — |
+| Campos omitidos deliberadamente | Precio final, duración, créditos — ninguno existe en este punto del flujo (ver matriz arriba); no es una omisión de diseño, es la ausencia real del dato | — |
+| Estados implementados | Inicial/vacío, carga (`Enviando...` + `aria-busy` vía `PrimaryButton`), CTA deshabilitado hasta alumno+materia, error de validación por campo (`InputError`), código de referido no encontrado (verificado en vivo, dos veces: feedback live-lookup + `form.errors`), oferta inactiva/no verificada, cupo de mentoría lleno — estos tres últimos vía `ValidationException` real, no simulados | Suite completa 542/542; happy path y error de código verificados en navegador real |
+| Accesibilidad | Parcial, verificado con evidencia real, no asumido | `aria-pressed` en las tarjetas de modalidad y en los botones de horario (confirmado por grep); orden de tabulación llega a todos los controles incluidas las tarjetas y los botones de horario (confirmado con `document.activeElement`, no solo visualmente); anillo de foco visualmente distinto del indicador de "seleccionado". **Gap real, preexistente, no introducido aquí**: `InputError.vue` no tiene `role="alert"` — un error de validación no se anuncia automáticamente a un lector de pantalla, requiere que el usuario navegue hasta él. No corregido en este commit porque es un componente compartido por toda la app; corregirlo exige su propia pasada de verificación en cada formulario que lo usa, no una edición aislada aquí |
+| Responsive | ✅ Verificado en navegador real a 375px | Grid de horario 2 columnas sin overflow, tarjetas de modalidad legibles, CTA deshabilitado correctamente renderizado; no verificado en tablet (768px) — pendiente, bajo riesgo dado que el layout es una sola columna fluida sin breakpoints intermedios en este archivo |
+| Modo oscuro | ⚠️ BLOCKED — no aplicable todavía, no es una regresión de este cambio | Confirmado por grep: `darkMode` está configurado en `tailwind.config.js` pero cero archivos `.vue` usan clases `dark:` y nada escribe `[data-theme]` — el modo oscuro no existe en ninguna pantalla de la app todavía (es la Fase 1 de un plan de sistema de diseño más amplio, sin empezar; ver plan `jolly-squishing-kazoo.md`). Emulé `prefers-color-scheme: dark` y, correctamente, no cambió nada — eso es lo esperado, no un fallo |
+| Performance | No medido específicamente para este archivo | `npm run build` completó sin errores/warnings nuevos; no se capturó el tamaño de bundle antes/después de este cambio puntual (la línea base de bundle completo de la app está en el plan de sistema de diseño, no en esta pasada específica) |
+| Tests | ✅ 542/542 (1712 assertions) | Ejecutado con el commit del rediseño ya aplicado; ningún archivo PHP tocado en este commit, así que la suite no podía romperse por este cambio — se re-ejecutó de todos modos por disciplina, no por sospecha |
+| Build | ✅ Sin errores/warnings nuevos | `npm run build` |
+| Navegador (`BROWSER_VERIFIED`) | ✅ Interacción real, no solo build | Login real (`ana@mova.test`), llenado de formulario con datos reales, envío con código inválido → error confirmado llegando al usuario (antes era código muerto), envío happy-path → fila real creada en MySQL local (`ClassRequest#19`, verificado por `tinker`, no solo por la UI) con `is_mentorship=true` y el resto de campos exactos, redirect + flash "Solicitud enviada." confirmado |
+| Riesgos remanentes | `InputError` sin `role="alert"` (arriba); tablet sin verificar explícitamente; activación por teclado (Enter/Espacio) de los botones de horario/modalidad no se pudo re-confirmar con esta herramienta de automatización por una limitación del dispatch sintético de teclas (el click con mouse sí togglea correctamente, y el código es un `<button type="button">` nativo sin ningún `@keydown` que intercepte — la activación por Enter/Espacio es comportamiento por defecto del navegador para cualquier botón nativo enfocado, no algo que la app implemente o pueda romper, así que el riesgo real es bajo, pero no está re-verificado con teclado físico) | — |
+| Git | ✅ Commit atómico `f7b03b7`, separado del fix de backend (`206d886`) y de la documentación de la matriz (`abff3ff`) | Sin push — sigue bloqueado por la rotación pendiente de F-26, no relacionado con este cambio |
 
 ---
 
