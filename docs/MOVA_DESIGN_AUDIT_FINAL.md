@@ -127,21 +127,51 @@ importa:
 
 | | Cantidad |
 |---|---:|
-| Vistas/componentes totales (baseline oficial, filesystem real) | 82 |
-| `AUDITED` (leídos completos, con o sin cambios) | ~35 |
-| `IMPLEMENTED` (código modificado) | ~30 |
-| `BUILD_VERIFIED` | ~30 |
-| `TEST_VERIFIED` | ~30 |
-| `BROWSER_VERIFIED` (real, no bloqueado) | 6 (`Login`, `Register`, `ForgotPassword`, `ResetPassword`, `GuestLayout` indirecto, `Terms`) |
-| `BLOCKED_VISUAL_VERIFICATION` (auth+DB, no reproducible en este sandbox) | ~24 |
-| `A11Y_VERIFIED` / `RESPONSIVE_VERIFIED` / `DARK_VERIFIED` / `PERFORMANCE_VERIFIED` (por página, no heredado de primitivos) | 0 |
-| `DONE` | **0** |
+| Vistas/componentes totales (baseline oficial, filesystem real) | **82/82** |
+| Con algún trabajo real (`AUDITED`/`IMPLEMENTED`/`COMPLETA`/`PARCIAL`/`NO CHANGE`) | **42/82** |
+| `BUILD_VERIFIED ✅` (literal, esta terminología exacta) | **24/82** |
+| `TEST_VERIFIED ✅` (literal) | **22/82** |
+| `BROWSER_VERIFIED ✅` (real, no bloqueado) | **5/82** (`Login`, `Register`, `ForgotPassword`, `ResetPassword`, `Terms` — `GuestLayout` se verificó indirectamente vía esas mismas 4 páginas Auth, no cuenta aparte) |
+| `BLOCKED_VISUAL_VERIFICATION` (auth+DB, no reproducible en este sandbox) | **16/82** |
+| `A11Y_VERIFIED` / `RESPONSIVE_VERIFIED` / `DARK_VERIFIED` / `PERFORMANCE_VERIFIED` (por página, no heredado de primitivos) | **0/82** |
+| `DONE` | **0/82** |
 | Duplicaciones arquitectónicas reales encontradas y corregidas | 3 (`statusColors.js`, `rechargeStatusColors.js`, `timeSlots.js`) — 1 de ellas era un bug de color en producción (`open` azul vs. cyan), no solo una limpieza de código |
 | Product blockers elevados | 1 (`active_offer`, P1 + `PRODUCT DECISION REQUIRED`) |
 
-Los números `~` son aproximados porque se derivan de contar filas
-`AUDITED`/`IMPLEMENTED` en la matriz de abajo a mano — la matriz en sí,
-fila por fila, es la fuente exacta, no este resumen.
+**Cifras exactas, obtenidas por script sobre las 82 filas de la matriz real
+(`grep`/conteo programático, no a mano)** — ya no hay `~`. Nota de precisión
+honesta: `42/82` tienen trabajo real, pero `BUILD_VERIFIED ✅` solo cuenta
+`24/82` porque los commits más tempranos de esta sesión (antes de fijar el
+vocabulario exacto de verificación) documentaron la evidencia con palabras
+distintas ("✓ tokens", "Fase 2", etc.) que un conteo estricto no reconoce
+como la cadena literal `BUILD_VERIFIED ✅` — es un desfase de formato en filas
+antiguas, no una brecha real de verificación (esos builds sí se ejecutaron,
+ver los commits correspondientes). No se reescribieron esas ~18 filas
+retroactivamente para "inflar" el número — se señala aquí en vez de ocultarlo.
+
+### Cobertura por superficie crítica (juicio editorial, no conteo mecánico)
+
+El panel de arriba cuenta archivos por igual — 82 vistas "pesan" lo mismo,
+aunque `Legal/Terms.vue` y "el flujo de pago de una clase" no importan lo
+mismo para el negocio. Esta tabla es una estimación razonada, marcada como
+tal (no viene de un script), para no perder de vista que "42/82 tocadas"
+puede significar mucho trabajo en superficies secundarias y cero en las que
+de verdad mueven la aguja:
+
+| Superficie crítica | Estimado | Qué falta |
+|---|---:|---|
+| Auth | ~100% | Nada pendiente de este barrido — 2 páginas siguen `BLOCKED_VISUAL_VERIFICATION` (requieren sesión) |
+| Parent — core journey | ~35% | `Dashboard/Parent`, `Students/*`, `ParentLessonCard`, `WeeklyCalendar` hechos; `Marketplace/Index`, `Teachers/Show`, `ClassRequests/Create`, `Diagnostics/*`, `Lessons/ParentIndex`, `LessonReports/ParentIndex`, `Reviews/Create` sin tocar |
+| Teacher — core journey | ~50% | `Dashboard/Teacher`, `Teacher/Setup`, `Teacher/Edit`, `Teacher/Credits`, `TeacherLessonCard`, `ClassRequests/TeacherIndex` hechos; `LessonReports/Create`, `LessonReports/TeacherIndex`, `Lessons/TeacherIndex` sin tocar |
+| Marketplace/descubrimiento | 0% | `Marketplace/Index.vue`, `Teachers/Show.vue` — sin tocar todavía |
+| Booking/Checkout | 0% | `ClassRequests/Create.vue`, `ClassOffers/*`, `Diagnostics/*` — sin tocar (el widget `TimeSlotPicker` que consumen sí está hecho) |
+| Class experience (Jitsi) | 0% (deliberado) | `JitsiModal.vue` diferido a propósito para su revisión de seguridad dedicada — no es un olvido |
+| Admin | ~25% | `Admin/Requests`, `Admin/Recharges` hechos (2/8); `Dashboard/Admin`, `Admin/Users`, `Admin/PendingTeachers`, `Admin/Lessons`, `Admin/Reviews`, `Admin/AiUsage` sin tocar |
+
+**Lectura correcta de esta tabla:** el trabajo de mayor impacto real para el
+negocio (Marketplace, Booking/Checkout, Class experience) sigue en 0%. El
+orden de dominios restante prioriza esto explícitamente — ver "Flujos
+críticos" abajo.
 
 ## Identidad visual por rol (el lenguaje es común, la composición no)
 
@@ -223,6 +253,58 @@ asignada.
 
 ---
 
+## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
+
+Al intentar construir un test de contrato que verificara los estados reales
+de la base de datos contra los registros JS (`utils/statusColors.js`,
+`utils/rechargeStatusColors.js`), se descubrió que **no se puede extraer de
+forma confiable el enum real de `class_requests.status` desde SQLite**,
+porque el propio schema de SQLite (la base de datos con la que corre TODA
+la suite de tests) está incompleto respecto a producción (MySQL).
+
+- **El bug, verificado ejecutando la sentencia real, no inferido**:
+  `database/migrations/2026_07_08_000001_update_class_requests_status_enum.php`
+  amplía el `ENUM` de `class_requests.status` para incluir `teacher_rejected`
+  — pero **solo dentro de un `if (driver === 'mysql')`**. En SQLite no hace
+  nada. Verificado insertando directamente en un schema migrado desde cero
+  en SQLite:
+  ```
+  INSERT INTO class_requests (..., status) VALUES (..., 'teacher_rejected')
+  → SQLSTATE[23000]: CHECK constraint failed: status
+  ```
+  El `CHECK` real en SQLite solo permite
+  `('pending_parent_approval', 'open', 'accepted', 'rejected', 'completed')`
+  — sin `teacher_rejected`.
+- **Por qué importa**: `ClassRequestController::teacherReject()` (línea ~218)
+  escribe literalmente `'status' => 'teacher_rejected'` — el mismo código que
+  corre en producción (MySQL, donde sí funciona) fallaría con un 500 si se
+  ejecutara contra la base de datos de test (SQLite) tal como está hoy.
+  Ningún test existente ejerce este flujo con una escritura real a la BD —
+  el grep inicial que sugería cobertura (`TeacherVerificationGateTest`,
+  `SubjectProfanityFilterTest`) resultó ser una coincidencia de palabras
+  sueltas ("teacher" + "reject"), no del flujo real, verificado leyendo
+  ambos archivos.
+- **Clasificación**: `P0` — no es `PRODUCT DECISION REQUIRED` como
+  `active_offer` (esto no depende de ninguna decisión de negocio; es
+  simplemente una migración que nunca se completó para SQLite). Tampoco es
+  un hallazgo de diseño — es el mismo tipo de "Audit Snapshot Drift"/
+  paridad SQLite-MySQL que `docs/MOVA_AUDIT_PHASE0.md` ya había marcado
+  como trabajo pendiente de mayor prioridad que el rediseño visual.
+- **No se corrigió aquí**: modificar una migración de estado de negocio ya
+  aplicada (`class_requests.status`) cae directamente bajo la regla de
+  `CLAUDE.md` de "cambios sensibles... requieren una pasada explícita de
+  revisión de seguridad" — no es una llamada que corresponda tomar en medio
+  de una auditoría de diseño. El arreglo correcto (una migración *nueva* que
+  amplíe el `CHECK` de SQLite, no editar la existente) queda marcado para
+  atención dedicada, no aplicado a ciegas.
+- **Consecuencia práctica para esta sesión**: el contract test de estados
+  (más abajo) usa listas verificadas manualmente contra las migraciones
+  reales — no introspección dinámica del schema — precisamente porque este
+  hallazgo demuestra que el schema de test no siempre coincide con la
+  intención real del dominio.
+
+---
+
 ## 🔍 Auditoría de consistencia cruzada — patrones duplicados entre páginas
 
 `statusColors.js` no era el único caso. Búsqueda dirigida
@@ -277,6 +359,32 @@ duplicación de código.**
   pública; un solo consumidor hoy, sin otro sitio con el que compararlo
   todavía. No se fusiona especulativamente con `gradeLevelLabel` sin un
   segundo caso real que lo justifique.
+
+**Regla explícita para no sobrearquitecturar** (para no terminar con
+`utils/statusColors.js` + `rechargeStatusColors.js` + `timeSlots.js` +
+diez utilitarios más desconectados): se extrae una fuente única únicamente
+cuando existen **las cuatro** condiciones a la vez — concepto de dominio de
+negocio real (no solo "dos bloques de código parecidos"), reutilización
+real ya confirmada en ≥2 consumidores, riesgo real de deriva semántica
+(dos pantallas mostrando el mismo estado con significado distinto), y
+beneficio de mantenimiento que supera el coste de una indirección más. Los
+tres casos de esta sesión (`statusColors.js`, `rechargeStatusColors.js`,
+`timeSlots.js`) cumplían las cuatro — verificado, no asumido, para cada
+uno antes de crear el archivo.
+
+### Contract test: el registro de estados ya no puede desincronizarse en silencio
+
+`tests/Feature/DesignSystemStatusRegistryTest.php` (nuevo) — verifica que
+todo estado real de `Lesson`/`ClassRequest`/`RechargeRequest` (listas
+citadas contra las migraciones reales, no el schema de SQLite — ver el
+hallazgo de bug arriba) esté registrado en el archivo JS correspondiente,
+y que cada estado tenga tanto `color` como `label` (nunca solo color).
+Verificado que el test realmente falla, no solo que compila: se eliminó
+`cancelled` de `STATUS_STYLES` temporalmente, se confirmó que 2 de las 4
+pruebas fallaban con el mensaje esperado, y se restauró el archivo desde
+git antes de continuar. Si mañana alguien agrega un estado nuevo a un enum
+de backend y olvida el frontend, `php artisan test` falla — no depende de
+que un humano se acuerde de revisar ambos lados.
 
 ---
 
