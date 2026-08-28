@@ -411,14 +411,119 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertDatabaseCount('credit_transactions', 1);
     }
 
+    /**
+     * assertStatus(422) era la aserción original — mismo punto ciego ya
+     * encontrado repetidamente esta sesión: un abort_unless() crudo también
+     * produce 422, pero como HttpException plano, no como ValidationException
+     * real. Corregida a assertSessionHasErrors() con el texto exacto tras
+     * convertir ese abort_unless() a un ValidationException real bajo la
+     * clave `cancel` — verificado con revert-confirm-restore.
+     */
     public function test_completed_lesson_cannot_be_cancelled(): void
     {
         [$teacher, , $lesson] = $this->lesson('completed', now()->subHours(2), 0);
 
         $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
-            ->assertStatus(422);
+            ->assertRedirect()->assertSessionHasErrors([
+                'cancel' => 'Solo se pueden cancelar clases programadas.',
+            ]);
 
         $this->assertSame('completed', $lesson->fresh()->status);
+    }
+
+    /**
+     * Hueco real, no cubierto por ninguna prueba existente (grepeado antes de
+     * asumir que no había ninguna) — pedido explícitamente en revisión: una
+     * segunda cancelación sobre la misma lección no debe devolver créditos
+     * dos veces ni crear un segundo asiento de ledger. Mismo mecanismo que
+     * el doble-accept ya probado en FinancialConcurrencyTest: lock +
+     * re-chequeo de estado bajo la transacción — aquí verificado para
+     * cancel(), no solo para accept().
+     */
+    public function test_cancelling_a_lesson_twice_does_not_refund_twice(): void
+    {
+        [$teacher, $profile, $lesson] = $this->lesson('scheduled', now()->addDay(), 2);
+        $profile->update(['credits_available' => 3]);
+
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
+            ->assertRedirect();
+
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
+        $this->assertSame(1, CreditTransaction::where('lesson_id', $lesson->id)->where('type', 'refund')->count());
+
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
+            ->assertRedirect()->assertSessionHasErrors([
+                'cancel' => 'Solo se pueden cancelar clases programadas.',
+            ]);
+
+        // La comprobación que de verdad importa: nada se movió una segunda
+        // vez, no solo que la respuesta HTTP fuera un error.
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
+        $this->assertSame(1, CreditTransaction::where('lesson_id', $lesson->id)->where('type', 'refund')->count());
+        $this->assertSame('cancelled', $lesson->fresh()->status);
+    }
+
+    /**
+     * Pedido explícitamente: ¿qué pasa cuando confirmPayment() y cancel()
+     * compiten por la misma lección? Ambos exigen 'scheduled' y ambos la
+     * sacan de ese estado bajo lock — solo uno puede ganar. Prueba
+     * secuencial (mismo límite de PHPUnit documentado en toda la sesión: no
+     * es paralelismo real, es orden de llamadas sobre la misma fila
+     * bloqueada). Aquí gana confirmPayment (llega primero); cancel() sobre
+     * la lección ya 'paid' debe fallar con un mensaje real, sin tocar
+     * créditos ni ledger una segunda vez.
+     */
+    public function test_confirm_payment_wins_race_against_cancel_on_the_same_lesson(): void
+    {
+        [$teacher, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->subHours(2), 1);
+        $profile->update(['credits_available' => 4]);
+
+        $this->actingAs($parent)->post(route('lessons.confirm-payment', $lesson))
+            ->assertRedirect();
+
+        $this->assertSame('paid', $lesson->fresh()->status);
+
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
+            ->assertRedirect()->assertSessionHasErrors([
+                'cancel' => 'Solo se pueden cancelar clases programadas.',
+            ]);
+
+        // cancel() nunca debió tocar créditos ni ledger: la lección ya no
+        // estaba 'scheduled' cuando llegó su turno.
+        $this->assertSame(4, $profile->fresh()->credits_available);
+        $this->assertSame(1, $profile->fresh()->credits_reserved);
+        $this->assertSame(0, CreditTransaction::where('lesson_id', $lesson->id)->where('type', 'refund')->count());
+        $this->assertSame('paid', $lesson->fresh()->status);
+    }
+
+    /**
+     * Pedido explícitamente: reschedule() no saca la lección de 'scheduled'
+     * (solo mueve start_time), así que un cancel() posterior debe seguir
+     * funcionando con normalidad — no es un conflicto real, es confirmar que
+     * ambas operaciones componen correctamente. reservedCreditAmount() debe
+     * seguir leyendo el monto original del ledger, no verse afectado por el
+     * cambio de horario.
+     */
+    public function test_a_rescheduled_lesson_can_still_be_cancelled_and_refunds_correctly(): void
+    {
+        [$teacher, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->addDay(), 1);
+        $profile->update(['credits_available' => 4]);
+
+        $this->actingAs($parent)->post(route('lessons.reschedule', $lesson), [
+            'start_time' => now()->addDays(3)->toIso8601String(),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('scheduled', $lesson->fresh()->status);
+
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lesson))
+            ->assertRedirect();
+
+        $this->assertSame('cancelled', $lesson->fresh()->status);
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(0, $profile->fresh()->credits_reserved);
+        $this->assertSame(1, CreditTransaction::where('lesson_id', $lesson->id)->where('type', 'refund')->count());
     }
 
     public function test_future_lesson_payment_cannot_be_confirmed(): void

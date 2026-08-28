@@ -77,6 +77,9 @@
         <textarea v-model="cancelReason" rows="3"
           placeholder="Motivo de cancelación (opcional)"
           class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition mb-1" />
+        <!-- Mismo hallazgo que Lessons/TeacherIndex.vue: submitCancel() no
+             tenía ningún onError — un intento fallido no mostraba nada. -->
+        <p v-if="cancelError" role="alert" class="text-xs text-red-500 mb-1">{{ cancelError }}</p>
         <div class="flex gap-2 mt-3">
           <button @click="cancelTarget = null; cancelReason = ''"
             class="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
@@ -147,6 +150,7 @@ const props = defineProps({ lessons: Array })
 const { viewMode, tabListRef, tabCalendarRef, onTabsKeydown } = useLessonsViewMode()
 const cancelTarget     = ref(null)
 const cancelReason     = ref('')
+const cancelError      = ref('')
 const cancelling       = ref(false)
 const rescheduling     = ref(false)
 const rescheduleTarget = ref(null)
@@ -185,6 +189,7 @@ function confirmPayment(l) {
 function openCancel(l) {
   cancelTarget.value = l
   cancelReason.value = ''
+  cancelError.value  = ''
 }
 
 // F-12: sin guard, un doble clic disparaba dos POST. El backend resiste
@@ -199,6 +204,10 @@ function submitCancel() {
     { reason: cancelReason.value.trim() || null },
     {
       onSuccess: () => { cancelTarget.value = null; cancelReason.value = '' },
+      // Encontrado en auditoría: no existía ningún onError — un intento
+      // fallido (p. ej. la clase ya no está scheduled) no mostraba nada,
+      // ni siquiera el genérico que confirmPayment() ya tenía arriba.
+      onError: (e) => { cancelError.value = e.cancel || 'No se pudo cancelar la clase. Intenta nuevamente.' },
       onFinish: () => { cancelling.value = false },
     }
   )

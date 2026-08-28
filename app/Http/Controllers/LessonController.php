@@ -368,7 +368,22 @@ class LessonController extends Controller
         $isTeacher = $profile && $lesson->teacher_profile_id === $profile->id;
         $isParent = $user->hasRole('parent') && $user->students()->where('id', $lesson->student_id)->exists();
         $isAdmin = $user->hasRole('admin');
-        abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
+
+        // Mismo hallazgo/clasificación que accept()/reschedule()/confirmPayment():
+        // ninguno de los 4 chequeos de abajo es autorización (esa ya corrió
+        // aparte, arriba) — todos son conflictos de estado del recurso o de
+        // integridad financiera, recuperables en el sentido de que el usuario
+        // entiende qué pasó (aunque en el caso de la anomalía financiera la
+        // "recuperación" real es contactar soporte, no reintentar). Este
+        // formulario solo tiene `reason` (opcional) — ninguno de estos errores
+        // es sobre ese campo, así que los 4 comparten la misma clave de
+        // negocio, `cancel`, mismo patrón que `accept`/`reschedule`/
+        // `confirmPayment`.
+        if ($lesson->status !== 'scheduled') {
+            throw ValidationException::withMessages([
+                'cancel' => 'Solo se pueden cancelar clases programadas.',
+            ]);
+        }
 
         $data = request()->validate([
             'reason' => 'nullable|string|max:500',
@@ -380,7 +395,11 @@ class LessonController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($lesson->status === 'scheduled', 422, 'Solo se pueden cancelar clases programadas.');
+            if ($lesson->status !== 'scheduled') {
+                throw ValidationException::withMessages([
+                    'cancel' => 'Solo se pueden cancelar clases programadas.',
+                ]);
+            }
 
             $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)
                 ->lockForUpdate()
@@ -392,20 +411,23 @@ class LessonController extends Controller
             //
             // reservedCreditAmount() lanza RuntimeException si el ledger no
             // respalda exactamente 1 reserva (anomalía real, ej. una clase
-            // legacy NO_LEDGER) — se convierte a un 422 accionable en vez de
-            // dejar un 500 crudo al padre/profesor que solo quería cancelar.
+            // legacy NO_LEDGER) — se convierte en un error real de negocio en
+            // vez de dejar un 500 crudo al padre/profesor que solo quería
+            // cancelar.
             try {
                 $creditsToRefund = $lesson->reservedCreditAmount();
             } catch (\RuntimeException $e) {
                 report($e);
-                abort(422, 'Esta clase tiene una anomalía financiera y no se puede cancelar automáticamente. Contacta a soporte.');
+                throw ValidationException::withMessages([
+                    'cancel' => 'Esta clase tiene una anomalía financiera y no se puede cancelar automáticamente. Contacta a soporte.',
+                ]);
             }
 
-            abort_if(
-                $teacherProfile->credits_reserved < $creditsToRefund,
-                422,
-                'No hay créditos reservados suficientes para devolver esta clase.'
-            );
+            if ($teacherProfile->credits_reserved < $creditsToRefund) {
+                throw ValidationException::withMessages([
+                    'cancel' => 'No hay créditos reservados suficientes para devolver esta clase.',
+                ]);
+            }
 
             $profileUpdates = [
                 'credits_available' => $teacherProfile->credits_available + $creditsToRefund,
