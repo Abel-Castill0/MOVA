@@ -743,6 +743,47 @@ aplica a partir de ahora a toda prueba nueva o modificada.
 
 ---
 
+## 28bis. Máquina de estados canónica de `classes.status` (`Lesson`)
+
+Pedida explícitamente tras auditar `accept()`/`reschedule()`/
+`confirmPayment()`/`cancel()` por separado esta sesión (2026-08-27/28):
+un artefacto único, para no seguir reconstruyendo el mapa de transiciones
+archivo por archivo. Construida leyendo **cada escritor real** de
+`classes.status` en el código (`LessonController`, `AdminController`,
+`LessonReportController`, `LessonSettlementService`,
+`SettleLessons`) — ninguna transición aquí es inferida por el nombre de un
+estado. **Distinta de `class_requests.status`** (`pending_parent_approval
+→ open → accepted/rejected → completed`), que es la máquina de estados de
+la solicitud, no de la clase ya agendada — no confundir ambas.
+
+| Estado | Quién puede actuar | Transición → | Mecanismo real |
+|---|---|---|---|
+| `scheduled` | Padre: `confirmPayment`, `cancel`, `reschedule` (solo horario). Profesor: `cancel`, `reschedule`. Admin: todo lo anterior + `forceRefund`. | → `paid` | `LessonController::confirmPayment()` — solo tras `now() >= end_time` |
+| | | → `cancelled` | `LessonController::cancel()` (padre/profesor/admin) o `AdminController::forceRefundLesson()` (admin, para el mismo estado por la vía de rescate) |
+| | | → `scheduled` (mismo estado, otro `start_time`) | `LessonController::reschedule()` — `duration_minutes` inmutable (`C-2`) |
+| | | → `needs_admin_review` | `SettleLessons` (scheduler), tras `unconfirmed_days` sin que nadie confirmara el pago — **sin efecto financiero** en la escalación misma, el crédito sigue reservado |
+| `paid` | Profesor: subir reporte pedagógico. Padre: reseñar. Admin: `forceComplete`, `forceRefund`. | → `pending_parent_confirmation` | `LessonReportController` (el profesor sube el reporte) |
+| | | → `completed` | Scheduler tras `settlement_grace_days` (`LessonSettlementService::consume()`, exige reporte si es automático), reseña del padre, o `AdminController::forceCompleteLesson()` |
+| | | → `cancelled` | **Solo** `AdminController::forceRefundLesson()` → `LessonSettlementService::refund()` — `LessonController::cancel()` normal no alcanza este estado (verificado, no asumido) |
+| `pending_parent_confirmation` | Padre: reseñar. Admin: `forceComplete`, `forceRefund`. | → `completed` | Scheduler, reseña del padre, o `forceCompleteLesson()` |
+| | | → `cancelled` | **Solo** `forceRefundLesson()` |
+| `needs_admin_review` | **Solo admin** — ningún camino de padre/profesor llega aquí ni sale de aquí. | → `completed` | `forceCompleteLesson()` |
+| | | → `cancelled` | `forceRefundLesson()` |
+| `completed` | Nadie — terminal. | (ninguna) | Ningún escritor encontrado que mueva `classes.status` fuera de `completed` |
+| `cancelled` | Nadie — terminal. | (ninguna) | Ningún escritor encontrado que mueva `classes.status` fuera de `cancelled` |
+
+**Regla de diseño confirmada, no solo observada**: separación estricta
+entre operación normal de usuario (`scheduled → paid/cancelled` vía
+`LessonController`, siempre reversible mientras nada se consumió) y
+override administrativo/financiero (cualquier transición que toque
+`paid`/`pending_parent_confirmation`/`needs_admin_review`, exclusiva de
+`AdminController` + `LessonSettlementService`). Un usuario normal nunca
+puede ejecutar una operación con impacto financiero fuera de la reserva
+inicial — el efecto financiero de estados intermedios en adelante siempre
+pasa por el servicio de liquidación ya endurecido.
+
+---
+
 ## 29. Deuda técnica (separada estrictamente de bugs/vulnerabilidades)
 
 ### Categoría de riesgo registrada: DATABASE CONTRACT / ENVIRONMENT PARITY DRIFT

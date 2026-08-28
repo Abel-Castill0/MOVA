@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.23
-generated_at:     2026-08-28T01:05:41Z
-repository_head:  afcf3f1   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (84 commits detrás de local, sin push)
+audit_revision:   2026-08-27.24
+generated_at:     2026-08-28T07:56:21Z
+repository_head:  8e82155   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (85 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: cancel() audit closure)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: cancel() precision fixes — terminology, explicit financial effect, canonical state machine)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1579,6 +1579,44 @@ sobre ese campo.
    `reservedCreditAmount()` sigue el ledger, no se ve afectado por el cambio
    de horario.
 
+### Efecto financiero explícito de cancelar una `scheduled` (pedido en revisión, no dejarlo implícito)
+
+```text
+scheduled → cancelled
+  Lesson.status:        scheduled → cancelled
+  credits_reserved:     -N (N = reservedCreditAmount(), del ledger)
+  credits_available:    +N
+  credit_transactions:  +1 fila, type='refund', idempotency_key="lesson:{id}:release"
+  mentorship_slots_taken (si is_mentorship): -1 (mínimo 0)
+  ClassEvent:            +1 fila, event_type='class_cancelled' (registro de auditoría,
+                          no evidencia financiera en sí — mismo matiz ya establecido
+                          para 'payment_confirmed' en la pasada de confirmPayment())
+  notifications:         ClassCancelledNotification, ShouldQueue, después de
+                          DB::transaction() — nunca antes del commit (verificado
+                          leyendo el código, mismo patrón que los 4 métodos anteriores)
+```
+
+No es "sin efecto financiero" — el efecto real es una devolución completa y
+determinista, documentado explícitamente en vez de dejarlo implícito en la
+narrativa.
+
+### Precisión de terminología — "carrera" es demasiado fuerte para lo que en realidad se demostró
+
+Corrección explícita pedida en revisión: los tres escenarios verificados en
+vivo esta sesión (modal de `cancel()` abierto + estado mutado por fuera +
+envío; el mismo patrón antes en `reschedule()`) son **stale UI / TOCTOU de
+UX** — una mutación externa del estado mientras la UI seguía mostrando el
+estado anterior, seguida de una revalidación correcta bajo lock — no dos
+transacciones ejecutándose en paralelo. Se corrige la etiqueta:
+
+```text
+Stale state / lifecycle race (TOCTOU de UX):  VERIFIED — el modal detecta
+    correctamente que el estado cambió por fuera y muestra el mensaje real
+True parallel transaction execution:          NOT DIRECTLY EXERCISED —
+    PHPUnit y esta verificación en navegador son ambos de un solo proceso;
+    nunca se ejecutaron dos transacciones simultáneas de verdad
+```
+
 ### Regression proof
 
 `git stash` sobre `LessonController.php` reprodujo la falla real esperada
@@ -1589,18 +1627,20 @@ antes de restaurar.
 ```text
 Authorization:               VERIFIED (profesor asignado o padre dueño; admin vía before(), ya sólido)
 State machine:                VERIFIED (scheduled→cancelled únicamente por esta vía — reconstruida completa, no asumida)
-Financial impact:             VERIFIED (siempre devolución completa desde 'scheduled'; nunca toca 'paid'/'completed')
+Financial impact:             VERIFIED (efecto explícito arriba — siempre devolución completa desde 'scheduled'; nunca toca 'paid'/'completed')
 Authoritative financial source: VERIFIED (reservedCreditAmount(), ledger — ya verificado en confirmPayment(), reconfirmado aquí)
 Transaction/rollback:         VERIFIED (ya sólido, sin tocar)
 Duplicate cancellation:       VERIFIED (nuevo test, revert-confirm-restore)
 Cancel vs confirmPayment:     VERIFIED (nuevo test, secuencial — NOT real parallel execution)
 Cancel vs reschedule:         VERIFIED (nuevo test — composición confirmada, no era un conflicto real)
-Notifications:                VERIFIED (post-commit, ShouldQueue, sin tocar)
+Stale state / lifecycle race (TOCTOU de UX): VERIFIED (ver sección propia — no colapsado con paralelismo real)
+True parallel transaction execution: NOT DIRECTLY EXERCISED
+Notifications:                VERIFIED (post-commit, ShouldQueue — ver efecto financiero explícito arriba)
 Data projection:              VERIFIED (ya corregido en el bloque de reschedule() — misma página)
-Error protocol:                VERIFIED (corregido en esta pasada — 4 conversiones + 2 fixes de frontend, uno de ellos un onError inexistente)
+Error protocol:                VERIFIED (corregido en esta pasada — 4 conversiones + 2 fixes de frontend, uno de ellos un onError inexistente; findOrFail()/authorize() sin tocar — 404/403 conservan su semántica, no se convirtieron a `cancel`)
 Duplicación cancel()/AdminController::cancelLesson(): DOCUMENTADA, NO CORREGIDA — deuda técnica ya reconocida antes de esta sesión, sin evidencia nueva que justifique tocarla ahora
 Tests:                         548/548 — 1 assertSessionHasErrors() corregida, 3 nuevas
-Browser:                       VERIFIED (cancelación real vía UI confirmada en BD; carrera de modal en vivo confirmó el mensaje real donde antes no mostraba nada)
+Browser:                       VERIFIED (cancelación real vía UI confirmada en BD; stale-state de modal en vivo confirmó el mensaje real donde antes no mostraba nada — ver precisión de terminología arriba)
 ```
 
 **`LessonController::cancel()` → CERRADO PARA ESTE ALCANCE.** Sin hallazgos
