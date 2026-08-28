@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.22
-generated_at:     2026-08-28T00:01:12Z
-repository_head:  e96e802   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (82 commits detrás de local, sin push)
+audit_revision:   2026-08-27.23
+generated_at:     2026-08-28T01:05:41Z
+repository_head:  afcf3f1   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (84 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: confirmPayment precision fixes — 409 root-caused, vocabulary split)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: cancel() audit closure)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1495,6 +1495,119 @@ hallazgos financieros nuevos — el mecanismo real de liquidación
 (`LessonSettlementService`) ya era sólido antes de esta sesión, y la
 premisa de doble representación del dinero (`PaymentOrder` vs. `Lesson`)
 quedó descartada con evidencia, no solo con una suposición.
+
+---
+
+## 🔍 `LessonController::cancel()` — auditoría de contrato (financiero, priorizado sobre `join()`)
+
+Instrucción explícita: no asumir que se comporta como `accept()`/
+`reschedule()`/`confirmPayment()` — auditado desde cero (`route`, `policy`,
+`controller`, `service`, `model`, `tests`, notificaciones).
+
+### Máquina de estados real, reconstruida leyendo `AdminController.php` junto con `LessonController.php` — no asumida
+
+```text
+scheduled → cancelled
+    vía LessonController::cancel() (profesor asignado o padre dueño)
+    o AdminController::cancelLesson() (admin)
+    — siempre devolución completa: a 'scheduled' nunca se consumió nada
+
+scheduled / paid / pending_parent_confirmation / needs_admin_review → cancelled
+    SOLO vía AdminController::forceRefundLesson()
+    → LessonSettlementService::refund() (ya auditado y endurecido, sin
+      tocar en esta pasada)
+
+paid / pending_parent_confirmation / needs_admin_review → completed
+    SOLO vía AdminController::forceCompleteLesson() → consume(),
+    o el scheduler tras la gracia, o una reseña del padre
+```
+
+**Responde directamente la pregunta central de la revisión** ("¿puede
+cancelarse una clase ya `paid`, y es eso más delicado?"): `LessonController::
+cancel()` **solo puede ejecutarse nunca sobre `paid`/`completed`** — el
+chequeo `status !== 'scheduled'` (fail-fast y re-chequeo bajo lock) lo hace
+estructuralmente imposible por esta vía. El camino de estados más amplios
+existe, pero es un mecanismo completamente distinto, exclusivo de admin, ya
+auditado en la pasada de `confirmPayment()` (`LessonSettlementService`).
+
+**Duplicación ya reconocida, no un hallazgo nuevo**: `LessonController::
+cancel()` y `AdminController::cancelLesson()` son prácticamente idénticos
+línea por línea (mismo `reservedCreditAmount()`, mismo `abort` de anomalía
+financiera, misma actualización de perfil) — el propio comentario de
+`LessonSettlementService` ya lo admite explícitamente: *"Deliberadamente NO
+se migran aquí cancel() ni AdminController::cancelLesson()... Migrarlos
+queda como deuda técnica explícita (ver FOLLOW-UP), no como descuido."* No
+se toca en esta pasada — sería refactorizar código estable sin evidencia
+nueva de que sea insuficiente, exactamente lo que la disciplina anti-
+sobre-arquitectura de esta sesión pide evitar.
+
+### Hallazgo real, corregido en esta pasada
+
+Mismo patrón que los 3 métodos anteriores: 4 `abort_unless()`/`abort_if()`/
+`abort()` crudos (2 chequeos de estado ×2 sitios, 1 captura de anomalía
+financiera, 1 chequeo de créditos reservados insuficientes) — ninguno de
+autorización (esa ya corre aparte, sin tocar). Convertidos a
+`ValidationException` bajo una clave de negocio propia, `cancel` — el
+formulario solo tiene `reason` (opcional), ninguno de estos errores es
+sobre ese campo.
+
+**Frontend — hallazgo distinto y más severo que en `reschedule()`/
+`confirmPayment()`**: ninguno de los dos (`Lessons/TeacherIndex.vue`,
+`Lessons/ParentIndex.vue`) tenía `onError` en absoluto para `submitCancel()`
+— una cancelación fallida no mostraba NADA, ni siquiera el genérico que
+`reschedule()`/`confirmPayment()` ya tenían. Corregido: nuevo ref
+`cancelError`, banner con `role="alert"` en ambos modales, `onError` que lee
+`e.cancel` primero.
+
+### Tests — 3 huecos reales, no cubiertos por ninguna prueba existente (grepeado antes de asumir)
+
+1. **Doble cancelación** (`test_cancelling_a_lesson_twice_does_not_refund_twice`):
+   no existía ninguna prueba de esto — verificado en BD, no solo status
+   HTTP: exactamente 1 asiento `refund`, sin duplicar tras el segundo
+   intento.
+2. **`confirmPayment()` vs `cancel()` sobre la misma lección**
+   (`test_confirm_payment_wins_race_against_cancel_on_the_same_lesson`) —
+   pregunta específica de la revisión. Prueba **secuencial** (mismo límite
+   de PHPUnit documentado en toda la sesión, no paralelismo real):
+   `confirmPayment()` gana (llega primero, `scheduled → paid`); `cancel()`
+   sobre la lección ya `paid` falla con el mensaje real, sin tocar créditos
+   ni ledger una segunda vez.
+3. **`reschedule()` + `cancel()` en secuencia**
+   (`test_a_rescheduled_lesson_can_still_be_cancelled_and_refunds_correctly`)
+   — no es un conflicto real (`reschedule()` nunca saca la lección de
+   `scheduled`), pero se verifica que componen correctamente:
+   `reservedCreditAmount()` sigue el ledger, no se ve afectado por el cambio
+   de horario.
+
+### Regression proof
+
+`git stash` sobre `LessonController.php` reprodujo la falla real esperada
+antes de restaurar.
+
+### Cierre — vocabulario exacto
+
+```text
+Authorization:               VERIFIED (profesor asignado o padre dueño; admin vía before(), ya sólido)
+State machine:                VERIFIED (scheduled→cancelled únicamente por esta vía — reconstruida completa, no asumida)
+Financial impact:             VERIFIED (siempre devolución completa desde 'scheduled'; nunca toca 'paid'/'completed')
+Authoritative financial source: VERIFIED (reservedCreditAmount(), ledger — ya verificado en confirmPayment(), reconfirmado aquí)
+Transaction/rollback:         VERIFIED (ya sólido, sin tocar)
+Duplicate cancellation:       VERIFIED (nuevo test, revert-confirm-restore)
+Cancel vs confirmPayment:     VERIFIED (nuevo test, secuencial — NOT real parallel execution)
+Cancel vs reschedule:         VERIFIED (nuevo test — composición confirmada, no era un conflicto real)
+Notifications:                VERIFIED (post-commit, ShouldQueue, sin tocar)
+Data projection:              VERIFIED (ya corregido en el bloque de reschedule() — misma página)
+Error protocol:                VERIFIED (corregido en esta pasada — 4 conversiones + 2 fixes de frontend, uno de ellos un onError inexistente)
+Duplicación cancel()/AdminController::cancelLesson(): DOCUMENTADA, NO CORREGIDA — deuda técnica ya reconocida antes de esta sesión, sin evidencia nueva que justifique tocarla ahora
+Tests:                         548/548 — 1 assertSessionHasErrors() corregida, 3 nuevas
+Browser:                       VERIFIED (cancelación real vía UI confirmada en BD; carrera de modal en vivo confirmó el mensaje real donde antes no mostraba nada)
+```
+
+**`LessonController::cancel()` → CERRADO PARA ESTE ALCANCE.** Sin hallazgos
+financieros nuevos — la máquina de estados ya limitaba correctamente el
+alcance de esta operación a `scheduled`, y la duplicación con
+`AdminController::cancelLesson()` ya era deuda técnica reconocida, no un
+descubrimiento de esta pasada.
 
 ---
 
