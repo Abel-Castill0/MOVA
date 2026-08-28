@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-28.1
-generated_at:     2026-08-28T08:27:18Z
-repository_head:  4c93dbb   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (86 commits por delante de local, 0 por detrás, sin push)
-working_tree:     SUCIO — 4 archivos modificados sin commitear en el momento de esta revisión: app/Http/Controllers/LessonController.php (fix de referral_code en parentIndex(), ver sección de join()/JitsiModal abajo), resources/js/Composables/useJitsiMeet.js (guarda de reentrancia en openJitsi()), tests/Feature/MonetizationIntegrityTest.php (test de regresión nuevo), package-lock.json (ajeno, preexistente). Este propio archivo se edita en el mismo paso.
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: join()/JitsiModal.vue security-boundary audit — parentIndex() regression, reentrancy guard)
+audit_revision:   2026-08-28.2
+generated_at:     2026-08-28T08:35:41Z
+repository_head:  e105a14   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (sin re-fetch en esta revisión — cifra de ahead/behind no re-verificada, no se repite el número anterior sin comprobarlo de nuevo)
+working_tree:     SUCIO — solo los dos archivos de documentación en edición en este momento: docs/MOVA_DESIGN_AUDIT_FINAL.md (este archivo) y docs/MOVA_SYSTEM_KNOWLEDGE.md (Response Contract Integrity + capas JaaS precisadas a 3). e105a14 ya contiene el fix de código completo (referral_code, guarda de reentrancia, test de regresión) — esta revisión es exclusivamente una pasada de precisión de lenguaje sobre documentación ya cerrada, sin tocar código.
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: precision pass — JWT claim-by-claim language, meet.jit.si runtime/docs split, reentrancy vs idempotency, Response Contract Integrity taxonomy)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1710,16 +1710,35 @@ endpoint concedería, con piso en `now()+300s` para no emitir un token ya
 vencido), `nbf:now-10`, `context.user.{name, moderator}` (moderador
 calculado server-side: `$lesson->teacherProfile?->user_id === $user->id`,
 nunca confiado del cliente), `context.features.{livestreaming, recording,
-transcription}: false`. Todo esto verificado con **decodificación
-criptográfica real** en `JitsiAccessWindowTest.php` (`JWT::decode()` con la
-clave pública derivada de la privada real de config, no un mock) y en
-`MonetizationIntegrityTest.php` — no se tomó la palabra del código sobre lo
-que el JWT contiene, se decodificó el JWT real emitido en cada test.
-`test_the_jwt_is_still_scoped_to_the_specific_room` confirma explícitamente
-que el endurecimiento temporal (F-06) no debilitó el scope: `room` sigue
-siendo la sala específica, nunca `'*'`. Ningún token es reutilizable entre
-lecciones o usuarios — cada `join()` genera un JWT nuevo, atado a esa
-lección y ese usuario en ese momento.
+transcription}: false`. **Precisión pedida en revisión**: "decodificar un
+JWT" no es, por sí mismo, una afirmación de seguridad — cualquiera puede
+decodificar el payload de un JWT sin validar nada (es Base64, no
+cifrado). Lo que los tests realmente ejercitan, claim por claim, con
+`JWT::decode()` de la librería `firebase/php-jwt` contra la **clave
+pública real** derivada de la privada de config (no un mock, no un
+stub) — que es lo único que demuestra algo, porque `decode()` lanza
+excepción si la firma no verifica contra esa clave:
+
+```text
+signature:        VERIFIED — JWT::decode() rechaza el token si la firma RS256
+                   no valida contra la clave pública real (no se limita a leer
+                   el payload sin verificar)
+issuer (iss):      VERIFIED — 'chat', confirmado leyendo el payload decodificado
+subject (sub):     VERIFIED — $appId, confirmado leyendo el payload decodificado
+room claim:        VERIFIED — coincide con el jitsi_room real de la lección,
+                   nunca '*' (test_the_jwt_is_still_scoped_to_the_specific_room)
+expiration (exp):  VERIFIED — acotado al fin de ventana (F-06), nunca 24h fijas
+                   (test_the_jwt_no_longer_lives_for_24_hours,
+                   test_the_jwt_expires_around_the_end_of_the_access_window)
+permissions:       VERIFIED — context.user.moderator calculado server-side,
+                   context.features.{recording,livestreaming,transcription}
+                   forzados a false, confirmado en el payload decodificado
+```
+
+Ningún token es reutilizable entre lecciones o usuarios — cada `join()`
+genera un JWT nuevo, atado a esa lección y ese usuario en ese momento. Lo
+que esto NO demuestra: que JaaS en producción aplique estos claims de la
+misma forma (ver "JaaS integration" abajo, separado explícitamente).
 
 ### Contrato de sala — identidad determinista, sin adivinar
 
@@ -1736,13 +1755,28 @@ seguro) pero nunca el valor real — la sala y el JWT solo se revelan vía
 ### Integración JaaS — la migración histórica de `meet.jit.si`, re-verificada fresca
 
 Re-grepeado el repositorio completo (`app/`, `resources/js/`, `database/`,
-`config/`) esta pasada, no asumido resuelto por documentación previa: cada
-referencia textual restante a `meet.jit.si` (`LessonController.php`,
-`LessonSettledNotification.php`, `JaasService.php`, `useJitsiMeet.js`, una
-migración, `config/jaas.php`) es un comentario explicativo documentando el
-reemplazo histórico — ninguna es una ruta de código viva, un valor de
-config, ni una URL activa. Verificado explícitamente en las notificaciones,
-por nombre, como pidió esta pasada: `LessonSettledNotification.php` y
+`config/`) esta pasada, no asumido resuelto por documentación previa.
+**Clasificación explícita por categoría** (encontrar un string en un
+comentario viejo no es lo mismo que encontrarlo en una ruta que la
+aplicación ejecuta — colapsar ambas cosas es lo que reabriría este asunto
+sin necesidad en una futura auditoría):
+
+```text
+runtime / production code path → meet.jit.si  :  0 referencias
+    (ninguna ruta de código viva, valor de config activo, ni URL construida
+    en tiempo de ejecución apunta al Jitsi público — verificado leyendo
+    cada match, no solo contando el grep)
+
+documentation / comments / historical strings  :  6 referencias
+    LessonController.php, LessonSettledNotification.php, JaasService.php,
+    useJitsiMeet.js, una migración, config/jaas.php — cada una es un
+    comentario explicando POR QUÉ se migró a JaaS (ej. "Antes: meet.jit.si,
+    cuyo embed se corta a los 5 minutos en producción"), no una URL que el
+    código construye o visita
+```
+
+Verificado explícitamente en las notificaciones, por nombre, como pidió
+esta pasada: `LessonSettledNotification.php` y
 `ClassReminderNotification.php` llevan ambas una regla explícita contra
 incluir `jitsi_room`/`jitsi_password`/una URL directa de reunión en su
 payload (citando el fix real previo "C-3", commit `533a799`) —
@@ -1751,7 +1785,11 @@ que los únicos matches de `jitsi_room`/`jitsi_password`/`jitsi_token` son
 comentarios reafirmando la regla, no fugas. `ClassReminderNotification`
 enlaza deliberadamente solo a las rutas propias autenticadas de MOVA
 (`teacher.lessons`/`parent.lessons`), forzando cualquier intento de unirse a
-pasar por `join()`.
+pasar por `join()`. El objetivo de este bloque no es llegar a "0 apariciones
+de la cadena `meet.jit.si` en todo el repo" — sería borrar contexto
+histórico útil sin ganar seguridad real; el objetivo es que la ruta de
+producción sea exactamente la arquitectura JaaS pretendida, lo cual ya está
+confirmado.
 
 ### `JitsiModal.vue` — ciclo de vida del componente
 
@@ -1796,6 +1834,21 @@ existe runner de tests JS en el proyecto (confirmado revisando
 `package.json`), así que esta guarda no tiene ni puede tener un test
 automatizado; la evidencia es exclusivamente de navegador.
 
+**Precisión de terminología, pedida en revisión**: esto es **client-side
+reentrancy protection** — un guard en el componente Vue que evita que el
+propio cliente dispare una segunda llamada mientras la primera sigue en
+vuelo. No es, y no se etiqueta como, idempotencia de servidor. `join()` es
+una operación de **solo lectura** (no muta ninguna fila; genera un JWT
+nuevo cada vez que se llama, y eso es correcto — cada JWT tiene su propio
+`exp`/`nbf` frescos): si dos llamadas reales llegaran al backend en
+paralelo, ambas devolverían 200 con un JWT válido cada una, sin ningún
+efecto secundario destructivo ni fila duplicada que deduplicar. Por eso
+**no se introduce ningún `Idempotency-Key`** para `join()` — sería
+resolver un problema que no existe, para una operación que no escribe
+estado. La guarda del cliente existe únicamente para evitar la molestia de
+una segunda instancia huérfana de `JitsiMeetExternalAPI` en el navegador
+del propio usuario, no para proteger al servidor.
+
 Hallazgo menor, NO corregido (deliberado, fuera de alcance de esta pasada):
 no hay estado de carga explícito entre "la modal se abre" y "el contenido
 aparece" — pantalla oscura con solo el header durante el fetch de
@@ -1832,8 +1885,9 @@ sección de `reschedule()` y reconfirmado/corregido aquí para
 ### Tests — cobertura pre-existente, huecos reales cubiertos
 
 `MonetizationIntegrityTest.php` y `JitsiAccessWindowTest.php` ya cubrían,
-**antes de esta sesión**, con verificación criptográfica real del JWT:
-profesor/padre autorizados, usuarios no relacionados, invitados, estados de
+**antes de esta sesión**, con firma y claims del JWT verificados
+criptográficamente claim por claim (ver desglose arriba, no un simple
+"decode"): profesor/padre autorizados, usuarios no relacionados, invitados, estados de
 lección inválidos, ventana horaria completa (temprano/tarde/bordes/gracia/
 configurable), scope de sala, features deshabilitadas (recording/streaming/
 transcription), y no-exposición de credenciales en listados. Único hueco
@@ -1877,15 +1931,50 @@ Navegador:  BROWSER_VERIFIED ✅ — flujo real, no simulado:
        estado de prueba residual en la base local.
 ```
 
+**Estas dimensiones se mantienen separadas a propósito — un `200 + iframe
+montado` es evidencia de integración funcional, no una prueba por sí solo
+de que los claims del JWT sean correctos, ni de que producción se comporte
+igual:**
+
+```text
+Backend JWT contract (firma/claims):   VERIFIED — vía PHPUnit + JWT::decode() real, no el browser test
+Authorization (policy/estado/ventana): VERIFIED — vía PHPUnit + confirmado indirectamente en browser (canJoinJitsi() ocultó el botón hasta mover la ventana)
+Browser integration (flujo real):      VERIFIED — login/join/iframe/cierre/doble-click, esta pasada
+JaaS actual connection (8x8.vc real):  VERIFIED — external_api.js real se cargó y JitsiMeetExternalAPI se inicializó de verdad (no un mock del SDK)
+Production infrastructure (Railway):   NOT VERIFIED — esta sesión no tiene acceso a producción; ver "Producción, explícitamente fuera de esta pasada" abajo
+```
+
 ### Principio de frontera de seguridad (permanente — se sincroniza a `MOVA_SYSTEM_KNOWLEDGE.md`)
 
 JaaS autentica; MOVA autoriza — son dos capas distintas, y un JWT válido
-nunca sustituye la autorización propia de MOVA. Confirmado en el código, no
-solo enunciado: `join()` decide "¿puede esta persona entrar a esta clase?"
-completo (policy + estado + ventana) antes de que `JaasService` genere nada.
-Regla explícita: **para entrar a una clase, MOVA autoriza primero, genera
-credenciales después, y JaaS/Jitsi recibe únicamente las credenciales
-correspondientes a ese usuario y esa clase.**
+nunca sustituye la autorización propia de MOVA. Precisado en tres capas
+explícitas (no dos), cada una con su propio dueño y su propia pregunta:
+
+```text
+Capa 1 — MOVA authorization
+  ¿Puede este usuario entrar a ESTA clase?
+  → LessonPolicy::view() + in_array(status) + ventana horaria (F-06)
+  → dueño: MOVA. Sin esto, nada de lo siguiente ocurre.
+
+Capa 2 — Meeting credential generation
+  ¿Para qué lesson/room se generan las credenciales, y con qué límites?
+  → JaasService: room de ESA lección, exp acotado a la ventana ya concedida,
+    moderator calculado server-side
+  → dueño: MOVA (backend), usando lo que la Capa 1 ya decidió.
+
+Capa 3 — JaaS authentication
+  ¿JaaS acepta las credenciales que MOVA generó?
+  → JaaS valida la firma RS256 del JWT contra la clave pública configurada
+  → dueño: JaaS. No decide autorización de negocio — solo confía en la
+    firma. Confirmado en el código, no solo enunciado: `join()` completa
+    la Capa 1 entera ANTES de que `JaasService` (Capa 2) genere nada, y
+    Capa 3 ocurre fuera de MOVA por completo.
+```
+
+Regla explícita: **para entrar a una clase, MOVA autoriza primero (Capa 1),
+genera credenciales después (Capa 2), y JaaS/Jitsi recibe únicamente las
+credenciales correspondientes a ese usuario y esa clase (Capa 3) — nunca al
+revés, y ninguna capa sustituye a otra.**
 
 ### Sin sobre-ingeniería
 
@@ -1902,32 +1991,72 @@ arquitectura.
 ```text
 Authorization:                VERIFIED (mismo LessonPolicy::view() que gobierna listados; test real con profesor/padre no relacionados)
 Lifecycle:                    VERIFIED (in_array de estados leído del controlador; cancelled/completed rechazados con test real)
-JWT contract:                 VERIFIED (decodificación criptográfica real en tests — room/aud/iss/exp/moderator/features, nunca 24h fijas, nunca scope comodín)
+JWT contract (firma/claims):  VERIFIED claim por claim — signature/issuer/subject/room/expiration/permissions (ver desglose arriba; nunca "solo decodificado")
 Room contract:                VERIFIED (una sala por lección, no derivable; $hidden confirmado con test; solo se revela vía join())
-JaaS integration:              VERIFIED (meet.jit.si re-grepeado fresco esta pasada, incluidas notificaciones por nombre — 0 rutas vivas)
+JaaS integration (runtime):    VERIFIED — 0 referencias runtime a meet.jit.si (6 referencias son comentarios/documentación, clasificadas por separado arriba)
+JaaS integration (producción real, 8x8.vc en vivo): NOT VERIFIED — ver "Producción" abajo
 JitsiModal lifecycle:          VERIFIED (dispose()/reset confirmado en navegador real; loading state ausente = hallazgo menor documentado, no bloqueante)
 Error protocol:                VERIFIED (403/404 correctos; join() no tiene errores de formulario que convertir)
 Information disclosure:        VERIFIED (respuesta = jitsi_room/jitsi_token/jaas_app_id exclusivamente, leído del controlador)
-parentIndex() referral_code regression: FIXED + TEST_VERIFIED (revert-confirm-restore) + BROWSER_VERIFIED
-openJitsi() reentrancy guard:  FIXED + BROWSER_VERIFIED (sin test JS posible — no existe runner en el proyecto)
+parentIndex() referral_code regression: reclasificada como Response Contract Integrity / underprojection (no vulnerabilidad de seguridad — ver MOVA_SYSTEM_KNOWLEDGE.md) — FIXED + TEST_VERIFIED (revert-confirm-restore) + BROWSER_VERIFIED
+openJitsi() client-side reentrancy guard: FIXED + BROWSER_VERIFIED (no es idempotencia de servidor — join() no muta estado; sin test JS posible, no existe runner en el proyecto)
 Tests:                         549/549 (1 nuevo, 0 regresiones)
 Build:                         BUILD_VERIFIED ✅
-Browser:                       BROWSER_VERIFIED ✅ (flujo autorizado completo, cierre, doble-click — ver detalle arriba)
-Real concurrency:              NOT DIRECTLY EXERCISED — no aplica aquí de la misma forma que en cancel()/confirmPayment(): join() no muta estado, es idempotente por diseño
+Browser:                       BROWSER_VERIFIED ✅ (flujo autorizado completo, cierre, doble-click — ver dimensiones separadas arriba)
+Real concurrency:              NOT DIRECTLY EXERCISED — join() no muta estado (genera un JWT nuevo por llamada); no hay fila que deduplicar, así que esta ausencia no es una brecha, es la naturaleza de una operación de solo lectura
+Production infrastructure (Railway): NOT VERIFIED — sin acceso; separado explícitamente como release gate, no como deuda técnica de esta auditoría (ver abajo)
 JWT expirado contra JaaS real: NOT DIRECTLY EXERCISED (UNKNOWN-03, ya documentado antes de esta sesión, sin infraestructura externa para reproducirlo)
 ```
 
 **`LessonController::join()` + `JitsiModal.vue` + JaaS/JWT → CERRADO PARA
 ESTE ALCANCE.** Único hallazgo real de seguridad/datos fue la regresión de
 `referral_code` (adyacente a `join()`, no en `join()` mismo — causada por
-una restricción de columnas de una pasada anterior de esta misma sesión);
-el contrato propio de `join()` ya estaba sólidamente cubierto antes de esta
-sesión. Cierra el ciclo completo del hotspot `LessonController`
-(`store`/`accept` → `reschedule` → `confirmPayment` → `cancel` → `join`).
-Continúa, por decisión explícita del usuario, la fase de rediseño UX/UI
-unificado (Accept/Reschedule/ConfirmPayment/Cancel/Join-Jitsi como un solo
-sistema visual coherente) — no más auditorías de backend/seguridad sobre
-este recorrido sin evidencia nueva que las justifique.
+una restricción de columnas de una pasada anterior de esta misma sesión,
+y reclasificada como *Response Contract Integrity / underprojection*, no
+como vulnerabilidad de seguridad — ver `MOVA_SYSTEM_KNOWLEDGE.md`); el
+contrato propio de `join()` ya estaba sólidamente cubierto antes de esta
+sesión.
+
+### `LessonController` — CORE BACKEND LIFECYCLE: CLOSED FOR CURRENT SCOPE
+
+Cierra el ciclo completo del hotspot `LessonController`:
+
+```text
+store()/accept → reschedule() → confirmPayment() → cancel() → join()   ✅ CLOSED FOR CURRENT SCOPE
+```
+
+Ninguno de estos cinco se reabre sin evidencia nueva (un bug reportado en
+producción, un cambio de requisito de negocio) — no como ejercicio de
+"seguir auditando por auditar". Esto **no** significa "100% terminado" sin
+matices — tres cosas quedan explícitamente fuera y separadas, no
+mezcladas bajo el mismo ✅:
+
+```text
+Production verification (Railway):    NOT VERIFIED — ver "Producción" abajo; es un release gate futuro, no deuda de esta auditoría
+True parallel concurrency:            NOT DIRECTLY EXERCISED — PHPUnit y el navegador son de un solo proceso; nunca se ejecutaron dos transacciones reales simultáneas contra ningún método de este hotspot
+Global UX/accessibility pass:         PENDING — deliberadamente no tocado, es la fase que sigue a este cierre
+```
+
+### Producción, explícitamente fuera de esta pasada
+
+No se trata como deuda técnica infinita ni se repite indefinidamente en
+cada cierre — se declara una vez, aquí, como lo que realmente es: **un
+release gate, no una fase de desarrollo local.** Antes del primer `push`
+futuro (bloqueado hoy por F-26, sin cambios en esa área esta pasada):
+
+```bash
+git fetch origin
+git status --short --branch
+git rev-list --left-right --count HEAD...origin/master
+php artisan test
+npm run build
+php artisan migrate:status
+```
+
+y, tras desplegar: smoke test en el entorno real, verificación explícita de
+los endpoints críticos de este hotspot (`join()` incluido). Ese es un paso
+de release, no un paso de esta auditoría — no se ejecuta aquí porque esta
+sesión no tiene acceso a Railway.
 
 ---
 

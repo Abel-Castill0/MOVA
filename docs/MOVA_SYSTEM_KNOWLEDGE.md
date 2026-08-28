@@ -741,26 +741,29 @@ solo el status nunca demuestra que el mensaje llegó al usuario. No hace
 falta corregir de inmediato toda prueba existente que no siga esto; sí
 aplica a partir de ahora a toda prueba nueva o modificada.
 
-### Regla arquitectónica: JaaS autentica, MOVA autoriza — dos capas distintas que nunca se sustituyen entre sí
+### Regla arquitectónica: JaaS autentica, MOVA autoriza — tres capas distintas que nunca se sustituyen entre sí
 
 Confirmada leyendo la frontera completa `join()` → `JaasService` →
 `useJitsiMeet.js` → `JitsiModal.vue` durante la auditoría de
-`2026-08-28`: un JWT de JaaS válido prueba que **JaaS** aceptará a alguien
-en una sala — nunca prueba que **MOVA** ya decidió que esa persona puede
-estar en esa clase. Son dos sistemas de confianza distintos, con dueños
-distintos, y el código verificado los mantiene en ese orden estricto:
+`2026-08-28`, y precisada en revisión posterior a tres capas explícitas
+(no dos — "MOVA autoriza" en realidad son dos pasos distintos: decidir, y
+luego fabricar la credencial que expresa esa decisión):
 
 ```text
-LessonController::join()                  JaasService / JaaS
-──────────────────────────                 ───────────────────
-authorize('view', $lesson)  →  decide      firma un JWT RS256 con room/exp/
-in_array($status, [...])    →  quién       moderator ya resueltos por MOVA
-ventana horaria (F-06)      →  puede       → JaaS solo valida la firma y
-                                entrar        deja pasar lo que el JWT dice
+Capa 1 — MOVA authorization            Capa 2 — Credential generation        Capa 3 — JaaS authentication
+──────────────────────────              ──────────────────────────            ──────────────────────────
+¿Puede este usuario entrar a           ¿Para qué lesson/room, con qué        ¿JaaS acepta la credencial
+ESTA clase?                            límites?                             que MOVA generó?
+authorize('view', $lesson)             JaasService firma un JWT RS256        JaaS valida la firma contra
++ in_array($status, [...])             con room/exp/moderator ya             la clave pública — no decide
++ ventana horaria (F-06)               resueltos por la Capa 1               autorización de negocio
+dueño: MOVA                            dueño: MOVA (backend)                 dueño: JaaS
 ```
 
-`JaasService` nunca recibe una petición de un usuario que
-`LessonController::join()` no haya autorizado ya — el JWT se genera
+Un JWT de JaaS válido prueba que **JaaS** (Capa 3) aceptará a alguien en
+una sala — nunca prueba que **MOVA** (Capa 1) ya decidió que esa persona
+puede estar en esa clase. `JaasService` (Capa 2) nunca recibe una petición
+de un usuario que la Capa 1 no haya autorizado ya — el JWT se genera
 DESPUÉS de que la autorización completa (policy + estado + ventana) pasó,
 nunca antes ni en paralelo. Regla a mantener en cualquier integración
 futura con un proveedor de identidad/autenticación externo (video, pagos,
@@ -770,6 +773,75 @@ decisión de negocio ("¿puede este usuario hacer esto?") vive siempre en el
 código de MOVA, antes de generar cualquier credencial hacia el proveedor —
 nunca se delega esa pregunta al proveedor ni se infiere de que el
 proveedor haya aceptado el token.
+
+### Regla arquitectónica: Response Contract Integrity — sobreexposición y subproyección son el mismo contrato, dos fallos distintos
+
+Nombrada explícitamente tras la auditoría de `join()`/`JitsiModal.vue`
+(`2026-08-28`), pero el patrón ya se había visto varias veces antes en esta
+misma sesión (`ClassRequests/Accept.vue`, `reschedule()`,
+`TeacherProfile::$hidden`) sin tener todavía un nombre único que las
+agrupara. Cada vez que un endpoint restringe (`select()`/proyección de
+relación) los campos que devuelve, hay **dos** formas de romper el
+contrato con sus consumidores reales, no solo una:
+
+```text
+A. Overprojection (sobreexposición)
+   el backend devuelve MÁS de lo que el consumidor autorizado necesita
+   → riesgo: seguridad/privacidad (datos de un menor, campos financieros
+     internos, metadata de moderación filtrándose a quien no debería verlos)
+   → ejemplo real: Student completo (birth_date, school) servido a un
+     profesor cuya Policy solo cubría "puede aceptar esta solicitud"
+     (auditoría de ClassRequests/Accept.vue)
+
+B. Underprojection (subproyección)
+   el backend devuelve MENOS de lo que un consumidor autorizado necesita
+   → riesgo: funcionalidad rota, silenciosamente, sin excepción que la
+     señale — un valor queda undefined en vez de fallar ruidosamente
+   → ejemplo real: teacherProfile.referral_code omitido en la proyección
+     de parentIndex() (hecha para cerrar un caso de tipo A en la auditoría
+     de reschedule()), rompiendo JitsiModal.vue sin que ningún test lo
+     capturara (auditoría de join()/JitsiModal.vue)
+```
+
+**El caso de `referral_code` se clasifica como B — underprojection /
+consumer contract regression — no como una vulnerabilidad de seguridad.**
+Ninguna clasificación se colapsa en la otra: A es un problema de qué NO
+debería salir; B es un problema de qué SÍ debería salir y dejó de hacerlo.
+Ambos son el mismo tipo de error de raíz — nadie enumeró los consumidores
+reales antes de fijar la proyección — así que ambos se previenen con la
+misma disciplina, no con reglas separadas.
+
+**Regla de proceso obligatoria antes de restringir una proyección ya
+consumida por el frontend** (no optimizar el payload a ciegas):
+
+```text
+1. Enumerar TODOS los consumidores reales del endpoint
+   (grep por el nombre del prop en resources/js/ — Pages Y Components Y
+   Composables; JitsiModal.vue no vive en Pages/, y por eso se pasó por
+   alto la primera vez)
+2. Para cada consumidor, identificar qué campos lee de verdad
+   (no lo que "parece razonable que necesite" — leer el .vue/.js real)
+3. Verificar relaciones anidadas específicamente
+   (teacher_profile.referral_code es un campo anidado dentro de un prop
+   más grande — un grep superficial del componente principal no basta si
+   ese componente pasa el objeto completo a un hijo/composable)
+4. Añadir un test de contrato cuando el campo sea necesario para la UI
+   (assertInertia(...)->where(...) o equivalente — el mismo patrón que
+   test_parent_lesson_listing_still_exposes_teacher_referral_code_for_jitsi_modal)
+5. Solo entonces restringir la proyección
+```
+
+Esto aplica retroactivamente como vigilancia, no como reescritura
+inmediata: cada restricción de columnas ya hecha en esta sesión
+(`TeacherProfile`, `User`, `Student`, `ClassOffer`) queda como superficie a
+revisar si aparece un nuevo consumidor, no como trabajo pendiente
+automático. **No se introduce un DTO/Resource global** (`TeacherPublicResource`,
+`LessonResource`, etc.) solo por este hallazgo — tres superficies con
+proyecciones explícitas y tests de allowlist siguen siendo suficientes
+para el tamaño actual de MOVA; esa capa se reconsidera si el número de
+superficies/contratos repetidos crece lo suficiente como para que
+duplicar la proyección a mano deje de ser sostenible, no antes (mismo
+criterio anti-sobreingeniería que el resto de este documento).
 
 ---
 
