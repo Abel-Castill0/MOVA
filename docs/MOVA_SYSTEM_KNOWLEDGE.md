@@ -671,6 +671,76 @@ proyección de los DATOS, y la vigencia del ESTADO del recurso son tres
 preguntas separadas — ninguna respuesta afirmativa a una responde las
 otras dos.
 
+### Regla arquitectónica: el nombre de un método no es su contrato — `confirmPayment()` no liquida nada
+
+Confirmada leyendo `LessonController::confirmPayment()` completo durante
+la auditoría de `2026-08-27`: el método solo hace
+`Lesson.status: 'scheduled' → 'paid'` y registra un `ClassEvent` de
+auditoría. **No toca créditos, no toca el ledger, no ejecuta ninguna
+liquidación financiera.** El consumo/devolución real de créditos vive
+enteramente en `LessonSettlementService::consume()`/`refund()` — un
+servicio separado, más endurecido (idempotencia real vía `UNIQUE` de BD,
+no solo un chequeo de estado), que se dispara después, por un camino
+distinto (el scheduler tras el período de gracia, o una acción humana
+explícita: reseña del padre, force-complete de admin).
+
+```text
+confirmPayment()                          LessonSettlementService
+= confirma el ESTADO de la clase          = ejecuta el EFECTO financiero
+  (el padre declaró que pagó)               (consume/refund créditos + ledger)
+≠ liquidación financiera                  = el núcleo financiero real de MOVA
+```
+
+Un futuro desarrollador que lea el nombre `confirmPayment()` y asuma "aquí
+se cobra" estará equivocado. Regla a mantener: **el nombre de un método no
+sustituye la lectura de su cuerpo** — antes de asumir qué mueve una
+operación financiera, verificar qué transacciones/tablas toca realmente,
+no inferirlo del nombre. Aplica en ambas direcciones: no asumir que algo
+"suena financiero" hace daño financiero, ni que algo "suena inocuo" no lo
+hace.
+
+### Regla arquitectónica: toda operación Inertia debe declarar su contrato de error y quién lo consume
+
+Encontrado y corregido, en variantes del mismo patrón, en **cuatro**
+operaciones distintas durante esta sesión (`Register.vue`,
+`ClassRequests/Accept.vue`, `LessonController::reschedule()`,
+`LessonController::confirmPayment()`):
+
+```text
+backend lanza un error real (ValidationException)
+        ↓
+Inertia lo traduce correctamente a session('errors')/form.errors
+        ↓
+el componente Vue que consume la respuesta IGNORA esa clave
+        ↓
+el usuario ve un mensaje genérico hardcodeado, o nada
+```
+
+Un backend puede devolver un error perfectamente correcto y la aplicación
+seguir teniendo una UX rota, si el componente que consume la respuesta no
+lee la clave real. Esto no se descubre leyendo solo el backend — se
+encontró cada vez verificando en vivo, nunca por inspección de código en
+un solo lado.
+
+Regla a mantener para toda operación nueva iniciada desde una interfaz
+Inertia (`useForm().post()` o `router.post()`/`get()`/etc.): **debe
+declararse explícitamente, en el mismo cambio, (1) qué claves de error
+puede devolver el backend — field-level o de negocio — y (2) qué elemento
+del componente Vue las renderiza.** Un `onError` que solo lee un campo
+"por si acaso" (`e.start_time || 'mensaje genérico'`) sin haber verificado
+contra el controlador real qué claves existen de verdad es exactamente el
+patrón que produjo los cuatro hallazgos de esta sesión.
+
+**Regla de testing relacionada, aplicable de aquí en adelante (no
+retroactiva a toda la suite existente)**: para cualquier error de negocio
+visible para el usuario, un test debe comprobar el status **y** el
+contrato de error real (`assertSessionHasErrors(['clave' => 'mensaje
+exacto'])`), nunca solo `assertStatus()` — un `abort()` crudo y una
+`ValidationException` real pueden compartir el mismo código HTTP, así que
+solo el status nunca demuestra que el mensaje llegó al usuario. No hace
+falta corregir de inmediato toda prueba existente que no siga esto; sí
+aplica a partir de ahora a toda prueba nueva o modificada.
+
 ---
 
 ## 29. Deuda técnica (separada estrictamente de bugs/vulnerabilidades)

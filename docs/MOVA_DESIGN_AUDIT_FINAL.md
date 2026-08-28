@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.21
-generated_at:     2026-08-27T23:15:16Z
-repository_head:  ad10f03   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (81 commits detrás de local, sin push)
+audit_revision:   2026-08-27.22
+generated_at:     2026-08-28T00:01:12Z
+repository_head:  e96e802   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (82 commits detrás de local, sin push)
 working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: confirmPayment() audit closure)
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: confirmPayment precision fixes — 409 root-caused, vocabulary split)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1410,31 +1410,84 @@ confirmación real (`Lesson#12`: `scheduled → paid`, exactamente 1
 chequeo de BD: sigue `paid`, sigue exactamente 1 `ClassEvent` — ninguna
 transición ni efecto financiero duplicado.
 
-**Anomalía menor no explicada, señalada por honestidad**: uno de los
-intentos intermedios durante esta verificación devolvió un `409` en vez
-del `302`/`422` esperado — no se investigó a fondo (no afectó el
-resultado: el estado final en base de datos es correcto y consistente),
-pero se registra en vez de omitirlo.
+**El `409` investigado, no dejado como anomalía** — pedido explícitamente
+en revisión ("hay que averiguar qué significa ese 409, no asumir que fue
+un error"). Investigado hasta la causa real, con evidencia:
+
+```text
+grep de "409"/Inertia::location() en el paquete inertia-laravel
+  → única llamada real: Middleware.php::onVersionChange(), condición
+    `$request->method() === 'GET' && X-Inertia-Version no coincide`
+  → NO es un 409 de negocio: la app no tiene ningún abort(409, ...) en
+    el dominio de Lesson (el único abort(409) real de la app vive en
+    RechargeApprovalService — recargas, dominio ajeno)
+```
+
+Reproducido de forma limpia (`Lesson#14`, sesión real, cookies frescas):
+la respuesta con `status:409` traía **el header `x-inertia-location:
+".../dashboard"` y body vacío** — la firma exacta de `Inertia::location()`,
+que solo se dispara para `GET`. Mi propia request era un `POST`, así que
+esta no fue la respuesta a MI request — fue la respuesta a la
+**redirección GET que el `fetch()` del navegador siguió automáticamente**
+después de que el `POST` real ya hubiera tenido éxito con un
+redirect-back normal, sin llevar el header `X-Inertia-Version` que un
+cliente Inertia real sí adjunta. Confirmado contra base de datos:
+`Lesson#14` quedó `paid` con exactamente 1 `ClassEvent` — el `POST`
+original **sí tuvo éxito**, una sola vez; el `409` fue un artefacto de
+usar `fetch()` crudo para probar un flujo que un profesor/padre real
+nunca dispara así (`router.post()` de Inertia sí gestiona esto
+internamente y nunca expone este código a la aplicación). No es un
+hallazgo de negocio, es una particularidad de la técnica de verificación
+— documentado con la causa real en vez de dejarlo como misterio.
 
 ### Regression proof
 
 `git stash` sobre `LessonController.php` reprodujo las 6 fallas reales
 esperadas antes de restaurar.
 
+### Precisiones de vocabulario pedidas en revisión
+
+- **`confirmPayment()` no es la liquidación financiera** — ver sección
+  "Qué mueve realmente esta operación" arriba. El nombre del método
+  puede inducir a pensar "aquí se cobra"; no es así. No se renombra
+  (cambio innecesario sobre código estable), pero queda registrado aquí
+  y en `MOVA_SYSTEM_KNOWLEDGE.md` para que un desarrollador futuro no lo
+  asuma por el nombre.
+- **`ClassEvent::log('payment_confirmed', ...)` es un registro de
+  auditoría del cambio de estado, no evidencia del efecto financiero**
+  — confirmado leyendo `ClassEvent::log()`: escribe `event_type`,
+  `actor_id`, `lesson_id`, `class_request_id`, sin tocar créditos ni
+  ledger. Se usó como evidencia de "exactamente una transición de
+  estado", nunca como evidencia de "exactamente un efecto financiero"
+  (esa evidencia es `credit_transactions`, verificada por separado en
+  `LessonSettlementService`, no en este endpoint).
+- **Por qué admin puede confirmar pago**: no es una decisión específica
+  de `confirmPayment()` — `LessonPolicy::before()` concede acceso total
+  a admin para TODAS las abilities de esta Policy (`view`, `cancel`,
+  `reschedule`, `confirmPayment`, `createReport`, `createReview`), mismo
+  patrón ya verificado en `ClassRequestPolicy`/`RechargeRequestPolicy`
+  esta sesión — es la convención "admin = anulación operativa/soporte"
+  ya establecida en toda la app, no una excepción de este endpoint.
+
 ### Cierre — vocabulario exacto
 
 ```text
-Authorization:               VERIFIED (solo padre dueño + admin, ya sólido)
-State machine:                VERIFIED (scheduled→paid, doble chequeo bajo lock)
-Financial authority:          VERIFIED (ledger vía reservedCreditAmount(), nunca recalculado)
-Transaction:                  VERIFIED (ya sólido, sin tocar)
-Concurrency:                  NOT DIRECTLY EXERCISED (mismo límite de PHPUnit en toda la sesión)
-Retry semantics:              VERIFIED (segundo intento rechazado, sin duplicar — confirmado en BD, no solo HTTP status)
-Data projection:               VERIFIED (ya corregido en el bloque de reschedule() — misma página)
-Error protocol:                VERIFIED (corregido en esta pasada — 2 conversiones + 1 fix de frontend)
-Notifications:                 VERIFIED (post-commit, ShouldQueue, razón documentada en el propio código)
-Tests:                         545/545 — 6 assertSessionHasErrors() corregidas, 0 nuevas
-Browser:                       VERIFIED (secuencia completa confirmada por inspección directa de BD)
+confirmPayment business contract:  VERIFIED
+financial settlement:              VERIFIED ELSEWHERE, en LessonSettlementService — confirmPayment()
+                                    no lo ejecuta, solo habilita la elegibilidad (status='paid')
+Authorization:                     VERIFIED (solo padre dueño + admin, ya sólido)
+State machine:                     VERIFIED (scheduled→paid, doble chequeo bajo lock)
+Financial authority (del ledger):  VERIFIED (reservedCreditAmount(), nunca recalculado) — verificado en
+                                    LessonSettlementService, no en confirmPayment() mismo
+Transaction:                       VERIFIED (ya sólido, sin tocar)
+Concurrency:                       NOT DIRECTLY EXERCISED (mismo límite de PHPUnit en toda la sesión)
+Retry semantics:                   VERIFIED (segundo intento rechazado, sin duplicar — confirmado en BD, no solo HTTP status)
+Data projection:                   VERIFIED (ya corregido en el bloque de reschedule() — misma página)
+Error protocol:                    VERIFIED (corregido en esta pasada — 2 conversiones + 1 fix de frontend)
+Notifications:                     VERIFIED (post-commit, ShouldQueue, razón documentada en el propio código)
+Tests:                             545/545 — 6 assertSessionHasErrors() corregidas, 0 nuevas
+Browser:                           VERIFIED (secuencia completa confirmada por inspección directa de BD; el 409
+                                    investigado hasta su causa real, no dejado como misterio)
 ```
 
 **`LessonController::confirmPayment()` → CERRADO PARA ESTE ALCANCE.** Sin
