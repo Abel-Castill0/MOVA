@@ -54,6 +54,8 @@ import {
   MessageSquareText,
   Send,
   Info,
+  CalendarX2,
+  LoaderCircle,
 } from 'lucide-vue-next'
 
 export const icons = {
@@ -127,6 +129,12 @@ export const icons = {
   'help-needed': MessageSquareText, // "¿En qué necesita ayuda?" — la descripción libre del padre
   send: Send,                       // CTA "Enviar solicitud"
   info: Info,                       // nota explicativa neutra (no es error ni éxito) — distinto de `warning`
+
+  // Lesson Lifecycle UX System — CancelLessonModal.vue / JitsiModal.vue
+  'cancel-lesson': CalendarX2,      // cabecera del modal de cancelación — distinto de `no-classes` (CalendarX,
+                                     // "no hay clases", un estado vacío) aunque visualmente cercano: aquí es una
+                                     // acción destructiva sobre UNA clase puntual, no una lista vacía
+  connecting: LoaderCircle,         // "Conectando a la sala…" en JitsiModal.vue mientras JaaS inicializa
 }
 
 /**

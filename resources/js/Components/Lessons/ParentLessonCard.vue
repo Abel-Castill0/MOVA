@@ -69,13 +69,8 @@
             El profesor aún no registró un número de Yape/Plin.
           </p>
         </div>
-        <button v-if="hasClassEnded(lesson)" @click="$emit('pay', lesson)" :disabled="payingId === lesson.id"
-          class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-          <Icon v-if="payingId !== lesson.id" name="check" :size="16" />
-          {{ payingId === lesson.id ? 'Confirmando...' : 'Ya pagué' }}
-        </button>
-        <p v-else class="text-xs text-slate-400">Podrás confirmar el pago cuando la clase finalice.</p>
-        <p v-if="paymentErrorId === lesson.id" class="text-xs text-red-500 mt-2">{{ paymentError }}</p>
+        <ConfirmPaymentAction :lesson="lesson" :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
+          @pay="$emit('pay', $event)" />
       </div>
 
       <!-- Banner destacado: el profesor ya subió el reporte, falta que el padre califique para cerrar la clase -->
@@ -119,6 +114,7 @@
 import { Link } from '@inertiajs/vue3'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import Icon from '@/Components/Icon.vue'
+import ConfirmPaymentAction from '@/Components/Lessons/ConfirmPaymentAction.vue'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { statusStyle } from '@/utils/statusColors'
 
@@ -129,10 +125,6 @@ defineProps({
   paymentError: { type: String, default: '' },
 })
 defineEmits(['join', 'pay', 'reschedule', 'cancel'])
-
-function hasClassEnded(l) {
-  return Date.now() >= new Date(l.end_time).getTime()
-}
 
 function amountToPay(l) {
   if (l.price_frozen_pen !== null && l.price_frozen_pen !== undefined) {

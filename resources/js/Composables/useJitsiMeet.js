@@ -29,6 +29,16 @@ export function useJitsiMeet() {
   const showingJitsiModal = ref(false)
   const joinError = ref('')
   const activeLesson = ref(null)
+  // Distingue "la modal está abierta" de "el usuario ya puede ver el
+  // contenido" — antes no había ningún estado entre ambas cosas: la modal
+  // se abría a pantalla dividida en negro (solo el header) hasta que
+  // JitsiMeetExternalAPI terminaba de montar, sin ningún indicio de que
+  // algo estaba pasando. No es una señal de "la llamada ya conectó de
+  // verdad" (JaaS puede tardar más en renderizar video real) — es
+  // deliberadamente honesto: solo cubre el trabajo propio de MOVA (pedir
+  // credenciales + cargar el script + construir el iframe), no lo que pase
+  // dentro de JaaS después de eso.
+  const connecting = ref(false)
   let api = null
 
   // usePage() debe llamarse en el momento síncrono de setup() — se guarda la
@@ -66,6 +76,7 @@ export function useJitsiMeet() {
     joinError.value = ''
     activeLesson.value = lesson
     showingJitsiModal.value = true
+    connecting.value = true
 
     let credentials
     try {
@@ -76,13 +87,17 @@ export function useJitsiMeet() {
       // vistas) — cerrarlo aquí lo haría desaparecer antes de que el usuario
       // pueda leer por qué no pudo entrar.
       joinError.value = error.response?.data?.message || 'No se pudo verificar el acceso a esta clase.'
+      connecting.value = false
       return
     }
 
     await loadJitsiScript(credentials.jaas_app_id)
 
     const container = document.getElementById(containerId)
-    if (!container || !window.JitsiMeetExternalAPI) return
+    if (!container || !window.JitsiMeetExternalAPI) {
+      connecting.value = false
+      return
+    }
 
     api = new window.JitsiMeetExternalAPI(JAAS_DOMAIN, {
       // JaaS exige el room name con el prefijo del tenant (App ID).
@@ -98,6 +113,8 @@ export function useJitsiMeet() {
       },
     })
 
+    connecting.value = false
+
     // El botón nativo de "colgar" dentro del iframe dispara este evento
     // antes de que nosotros hagamos nada — lo tratamos igual que nuestro
     // botón "Cerrar sala", así el regreso a MOVA es automático sin importar
@@ -112,6 +129,7 @@ export function useJitsiMeet() {
     showingJitsiModal.value = false
     joinError.value = ''
     activeLesson.value = null
+    connecting.value = false
     if (api) {
       api.dispose()
       api = null
@@ -128,5 +146,5 @@ export function useJitsiMeet() {
     }
   }
 
-  return { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi }
+  return { showingJitsiModal, joinError, connecting, activeLesson, openJitsi, closeJitsi }
 }

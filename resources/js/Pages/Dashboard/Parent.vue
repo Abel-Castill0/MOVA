@@ -176,19 +176,14 @@
                     </div>
 
                     <div class="flex-shrink-0">
-                      <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-                        <Icon v-if="payingId !== l.id" name="check" :size="16" />
-                        {{ payingId === l.id ? 'Confirmando...' : 'Ya pagué' }}
-                      </button>
-                      <p v-else-if="l.status === 'scheduled'" class="text-xs text-slate-400 text-right max-w-[10rem]">Podrás confirmar el pago cuando la clase finalice</p>
+                      <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
+                        :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
                       <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
                         <Icon name="join-room" :size="16" /> Unirse a la sala
                       </button>
                       <!-- F-11: rama inalcanzable — canJoinJitsi() devuelve true para todo lo que esté en 'paid', así que este texto no llega a mostrarse. Se conserva como red por si la regla de acceso cambia. -->
                       <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">La sala de esta clase ya no está disponible.</p>
-                      <p v-if="paymentError && payingId === null" class="mt-1 text-xs font-semibold text-red-600 text-right">{{ paymentError }}</p>
                       <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
                         <Icon name="reviews" :size="16" /> Calificar
@@ -226,11 +221,8 @@
                     </div>
 
                     <div class="flex-shrink-0">
-                      <button v-if="l.status === 'scheduled' && hasClassEnded(l)" @click="confirmPayment(l)" :disabled="payingId === l.id"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-sm disabled:opacity-50">
-                        <Icon v-if="payingId !== l.id" name="check" :size="16" />
-                        {{ payingId === l.id ? 'Confirmando...' : 'Ya pagué' }}
-                      </button>
+                      <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
+                        :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
                       <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
                         <Icon name="join-room" :size="16" /> Unirse a la sala
@@ -359,7 +351,7 @@
     </div>
 
     <!-- Modal Sala Virtual (Jitsi) -->
-    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" @close="closeJitsi" />
+    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" :connecting="connecting" @close="closeJitsi" />
   </AppLayout>
 </template>
 
@@ -369,6 +361,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
+import ConfirmPaymentAction from '@/Components/Lessons/ConfirmPaymentAction.vue'
 import Icon from '@/Components/Icon.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
@@ -394,9 +387,10 @@ const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: '
 
 const payingId = ref(null)
 const paymentError = ref('')
+const paymentErrorId = ref(null)
 const postClassLessonId = ref(null)
 const postClassEnded = ref(true)
-const { showingJitsiModal, joinError, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
+const { showingJitsiModal, joinError, connecting, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
 // `upcoming` ya viene ordenado start_time asc (próxima primero) desde
 // DashboardController — ambos baldes conservan ese orden tal cual.
@@ -423,21 +417,29 @@ function dotColor(status) {
 // se habían unificado en utils/lessonJoin.js). Además tenía el mismo hueco
 // que la versión compartida anterior —sin límite inferior— y restringía a
 // 'paid' cuando el backend permite más estados. Se usa la función compartida.
-
-function hasClassEnded(l) {
-  return Date.now() >= new Date(l.end_time).getTime()
-}
+// hasClassEnded() en sí ahora vive dentro de ConfirmPaymentAction.vue (única
+// consumidora tras el sistema de Lesson Lifecycle UX) — sin duplicarla aquí.
 
 // F-19: esta acción no tenía onError, aunque la MISMA acción en
 // Lessons/ParentIndex.vue sí lo tiene. Un 422 (por ejemplo, la clase todavía
 // no ha terminado) dejaba al padre pulsando un botón que no hacía nada.
+//
+// Corrección adicional de esta pasada: paymentError era un ref GLOBAL sin
+// id — con dos secciones (`upcomingThisWeek`/`upcomingPast`) mostrando
+// lecciones simultáneamente, un error de pago en la lección A podía
+// terminar mostrándose (o alterando el v-else-if de) una lección B
+// completamente distinta. `paymentErrorId` lo ata a la lección real, mismo
+// patrón que ya usaba Lessons/ParentIndex.vue/ParentLessonCard.vue.
 function confirmPayment(l) {
   if (payingId.value) return
   payingId.value = l.id
-  paymentError.value = ''
+  paymentErrorId.value = null
   router.post(route('lessons.confirm-payment', l.id), {}, {
     preserveScroll: true,
-    onError: () => { paymentError.value = 'No se pudo confirmar el pago. Recarga la página e inténtalo de nuevo.' },
+    onError: (e) => {
+      paymentErrorId.value = l.id
+      paymentError.value = e.confirmPayment || 'No se pudo confirmar el pago. Intenta nuevamente.'
+    },
     onFinish: () => { payingId.value = null },
   })
 }
