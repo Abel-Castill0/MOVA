@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-28.3
-generated_at:     2026-08-28T09:11:31Z
-repository_head:  0822956   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (sin re-fetch en esta revisión)
-working_tree:     SUCIO en el momento de esta revisión — Fase 1 del Lesson Lifecycle UX System (Cancel/Reschedule/ConfirmPayment/Join): 4 archivos nuevos (useLessonActions.js, CancelLessonModal.vue, RescheduleLessonModal.vue, ConfirmPaymentAction.vue) + 7 modificados (JitsiModal.vue, ParentLessonCard.vue, useJitsiMeet.js, Dashboard/Parent.vue, Lessons/ParentIndex.vue, Lessons/TeacherIndex.vue, utils/icons.js) + este propio documento. Sin cambios de backend — build limpio y 549/549 tests confirmados antes de este commit.
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (feat(ux): Lesson Lifecycle UX System — shared Cancel/Reschedule modal, inline ConfirmPayment, Join connecting state)
+audit_revision:   2026-08-28.4
+generated_at:     2026-08-28T11:15:59Z
+repository_head:  7eb40d8   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (89 commits por delante de local, 0 por detrás, re-verificado este turno)
+working_tree:     SUCIO solo en este propio documento (terminología "producción" corregida + Validation Gate añadido) en el momento de esta revisión — todo el código de la Fase 1 del Lesson Lifecycle UX System ya está en 7eb40d8. Confirmado sin overlap con los 2 worktrees paralelos activos (jolly-hellman-5ca1a1, serene-davinci-30dfbd — ambos ya contenidos en master). 549/549 tests + build limpio re-confirmados en este mismo turno (integration gate final).
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: Lesson Lifecycle UX Phase 1 validation gate — teacher browser, stale-state x3, a11y, responsive, terminology fix)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -2067,9 +2067,11 @@ cierre del hotspot `LessonController` — no backend/seguridad nuevo, sistema
 de acción/modal compartido sobre los primitivos "Native Premium" ya
 construidos (`Modal.vue`, `BaseButton.vue`, tokens de `tailwind.config.js`).
 Alcance confirmado con el usuario antes de tocar código (`AskUserQuestion`):
-Cancel + Reschedule + ConfirmPayment + Join, producción, evidencia real.
-`ClassRequests/Accept.vue` queda fuera (página completa, no modal) — no se
-toca en esta pasada.
+Cancel + Reschedule + ConfirmPayment + Join, código listo para producción,
+verificado localmente con evidencia real (navegador + BD local + PHPUnit) —
+**no** "producción verificada": esta sesión no tiene acceso a Railway, ver
+distinción explícita en el cierre. `ClassRequests/Accept.vue` queda fuera
+(página completa, no modal) — no se toca en esta pasada.
 
 ### Hallazgo real encontrado durante el diseño, no solo estético
 
@@ -2148,38 +2150,106 @@ adicional: si esta misma condición (pestaña en segundo plano durante la
 conexión) ocurriera alguna vez en un navegador real, un overlay atascado
 invisible nunca debe poder bloquear clics sobre la llamada real debajo.
 
+### Validation Gate (pasada de cierre pedida en revisión, misma sesión)
+
+Explícitamente NO se reabrió backend ni se tocó código ya cerrado — solo se
+verificó lo que el cierre anterior había dejado como `NOT BROWSER_VERIFIED`
+o `PARCIAL`.
+
+- **Arquitectura de `useLessonActions.js` — confirmada limitada a
+  mutaciones compartidas de Cancel/Reschedule.** No contiene Jitsi
+  (`useJitsiMeet.js` sigue siendo el único dueño), ni semántica de estado
+  (`statusStyle()` sigue siendo la única fuente), ni formato/permisos —
+  verificado releyendo el archivo completo, no de memoria. Ningún
+  "god-composable".
+- **`reason` (Cancel/Reschedule) es un campo real del contrato, no
+  decorativo.** Verificado en `LessonController.php`: se persiste como
+  `cancel_reason`/`reschedule_reason` en el modelo y se loguea en
+  `ClassEvent::log()` en ambos casos — el textarea/input no es un campo
+  falso de UI.
+- **Copy de `ConfirmPaymentAction.vue` — confirmado que no implica
+  checkout.** "Ya pagué" / "¿Confirmas que la clase fue pagada?" /
+  "Confirmar pago" — ninguna variante de "Realizar pago"/"Comprar"/
+  "Procesar pago". El monto y Yape/Plin que se muestran (`ParentLessonCard.vue`)
+  son contexto informativo preexistente, no tocado en esta pasada — MOVA
+  nunca procesa ese pago, solo registra la declaración del padre.
+- **Browser (profesor, `profesor@mova.test`) — ahora BROWSER_VERIFIED ✅.**
+  Contraseña de prueba reseteada localmente para poder verificar (BD local,
+  sin impacto en producción). Confirmado: el profesor ve exactamente
+  Reprogramar/Cancelar clase (nunca "Ya pagué" — no por un `if (role ===
+  'teacher')` en el frontend, sino porque `ConfirmPaymentAction` nunca se
+  importó en `TeacherIndex.vue`/`TeacherLessonCard.vue`; la autorización real
+  vive en el backend, esto es solo composición). Ambos modales renderizan
+  con datos reales idénticos al lado padre (mismo componente, wiring
+  confirmado, no solo asumido).
+- **Stale-state reproducido de verdad, en los tres flujos — no como
+  concepto, como secuencia real ejecutada:**
+  ```text
+  Reschedule: modal abierta → tinker cambia la lección a 'cancelled' por fuera
+              → submit → "Solo se pueden reprogramar clases programadas."
+              (mensaje real del backend, NO genérico) → input conservado
+              (la fecha elegida seguía en el campo) → modal sigue abierta y
+              usable
+  Cancel:     modal abierta → tinker cambia la lección a 'paid' por fuera
+              → submit → "Solo se pueden cancelar clases programadas."
+              → modal sigue abierta y usable, sin éxito falso
+  ConfirmPayment: ya cubierto en el cierre anterior con un ciclo completo
+              real (abrir→cancelar→revertir→confirmar→POST 200→BD
+              actualizada)
+  ```
+- **Accesibilidad — foco/Escape verificados con secuencia real, no solo
+  heredados por confianza.** Trigger enfocado → click → foco entra al
+  modal (confirmado en el primer elemento enfocable real) → `Escape` →
+  modal cierra Y foco vuelve exactamente al botón que lo abrió (comparado
+  por `id`, no supuesto). Enumeración de elementos enfocables dentro del
+  modal confirmada correcta y en orden (textarea → Volver → acción).
+- **Responsive — 375px, 768px y 1280px medidos con `getBoundingClientRect()`
+  real, no solo mirado.** A 375px: hoja inferior, `bottom` exactamente
+  igual a la altura del viewport tras asentarse la animación, sin overflow
+  horizontal, botones dentro del viewport. A 768px y 1280px: diálogo
+  centrado (no hoja), centrado horizontal exacto (`(viewport-384)/2`),
+  sin overflow horizontal en ningún caso.
+- **Paridad Parent/Teacher confirmada por construcción, no por
+  inspección visual.** Ambas páginas importan el mismo
+  `useLessonActions()` y llaman exactamente `route('lessons.cancel', …)`/
+  `route('lessons.reschedule', …)` — no hay dos implementaciones que puedan
+  divergir, es literalmente la misma función.
+- **Trabajo paralelo/worktrees — verificado sin overlap.** `git worktree
+  list` + `git merge-base` contra los dos worktrees activos
+  (`claude/jolly-hellman-5ca1a1`, `claude/serene-davinci-30dfbd`): ambos ya
+  están completamente contenidos en `master` (diff vacío contra su propio
+  merge-base) — ningún trabajo divergente sin fusionar que pudiera chocar
+  con los archivos de esta pasada.
+
 ### Cierre — vocabulario exacto, por dimensión
 
 ```text
-Duplicación Cancel/Reschedule:  RESUELTA (useLessonActions.js + 2 componentes, un solo lugar que arreglar)
+Duplicación Cancel/Reschedule:   RESUELTA (useLessonActions.js + 2 componentes, un solo lugar que arreglar)
 ConfirmPayment sin confirmación: RESUELTO (paso inline, decisión confirmada con el usuario antes de construir)
+Arquitectura useLessonActions:   VERIFICADA — limitada a mutaciones compartidas, sin Jitsi/semántica/permisos mezclados
+Contrato de `reason`:            VERIFICADO — campo real, persistido y logueado en backend, no decorativo
+Copy de ConfirmPayment:          VERIFICADO — no implica checkout, coherente con "declaración de pago", no "procesar pago"
 Regresión evitada (Dashboard/Parent.vue onError + paymentError sin id): FIXED, encontrada de paso, no buscada a propósito
-Build:                           BUILD_VERIFIED ✅ (npm run build limpio, 3 rebuilds durante el diagnóstico del overlay)
-Tests:                           549/549 — sin cambios de backend en esta pasada, cero regresión esperada y confirmada
-Browser (padre, ana@mova.test):  BROWSER_VERIFIED ✅ — Reschedule (preview Actual→Nuevo reactivo confirmado), Cancel
-                                  (icono/textarea/botones/Escape confirmados), ConfirmPayment (abrir→cancelar→revertir
-                                  →confirmar real→POST real 200→UI actualizada, verificado contra la BD), Join
-                                  (JWT real decodificado de la URL de JaaS, iframe real montado, overlay "Conectando…"
-                                  verificado con timing real)
-Browser (profesor):              NOT BROWSER_VERIFIED — mismo componente compartido ya verificado del lado padre;
-                                  no se encontraron credenciales de prueba del profesor a tiempo en esta pasada.
-                                  Riesgo bajo (es literalmente la misma instancia de CancelLessonModal/
-                                  RescheduleLessonModal, no una reimplementación), pero se declara honesto en vez
-                                  de darlo por hecho.
-Accesibilidad:                   PARCIAL — foco/Escape/aria-modal heredados de Modal.vue (ya verificados en su
-                                  propio cierre); no se re-verificó trampa de foco con Tab real en esta pasada
-                                  específica (limitación del entorno de prueba sin composición visual, ver hallazgo
-                                  del overlay arriba)
-Mobile (375-611px):              BROWSER_VERIFIED ✅ (viewport real del Browser pane, ~611px de ancho — hoja
-                                  inferior de Modal.vue confirmada, preview Actual→Nuevo legible)
-Datos de prueba:                 Revertidos — lección 15 restaurada a su estado real (paid, sin jitsi_room, start_time
-                                  original) tras cada ciclo de verificación
+Build:                           BUILD_VERIFIED ✅ (limpio, incl. rebuild final del integration gate)
+Tests:                           549/549 — sin cambios de backend, 0 regresión (integration gate final incluido)
+Browser (padre, ana@mova.test):  BROWSER_VERIFIED ✅ — Reschedule, Cancel, ConfirmPayment (ciclo POST real), Join (JWT real)
+Browser (profesor, profesor@mova.test): BROWSER_VERIFIED ✅ — Cancel/Reschedule con datos reales, wiring confirmado
+Stale state (los 3 flujos):      BROWSER_VERIFIED ✅ — mensaje real del backend, sin éxito falso, input conservado, modal usable
+Accesibilidad (foco/Escape):     BROWSER_VERIFIED ✅ — foco entra al abrir, Escape restaura al trigger exacto, orden de tabulación correcto
+Accesibilidad (trampa de Tab completa): HEREDADA de Modal.vue (ya verificada en su propio cierre) — no reprobada exhaustivamente aquí
+Responsive (375/768/1280):       BROWSER_VERIFIED ✅ — medido con getBoundingClientRect real en los 3 breakpoints, sin overflow horizontal
+Paridad Parent/Teacher:          VERIFICADA por construcción (mismo composable, misma ruta) — no por inspección visual únicamente
+Trabajo paralelo/worktrees:      VERIFICADO sin overlap — ambos worktrees activos ya contenidos en master
+Terminología "producción":       CORREGIDA — nunca "producción verificada"; es "código listo para producción, verificado localmente"
+Datos de prueba:                 Revertidos — lección 15 restaurada a su estado real tras cada ciclo; contraseña de
+                                  profesor reseteada localmente para pruebas (sin impacto en producción)
 ```
 
-**Fase 1 del Lesson Lifecycle UX System → CERRADA.** Continúa, como siguiente
-fase de la misma iniciativa (no un tema nuevo): `ClassRequests/Accept.vue`
-al mismo lenguaje de jerarquía de acción/estado, y la migración de
-accesibilidad sistémica ya priorizada en el plan de rediseño más amplio
+**Fase 1 del Lesson Lifecycle UX System → CLOSED FOR CURRENT SCOPE.**
+Ninguna dimensión aplicable queda pendiente sin declarar. Continúa, como
+siguiente fase de la misma iniciativa (no un tema nuevo): `ClassRequests/
+Accept.vue` al mismo lenguaje de jerarquía de acción/estado, y la migración
+de accesibilidad sistémica ya priorizada en el plan de rediseño más amplio
 (`InputLabel`/`TextInput`/`InputError`/`BaseButton`/`Modal`/`StatusBadge`
 antes que páginas de producto sueltas).
 
