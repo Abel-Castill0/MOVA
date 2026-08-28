@@ -199,10 +199,23 @@ class LessonController extends Controller
         // real (es el propio hijo del padre, que ya ve completo en
         // `Students/Edit.vue`), pero se acota igual por disciplina de
         // minimización, no por necesidad de seguridad aquí.
+        //
+        // REGRESIÓN ENCONTRADA Y CORREGIDA (auditoría de join()/JitsiModal.vue):
+        // esta misma lista alimenta también useJitsiMeet()/JitsiModal.vue —
+        // `openJitsi(lesson)` recibe el MISMO objeto `lesson` restringido aquí
+        // (vía @join="openJitsi" en ParentLessonCard.vue), y JitsiModal.vue lee
+        // `lesson.teacher_profile.referral_code` (el código que el padre puede
+        // anotar durante la clase en vivo, ver comentario en JitsiModal.vue).
+        // `referral_code` no se había incluido en la restricción original —
+        // habría quedado `undefined` en cuanto se restringiera esta columna,
+        // rompiendo esa función silenciosamente. Encontrado auditando join()
+        // junto con su consumidor completo, no solo `LessonController.php`
+        // aislado — exactamente la razón por la que esta pasada pidió auditar
+        // ambos juntos.
         return Inertia::render('Lessons/ParentIndex', [
             'lessons' => Lesson::whereIn('student_id', $studentIds)
                 ->with([
-                    'teacherProfile:id,user_id,yape_number,plin_number',
+                    'teacherProfile:id,user_id,yape_number,plin_number,referral_code',
                     'teacherProfile.user:id,name',
                     'student:id,parent_user_id,first_name,last_name,grade_level',
                     'classRequest.subject:id,name',

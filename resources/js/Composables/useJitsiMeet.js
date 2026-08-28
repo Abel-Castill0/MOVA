@@ -50,6 +50,19 @@ export function useJitsiMeet() {
   // URL de la sala sin pasar por esta verificación, no obtiene ni el nombre
   // de sala ni un token válido para entrar.
   async function openJitsi(lesson, containerId = 'jitsi-container') {
+    // Guarda de reentrancia (mismo patrón que `cancelling`/`rescheduling`/
+    // `payingId` en TeacherIndex.vue/ParentIndex.vue — "F-12"). Ni
+    // TeacherIndex.vue ni ParentIndex.vue deshabilitan el botón "Unirse"
+    // mientras la petición está en vuelo, así que sin esta guarda un doble
+    // click reentra aquí antes del primer `await`: la segunda llamada pisaría
+    // la variable `api` con una nueva instancia de JitsiMeetExternalAPI sin
+    // haber hecho dispose() de la primera, dejando una llamada huérfana
+    // consumiendo cámara/micrófono/red. El chequeo va antes que cualquier
+    // `await`, así que corre síncrono y gana la primera invocación —dos
+    // clicks reales llegan como dos eventos separados, no dentro del mismo
+    // stack síncrono.
+    if (showingJitsiModal.value) return
+
     joinError.value = ''
     activeLesson.value = lesson
     showingJitsiModal.value = true

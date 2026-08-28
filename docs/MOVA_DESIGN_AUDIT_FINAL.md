@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-27.24
-generated_at:     2026-08-28T07:56:21Z
-repository_head:  8e82155   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (85 commits detrás de local, sin push)
-working_tree:     limpio salvo package-lock.json (ajeno a este documento, preexistente desde antes de esta sesión) y este propio archivo en edición
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: cancel() precision fixes — terminology, explicit financial effect, canonical state machine)
+audit_revision:   2026-08-28.1
+generated_at:     2026-08-28T08:27:18Z
+repository_head:  4c93dbb   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (86 commits por delante de local, 0 por detrás, sin push)
+working_tree:     SUCIO — 4 archivos modificados sin commitear en el momento de esta revisión: app/Http/Controllers/LessonController.php (fix de referral_code en parentIndex(), ver sección de join()/JitsiModal abajo), resources/js/Composables/useJitsiMeet.js (guarda de reentrancia en openJitsi()), tests/Feature/MonetizationIntegrityTest.php (test de regresión nuevo), package-lock.json (ajeno, preexistente). Este propio archivo se edita en el mismo paso.
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: join()/JitsiModal.vue security-boundary audit — parentIndex() regression, reentrancy guard)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -1216,7 +1216,7 @@ Strict idempotency:              NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOP
 | Concurrencia real | `NOT DIRECTLY EXERCISED` — ver sección propia, terminología no colapsada | — |
 | Idempotencia estricta | `NOT IMPLEMENTED / NOT REQUIRED FOR CURRENT SCOPE` — el mecanismo actual (lock + re-chequeo de estado) protege la invariante real; no hay evidencia de que falte más | — |
 | UX/UI | **Deliberadamente no tocado** — siguiente fase | — |
-| Riesgos remanentes | ~~4 `abort_if()` restantes~~ **`reschedule()` ya auditado y cerrado (ver sección propia abajo)** — quedan `join()`/`confirmPayment()`/`cancel()` (`task_29e7c685`, reordenado: `confirmPayment()` ahora primero por ser financiero, luego `cancel()`, luego `join()`); `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
+| Riesgos remanentes | ~~4 `abort_if()` restantes~~ **`reschedule()`/`confirmPayment()`/`cancel()`/`join()` ya auditados y cerrados (ver secciones propias abajo)** — el ciclo completo del hotspot `LessonController` (`task_29e7c685`) queda cerrado con esta pasada; `aria-describedby`/`aria-invalid` en `InputError.vue` sigue pendiente (`task_5404e77d`, no relacionado con este bloque) | — |
 | Git | ✅ Commits atómicos `0fdc1c2` (hallazgo inicial) + `9a58951` (Final Integrity Gate), separados de su documentación | Sin push — sigue bloqueado por F-26 |
 
 **`ClassRequests/Accept.vue` (backend) → CERRADO PARA ESTE ALCANCE.** Continúa UX/UI: la pantalla debe comunicar alumno, materia, solicitud, horario, duración, precio y créditos según los datos genuinamente disponibles en cada punto del flujo — mismo principio que `Create.vue` ("no muestres valores que el backend todavía no ha determinado"), no una "reserva" antes de que el backend la confirme.
@@ -1648,6 +1648,286 @@ financieros nuevos — la máquina de estados ya limitaba correctamente el
 alcance de esta operación a `scheduled`, y la duplicación con
 `AdminController::cancelLesson()` ya era deuda técnica reconocida, no un
 descubrimiento de esta pasada.
+
+---
+
+## 🔍 `LessonController::join()` + `JitsiModal.vue` + JaaS/JWT — auditoría de frontera de seguridad (una sola frontera, no `join()` aislado)
+
+Auditado explícitamente como **una sola frontera de seguridad**, no
+`join()` por un lado y `JitsiModal.vue` por otro: `route` → `LessonPolicy` →
+`LessonController::join()` → `JaasService` (JWT) → identidad de sala →
+`useJitsiMeet.js` → `JitsiModal.vue` → JaaS/Jitsi. El principio rector,
+confirmado en el código real, no asumido: **MOVA autoriza primero, genera
+credenciales después** — `join()` decide "¿puede esta persona entrar a esta
+clase?" con `authorize('view', $lesson)` + el chequeo de `status` +
+`jitsi_room` existente ANTES de tocar `JaasService`; JaaS/Jitsi nunca ve una
+petición de un usuario que MOVA no haya autorizado ya.
+
+### Autorización — quién puede entrar, no solo quién puede ver
+
+`LessonController::join()` llama `authorize('view', $lesson)`
+(`LessonPolicy`) — el mismo policy que gobierna ver la clase en el listado.
+Verificado que esto es correcto y no una falsa equivalencia "ver ≠ entrar":
+`LessonPolicy::view()` ya exige ser el profesor asignado
+(`teacherProfile.user_id === $user->id`) o el padre dueño
+(`student.parent_user_id === $user->id`), y `join()` no añade ni relaja
+ninguna condición adicional sobre esa base — la superficie de "quién puede
+ver" y "quién puede entrar" son deliberadamente la misma persona, verificado
+leyendo `LessonPolicy` completo, no asumido por el nombre del método.
+Confirmado con test real pre-existente
+(`test_lesson_join_rejects_unrelated_parent_and_teacher`): un profesor B o
+un padre no dueño reciben 403 aunque la clase exista y esté dentro de la
+ventana horaria — la ventana no sustituye a la autorización, se aplican en
+ese orden.
+
+### Ciclo de vida — qué estados permiten entrar, ventana real leída del código
+
+`join()` exige `in_array($lesson->status, ['scheduled', 'paid',
+'pending_parent_confirmation'])` — verificado en el propio controlador, no
+inferido. `cancelled`/`completed`/`needs_admin_review` quedan fuera
+(confirmado con `test_lesson_join_rejects_invalid_lesson_status`, que
+prueba `cancelled` y `completed` explícitamente). La ventana horaria real
+(F-06, ya endurecida antes de esta sesión, re-verificada aquí) es
+server-side, no solo frontend: `config('jaas.join_window_before_minutes')`
+(15 min por defecto) antes del inicio, `join_grace_after_minutes` (120 min)
+después del fin — ambos leídos de `config/jaas.php`, no supuestos. Cubierto
+por `tests/Feature/JitsiAccessWindowTest.php` (leído completo esta pasada,
+no solo hasta la mitad): demasiado temprano, días antes, mucho después de
+la gracia, exactamente en el borde de apertura, durante la clase, dentro de
+la gracia, ventana configurable, y — crítico — un usuario no relacionado
+sigue siendo rechazado **incluso dentro de la ventana**
+(`test_an_unrelated_user_is_still_refused_even_inside_the_window`),
+confirmando que autorización y ventana son dos chequeos independientes, no
+uno sustituyendo al otro.
+
+### Contrato del JWT — específico de usuario, de clase y de sala, acotado en el tiempo
+
+`JaasService` firma con RS256 (nunca HS256/secreto compartido), header
+`kid` (id de API key de JaaS, distinto del App ID), claims `aud:'jitsi'`,
+`iss:'chat'`, `sub:$appId`, `room` (la sala específica de esta lección),
+`exp` (nunca 24h fijas — acotado al mismo fin-de-ventana que el propio
+endpoint concedería, con piso en `now()+300s` para no emitir un token ya
+vencido), `nbf:now-10`, `context.user.{name, moderator}` (moderador
+calculado server-side: `$lesson->teacherProfile?->user_id === $user->id`,
+nunca confiado del cliente), `context.features.{livestreaming, recording,
+transcription}: false`. Todo esto verificado con **decodificación
+criptográfica real** en `JitsiAccessWindowTest.php` (`JWT::decode()` con la
+clave pública derivada de la privada real de config, no un mock) y en
+`MonetizationIntegrityTest.php` — no se tomó la palabra del código sobre lo
+que el JWT contiene, se decodificó el JWT real emitido en cada test.
+`test_the_jwt_is_still_scoped_to_the_specific_room` confirma explícitamente
+que el endurecimiento temporal (F-06) no debilitó el scope: `room` sigue
+siendo la sala específica, nunca `'*'`. Ningún token es reutilizable entre
+lecciones o usuarios — cada `join()` genera un JWT nuevo, atado a esa
+lección y ese usuario en ese momento.
+
+### Contrato de sala — identidad determinista, sin adivinar
+
+`jitsi_room` se genera una única vez, en `store()`, como
+`"mova-lesson-{$lesson->id}-".Str::random(32)` — por lección, no
+derivable de datos públicos. `Lesson::$hidden = ['jitsi_room',
+'jitsi_password']` a nivel de modelo (defensa en profundidad), reconfirmado
+con test ya existente
+(`test_lesson_listings_never_expose_jitsi_credentials`): los listados
+(`parent.lessons`/`teacher.lessons`) exponen `has_jitsi_room:true` (booleano
+seguro) pero nunca el valor real — la sala y el JWT solo se revelan vía
+`GET /lessons/{id}/join`, autenticado y autorizado.
+
+### Integración JaaS — la migración histórica de `meet.jit.si`, re-verificada fresca
+
+Re-grepeado el repositorio completo (`app/`, `resources/js/`, `database/`,
+`config/`) esta pasada, no asumido resuelto por documentación previa: cada
+referencia textual restante a `meet.jit.si` (`LessonController.php`,
+`LessonSettledNotification.php`, `JaasService.php`, `useJitsiMeet.js`, una
+migración, `config/jaas.php`) es un comentario explicativo documentando el
+reemplazo histórico — ninguna es una ruta de código viva, un valor de
+config, ni una URL activa. Verificado explícitamente en las notificaciones,
+por nombre, como pidió esta pasada: `LessonSettledNotification.php` y
+`ClassReminderNotification.php` llevan ambas una regla explícita contra
+incluir `jitsi_room`/`jitsi_password`/una URL directa de reunión en su
+payload (citando el fix real previo "C-3", commit `533a799`) —
+re-confirmado con grep dirigido sobre las 8 clases de `app/Notifications/*`
+que los únicos matches de `jitsi_room`/`jitsi_password`/`jitsi_token` son
+comentarios reafirmando la regla, no fugas. `ClassReminderNotification`
+enlaza deliberadamente solo a las rutas propias autenticadas de MOVA
+(`teacher.lessons`/`parent.lessons`), forzando cualquier intento de unirse a
+pasar por `join()`.
+
+### `JitsiModal.vue` — ciclo de vida del componente
+
+`Teleport` a `body`, pantalla completa, `Transition`. Estados cubiertos:
+carga (mientras `openJitsi()` resuelve — sin spinner explícito, ver hallazgo
+menor abajo), error (`v-if="error"`, mensaje real del backend o de red),
+contenido (`#jitsi-container`, vacío hasta que `JitsiMeetExternalAPI`
+monta). Cierre (`closeJitsi()`): llama `api.dispose()` + limpia la
+referencia, resetea `showingJitsiModal`/`joinError`/`activeLesson` — **no
+deja un estado de reunión reutilizable**, verificado en vivo (ver
+Navegador abajo). Deliberadamente NO redirige a confirmación de pago/reporte
+si el cierre vino de un error (`hadError`) — solo una clase realmente
+atendida debe disparar ese flujo.
+
+**Regresión encontrada y corregida en esta pasada** (exactamente el tipo de
+hallazgo que justifica auditar `join()` junto con su consumidor completo, no
+aislado): `LessonController::parentIndex()` restringía las columnas de
+`teacherProfile` (hecho en la auditoría de `reschedule()`, una pasada
+anterior) a `id,user_id,yape_number,plin_number` — sin darse cuenta de que
+`JitsiModal.vue` lee `lesson.teacher_profile.referral_code` para mostrarle
+al padre, durante la clase en vivo, el código del profesor. El campo quedaba
+`undefined` en cuanto un padre abría la modal, silenciosamente, sin ningún
+test que lo detectara. Corregido en
+[LessonController.php](../app/Http/Controllers/LessonController.php)
+(`referral_code` añadido de vuelta a la proyección), con un test de
+regresión nuevo
+(`test_parent_lesson_listing_still_exposes_teacher_referral_code_for_jitsi_modal`)
+verificado con el ciclo completo revert→falla→restaura→pasa, y
+**re-verificado en navegador real** (ver Navegador abajo) — no solo en test.
+
+**Hallazgo encontrado y corregido en esta pasada**: `openJitsi()` no tenía
+guarda de reentrancia — ni `TeacherIndex.vue` ni `ParentIndex.vue`
+deshabilitan el botón "Unirse" mientras la petición de `join()` está en
+vuelo, así que un doble click podía, en teoría, pisar la variable `api` con
+una segunda instancia de `JitsiMeetExternalAPI` antes de que la primera
+fuera descartada, dejando una llamada huérfana consumiendo cámara/micrófono.
+Corregido con el mismo patrón ya usado en `cancelling`/`rescheduling`/
+`payingId` de esas mismas páginas ("F-12"): `if (showingJitsiModal.value)
+return` como primera línea de `openJitsi()`, antes de cualquier `await`.
+**Verificado en navegador real, no solo leído** (ver Navegador abajo) — no
+existe runner de tests JS en el proyecto (confirmado revisando
+`package.json`), así que esta guarda no tiene ni puede tener un test
+automatizado; la evidencia es exclusivamente de navegador.
+
+Hallazgo menor, NO corregido (deliberado, fuera de alcance de esta pasada):
+no hay estado de carga explícito entre "la modal se abre" y "el contenido
+aparece" — pantalla oscura con solo el header durante el fetch de
+credenciales + la carga del script externo. Es una brecha de pulido UX, no
+de seguridad; queda documentada para la fase de rediseño UX/UI unificado que
+sigue a este cierre, no resuelta aquí por disciplina de alcance.
+
+### Protocolo de errores
+
+Clasificación verificada, no asumida: no autenticado → `auth` estándar de
+Laravel (redirect a login); no autorizado → 403 (`authorize()`, sin tocar);
+recurso inaccesible (lección sin `jitsi_room`) → 404
+(`test_lesson_join_returns_not_found_when_room_was_never_created`);
+conflicto de ciclo de vida (estado inválido, fuera de ventana) → 403
+(mismo código que autorización — MOVA no distingue "no autorizado" de "fuera
+de ventana" en el código de estado HTTP, ambos son 403; la ventana es, en
+efecto, una extensión de la regla de autorización, no una categoría de error
+distinta — verificado leyendo el controlador, no inferido). Nunca se
+convierte un fallo de autorización o de ciclo de vida en
+`ValidationException` — `join()` no tiene errores de formulario que
+convertir, es una operación de solo lectura.
+
+### Divulgación de información
+
+La respuesta de `join()` es exactamente `['jitsi_room', 'jitsi_token',
+'jaas_app_id']` — verificado leyendo el `response()->json()` del
+controlador. Nunca el `User` completo, nunca `TeacherProfile` completo,
+nunca campos privados del alumno, nunca créditos internos, nunca metadata de
+moderación. El único otro dato que viaja por esta frontera es el `lesson`
+prop ya restringido de `parentIndex()`/`teacherIndex()` (auditado en la
+sección de `reschedule()` y reconfirmado/corregido aquí para
+`referral_code`).
+
+### Tests — cobertura pre-existente, huecos reales cubiertos
+
+`MonetizationIntegrityTest.php` y `JitsiAccessWindowTest.php` ya cubrían,
+**antes de esta sesión**, con verificación criptográfica real del JWT:
+profesor/padre autorizados, usuarios no relacionados, invitados, estados de
+lección inválidos, ventana horaria completa (temprano/tarde/bordes/gracia/
+configurable), scope de sala, features deshabilitadas (recording/streaming/
+transcription), y no-exposición de credenciales en listados. Único hueco
+real encontrado: la regresión de `referral_code` en `parentIndex()` (test
+nuevo, arriba). Expiración real de un JWT ya vencido contra JaaS en vivo
+sigue siendo `UNKNOWN-03` (documentado en `config/jaas.php` antes de esta
+sesión) — no reproducible sin infraestructura externa, no se afirma
+resuelto.
+
+### Build / Navegador — evidencia ejecutada, no solo leída
+
+```text
+Build:      BUILD_VERIFIED ✅ (npm run build, sin errores/warnings nuevos)
+PHPUnit:    549/549 verdes tras el fix de parentIndex() + el test nuevo (0 regresiones)
+Navegador:  BROWSER_VERIFIED ✅ — flujo real, no simulado:
+    1. Login real como padre (ana@mova.test), MySQL local reiniciado vía XAMPP.
+    2. Lección movida temporalmente a la ventana de acceso (tinker, revertido
+       después) para poder ejercer join() de verdad — sin esto no hay botón
+       "Ingresar a la Sala Virtual" (canJoinJitsi() del frontend lo oculta).
+    3. GET /lessons/{id}/join real → 200 → iframe real de JaaS montado en
+       #jitsi-container (confirmado document.querySelector, no supuesto) →
+       la modal pidió cámara/micrófono real (bloqueado por el sandbox del
+       navegador, pero confirma que JitsiMeetExternalAPI se inicializó con
+       un JWT válido).
+    4. Header de la modal renderizó "Código del profesor: C5SPNP — pídelo
+       para tu próxima solicitud" — la manifestación real de la regresión
+       de referral_code ya corregida (antes del fix esa línea no se
+       renderizaba: v-if sobre un valor undefined).
+    5. Cierre real: closeJitsi() navegó a /dashboard?post_class=...&
+       post_class_ends_at=... (router.visit real, no interceptado) — el
+       dashboard mostró "La clase está en curso", confirmando que el
+       flujo post-cierre consume esos parámetros correctamente.
+    6. Guarda de reentrancia: dos clicks sincrónicos reales sobre el mismo
+       botón (mismo tick de JS, el escenario que un doble click humano
+       reproduce) → window.axios.get('/join') interceptado y contado →
+       exactamente 1 llamada, no 2 — confirmado con un contador inyectado
+       en la propia página, no inferido de los logs de red acumulados de
+       la sesión.
+    7. Datos de prueba revertidos a su estado original tras la verificación
+       (start_time, status, jitsi_room de la lección 15) — sin dejar
+       estado de prueba residual en la base local.
+```
+
+### Principio de frontera de seguridad (permanente — se sincroniza a `MOVA_SYSTEM_KNOWLEDGE.md`)
+
+JaaS autentica; MOVA autoriza — son dos capas distintas, y un JWT válido
+nunca sustituye la autorización propia de MOVA. Confirmado en el código, no
+solo enunciado: `join()` decide "¿puede esta persona entrar a esta clase?"
+completo (policy + estado + ventana) antes de que `JaasService` genere nada.
+Regla explícita: **para entrar a una clase, MOVA autoriza primero, genera
+credenciales después, y JaaS/Jitsi recibe únicamente las credenciales
+correspondientes a ese usuario y esa clase.**
+
+### Sin sobre-ingeniería
+
+No se introdujo ningún sistema de autenticación nuevo, servicio de tokens
+nuevo, capa DTO global, ni capa de WebSocket — la arquitectura actual
+(policy + chequeo de estado/ventana server-side + JWT RS256 acotado) ya
+resuelve correctamente lo auditado. Los dos cambios reales de esta pasada
+(`referral_code` en la proyección, guarda de reentrancia en `openJitsi()`)
+son ambos correcciones puntuales de código ya existente, no nueva
+arquitectura.
+
+### Cierre — vocabulario exacto
+
+```text
+Authorization:                VERIFIED (mismo LessonPolicy::view() que gobierna listados; test real con profesor/padre no relacionados)
+Lifecycle:                    VERIFIED (in_array de estados leído del controlador; cancelled/completed rechazados con test real)
+JWT contract:                 VERIFIED (decodificación criptográfica real en tests — room/aud/iss/exp/moderator/features, nunca 24h fijas, nunca scope comodín)
+Room contract:                VERIFIED (una sala por lección, no derivable; $hidden confirmado con test; solo se revela vía join())
+JaaS integration:              VERIFIED (meet.jit.si re-grepeado fresco esta pasada, incluidas notificaciones por nombre — 0 rutas vivas)
+JitsiModal lifecycle:          VERIFIED (dispose()/reset confirmado en navegador real; loading state ausente = hallazgo menor documentado, no bloqueante)
+Error protocol:                VERIFIED (403/404 correctos; join() no tiene errores de formulario que convertir)
+Information disclosure:        VERIFIED (respuesta = jitsi_room/jitsi_token/jaas_app_id exclusivamente, leído del controlador)
+parentIndex() referral_code regression: FIXED + TEST_VERIFIED (revert-confirm-restore) + BROWSER_VERIFIED
+openJitsi() reentrancy guard:  FIXED + BROWSER_VERIFIED (sin test JS posible — no existe runner en el proyecto)
+Tests:                         549/549 (1 nuevo, 0 regresiones)
+Build:                         BUILD_VERIFIED ✅
+Browser:                       BROWSER_VERIFIED ✅ (flujo autorizado completo, cierre, doble-click — ver detalle arriba)
+Real concurrency:              NOT DIRECTLY EXERCISED — no aplica aquí de la misma forma que en cancel()/confirmPayment(): join() no muta estado, es idempotente por diseño
+JWT expirado contra JaaS real: NOT DIRECTLY EXERCISED (UNKNOWN-03, ya documentado antes de esta sesión, sin infraestructura externa para reproducirlo)
+```
+
+**`LessonController::join()` + `JitsiModal.vue` + JaaS/JWT → CERRADO PARA
+ESTE ALCANCE.** Único hallazgo real de seguridad/datos fue la regresión de
+`referral_code` (adyacente a `join()`, no en `join()` mismo — causada por
+una restricción de columnas de una pasada anterior de esta misma sesión);
+el contrato propio de `join()` ya estaba sólidamente cubierto antes de esta
+sesión. Cierra el ciclo completo del hotspot `LessonController`
+(`store`/`accept` → `reschedule` → `confirmPayment` → `cancel` → `join`).
+Continúa, por decisión explícita del usuario, la fase de rediseño UX/UI
+unificado (Accept/Reschedule/ConfirmPayment/Cancel/Join-Jitsi como un solo
+sistema visual coherente) — no más auditorías de backend/seguridad sobre
+este recorrido sin evidencia nueva que las justifique.
 
 ---
 

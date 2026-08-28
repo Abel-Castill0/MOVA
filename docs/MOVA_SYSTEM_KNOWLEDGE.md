@@ -741,6 +741,36 @@ solo el status nunca demuestra que el mensaje llegó al usuario. No hace
 falta corregir de inmediato toda prueba existente que no siga esto; sí
 aplica a partir de ahora a toda prueba nueva o modificada.
 
+### Regla arquitectónica: JaaS autentica, MOVA autoriza — dos capas distintas que nunca se sustituyen entre sí
+
+Confirmada leyendo la frontera completa `join()` → `JaasService` →
+`useJitsiMeet.js` → `JitsiModal.vue` durante la auditoría de
+`2026-08-28`: un JWT de JaaS válido prueba que **JaaS** aceptará a alguien
+en una sala — nunca prueba que **MOVA** ya decidió que esa persona puede
+estar en esa clase. Son dos sistemas de confianza distintos, con dueños
+distintos, y el código verificado los mantiene en ese orden estricto:
+
+```text
+LessonController::join()                  JaasService / JaaS
+──────────────────────────                 ───────────────────
+authorize('view', $lesson)  →  decide      firma un JWT RS256 con room/exp/
+in_array($status, [...])    →  quién       moderator ya resueltos por MOVA
+ventana horaria (F-06)      →  puede       → JaaS solo valida la firma y
+                                entrar        deja pasar lo que el JWT dice
+```
+
+`JaasService` nunca recibe una petición de un usuario que
+`LessonController::join()` no haya autorizado ya — el JWT se genera
+DESPUÉS de que la autorización completa (policy + estado + ventana) pasó,
+nunca antes ni en paralelo. Regla a mantener en cualquier integración
+futura con un proveedor de identidad/autenticación externo (video, pagos,
+SSO de terceros): **el proveedor externo autentica la sesión que se le
+entrega; nunca decide por sí solo si esa sesión debía existir.** La
+decisión de negocio ("¿puede este usuario hacer esto?") vive siempre en el
+código de MOVA, antes de generar cualquier credencial hacia el proveedor —
+nunca se delega esa pregunta al proveedor ni se infiere de que el
+proveedor haya aceptado el token.
+
 ---
 
 ## 28bis. Máquina de estados canónica de `classes.status` (`Lesson`)

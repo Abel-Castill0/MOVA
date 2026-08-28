@@ -1036,6 +1036,32 @@ class MonetizationIntegrityTest extends TestCase
         );
     }
 
+    /**
+     * Regresión encontrada auditando join()/JitsiModal.vue junto con su
+     * consumidor completo: la restricción de columnas de `teacherProfile` en
+     * `LessonController::parentIndex()` (hecha durante la auditoría de
+     * reschedule()) dejó fuera `referral_code` sin darse cuenta de que
+     * JitsiModal.vue lo lee (`lesson.teacher_profile.referral_code`) para
+     * mostrarle al padre el código del profesor durante la clase en vivo.
+     * Sin este campo el hint quedaba `undefined` en cuanto un padre entraba
+     * a una llamada — sin ningún test que lo detectara. Este test fija el
+     * contrato: `parent.lessons` debe seguir exponiendo `referral_code`.
+     */
+    public function test_parent_lesson_listing_still_exposes_teacher_referral_code_for_jitsi_modal(): void
+    {
+        [, $profile, $lesson, $parent] = $this->lesson('scheduled', now()->addHour());
+
+        // referral_code no es fillable (ver TeacherProfile::booted()) — se
+        // autogenera siempre en la creación, así que se lee el valor real en
+        // vez de intentar fijar uno propio por mass-assignment.
+        $expectedCode = $profile->fresh()->referral_code;
+        $this->assertNotEmpty($expectedCode, 'El helper de test debería producir un referral_code autogenerado.');
+
+        $this->actingAs($parent)->get(route('parent.lessons'))->assertInertia(fn ($page) => $page
+            ->where('lessons.0.teacher_profile.referral_code', $expectedCode)
+        );
+    }
+
     public function test_monetization_migration_aborts_before_schema_changes_for_legacy_duplicates(): void
     {
         [, $profile] = $this->teacher();
