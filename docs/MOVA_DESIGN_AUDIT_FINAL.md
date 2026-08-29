@@ -10,12 +10,12 @@ sin declararlo; corrige un hash de encabezado que quedó desactualizado tras
 varios commits posteriores y generó confusión real durante una revisión):
 
 ```text
-audit_revision:   2026-08-28.4
-generated_at:     2026-08-28T11:15:59Z
-repository_head:  7eb40d8   (rama master — directorio de trabajo real, no worktree aislado)
-origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (89 commits por delante de local, 0 por detrás, re-verificado este turno)
-working_tree:     SUCIO solo en este propio documento (terminología "producción" corregida + Validation Gate añadido) en el momento de esta revisión — todo el código de la Fase 1 del Lesson Lifecycle UX System ya está en 7eb40d8. Confirmado sin overlap con los 2 worktrees paralelos activos (jolly-hellman-5ca1a1, serene-davinci-30dfbd — ambos ya contenidos en master). 549/549 tests + build limpio re-confirmados en este mismo turno (integration gate final).
-authoring_commit: se confirma en el mensaje del commit que introduce este cambio (docs: Lesson Lifecycle UX Phase 1 validation gate — teacher browser, stale-state x3, a11y, responsive, terminology fix)
+audit_revision:   2026-08-29.1
+generated_at:     2026-08-29T19:45:56Z
+repository_head:  e3c8cf9   (rama master — directorio de trabajo real, no worktree aislado)
+origin_head:      692b3651d09cb2731865efcb0d83dc83d2a36102   (sin re-fetch en esta revisión)
+working_tree:     SUCIO en el momento de esta revisión — auditoría de dominio `Diagnostics`: 4 archivos de código (DiagnosticsController.php, DiagnosticAiEnrichmentService.php, config/diagnostic.php, Diagnostics/Create.vue) + 2 archivos de test (AuthorizationPolicyTest.php, DiagnosticIdempotencyTest.php) + este documento. 552/552 tests + build limpio confirmados antes de este commit.
+authoring_commit: se confirma en el mensaje del commit que introduce este cambio (fix(diagnostics): audit AI/privacy/idempotency contract — user_id bug, error swallowing, product decision on dead recommendations engine)
 ```
 
 **Nota de proceso sobre worktrees** (aclaración solicitada explícitamente):
@@ -2298,6 +2298,45 @@ asignada.
   tratamiento que `PRIV-STUDENT-RETENTION` en `docs/MOVA_AUDIT_PHASE0.md` —
   documentado y dejado abierto, no resuelto por inferencia.
 
+### P2 · `PRODUCT DECISION REQUIRED` — el motor de recomendaciones de `Diagnostics` se computa pero nunca se muestra
+
+Encontrado auditando el dominio `Diagnostics` completo (2026-08-28), no
+diseño visual.
+
+- **Dónde**: `DiagnosticRecommendationService::compute()` (scoring
+  determinista de 0-100, con boost opcional de IA acotado a 5 puntos —
+  nunca decide la IA), persistido en `diagnostic_recommendations`.
+  `DiagnosticsController::results()` devuelve `'recommendations' => []`
+  **hardcodeado**, ignorando por completo `$diagnostic->recommendations()`.
+  `Diagnostics/Results.vue` nunca declara `recommendations` en `defineProps`
+  ni lo referencia en el template — confirmado, no un vacío accidental de
+  un solo lado.
+- **Comportamiento actual**: cada vez que un padre completa un diagnóstico,
+  el backend calcula y guarda hasta 5 recomendaciones reales de profesor
+  (rank/score/razones) — trabajo de CPU y escrituras a BD reales, en el
+  camino síncrono de la request — que ningún padre llega a ver nunca.
+- **Contexto que explica el porqué**: el producto migró de "elige una
+  oferta recomendada" a "solicitud genérica automática a todos los
+  profesores verificados de la materia" (confirmado en el mensaje de éxito
+  de `store()` y en el stub de `requestClass()`, que ya redirige con "el
+  diagnóstico ahora crea una solicitud genérica automáticamente"). El
+  cálculo de recomendaciones parece haber quedado del diseño anterior, sin
+  que nadie lo retirara ni lo reconectara al nuevo flujo.
+- **Riesgo**: ninguno de seguridad — es trabajo desperdiciado (CPU +
+  escrituras) y una funcionalidad ya construida y probada que el usuario
+  final no percibe.
+- **Posibles soluciones (no elegidas aquí)**: (a) mostrar las
+  recomendaciones reales en `Results.vue` (el motor ya existe, probado,
+  determinista) — probablemente el mayor valor de producto disponible en
+  todo este dominio con el menor esfuerzo de implementación; (b) eliminar
+  `compute()`/`diagnostic_recommendations` si el producto decidió
+  definitivamente no usarlas — deja de desperdiciar el ciclo de request;
+  (c) mantenerlo calculándose sin mostrarlo, a propósito, para un futuro
+  cercano — válido solo si es una decisión consciente, no un olvido.
+- **Depende de**: decisión de producto — si "solicitud genérica" es el
+  modelo definitivo o una recomendación priorizada sigue siendo el objetivo
+  final. No se resuelve por inferencia.
+
 ---
 
 ## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
@@ -2848,6 +2887,131 @@ que un humano se acuerde de revisar ambos lados.
 | `Components/TextInput.vue` | 0 | 0 | **COMPLETA** (Fase 2) | ✅ | ✅ | pendiente | pendiente |
 | `Components/TimeSlotPicker.vue` | 0 | 0 | **AUDITED + IMPLEMENTED** — 6 emoji→Icon (semántico por hora del día: Sunrise/Sun/Sunset/RefreshCw, no genérico); 3 indigo→brand; `aria-pressed` añadido. **Deduplicado**: la lista de franjas horarias se movió a `utils/timeSlots.js`, compartida con `ClassRequests/TeacherIndex.vue` (antes duplicada palabra por palabra). | pendiente | pendiente | pendiente | BUILD_VERIFIED ✅ · TEST_VERIFIED ✅ · BROWSER_VERIFIED: **BLOCKED_VISUAL_VERIFICATION** (usado en `ClassRequests/Create.vue`, autenticado) |
 <!-- MATRIZ:FIN -->
+
+---
+
+## 🔍 `Diagnostics` — auditoría de dominio completo (IA + datos educativos de menor + idempotencia + costo operativo)
+
+Auditado como journey completo, no `Diagnostics/Create.vue` aislado:
+`Parent → creación → idempotencia → enriquecimiento IA (opcional) →
+scoring determinista → ClassRequest genérica → Results.vue`. Backend
+primero, sin tocar UI/UX en esta pasada (por decisión explícita: este
+dominio toca datos de un menor + IA + costo operativo, mayor riesgo que
+Lesson Lifecycle).
+
+### Hallazgo principal: el dominio ya llegaba notablemente maduro
+
+A diferencia de otros dominios auditados esta sesión, `Diagnostics` no
+necesitó ningún hallazgo de seguridad nuevo — el trabajo previo
+(`DiagnosticAiEnrichmentService`, `AiPayloadContractTest.php`,
+`DiagnosticIdempotencyTest.php`) ya cubría, **verificado leyendo el código,
+no de memoria**:
+
+```text
+Ownership:            student = $user->students()->findOrFail(...) — 404 real, no solo un exists:
+Idempotencia:         hash SHA-256 del CONTENIDO real (padre+alumno+materia+texto+goal+urgency),
+                      UNIQUE de BD, distinta de la deduplicación temporal de ClassRequest — mismo
+                      patrón que credit_transactions.idempotency_key (documentado en la propia migración)
+Privacidad hacia IA:  solo subject_name/level/difficulty_text (redactado)/goal/urgency — NUNCA
+                      student_id/parent_id/nombres/email/teléfono/school/school_feedback — verificado
+                      campo por campo en AiPayloadContractTest.php (14 tests, preexistentes)
+Privacidad hacia el
+profesor:             help_needed nunca incluye difficulty_text/ai_summary/ai_risk_flags — solo
+                      goal/urgency en texto genérico; confirmado con grep que ClassRequestController
+                      nunca toca ningún campo de StudentDiagnostic
+Fallback/errores IA:  nunca lanza excepción — try/catch total, saveFallback() en todo camino de fallo;
+                      status success/fallback/error/skipped consistente entre AiUsageLog y Admin/AiUsage.vue
+Rate limiting:        límite diario (medianoche Lima, no UTC — BUG-5 ya corregido antes de esta sesión)
+                      + mensual, ambos con fallback determinista al excederse
+Validación de salida: la IA nunca puede inyectar valores fuera de enums cerrados (VALID_LEVELS/
+                      VALID_GOALS/VALID_FLAGS); resumen sin tags/markdown, capado a 200 chars
+AI nunca decide:      DiagnosticRecommendationService::compute() es el árbitro — boost de IA
+                      acotado a +5 puntos y solo dentro de 15 pts del top score, nunca elige al ganador
+```
+
+### Hallazgos reales de esta pasada — todos menores, ninguno de seguridad activa
+
+1. **Bug real, sin impacto observable hoy**: `DiagnosticAiEnrichmentService::writeLog()`
+   escribía `$diagnostic->user_id` — atributo inexistente en
+   `StudentDiagnostic` (el real es `parent_user_id`) — así que
+   `ai_usage_logs.user_id` era siempre `NULL` desde que la tabla existe.
+   `AiUsageController::index()` nunca proyecta esa columna, así que no
+   afectaba ninguna vista actual. **Corregido** en
+   [DiagnosticAiEnrichmentService.php](../app/Services/DiagnosticAiEnrichmentService.php).
+2. **Config documentada pero sin implementar**: `diagnostic.auto_disable_on_error`
+   no se lee en ningún punto del código (`grep` confirma cero referencias en
+   `app/`). Por defecto `false`, así que no representaba un riesgo activo —
+   pero activarla esperando un auto-apagado real habría sido un supuesto
+   falso. **Documentado explícitamente como NOT IMPLEMENTED** en
+   [config/diagnostic.php](../config/diagnostic.php) en vez de dejarlo
+   como una promesa silenciosa.
+3. **Ruta legacy sin consumidor**: `requestClass()` (`POST /diagnostics/{id}/request/{offer}`)
+   confirmado sin ninguna referencia en `resources/js/` — es un stub que
+   solo redirige, dejado tras el pivote a solicitud genérica. Documentado en
+   el propio controlador; no se eliminó la ruta (decisión de limpieza, no
+   de esta auditoría).
+4. **Gap de consumo de errores en frontend**: `Diagnostics/Create.vue::onError`
+   guardaba el error bag completo, pero solo `errors.difficulty_text` tenía
+   un `<p>` que lo mostrara — el mismo patrón de "fix de backend sin consumo
+   de frontend" encontrado repetidamente esta sesión (`Register.vue`,
+   `ClassRequests/Accept.vue`, `Lessons/*Index.vue`). Baja probabilidad en
+   el flujo normal (los botones ya restringen a valores válidos del propio
+   backend), pero real si un `subject`/alumno se elimina entre cargar la
+   página y enviar. **Corregido** con un `topLevelError` computed que
+   muestra cualquier error que no sea `difficulty_text`.
+5. **`recommendations: []` hardcodeado** — ver **P2** en la sección de
+   PRODUCT BLOCKERS arriba. No es un bug de seguridad ni de datos; es una
+   decisión de producto pendiente, documentada por separado a propósito.
+
+### Tests nuevos (huecos reales, cobertura previa ya verificada primero)
+
+```text
+test_parent_cannot_create_a_diagnostic_for_another_parents_student
+    → confirma el findOrFail() con datos reales (antes solo se leía el código)
+test_low_confidence_ai_summary_is_hidden_from_the_parent
+    → confirma el umbral ai_confidence >= 60 en AMBOS lados (59 oculto, 60 visible)
+test_a_duplicate_submission_never_calls_the_ai_provider_twice
+    → Http::fake() + contador real de llamadas — confirma que el camino idempotente
+      nunca vuelve a golpear al proveedor ni a escribir un segundo AiUsageLog
+```
+
+Los tres pasaron en el primer intento (el código ya era correcto) — no se
+siguió el ciclo revert-confirma-falla-restaura porque no corregían un bug
+de comportamiento, solo cerraban un hueco de verificación. Los cuatro
+hallazgos reales (1-4 arriba) sí son fixes de comportamiento — cada uno de
+alcance suficientemente pequeño y mecánico (un typo de atributo, un
+comentario, un `computed` nuevo) que no requería su propio test de
+regresión dedicado más allá de la suite completa.
+
+### Cierre — vocabulario exacto, por dimensión
+
+```text
+Ownership (store/results):        VERIFIED — findOrFail() + Policy::view(), ambos con test nuevo real
+Idempotencia (contenido, no UI):  VERIFIED — hash SHA-256 + UNIQUE de BD, distinta de dedup temporal de ClassRequest
+IA no se llama dos veces:         VERIFIED — Http::fake() + contador real, camino idempotente confirmado
+Privacidad hacia el proveedor:    VERIFIED (preexistente, 14 tests) — campo por campo, no solo el texto libre
+Privacidad hacia el profesor:     VERIFIED — grep confirma cero referencias a StudentDiagnostic en ClassRequestController
+Fallback/error semantics:         VERIFIED (preexistente) — nunca lanza, siempre fallback determinista
+Confidence gating de ai_summary:  VERIFIED — test nuevo en ambos lados del umbral (59/60)
+user_id en ai_usage_logs:         FIXED (bug real, sin impacto observable previo)
+auto_disable_on_error:            DOCUMENTADO como NOT IMPLEMENTED (no se implementó — fuera de alcance)
+requestClass() legacy:            DOCUMENTADO, no eliminado (decisión de limpieza, no de esta auditoría)
+Error swallowing en Create.vue:   FIXED (topLevelError)
+Recomendaciones nunca mostradas:  PRODUCT DECISION REQUIRED (P2, ver PRODUCT BLOCKERS) — no resuelto por inferencia
+Tests:                            552/552 (3 nuevos, 0 regresión)
+Build:                            BUILD_VERIFIED ✅
+Browser:                          NOT BROWSER_VERIFIED — esta pasada fue deliberadamente backend/contrato de
+                                   datos primero; UX/UI de Diagnostics (incluida verificación en navegador) es
+                                   la fase siguiente, no parte de este cierre
+Production verification:          NOT VERIFIED — sin acceso a Railway, igual que el resto de esta sesión
+```
+
+**`Diagnostics` — backend/contrato de datos → CLOSED FOR CURRENT SCOPE.**
+No reabrir sin evidencia nueva. Sigue, como fase separada y explícita: (a)
+UX/UI de `Diagnostics/Create.vue`/`Results.vue` con el mismo lenguaje visual
+establecido en Lesson Lifecycle UX, y (b) la decisión de producto P2 antes
+de tocar `Results.vue` (mostrar recomendaciones cambia lo que esa página
+necesita renderizar).
 
 ---
 

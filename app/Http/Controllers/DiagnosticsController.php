@@ -134,6 +134,15 @@ class DiagnosticsController extends Controller
         ]);
     }
 
+    /**
+     * Ruta legacy sin ningún consumidor real (verificado: cero referencias
+     * en resources/js/). Antes de la solicitud genérica automática, el padre
+     * elegía una oferta específica desde una lista de recomendaciones; ahora
+     * store() ya crea la ClassRequest, así que esto solo existe para no
+     * romper un enlace viejo (email antiguo, marcador, etc.) que aún apunte
+     * aquí. Se documenta en vez de borrarla en silencio — quitarla es una
+     * decisión de limpieza válida, pero no la de esta auditoría.
+     */
     public function requestClass(Request $request, StudentDiagnostic $diagnostic, ClassOffer $classOffer)
     {
         return redirect()->route('class-requests.index')

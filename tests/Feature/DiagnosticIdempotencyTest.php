@@ -98,6 +98,60 @@ class DiagnosticIdempotencyTest extends TestCase
         Event::assertDispatchedTimes(\App\Events\ClassRequestCreated::class, 1);
     }
 
+    /**
+     * store() solo llama a enrich()/compute() cuando $isNewDiagnostic es
+     * true — el camino idempotente (misma clave, ya existía) nunca debe
+     * volver a golpear al proveedor de IA ni volver a contarse como uso.
+     * El código ya lo garantizaba (encontrado leyendo store() completo
+     * durante la auditoría de Diagnostics), pero ningún test lo demostraba
+     * con una petición HTTP real interceptada — solo se inferían los
+     * efectos vía conteos de StudentDiagnostic/ClassRequest.
+     */
+    public function test_a_duplicate_submission_never_calls_the_ai_provider_twice(): void
+    {
+        config([
+            'diagnostic.ai_enabled' => true,
+            'diagnostic.ai_provider' => 'openai',
+            'diagnostic.openai_api_key' => 'test-key',
+        ]);
+
+        $callCount = 0;
+        \Illuminate\Support\Facades\Http::fake(function () use (&$callCount) {
+            $callCount++;
+            return \Illuminate\Support\Facades\Http::response([
+                'choices' => [['message' => ['content' => json_encode([
+                    'suggested_subject_keywords' => ['algebra'],
+                    'detected_level' => 'básico',
+                    'parent_friendly_summary' => 'Resumen.',
+                    'suggested_goal' => 'reinforce_topic',
+                    'risk_flags' => [],
+                    'confidence_score' => 70,
+                ])]]],
+                'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5, 'total_tokens' => 15],
+            ], 200);
+        });
+
+        $parent = User::factory()->create(['email_verified_at' => now()]);
+        $parent->assignRole('parent');
+        $student = Student::create([
+            'parent_user_id' => $parent->id, 'first_name' => 'Alumno', 'last_name' => 'IA',
+            'grade_level' => 'secundaria',
+        ]);
+        $subject = Subject::create(['name' => 'Álgebra', 'level' => 'secundaria']);
+        $payload = $this->payload($student, $subject, ['goal' => 'prepare_exam']);
+
+        $this->actingAs($parent)->post('/diagnostics', $payload);
+        // Reintento — mismo contenido exacto, mismo idempotency_key.
+        $this->actingAs($parent)->post('/diagnostics', $payload);
+
+        $this->assertSame(1, $callCount, 'El proveedor de IA no debe llamarse una segunda vez en el camino idempotente.');
+        $this->assertSame(
+            1,
+            \App\Models\AiUsageLog::where('provider', 'openai')->count(),
+            'No debe registrarse un segundo uso de IA para la misma solicitud idempotente.'
+        );
+    }
+
     public function test_idempotency_key_is_unique_at_the_database_level(): void
     {
         $parent = User::factory()->create();

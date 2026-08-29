@@ -170,7 +170,14 @@ class DiagnosticAiEnrichmentService
     ): void {
         try {
             AiUsageLog::create([
-                'user_id'               => $diagnostic->user_id ?? null,
+                // Bug real encontrado auditando Diagnostics: StudentDiagnostic
+                // no tiene atributo `user_id` (el campo real es
+                // `parent_user_id`) — esta línea escribía siempre NULL en
+                // ai_usage_logs.user_id desde que la tabla existe. Sin
+                // impacto observable hoy (AiUsageController::index() nunca
+                // proyecta esa columna), pero es un dato roto para cualquier
+                // futura vista que quiera atribuir consumo de IA a un padre.
+                'user_id'               => $diagnostic->parent_user_id,
                 'student_diagnostic_id' => $diagnostic->id,
                 'provider'              => $provider,
                 'model'                 => $model,

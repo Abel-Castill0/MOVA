@@ -135,6 +135,15 @@
         <button @click="submit" :disabled="!form.urgency || loading" :class="primaryClass(Boolean(form.urgency) && !loading)">
           {{ loading ? 'Enviando solicitud...' : 'Completar diagnóstico y solicitar clase' }}
         </button>
+        <!-- Encontrado auditando Diagnostics: onError guardaba el error bag
+             completo, pero solo `errors.difficulty_text` se renderizaba en
+             algún lugar (paso 3) — un error de validación sobre cualquier
+             otro campo (student_id/subject_id/goal/urgency) llegaba
+             correctamente del backend y desaparecía en silencio, sin
+             feedback al padre. Poco probable en el flujo normal (los
+             botones ya restringen a valores válidos), pero real si un
+             subject/alumno se elimina entre cargar la página y enviar. -->
+        <p v-if="topLevelError" role="alert" class="text-xs text-red-500 text-center">{{ topLevelError }}</p>
       </section>
     </div>
   </AppLayout>
@@ -161,6 +170,14 @@ const form = ref({
   school_feedback: '',
   goal: null,
   urgency: null,
+})
+
+// Cualquier error que NO sea difficulty_text (el único que ya tenía su
+// propio <p> en el paso 3) se muestra aquí, en el paso final — nunca se
+// pierde en silencio un error real del backend.
+const topLevelError = computed(() => {
+  const { difficulty_text, ...rest } = errors.value
+  return Object.values(rest)[0] ?? null
 })
 
 const selectedStudent = computed(() => props.students.find((student) => student.id === form.value.student_id))

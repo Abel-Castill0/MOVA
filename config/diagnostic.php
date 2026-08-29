@@ -24,7 +24,13 @@ return [
     // Rate limits — when exceeded, fallback to deterministic scoring
     'daily_limit'            => (int) env('DIAGNOSTIC_AI_DAILY_LIMIT', 50),
     'monthly_limit'          => (int) env('DIAGNOSTIC_AI_MONTHLY_LIMIT', 500),
-    // If true, auto-disables AI after 3 consecutive errors in one hour
+    // NOT IMPLEMENTED (encontrado auditando Diagnostics, 2026-08-28): ningún
+    // código en DiagnosticAiEnrichmentService lee esta clave — cambiarla no
+    // tiene ningún efecto hoy. Se deja documentado en vez de borrarla en
+    // silencio (podría ser intención de una fase futura), pero activarla
+    // esperando un auto-apagado tras errores consecutivos sería un supuesto
+    // falso. Si true, auto-disables AI after 3 consecutive errors in one hour
+    // — cuando (si) se implemente.
     'auto_disable_on_error'  => (bool) env('DIAGNOSTIC_AI_AUTO_DISABLE_ON_ERROR', false),
 
     'gemini_api_key'         => env('GEMINI_API_KEY'),
