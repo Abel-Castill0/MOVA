@@ -216,6 +216,67 @@ class LedgerInfrastructureTest extends TestCase
         $this->assertNotSame(LedgerReconciliation::INVALID, $classified[0]['classification']);
     }
 
+    // ── Reversals de recarga (Mercado Pago) ──────────────────────────────────
+    //
+    // Bug real encontrado auditando la integración de Mercado Pago
+    // (2026-08-29): CreditTransaction::reversal existe desde
+    // 2026_08_23_000001_add_reversal_type_to_credit_transactions.php —
+    // esa misma migración documenta explícitamente que 'reversal' necesitaba
+    // su propio tipo, con amount negativo, PRECISAMENTE porque
+    // derivedAvailableFor() SUMA 'refund' y una reversión de depósito debe
+    // RESTAR. La migración hizo su parte; derivedAvailableFor() nunca se
+    // actualizó para restar 'reversal' — así que cualquier reversión real
+    // (un chargeback/refund reportado por un proveedor de pago) produce un
+    // falso "DESCUADRE DE SALDO" en mova:reconcile-ledger, para siempre,
+    // cada vez que se corra el comando.
+
+    public function test_reconciliation_includes_reversal_when_deriving_available_balance(): void
+    {
+        [$profile, , $lesson, $recharge] = $this->lessonWithReservationAndRevertedRecharge();
+
+        // Semántica confirmada leyendo el código real (no asumida):
+        // deposit +25, reservation -20, consumption 0 sobre available,
+        // reversal -25 → disponible real = -20.
+        $this->assertSame(-20, $profile->fresh()->credits_available);
+
+        $reconciliation = new LedgerReconciliation;
+        $this->assertSame(
+            -20,
+            $reconciliation->derivedAvailableFor($profile->id),
+            'derivedAvailableFor() debe restar reversal — antes del fix da 5 (ignora la reversión).'
+        );
+
+        $mismatches = collect($reconciliation->reconcileProfiles())
+            ->firstWhere('teacher_profile_id', $profile->id);
+        $this->assertTrue(
+            $mismatches['available_ok'],
+            'Una reversión legítima no debe reportarse como descuadre de saldo.'
+        );
+
+        $this->artisan('mova:reconcile-ledger')
+            ->expectsOutputToContain('GREEN')
+            ->assertExitCode(0);
+    }
+
+    public function test_reconciliation_still_detects_a_real_mismatch_alongside_a_reversal(): void
+    {
+        // Control negativo pedido explícitamente: incluir 'reversal' en la
+        // fórmula no debe volver la reconciliación permisiva con CUALQUIER
+        // saldo negativo — solo con el que el propio ledger explica.
+        [$profile] = $this->lessonWithReservationAndRevertedRecharge();
+
+        // Saldo real derivado es -20; se corrompe a -19 (un crédito de más
+        // que el ledger no respalda).
+        TeacherProfile::whereKey($profile->id)->update(['credits_available' => -19]);
+
+        $reconciliation = new LedgerReconciliation;
+        $mismatch = collect($reconciliation->reconcileProfiles())
+            ->firstWhere('teacher_profile_id', $profile->id);
+        $this->assertFalse($mismatch['available_ok']);
+
+        $this->artisan('mova:reconcile-ledger')->assertExitCode(1);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** @return array{0: TeacherProfile, 1: User, 2: Lesson} */
@@ -280,14 +341,96 @@ class LedgerInfrastructureTest extends TestCase
         return [$profile, $teacher, $lesson];
     }
 
-    private function closeWith(TeacherProfile $profile, Lesson $lesson, string $type): void
+    /**
+     * Escenario completo pedido en la auditoría: deposit +25 (vía el
+     * servicio real, no una fila fabricada), reservation -20 para una
+     * lección real, consumption que la cierra, y luego una reversión real
+     * de esa misma recarga (RechargeApprovalService::reverse() — el mismo
+     * camino que un webhook de chargeback usaría) después de que el
+     * profesor ya gastó los créditos reservados.
+     *
+     * @return array{0: TeacherProfile, 1: User, 2: Lesson, 3: \App\Models\RechargeRequest}
+     */
+    private function lessonWithReservationAndRevertedRecharge(): array
+    {
+        $teacher = $this->userWithRole('teacher');
+        $profile = TeacherProfile::create([
+            'user_id' => $teacher->id,
+            'is_verified' => true,
+            'credits_available' => 0,
+            'credits_reserved' => 0,
+        ]);
+
+        $recharge = \App\Models\RechargeRequest::create([
+            'teacher_profile_id' => $profile->id,
+            'package_code' => 'pro',
+            'package_name' => 'Pro',
+            'credits' => 25,
+            'amount_pen' => '69.90',
+            'payment_method' => 'fake',
+            'operation_number' => 'OP'.$profile->id.'REV',
+            'operation_number_normalized' => 'OP'.$profile->id.'REV',
+            'status' => 'pending',
+        ]);
+        app(\App\Services\RechargeApprovalService::class)->credit($recharge, null);
+        $this->assertSame(25, $profile->fresh()->credits_available);
+
+        $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'secundaria']);
+        $parent = $this->userWithRole('parent');
+        $student = Student::create([
+            'parent_user_id' => $parent->id,
+            'first_name' => 'Alumno',
+            'last_name' => 'Reversión',
+            'grade_level' => 'secundaria',
+        ]);
+        $request = ClassRequest::create([
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'help_needed' => 'Necesita reforzar el tema.',
+            'status' => 'accepted',
+        ]);
+        $lesson = Lesson::create([
+            'teacher_profile_id' => $profile->id,
+            'student_id' => $student->id,
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay(),
+            'duration_minutes' => 60,
+            'price_frozen_pen' => 400.00,
+            'status' => 'scheduled',
+        ]);
+
+        // Reserva 20 (deja available=5) y consumo que la cierra (reserved
+        // vuelve a 0, available no cambia — mismo patrón que
+        // LessonSettlementService::consume()).
+        CreditTransaction::create([
+            'teacher_profile_id' => $profile->id,
+            'lesson_id' => $lesson->id,
+            'idempotency_key' => "lesson:{$lesson->id}:reservation",
+            'type' => 'reservation',
+            'amount' => 20,
+            'description' => 'Reserva por aceptación de clase',
+        ]);
+        $profile->update(['credits_available' => 5, 'credits_reserved' => 20]);
+        $this->closeWith($profile, $lesson, 'consumption', amount: 20);
+        $profile->update(['credits_reserved' => 0]);
+
+        // Reversión real de la recarga original — el profesor ya gastó los
+        // créditos, así que esto deja available en negativo a propósito
+        // (RechargeApprovalService::reverse(), documentado como
+        // comportamiento deliberado).
+        app(\App\Services\RechargeApprovalService::class)->reverse($recharge->fresh(), null, 'Chargeback de prueba');
+
+        return [$profile->fresh(), $teacher, $lesson, $recharge->fresh()];
+    }
+
+    private function closeWith(TeacherProfile $profile, Lesson $lesson, string $type, int $amount = 1): void
     {
         CreditTransaction::create([
             'teacher_profile_id' => $profile->id,
             'lesson_id' => $lesson->id,
             'idempotency_key' => "lesson:{$lesson->id}:".($type === 'refund' ? 'release' : $type),
             'type' => $type,
-            'amount' => 1,
+            'amount' => $amount,
             'description' => 'Cierre de prueba',
         ]);
     }

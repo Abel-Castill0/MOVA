@@ -171,7 +171,14 @@ class LedgerReconciliation
             ->where('type', $type)
             ->sum('amount');
 
-        return $sum('deposit') - $sum('reservation') + $sum('refund');
+        // Bug real encontrado auditando Mercado Pago (2026-08-29): 'reversal'
+        // faltaba aquí desde que el tipo existe (2026_08_23_000001_
+        // add_reversal_type_to_credit_transactions.php) — esa misma migración
+        // ya advertía que 'reversal' necesitaba amount NEGATIVO precisamente
+        // para poder sumarse aquí igual que los demás tipos. $sum('reversal')
+        // ya trae el signo correcto (RechargeApprovalService::reverse()
+        // siempre escribe amount negativo), así que se suma, no se resta.
+        return $sum('deposit') - $sum('reservation') + $sum('refund') + $sum('reversal');
     }
 
     private function explain(string $classification, string $status, int $reservations, int $consumptions, int $refunds): string
