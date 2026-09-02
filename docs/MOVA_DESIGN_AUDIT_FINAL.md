@@ -2337,7 +2337,16 @@ diseño visual.
   modelo definitivo o una recomendación priorizada sigue siendo el objetivo
   final. No se resuelve por inferencia.
 
-### P3 · `QA TOOLING BUG (no producción)` — `mova:concurrency-verify` reconcilia el ledger global, no el escenario probado
+### P1 · `QA TOOLING BUG (no producción)` — `mova:concurrency-verify` reconcilia el ledger global, no el escenario probado
+
+Reclasificado de `P3` a `P1` en revisión (2026-08-29, mismo día del
+hallazgo): la severidad inicial subestimaba el efecto real. `P3` sugería
+"bajo, puede esperar meses" — pero es precisamente la herramienta que
+certificará la concurrencia financiera de Mercado Pago (recargas y
+lecciones aceptándose en paralelo). Una herramienta de certificación
+financiera que puede reportar `FAIL` sobre un escenario correcto no es un
+detalle cosmético — mina la confianza en la propia señal antes de que
+empiece a importar de verdad.
 
 Encontrado durante la auditoría financiera previa a Mercado Pago
 (2026-08-29), verificando `ConcurrencyProbe`/`ConcurrencyVerify` para
@@ -2365,6 +2374,35 @@ local.
   en vez de `run()` global.
 - **Depende de**: prioridad de trabajo de QA, no bloquea Mercado Pago ni
   ningún flujo de producción.
+
+### P1 · `QA INFRASTRUCTURE` — falta una base de datos QA dedicada para pruebas destructivas/concurrencia
+
+Encontrado como consecuencia directa de un incidente real durante esta
+misma auditoría (2026-08-29): `php artisan migrate:fresh --seed` contra
+`mova` (el único MySQL local disponible, vía XAMPP) perdió la conexión a
+mitad de la migración — MySQL murió durante el DDL, dejando la base en un
+estado parcial (24 de ~30 tablas) hasta reiniciar el proceso manualmente y
+reintentar desde cero. Sin daño porque se detectó antes de seguir, pero
+`migrate:fresh` **no es atómico**: un fallo a mitad de camino dejó DDL ya
+aplicado, no un rollback limpio.
+
+- **Por qué importa ahora, no solo en general**: `ConcurrencyProbe` ya
+  ejecuta procesos MySQL reales concurrentes contra `mova` (auto-limpiando
+  su propio escenario, verificado). Mercado Pago va a añadir webhooks +
+  colas + reversals + reconciliación sobre ese mismo entorno. Cuantas más
+  pruebas destructivas/concurrentes corran contra el único MySQL de
+  desarrollo (el mismo que XAMPP ya demostró que puede caerse a mitad de
+  una operación), mayor la superficie para perder tiempo diagnosticando
+  estados parciales en vez de trabajar en Mercado Pago.
+- **Riesgo**: ninguno de producción — es enteramente de productividad de
+  desarrollo/QA local.
+- **Posible solución (no implementada aquí)**: una base `mova_qa` (o un
+  MySQL en contenedor/Docker) dedicada exclusivamente a
+  `ConcurrencyProbe`/E2E destructivo/futuras pruebas de reconciliación de
+  Mercado Pago, separada de `mova` (desarrollo manual normal).
+- **Depende de**: decisión de infraestructura, no bloquea el diseño de
+  Mercado Pago (MP-1) — sí se recomienda resolverlo antes de la fase de
+  pruebas E2E intensivas de pagos.
 
 ---
 
