@@ -2337,6 +2337,35 @@ diseño visual.
   modelo definitivo o una recomendación priorizada sigue siendo el objetivo
   final. No se resuelve por inferencia.
 
+### P3 · `QA TOOLING BUG (no producción)` — `mova:concurrency-verify` reconcilia el ledger global, no el escenario probado
+
+Encontrado durante la auditoría financiera previa a Mercado Pago
+(2026-08-29), verificando `ConcurrencyProbe`/`ConcurrencyVerify` para
+descartarlos como origen de un mismatch histórico en datos de desarrollo
+local.
+
+- **Dónde**: `App\Console\Commands\ConcurrencyVerify::handle()` — llama
+  `app(LedgerReconciliation::class)->run()` sin acotar a las entidades del
+  propio escenario (`$scenario`/`TeacherProfile` que `ConcurrencyProbe`
+  creó para esa prueba).
+- **Comportamiento actual**: si existe CUALQUIER anomalía en cualquier
+  otro perfil de la base (p. ej. datos de desarrollo ya contaminados por
+  otra causa), `mova:concurrency-verify` reporta `ROJO` aunque el propio
+  escenario probado haya sido perfecto (verificado en vivo: 5 procesos
+  reales compitiendo por la misma solicitud produjeron exactamente 1
+  lección/1 reserva/0 duplicados — comportamiento correcto — pero el
+  comando igual reportó `ledger sano: NO` por un descuadre ajeno).
+- **Riesgo**: ninguno de seguridad/producción — es un falso negativo de
+  una herramienta de QA. El riesgo real es de confianza: un ingeniero
+  viendo `ROJO` podría creer que la concurrencia real falló cuando en
+  realidad fue una anomalía preexistente y no relacionada.
+- **Posible solución (no elegida ni implementada aquí)**: acotar la
+  reconciliación a los `teacher_profile_id`/lecciones que el propio
+  escenario creó (algo como `LedgerReconciliation::forProfiles([...])`),
+  en vez de `run()` global.
+- **Depende de**: prioridad de trabajo de QA, no bloquea Mercado Pago ni
+  ningún flujo de producción.
+
 ---
 
 ## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
