@@ -303,6 +303,91 @@ class FinancialConcurrencyTest extends TestCase
         ]);
     }
 
+    /**
+     * Reproducción aislada del escenario histórico encontrado auditando
+     * teacher_profile_id=7 en la BD local (2026-08-29): deposit real +
+     * 6 aceptaciones reales (POST /lessons, el mismo endpoint HTTP que
+     * usaría cualquier profesor) + 1 cancelación real (POST /lessons/
+     * {id}/cancel, el camino de refund de una clase `scheduled`) — nunca
+     * inserts manuales de credit_transactions. Se reconcilia después de
+     * CADA paso, no solo al final, para localizar el paso exacto donde
+     * stored y derivado dejarían de coincidir si el código actual tuviera
+     * el mismo defecto que produjo el mismatch histórico.
+     *
+     * Los números finales (20/5) NO coinciden con los del caso histórico
+     * (20/7) a propósito: este fixture arranca en 0/0 antes del deposit
+     * (25/0 después), mientras tp=7 ya traía un baseline de 5/2 sembrado
+     * por LocalTestDataSeeder antes de su propio deposit — un profesor
+     * distinto, un punto de partida distinto. Lo que se compara en cada
+     * paso es SIEMPRE guardado-vs-derivado del mismo profesor en el mismo
+     * instante, nunca estos números contra los históricos.
+     */
+    public function test_real_accept_and_cancel_endpoints_keep_stored_balance_reconciled_at_every_step(): void
+    {
+        $subject = $this->subject();
+        [$teacher, $profile] = $this->teacher($subject, credits: 0);
+
+        $recharge = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id,
+            'package_code' => 'pro',
+            'package_name' => 'Pro',
+            'credits' => 25,
+            'amount_pen' => '69.90',
+            'payment_method' => 'yape',
+            'operation_number' => fake()->unique()->numerify('#########'),
+            'status' => 'pending',
+        ]);
+        app(\App\Services\RechargeApprovalService::class)->credit($recharge, null);
+        $this->assertReconciled($profile, 'tras el deposit real');
+
+        $lessonIds = [];
+        for ($i = 0; $i < 6; $i++) {
+            $request = $this->openRequest($subject);
+
+            // +90 min por iteración: 6 clases de 60 min en el calendario del
+            // MISMO profesor no deben solaparse entre sí (hasScheduleOverlap).
+            $response = $this->actingAs($teacher)->post(route('lessons.store'), [
+                'class_request_id' => $request->id,
+                'start_time' => now()->addDays(2)->addMinutes($i * 90)->toIso8601String(),
+                'duration_minutes' => 60,
+            ]);
+            $response->assertSessionDoesntHaveErrors();
+            $response->assertRedirect();
+
+            $lessonIds[] = Lesson::where('class_request_id', $request->id)->firstOrFail()->id;
+            $this->assertReconciled($profile, "tras aceptar la clase #{$i} (lesson_id={$lessonIds[$i]})");
+        }
+
+        // Cancela la PRIMERA lección aceptada — mismo camino de refund que
+        // produjo la transacción 'refund' histórica (LessonController::
+        // cancel(), no LessonSettlementService — esa lección sigue
+        // 'scheduled', nunca se pagó).
+        $this->actingAs($teacher)->post(route('lessons.cancel', $lessonIds[0]), [
+            'reason' => 'Reproducción de auditoría financiera',
+        ])->assertRedirect();
+        $this->assertReconciled($profile, 'tras cancelar la primera clase (refund real)');
+
+        $profile->refresh();
+        $this->assertSame(20, $profile->credits_available, 'available esperado: 25 - 6 + 1 = 20');
+        $this->assertSame(5, $profile->credits_reserved, 'reserved esperado: 0 + 6 - 1 = 5');
+    }
+
+    private function assertReconciled(TeacherProfile $profile, string $context): void
+    {
+        $profile->refresh();
+        $reconciliation = new LedgerReconciliation;
+        $mismatch = collect($reconciliation->reconcileProfiles())->firstWhere('teacher_profile_id', $profile->id);
+
+        $this->assertTrue(
+            $mismatch['available_ok'],
+            "Descuadre de available {$context}: guardado={$mismatch['credits_available_stored']} vs derivado={$mismatch['credits_available_derived']}"
+        );
+        $this->assertTrue(
+            $mismatch['reserved_ok'],
+            "Descuadre de reserved {$context}: guardado={$mismatch['credits_reserved_stored']} vs derivado={$mismatch['credits_reserved_derived']}"
+        );
+    }
+
     /** @return array{0: TeacherProfile, 1: Lesson} */
     private function settleableLesson(): array
     {
