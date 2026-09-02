@@ -2400,9 +2400,20 @@ aplicado, no un rollback limpio.
   MySQL en contenedor/Docker) dedicada exclusivamente a
   `ConcurrencyProbe`/E2E destructivo/futuras pruebas de reconciliación de
   Mercado Pago, separada de `mova` (desarrollo manual normal).
-- **Depende de**: decisión de infraestructura, no bloquea el diseño de
-  Mercado Pago (MP-1) — sí se recomienda resolverlo antes de la fase de
-  pruebas E2E intensivas de pagos.
+- **Depende de**: decisión de infraestructura. **Gate explícito, precisado
+  en revisión (2026-08-29) para que P1 no se lea como "bloquea todo"**:
+
+  ```text
+  MP diseño / mapping de arquitectura        → PUEDE empezar ya, sin mova_qa
+  MP provider + creación de orders en TEST   → PUEDE empezar ya, sin mova_qa
+  MP concurrencia destructiva (ConcurrencyProbe-style) → requiere mova_qa
+  MP webhook E2E intensivo                   → requiere mova_qa
+  MP reversal/chargeback E2E                 → requiere mova_qa
+  Production readiness                       → requiere este P1 resuelto
+  ```
+
+  Resolverlo es requisito de la fase de pruebas E2E intensivas de pagos,
+  no del arranque de Mercado Pago.
 
 ---
 
