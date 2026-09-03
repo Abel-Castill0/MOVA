@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
 use App\Models\RechargeRequest;
+use App\Payment\Contracts\CardPaymentInstrument;
 use App\Payment\Contracts\PaymentProviderContract;
+use App\Payment\Contracts\TokenizedPaymentInstrument;
 use App\Payment\Contracts\YapePaymentInstrument;
 use App\Payment\MercadoPagoPaymentProvider;
 use App\Services\MercadoPagoPaymentReconciliationService;
@@ -76,7 +78,7 @@ class CreditCheckoutController extends Controller
         abort_unless(
             $this->mercadoPagoCheckoutEnabled(),
             503,
-            'El pago automático con Yape no está disponible por ahora.'
+            'El pago automático no está disponible por ahora.'
         );
 
         $packages = config('credits.packages');
@@ -144,11 +146,38 @@ class CreditCheckoutController extends Controller
     }
 
     /**
-     * Recibe el token Yape ya generado en el navegador (mp.yape().create())
-     * y lo entrega a PaymentProviderContract::createPaymentAttempt(). Nunca
-     * lee monto/créditos/moneda/referencia/payer del request — el único
-     * campo aceptado es el token, y YapePaymentInstrument ni siquiera tiene
-     * espacio para nada más (ver docblock de esa clase).
+     * Documentos de identificación aceptados para Card Payment Brick en
+     * Perú (MPE) — verificado vía MCP oficial (búsqueda "Card Payment Brick
+     * recibir pago backend token issuer_id", tabla de
+     * `cardholderIdentificationType` por país): `DNI`, `C.E`, `RUC`, `Otro`.
+     * Whitelist explícita en vez de un `string` libre — nunca confiar en el
+     * frontend para decidir qué vale como tipo de documento aquí, aunque el
+     * Brick ya restringe el <select> del lado del navegador.
+     */
+    private const CARD_IDENTIFICATION_TYPES = ['DNI', 'C.E', 'RUC', 'Otro'];
+
+    /**
+     * Recibe el token YA tokenizado en el navegador — Yape (mp.yape().
+     * create()) o Card Payment Brick (onSubmit(formData)) — y lo entrega a
+     * PaymentProviderContract::createPaymentAttempt() envuelto en el
+     * TokenizedPaymentInstrument correcto (ver buildInstrument()). Nunca lee
+     * monto/créditos/moneda/referencia/payer del request — server-derivado
+     * siempre desde $recharge (ver docblock de la clase).
+     *
+     * `payment_method` es OBLIGATORIO y explícito ('yape'|'card') — nunca se
+     * infiere de qué otros campos vinieron en el body. Inferir por
+     * presencia (p.ej. "si trae payment_method_id, es card") dejaría a un
+     * atacante decidir la rama server-side con el mismo payload que ya
+     * controla; con un campo explícito, prohibited_if además garantiza que
+     * NINGÚN campo específico de tarjeta puede colarse en un intento Yape,
+     * y viceversa.
+     *
+     * PCI (sección 4/10 del encargo): card_number/cvv/security_code/
+     * expiración crudos están en la whitelist como `prohibited` — un
+     * request que los incluya (con cualquiera de los nombres de campo
+     * documentados por Mercado Pago o Brick) falla 422 ANTES de construir
+     * ningún instrumento. MOVA nunca debe recibir esos campos; el Brick ya
+     * los tokeniza en el navegador (ver docs/CardPaymentInstrument).
      */
     public function pay(Request $request, RechargeRequest $recharge)
     {
@@ -157,17 +186,49 @@ class CreditCheckoutController extends Controller
         abort_unless(
             $this->mercadoPagoCheckoutEnabled(),
             503,
-            'El pago automático con Yape no está disponible por ahora.'
+            'El pago automático no está disponible por ahora.'
         );
 
         $data = $request->validate([
+            'payment_method' => ['required', 'string', Rule::in(['yape', 'card'])],
             'token' => ['required', 'string', 'max:255'],
+
+            // Campos exclusivos de 'card' — prohibited_if bloquea que se
+            // cuelen en un intento 'yape' (YapePaymentInstrument no tiene
+            // espacio para ellos de todas formas, pero rechazarlos aquí da
+            // un 422 explícito en vez de que se ignoren en silencio).
+            'payment_method_id' => ['required_if:payment_method,card', 'prohibited_if:payment_method,yape', 'string', 'max:64'],
+            // Límite superior defensivo (nunca autoritativo — Mercado Pago/
+            // el Brick ya deciden qué installments son válidos para cada
+            // tarjeta/monto real): solo evita un valor absurdo llegando al
+            // payload de Payments API.
+            'installments' => ['required_if:payment_method,card', 'prohibited_if:payment_method,yape', 'integer', 'min:1', 'max:36'],
+            'issuer_id' => ['nullable', 'prohibited_if:payment_method,yape', 'string', 'max:32'],
+            'identification_type' => ['nullable', 'prohibited_if:payment_method,yape', 'string', Rule::in(self::CARD_IDENTIFICATION_TYPES), 'required_with:identification_number'],
+            'identification_number' => ['nullable', 'prohibited_if:payment_method,yape', 'string', 'max:32', 'required_with:identification_type'],
+
+            // PCI: MOVA NUNCA acepta datos crudos de tarjeta bajo ningún
+            // nombre de campo — ni snake_case (payload de Payments API) ni
+            // camelCase (nombres que usa CardForm/algunos ejemplos de
+            // Mercado Pago) — sin importar qué envíe el cliente.
+            'card_number' => ['prohibited'],
+            'cardNumber' => ['prohibited'],
+            'cvv' => ['prohibited'],
+            'cvc' => ['prohibited'],
+            'security_code' => ['prohibited'],
+            'securityCode' => ['prohibited'],
+            'expiration_month' => ['prohibited'],
+            'expirationMonth' => ['prohibited'],
+            'expiration_year' => ['prohibited'],
+            'expirationYear' => ['prohibited'],
+            'expiration_date' => ['prohibited'],
+            'expirationDate' => ['prohibited'],
         ]);
 
         try {
             app(PaymentProviderContract::class)->createPaymentAttempt(
                 $recharge,
-                new YapePaymentInstrument($data['token'])
+                $this->buildInstrument($data)
             );
         } catch (RuntimeException $e) {
             // El estado definitivo de ESTE intento ya quedó persistido en
@@ -184,6 +245,31 @@ class CreditCheckoutController extends Controller
         $recharge = $recharge->fresh(['latestPaymentOrder']);
 
         return response()->json($this->safeStatus($recharge, $recharge->latestPaymentOrder));
+    }
+
+    /**
+     * Construye el TokenizedPaymentInstrument correcto a partir de datos YA
+     * validados por pay() — el único lugar donde 'payment_method' decide qué
+     * clase de instrumento se arma. Nunca lee $request directamente (evita
+     * que un campo no validado se cuele); solo opera sobre $data, que ya
+     * pasó por la whitelist completa (incluidos los `prohibited` de PCI).
+     *
+     * @param  array<string,mixed>  $data
+     */
+    private function buildInstrument(array $data): TokenizedPaymentInstrument
+    {
+        if ($data['payment_method'] === 'card') {
+            return new CardPaymentInstrument(
+                token: $data['token'],
+                paymentMethodId: $data['payment_method_id'],
+                installments: (int) $data['installments'],
+                issuerId: $data['issuer_id'] ?? null,
+                identificationType: $data['identification_type'] ?? null,
+                identificationNumber: $data['identification_number'] ?? null,
+            );
+        }
+
+        return new YapePaymentInstrument($data['token']);
     }
 
     /**

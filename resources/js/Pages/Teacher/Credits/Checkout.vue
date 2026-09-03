@@ -5,7 +5,7 @@
         <Link :href="route('teacher.credits.index')" class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700">
           <Icon name="back" :size="16" /> Volver a Mis créditos
         </Link>
-        <h2 class="mt-3 text-xl font-black text-slate-900">Pagar con Yape</h2>
+        <h2 class="mt-3 text-xl font-black text-slate-900">Completa tu pago</h2>
         <p class="mt-1 text-sm text-slate-500">Pago seguro procesado por Mercado Pago. Tus créditos se acreditan automáticamente al confirmarse.</p>
       </div>
 
@@ -31,12 +31,40 @@
       </section>
 
       <p v-if="!checkoutEnabled" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-        El pago automático con Yape no está disponible por ahora. Vuelve a Mis créditos para pagar de forma manual.
+        El pago automático no está disponible por ahora. Vuelve a Mis créditos para pagar de forma manual.
       </p>
 
       <section v-else class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm" aria-live="polite">
+        <!-- Selector de método: solo visible mientras no hay un resultado ni una verificación en curso.
+             role="group" + aria-pressed (no role="tablist"/"tab"): ese patrón ARIA exige navegación
+             por flechas y un solo elemento focuseable a la vez (roving tabindex) — esto son dos
+             <button> independientes normales, cada uno enfocable con Tab, así que anunciarlos como
+             "tab" prometería un comportamiento de teclado que no existe. -->
+        <div v-if="showForm" class="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="group" aria-label="Método de pago">
+          <button
+            type="button"
+            :aria-pressed="paymentMethod === 'yape'"
+            class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-bold transition-colors"
+            :class="paymentMethod === 'yape' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            :disabled="isBusy"
+            @click="selectPaymentMethod('yape')"
+          >
+            Yape
+          </button>
+          <button
+            type="button"
+            :aria-pressed="paymentMethod === 'card'"
+            class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-bold transition-colors"
+            :class="paymentMethod === 'card' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+            :disabled="isBusy"
+            @click="selectPaymentMethod('card')"
+          >
+            Tarjeta
+          </button>
+        </div>
+
         <!-- Formulario Yape: solo visible mientras no hay un resultado ni una verificación en curso -->
-        <form v-if="showForm" class="space-y-4" @submit.prevent="submitPayment" novalidate>
+        <form v-if="showForm && paymentMethod === 'yape'" class="space-y-4" @submit.prevent="submitYapePayment" novalidate>
           <div class="flex items-center gap-2 text-sm font-bold text-slate-900">
             <Icon name="credits" :size="18" /> Pagar con Yape
           </div>
@@ -88,6 +116,32 @@
           </p>
         </form>
 
+        <!-- Card Payment Brick: mismo v-if/v-else-if que el resto de la sección (nunca
+             v-show — necesita romper la cadena else-if de verificando/aprobado/fallido más
+             abajo). El watcher de showCardBrick espera un nextTick() antes de montar, así
+             que el <div id="cardPaymentBrick_container"> ya existe en el DOM cuando toca. -->
+        <div v-else-if="showForm && paymentMethod === 'card'" class="space-y-3">
+          <div class="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <Icon name="credits" :size="18" /> Pagar con tarjeta
+          </div>
+
+          <div v-if="!brickReady" class="flex items-center justify-center py-8" aria-hidden="true">
+            <svg class="h-6 w-6 motion-safe:animate-spin text-brand-600" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+
+          <div id="cardPaymentBrick_container" :class="{ 'pointer-events-none opacity-60': isBusy }" />
+
+          <InputError :message="submitError" />
+
+          <p class="flex items-start gap-1.5 text-xs text-slate-400">
+            <Icon name="secure-payment" :size="14" class="mt-0.5 flex-shrink-0" />
+            Pago procesado directamente por Mercado Pago. MOVA nunca ve ni guarda el número completo, CVV ni fecha de tu tarjeta.
+          </p>
+        </div>
+
         <!-- Verificando / pendiente / incierto: NUNCA se muestra como "falló", nunca invita a pagar de nuevo -->
         <div v-else-if="isVerifying" class="flex flex-col items-center gap-3 py-4 text-center">
           <svg class="h-8 w-8 motion-safe:animate-spin text-brand-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -125,7 +179,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import InputError from '@/Components/InputError.vue'
@@ -135,6 +189,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
 import Icon from '@/Components/Icon.vue'
 import { createYapeToken } from '@/lib/mercadoPagoYape'
+import { mountCardPaymentBrick, unmountCardPaymentBrick } from '@/lib/mercadoPagoCard'
 import { preloadMercadoPagoSdk } from '@/lib/mercadoPago'
 
 const props = defineProps({
@@ -158,6 +213,20 @@ const statusMessage = ref(props.initialStatus.message)
 const form = reactive({ phoneNumber: '', otp: '' })
 const fieldErrors = reactive({ phoneNumber: '', otp: '' })
 const submitError = ref('')
+
+// MÉTODO DE PAGO (MOVA Card Payment Brick): 'yape' es el default — el
+// checkout ya funcionaba así antes de esta ronda, cambiar el default
+// alteraría el comportamiento de Yape sin necesidad (sección "NO tocar
+// Yape salvo adaptación mínima compartida necesaria" del encargo).
+const paymentMethod = ref('yape')
+// true solo entre onReady() del Brick y su desmontaje — controla el
+// spinner que cubre el contenedor mientras el Brick todavía está
+// inicializando sus propios campos.
+const brickReady = ref(false)
+// Controller del Brick — variable de módulo local (no reactiva, igual
+// criterio que pollTimer/pollAttempts más abajo): Vue no necesita
+// reaccionar a sus cambios, solo el código de esta función.
+let cardController = null
 
 const MAX_POLL_ATTEMPTS = 40 // presupuesto total de polls, nunca infinito
 // POLLING QUALITY (MOVA Yape Checkout Pre-Card Hardening): backoff
@@ -195,6 +264,10 @@ const isVerifying = computed(() => ['pending', 'uncertain', 'review'].includes(s
 // reaparecer — nunca directamente desde 'failed'.
 const showForm = computed(() => status.value === 'idle')
 const formFilled = computed(() => form.phoneNumber.trim().length >= 6 && form.otp.trim().length === 6)
+// Gobierna el mount/unmount del Card Payment Brick (ver watcher más abajo)
+// — nunca se monta mientras el formulario no está visible (verificando,
+// aprobado, fallido), y nunca dos veces seguidas para el mismo estado.
+const showCardBrick = computed(() => showForm.value && paymentMethod.value === 'card')
 
 const busyLabel = computed(() => {
   if (phase.value === 'tokenizing') return 'Verificando con Yape…'
@@ -212,7 +285,13 @@ function resetFieldErrors() {
   submitError.value = ''
 }
 
-async function submitPayment() {
+function selectPaymentMethod(method) {
+  if (isBusy.value || paymentMethod.value === method) return // defensa adicional — los botones ya quedan disabled
+  paymentMethod.value = method
+  resetFieldErrors()
+}
+
+async function submitYapePayment() {
   if (isBusy.value) return // el botón ya queda disabled, esto es defensa adicional (sección 9)
   resetFieldErrors()
 
@@ -276,6 +355,114 @@ function applyStatus(payload) {
     stopPolling()
   }
 }
+
+/**
+ * onSubmit del Card Payment Brick — llamado por el propio Brick cuando el
+ * profesor hace clic en su botón nativo de pago, YA con la tarjeta
+ * tokenizada (ver mercadoPagoCard.js). Nunca se llama a mano.
+ *
+ * DEBE devolver una Promise (el Brick la usa para su propia animación de
+ * éxito/error) — nunca se envuelve/traga el rechazo silenciosamente aquí:
+ * si el POST falla, el error se re-lanza después de fijar submitError.
+ *
+ * SERVER AUTHORITY (sección 9 del encargo): solo se reenvía lo que
+ * identifica el MEDIO DE PAGO ya tokenizado (token/payment_method_id/
+ * installments/issuer_id/identification) — nunca formData.transaction_amount
+ * ni formData.payer.email, aunque el Brick los incluya; monto/payer los
+ * vuelve a derivar el backend siempre desde RechargeRequest.
+ */
+async function submitCardPayment(formData) {
+  submitError.value = ''
+
+  if (isBusy.value) {
+    // Defensa adicional (sección 8) — el Brick ya debería bloquear un
+    // segundo submit mientras el primero sigue en vuelo.
+    throw new Error('Ya hay un pago en curso.')
+  }
+
+  phase.value = 'submitting'
+
+  const identification = formData?.payer?.identification
+
+  try {
+    const response = await window.axios.post(route('teacher.credits.checkout.pay', props.recharge.id), {
+      payment_method: 'card',
+      token: formData.token,
+      payment_method_id: formData.payment_method_id,
+      installments: formData.installments,
+      issuer_id: formData.issuer_id || null,
+      identification_type: identification?.type || null,
+      identification_number: identification?.number || null,
+    })
+    applyStatus(response.data)
+  } catch (error) {
+    phase.value = 'idle'
+    submitError.value = 'No se pudo enviar el pago. Intenta de nuevo.'
+
+    throw error
+  }
+
+  if (isVerifying.value) startPolling()
+}
+
+/**
+ * Monta una instancia NUEVA del Brick — solo se llama desde el watcher de
+ * showCardBrick, nunca directamente desde el template (evita instancias
+ * duplicadas si el usuario alterna método varias veces rápido: el watcher
+ * serializa mount/unmount porque Vue solo dispara el callback una vez por
+ * cambio real de valor).
+ */
+async function mountCardBrick() {
+  if (!props.mercadoPagoPublicKey) return
+
+  brickReady.value = false
+  submitError.value = ''
+
+  try {
+    cardController = await mountCardPaymentBrick(props.mercadoPagoPublicKey, 'cardPaymentBrick_container', {
+      // Mismo monto que ya se muestra en el resumen — puramente informativo
+      // para el Brick (nunca lo que decide cuánto se cobra: eso lo vuelve a
+      // derivar el backend desde RechargeRequest, ver
+      // CreditCheckoutController::pay()).
+      amount: Number(props.recharge.amount_pen),
+      onReady: () => {
+        brickReady.value = true
+      },
+      onSubmit: submitCardPayment,
+      onError: () => {
+        // Errores propios del Brick (tarjeta inválida, campo incompleto,
+        // fallo de tokenización) — nunca se registra en consola nada que
+        // pueda incluir datos de tarjeta; el Brick ya evita exponerlos.
+        submitError.value = 'Revisa los datos de tu tarjeta e intenta de nuevo.'
+      },
+    })
+  } catch (error) {
+    submitError.value = 'No se pudo cargar el formulario de tarjeta. Intenta de nuevo.'
+  }
+}
+
+async function unmountCardBrick() {
+  if (!cardController) return
+
+  const controller = cardController
+  cardController = null
+  brickReady.value = false
+
+  await unmountCardPaymentBrick(controller)
+}
+
+// LIFECYCLE (sección 6 del encargo): única fuente de verdad para
+// montar/desmontar el Brick — nunca se monta desde selectPaymentMethod()
+// directamente, así cambiar de método/salir de la pantalla/reintentar
+// después de un fallo pasan siempre por el mismo camino.
+watch(showCardBrick, async (show) => {
+  if (show) {
+    await nextTick() // el <div id="cardPaymentBrick_container"> debe existir en el DOM antes de montar
+    await mountCardBrick()
+  } else {
+    await unmountCardBrick()
+  }
+})
 
 function startPolling() {
   stopPolling()
@@ -359,5 +546,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopPolling()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  // LIFECYCLE (sección 6 del encargo): "cada vez que el usuario sale de la
+  // pantalla... es necesario destruir la instancia actual" — nunca se deja
+  // un controller de Brick vivo referenciando un <div> que Vue está a
+  // punto de desmontar.
+  unmountCardBrick()
 })
 </script>

@@ -128,6 +128,7 @@ class CreditCheckoutControllerTest extends TestCase
         $recharge = $this->recharge($profile, amountPen: '30.00', credits: 15);
 
         $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'yape',
             'token' => 'yape-token-abc',
             // Nunca deben influir en el payload real enviado a Mercado Pago.
             'amount' => 1,
@@ -201,6 +202,351 @@ class CreditCheckoutControllerTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_pay_requires_an_explicit_payment_method(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        // Sin 'payment_method' explícito no hay forma de que el controller
+        // decida qué instrumento construir — nunca se infiere por la
+        // presencia de otros campos (ver docblock de pay()).
+        $this->actingAs($teacher)
+            ->postJson(route('teacher.credits.checkout.pay', $recharge), ['token' => 'tok'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('payment_method');
+    }
+
+    // ---- pay() — instrumento Card (Card Payment Brick) ---------------------
+
+    public function test_pay_builds_a_card_instrument_and_ignores_any_financial_field_from_the_client(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 777, 'status' => 'in_process', 'status_detail' => 'pending_contingency',
+        ], 201)]);
+
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile, amountPen: '30.00', credits: 15);
+
+        $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token-abc',
+            'payment_method_id' => 'visa',
+            'installments' => 3,
+            'issuer_id' => '310',
+            'identification_type' => 'DNI',
+            'identification_number' => '12345678',
+            // Nunca deben influir en el payload real enviado a Mercado Pago.
+            'amount' => 1,
+            'transaction_amount' => 1,
+            'credits' => 999999,
+            'external_reference' => 'attacker-controlled',
+            'payer' => ['email' => 'attacker@example.com'],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('credits_credited', false);
+
+        Http::assertSent(function ($request) use ($recharge) {
+            return $request['payment_method_id'] === 'visa'
+                && $request['installments'] === 3
+                && $request['issuer_id'] === '310'
+                && $request['token'] === 'card-brick-token-abc'
+                && $request['transaction_amount'] === 30.0 // server-derivado, no el 1 del cliente
+                && $request['external_reference'] === "recharge:{$recharge->id}:attempt:1"
+                && ($request['payer']['email'] ?? null) !== 'attacker@example.com'
+                && $request['payer']['identification']['type'] === 'DNI'
+                && $request['payer']['identification']['number'] === '12345678';
+        });
+    }
+
+    public function test_pay_accepts_a_card_instrument_without_optional_issuer_or_identification(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 778, 'status' => 'in_process', 'status_detail' => 'pending_contingency',
+        ], 201)]);
+
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token-min',
+            'payment_method_id' => 'master',
+            'installments' => 1,
+        ])->assertOk();
+
+        Http::assertSent(function ($request) {
+            return $request['payment_method_id'] === 'master'
+                && $request['installments'] === 1
+                && ! isset($request['issuer_id'])
+                && ! isset($request['payer']['identification']);
+        });
+    }
+
+    public function test_pay_requires_card_metadata_when_payment_method_is_card(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        // Falta payment_method_id/installments — nunca se completan con un
+        // default server-side (ver sección 10 del encargo: "no
+        // hardcodear issuer/installments/payment_method").
+        $this->actingAs($teacher)
+            ->postJson(route('teacher.credits.checkout.pay', $recharge), [
+                'payment_method' => 'card',
+                'token' => 'card-brick-token-incomplete',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['payment_method_id', 'installments']);
+    }
+
+    public function test_pay_rejects_an_identification_type_outside_the_documented_whitelist(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $this->actingAs($teacher)
+            ->postJson(route('teacher.credits.checkout.pay', $recharge), [
+                'payment_method' => 'card',
+                'token' => 'card-brick-token',
+                'payment_method_id' => 'visa',
+                'installments' => 1,
+                'identification_type' => 'PASSPORT', // no está en DNI/C.E/RUC/Otro (Perú, ver MCP)
+                'identification_number' => '12345678',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('identification_type');
+    }
+
+    public function test_pay_rejects_card_only_fields_when_payment_method_is_yape(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        // Un intento 'yape' con payment_method_id/installments colados —
+        // nunca se ignoran en silencio, 422 explícito (ver prohibited_if en pay()).
+        $this->actingAs($teacher)
+            ->postJson(route('teacher.credits.checkout.pay', $recharge), [
+                'payment_method' => 'yape',
+                'token' => 'yape-token',
+                'payment_method_id' => 'visa',
+                'installments' => 1,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['payment_method_id', 'installments']);
+    }
+
+    /**
+     * PCI (sección 4/10 del encargo): MOVA nunca acepta datos crudos de
+     * tarjeta bajo ningún nombre de campo documentado, ni siquiera junto a
+     * un token/payment_method_id por lo demás válidos.
+     */
+    public function test_pay_rejects_raw_card_data_even_alongside_a_valid_token(): void
+    {
+        // Un teacher/recharge NUEVO por campo — la ruta pay() tiene
+        // throttle:10,1 (routes/web.php) y esta whitelist por sí sola ya
+        // supera ese límite; reusar la misma sesión haría que las últimas
+        // iteraciones fallaran por 429, no por la validación 422 que este
+        // test en realidad quiere probar.
+        foreach ([
+            'card_number' => '4009175332806176',
+            'cardNumber' => '4009175332806176',
+            'cvv' => '123',
+            'cvc' => '123',
+            'security_code' => '123',
+            'securityCode' => '123',
+            'expiration_month' => '11',
+            'expirationMonth' => '11',
+            'expiration_year' => '30',
+            'expirationYear' => '30',
+            'expiration_date' => '11/30',
+            'expirationDate' => '11/30',
+        ] as $field => $value) {
+            [$teacher, $profile] = $this->teacher();
+            $recharge = $this->recharge($profile);
+
+            $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+                'payment_method' => 'card',
+                'token' => 'card-brick-token',
+                'payment_method_id' => 'visa',
+                'installments' => 1,
+                $field => $value,
+            ]);
+
+            $response->assertStatus(422);
+            $response->assertJsonValidationErrors($field);
+        }
+    }
+
+    public function test_card_credits_are_applied_exactly_once_when_approved(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response(['id' => 9101, 'status' => 'in_process', 'status_detail' => 'pending_contingency'], 201),
+        ]);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ])->assertOk();
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/9101' => Http::response([
+                'id' => 9101, 'status' => 'approved', 'status_detail' => 'accredited',
+                'transaction_amount' => 10.0, 'currency_id' => 'PEN',
+                'external_reference' => "recharge:{$recharge->id}:attempt:1",
+            ], 200),
+        ]);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.refresh', $recharge))->assertJsonPath('status', 'approved');
+        $this->travel(10)->seconds();
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.refresh', $recharge))->assertJsonPath('status', 'approved');
+
+        $profile->refresh();
+        $this->assertSame(5, $profile->credits_available);
+        $this->assertSame(1, \App\Models\CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'deposit')->count());
+    }
+
+    public function test_card_payment_rejected_synchronously_credits_zero(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9102, 'status' => 'rejected', 'status_detail' => 'cc_rejected_other_reason',
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'failed');
+        $response->assertJsonPath('credits_credited', false);
+
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertSame('failed', PaymentOrder::where('recharge_request_id', $recharge->id)->firstOrFail()->status);
+        $this->assertDatabaseCount('credit_transactions', 0);
+    }
+
+    /**
+     * pending/uncertain (Payments API "in_process"/red incierta) NUNCA
+     * acredita — la única vía es la reconciliación server-to-server
+     * (sección 7/11 del encargo, incluida la lectura de un futuro
+     * status_detail=pending_challenge de 3DS: MercadoPagoPaymentStatusMapper
+     * ya trata cualquier status='pending' igual, sin importar el detail).
+     */
+    public function test_card_payment_pending_credits_zero_until_reconciled(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9103, 'status' => 'pending', 'status_detail' => 'pending_contingency',
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ]);
+
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('credits_credited', false);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+    }
+
+    /**
+     * Regresión de RESOLVE ATTEMPT ROW (MercadoPagoPaymentProvider): tras
+     * un rechazo TERMINAL (status='failed'), un reintento del profesor —
+     * ahora con OTRO token/tarjeta — debe crear un intento NUEVO
+     * (attempt_number+1) con una idempotency_key NUEVA, nunca reutilizar la
+     * fila fallida ni su key.
+     */
+    public function test_retry_after_a_terminal_card_rejection_creates_a_legitimate_new_attempt(): void
+    {
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9104, 'status' => 'rejected', 'status_detail' => 'cc_rejected_bad_filled_security_code',
+            ], 201),
+        ]);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token-first',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ])->assertOk();
+
+        $firstAttempt = PaymentOrder::where('recharge_request_id', $recharge->id)->firstOrFail();
+        $this->assertSame(1, $firstAttempt->attempt_number);
+        $this->assertSame('failed', $firstAttempt->status);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9105, 'status' => 'in_process', 'status_detail' => 'pending_contingency',
+            ], 201),
+        ]);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token-second',
+            'payment_method_id' => 'master',
+            'installments' => 1,
+        ])->assertOk();
+
+        $this->assertSame(2, PaymentOrder::where('recharge_request_id', $recharge->id)->count());
+        $secondAttempt = PaymentOrder::where('recharge_request_id', $recharge->id)->where('attempt_number', 2)->firstOrFail();
+        $this->assertNotSame($firstAttempt->idempotency_key, $secondAttempt->idempotency_key);
+        $this->assertSame('pending', $secondAttempt->status);
+    }
+
+    public function test_repeated_refresh_never_duplicates_credits_for_a_card_payment(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response(['id' => 9106, 'status' => 'in_process', 'status_detail' => 'pending_contingency'], 201),
+        ]);
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ])->assertOk();
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/9106' => Http::response([
+                'id' => 9106, 'status' => 'approved', 'status_detail' => 'accredited',
+                'transaction_amount' => 10.0, 'currency_id' => 'PEN',
+                'external_reference' => "recharge:{$recharge->id}:attempt:1",
+            ], 200),
+        ]);
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.refresh', $recharge))->assertJsonPath('status', 'approved');
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.refresh', $recharge))->assertJsonPath('status', 'approved');
+
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(1, \App\Models\CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'deposit')->count());
+    }
+
     // ---- pending/uncertain UX contract -------------------------------------
 
     public function test_status_never_reports_failed_for_a_pending_or_uncertain_attempt(): void
@@ -243,7 +589,7 @@ class CreditCheckoutControllerTest extends TestCase
             'api.mercadopago.com/v1/payments' => Http::response(['id' => 9001, 'status' => 'in_process', 'status_detail' => 'pending_contingency'], 201),
         ]);
 
-        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['token' => 'tok'])->assertOk();
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['payment_method' => 'yape', 'token' => 'tok'])->assertOk();
 
         // Ahora Mercado Pago ya confirmó approved/accredited server-to-server.
         Http::fake([
@@ -285,7 +631,7 @@ class CreditCheckoutControllerTest extends TestCase
         Http::fake([
             'api.mercadopago.com/v1/payments' => Http::response(['id' => 9002, 'status' => 'in_process', 'status_detail' => 'pending_contingency'], 201),
         ]);
-        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['token' => 'tok'])->assertOk();
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['payment_method' => 'yape', 'token' => 'tok'])->assertOk();
 
         Http::fake([
             'api.mercadopago.com/v1/payments/9002' => Http::response([
@@ -324,7 +670,7 @@ class CreditCheckoutControllerTest extends TestCase
         Http::fake([
             'api.mercadopago.com/v1/payments' => Http::response(['id' => 9003, 'status' => 'in_process', 'status_detail' => 'pending_contingency'], 201),
         ]);
-        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['token' => 'tok'])->assertOk();
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), ['payment_method' => 'yape', 'token' => 'tok'])->assertOk();
 
         Http::fake([
             'api.mercadopago.com/v1/payments/9003' => Http::response([

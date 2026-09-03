@@ -100,7 +100,7 @@ class CheckoutRateLimitingTest extends TestCase
 
         // ...pero el profesor B (misma IP de test) todavía tiene su cupo intacto.
         $this->actingAs($teacherB)
-            ->postJson(route('teacher.credits.checkout.pay', $rechargeB), ['token' => 'tok-b-1'])
+            ->postJson(route('teacher.credits.checkout.pay', $rechargeB), ['payment_method' => 'yape', 'token' => 'tok-b-1'])
             ->assertStatus(200);
     }
 
