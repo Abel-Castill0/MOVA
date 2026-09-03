@@ -36,6 +36,46 @@ class RechargeApprovalService
                     return ['recharge' => $recharge->load('teacherProfile.user'), 'changed' => false];
                 }
 
+                // P0 (MOVA Yape Checkout Pre-Card Hardening) — el choke point
+                // real, no solo la Policy: una recarga payment_method=
+                // mercadopago SOLO puede pasar a 'approved' cuando $reviewerId
+                // es null, es decir, cuando quien llama es
+                // MercadoPagoPaymentReconciliationService::applyPaid() tras
+                // confirmar el pago server-to-server con Mercado Pago — nunca
+                // un admin humano ($reviewerId no-null). La idempotencia del
+                // idempotency_key por sí sola no protegía esto: sin este
+                // guard, un admin podía abonar créditos ANTES de que el
+                // proveedor confirmara el pago (o después de que lo
+                // rechazara), sin que ninguna violación de idempotencia lo
+                // detectara.
+                if ($reviewerId !== null && $recharge->payment_method === 'mercadopago') {
+                    abort(422, 'Esta recarga es gestionada automáticamente por Mercado Pago y no puede aprobarse manualmente. Espera la confirmación del proveedor.');
+                }
+
+                // PROVIDER CREDIT CHOKE-POINT INVARIANT (MOVA Yape Final
+                // Pre-Card Gate) — el guard de arriba bloquea al admin
+                // humano, pero por sí solo NO prueba que $reviewerId=null
+                // venga de verdad de Mercado Pago confirmando el pago: es
+                // solo una convención que los dos productores actuales de
+                // este llamado respetan (MercadoPagoPaymentReconciliationService
+                // ::applyPaid() y PaymentWebhookService::handle()), pero un
+                // caller futuro (otra herramienta, un bug) podría invocar
+                // credit($recharge, null) sobre una recarga mercadopago sin
+                // verdad de proveedor real. Blindaje server-side real: exigir
+                // que exista un PaymentOrder ya 'paid' vinculado a esta
+                // recarga. Ambos productores actuales YA marcan el
+                // PaymentOrder 'paid' (misma transacción) antes de llamar
+                // aquí, así que este chequeo no les cambia el
+                // comportamiento — solo le cierra la puerta a cualquier otro
+                // caller que no lo haya hecho.
+                if ($reviewerId === null && $recharge->payment_method === 'mercadopago') {
+                    abort_unless(
+                        $recharge->paymentOrders()->where('status', 'paid')->exists(),
+                        422,
+                        'No se puede acreditar automáticamente esta recarga de Mercado Pago sin un pago confirmado por el proveedor.'
+                    );
+                }
+
                 abort_if(
                     in_array($recharge->status, ['rejected', 'reversed'], true),
                     422,

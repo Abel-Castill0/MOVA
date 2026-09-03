@@ -39,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
                 kind: 'pagos',
                 envVarName: 'PAYMENT_PROVIDER',
                 provider: config('payments.provider'),
-                supportedReal: ['culqi', 'mercadopago'],
+                supportedReal: config('payments.supported_providers'),
                 featureEnabled: $paymentsEnabled,
                 environment: $this->app->environment(),
             );

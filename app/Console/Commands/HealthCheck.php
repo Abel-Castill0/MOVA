@@ -56,8 +56,16 @@ class HealthCheck extends Command
         }
 
         // ── Proveedores externos ─────────────────────────────────────────
+        // PROVIDER SOURCE OF TRUTH (MOVA Yape Checkout Pre-Card Hardening):
+        // la lista de pagos ya no es una copia hardcodeada propia — se lee
+        // de config('payments.supported_providers'), la MISMA que usa
+        // AppServiceProvider::register() (ProviderGuard::resolve()). Antes
+        // esta lista vivía duplicada aquí y ya había divergido una vez
+        // (se quedó con solo 'culqi' cuando se agregó Mercado Pago): un
+        // falso positivo "INVÁLIDO" en mova:health-check pese a un binding
+        // de contenedor perfectamente válido.
         foreach ([
-            ['pagos', 'PAYMENT_PROVIDER', 'payments.provider', ['culqi'], 'payments.enabled'],
+            ['pagos', 'PAYMENT_PROVIDER', 'payments.provider', config('payments.supported_providers'), 'payments.enabled'],
             ['WhatsApp', 'WHATSAPP_PROVIDER', 'services.whatsapp.provider', ['meta'], 'services.whatsapp.enabled'],
         ] as [$kind, $envVar, $providerKey, $supported, $enabledKey]) {
             $featureEnabled = (bool) config($enabledKey, false);

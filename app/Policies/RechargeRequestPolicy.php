@@ -26,14 +26,60 @@ use App\Models\User;
  */
 class RechargeRequestPolicy
 {
-    public function approve(User $user, RechargeRequest $recharge): bool
+    /**
+     * Ver/consultar el estado de la propia recarga (checkout automático
+     * Mercado Pago) — nunca un admin ni otro profesor. Distinta de
+     * approve/reject/reverse (exclusivas de admin) y con la regla inversa:
+     * aquí el DUEÑO es quien puede, nunca el admin.
+     */
+    public function view(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin');
+        return $user->teacherProfile !== null
+            && $recharge->teacher_profile_id === $user->teacherProfile->id;
     }
 
+    /**
+     * Enviar un intento de pago (Mercado Pago) contra la propia recarga.
+     * Misma regla de ownership que view() — createPaymentAttempt() ya
+     * decide server-side si el intento es válido según el estado actual
+     * (ver MercadoPagoPaymentProvider::resolveAttemptRow()), así que esta
+     * Policy solo protege la frontera "¿es tuya?", nunca el estado de
+     * negocio.
+     */
+    public function pay(User $user, RechargeRequest $recharge): bool
+    {
+        return $this->view($user, $recharge);
+    }
+
+    /**
+     * P0 (MOVA Yape Checkout Pre-Card Hardening): una recarga
+     * payment_method=mercadopago es "provider-managed" — su verdad
+     * financiera la decide EXCLUSIVAMENTE
+     * MercadoPagoPaymentReconciliationService (server-to-server), nunca un
+     * admin humano. Sin este guard, un admin podía aprobar manualmente una
+     * recarga de Mercado Pago todavía pendiente de confirmación (o incluso
+     * ya rechazada por el proveedor), abonando créditos que el pago real
+     * nunca respaldó. RechargeApprovalService::credit() aplica el mismo
+     * guard como choke point real — este es defensa en profundidad para dar
+     * un 403 correcto en el límite HTTP, no la única protección.
+     */
+    public function approve(User $user, RechargeRequest $recharge): bool
+    {
+        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
+    }
+
+    /**
+     * Misma razón que approve(): rechazar manualmente una recarga de
+     * Mercado Pago que todavía está pendiente de confirmación del proveedor
+     * dejaría RechargeRequest.status='rejected' contradiciendo una posible
+     * confirmación 'approved' posterior — y RechargeApprovalService::credit()
+     * no reabre una recarga rechazada (abort_if de estado terminal), así que
+     * el intento quedaría atascado para siempre en cuanto Mercado Pago
+     * confirme el pago.
+     */
     public function reject(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
     }
 
     public function reverse(User $user, RechargeRequest $recharge): bool

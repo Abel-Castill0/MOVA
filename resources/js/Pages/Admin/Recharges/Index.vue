@@ -43,15 +43,39 @@
                 </td>
                 <td class="px-5 py-3.5">
                   <p class="mb-1 text-xs font-semibold uppercase text-slate-500">{{ recharge.payment_method ?? 'legacy' }}</p>
-                  <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <!--
+                    P1 (MOVA Yape Checkout Pre-Card Hardening): una recarga
+                    mercadopago no tiene operation_number (NULL a propósito
+                    — ver migración 2026_09_02_000001) porque no hay ningún
+                    número que el profesor haya escrito; su identidad de
+                    pago vive en PaymentOrder.provider_order_id, no aquí.
+                  -->
+                  <span
+                    v-if="recharge.operation_number"
+                    class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
+                  >
                     {{ recharge.operation_number }}
                   </span>
+                  <span v-else class="text-xs italic text-slate-400">Automático (sin número de operación)</span>
                 </td>
                 <td class="px-5 py-3.5">
                   <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(recharge.status).color]">{{ rechargeStatusStyle(recharge.status).label }}</span>
                 </td>
                 <td class="px-5 py-3.5">
-                  <div v-if="recharge.status === 'pending'" class="flex justify-end gap-2">
+                  <!--
+                    P0 (MOVA Yape Checkout Pre-Card Hardening): una recarga
+                    payment_method=mercadopago no lleva botones de Aprobar/
+                    Rechazar — su verdad financiera la decide únicamente la
+                    reconciliación server-to-server con Mercado Pago
+                    (RechargeRequestPolicy::approve()/reject() ya lo rechaza
+                    con 403 si se intenta igual). Mostrar botones que
+                    terminan en un 403 silencioso sería peor que no
+                    mostrarlos.
+                  -->
+                  <div
+                    v-if="recharge.status === 'pending' && recharge.payment_method !== 'mercadopago'"
+                    class="flex justify-end gap-2"
+                  >
                     <button
                       type="button"
                       class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
@@ -69,6 +93,12 @@
                       Rechazar
                     </button>
                   </div>
+                  <span
+                    v-else-if="recharge.status === 'pending' && recharge.payment_method === 'mercadopago'"
+                    class="block text-right text-xs text-slate-400"
+                  >
+                    Gestionado por Mercado Pago · intento {{ recharge.latest_payment_order?.status ?? 'sin registrar' }}
+                  </span>
                   <span v-else class="block text-right text-xs text-gray-400">Revisada</span>
                 </td>
               </tr>

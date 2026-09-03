@@ -25,6 +25,7 @@ use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\Teacher\CreditController;
+use App\Http\Controllers\Teacher\CreditCheckoutController;
 use Illuminate\Support\Facades\Route;
 
 // ── Health check (no session, no auth) ──────────────────────────────────────
@@ -107,6 +108,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->middleware('throttle:20,1')->name('teacher.profile.update');
         Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
         Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->middleware('throttle:10,1')->name('teacher.credits.recharge');
+
+        // Checkout automático (Mercado Pago Payments API — Yape). Vive
+        // aparte de /teacher/credits/recharge (flujo manual con revisión de
+        // admin): ambos crean RechargeRequest, pero solo este camino tiene
+        // PaymentOrder asociados y acredita sin intervención humana (ver
+        // App\Http\Controllers\Teacher\CreditCheckoutController).
+        Route::post('/teacher/credits/checkout', [CreditCheckoutController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.store');
+        Route::get('/teacher/credits/checkout/{recharge}', [CreditCheckoutController::class, 'show'])
+            ->name('teacher.credits.checkout.show');
+        Route::post('/teacher/credits/checkout/{recharge}/pay', [CreditCheckoutController::class, 'pay'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.pay');
+        Route::get('/teacher/credits/checkout/{recharge}/status', [CreditCheckoutController::class, 'status'])
+            ->middleware('throttle:60,1')
+            ->name('teacher.credits.checkout.status');
+        // STATUS SEMANTICS (MOVA Yape Final Pre-Card Gate): refresh() es el
+        // único que reconcilia contra Mercado Pago (POST, explícito) —
+        // status() (GET) es lectura pura. Mismo límite que status() porque
+        // es el endpoint que el polling del frontend llama de verdad.
+        Route::post('/teacher/credits/checkout/{recharge}/refresh', [CreditCheckoutController::class, 'refresh'])
+            ->middleware('throttle:60,1')
+            ->name('teacher.credits.checkout.refresh');
 
         // 'create'/'store' deliberadamente excluidos: el profesor ya no
         // publica anuncios (marketplace informativo, HANDOFF_FINAL.md §21) —

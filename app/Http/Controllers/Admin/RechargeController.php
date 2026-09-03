@@ -16,7 +16,13 @@ class RechargeController extends Controller
     public function index()
     {
         return Inertia::render('Admin/Recharges/Index', [
-            'recharges' => RechargeRequest::with(['teacherProfile.user', 'reviewer'])
+            // latestPaymentOrder: la vista necesita distinguir una recarga
+            // provider-managed (payment_method=mercadopago, sin acciones
+            // manuales — ver RechargeRequestPolicy::approve()/reject()) de
+            // una manual, y mostrar en qué quedó el intento automático en
+            // vez de dejar un "pendiente" que en realidad ya lo resolvió
+            // Mercado Pago.
+            'recharges' => RechargeRequest::with(['teacherProfile.user', 'reviewer', 'latestPaymentOrder'])
                 ->latest()
                 ->paginate(30)
                 ->withQueryString(),

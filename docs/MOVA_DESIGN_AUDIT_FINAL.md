@@ -2417,6 +2417,44 @@ aplicado, no un rollback limpio.
 
 ---
 
+### P2 · RESUELTO — `CreditCheckoutController::status()` (GET) ya no reconcilia como efecto secundario
+
+Encontrado en la ronda "MOVA Yape Checkout Pre-Card Hardening" (2026-09-02),
+**corregido en la ronda "MOVA Yape Final Pre-Card Gate" (2026-09-02)**.
+
+- **El hecho original**: `GET /teacher/credits/checkout/{recharge}/status`
+  — pensado como lectura para el polling del frontend — llamaba a
+  `reconcileOnDemand()`, que podía disparar una llamada real a Mercado
+  Pago (`GET /v1/payments/{id}` o `/v1/payments/search`) y, si el pago ya
+  se confirmó, abonar créditos vía `RechargeApprovalService::credit()`.
+  Un GET mutando estado financiero viola la semántica HTTP esperada
+  (idempotente/sin efectos secundarios).
+- **La corrección**: `status()` ahora es lectura pura — solo devuelve lo
+  ya persistido, sin llamar a `reconcileOnDemand()`. La reconciliación se
+  movió a un endpoint nuevo, explícito: `POST
+  /teacher/credits/checkout/{recharge}/refresh` (`CreditCheckoutController
+  ::refresh()`, misma autorización, mismo throttle `60,1`, mismo payload
+  de respuesta que `status()`). El polling del frontend (`Checkout.vue`)
+  llama a `refresh()`, nunca a `status()`, mientras espera confirmación —
+  un solo request por tick, sin encadenar dos endpoints.
+- **Cobertura**: `test_get_status_never_reconciles_or_mutates_state`
+  (GET nunca llama a la API de Mercado Pago ni muta balance/estado, ni
+  siquiera repetido), `test_repeated_refresh_never_duplicates_credits` y
+  `test_credits_are_applied_exactly_once_even_when_refresh_is_polled_repeatedly`
+  (POST refresh reconcilia y sigue siendo exactamente-una-vez),
+  `test_refresh_endpoint_throttles_after_sixty_polls_per_minute` (rate
+  limiting intacto), ownership denegado para `refresh()` en
+  `test_a_teacher_cannot_view_or_pay_another_teachers_recharge` — todas en
+  `CreditCheckoutControllerTest`/`CheckoutRateLimitingTest`.
+- **Nota**: esto no reemplaza los webhooks — mientras
+  `MERCADOPAGO_WEBHOOKS_ENABLED=false`, `refresh()` sigue siendo la única
+  confirmación casi en tiempo real. Cuando los webhooks reales entren en
+  producción, `refresh()` seguirá siendo un endpoint de reconciliación
+  explícita legítimo (igual que `mercadopago:reconcile`), solo dejará de
+  ser la vía principal.
+
+---
+
 ## 🐛 BUG REAL (no de diseño) encontrado al construir el contract test — P0
 
 **Estado, por dimensión — nunca colapsadas en una sola palabra**:

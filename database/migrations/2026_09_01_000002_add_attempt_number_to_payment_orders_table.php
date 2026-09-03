@@ -30,13 +30,25 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // recharge_request_id está detrás de un foreignId()->unique() (ver
+        // 2026_08_23_000003_create_payment_orders_table.php) — MySQL exige
+        // que exista SIEMPRE algún índice que respalde esa FK. Si se hace
+        // dropUnique(['recharge_request_id']) antes de crear el nuevo
+        // índice compuesto, hay un instante sin ningún índice sobre esa
+        // columna y MySQL rechaza el DROP con error 1553. Por eso el nuevo
+        // índice compuesto (que también cubre recharge_request_id como
+        // columna líder) se crea PRIMERO, y solo después se elimina el
+        // UNIQUE simple ya redundante.
         Schema::table('payment_orders', function (Blueprint $table) {
-            $table->dropUnique(['recharge_request_id']);
             $table->unsignedInteger('attempt_number')->default(1)->after('recharge_request_id');
         });
 
         Schema::table('payment_orders', function (Blueprint $table) {
             $table->unique(['recharge_request_id', 'attempt_number']);
+        });
+
+        Schema::table('payment_orders', function (Blueprint $table) {
+            $table->dropUnique(['recharge_request_id']);
         });
     }
 
@@ -44,13 +56,20 @@ return new class extends Migration
     {
         $this->assertAtMostOneAttemptPerRecharge();
 
+        // Mismo orden invertido: crear primero el UNIQUE simple (seguro,
+        // porque assertAtMostOneAttemptPerRecharge ya garantizó como
+        // mucho una fila por recharge_request_id) para que la FK nunca se
+        // quede sin índice de respaldo al eliminar el compuesto.
         Schema::table('payment_orders', function (Blueprint $table) {
-            $table->dropUnique(['recharge_request_id', 'attempt_number']);
-            $table->dropColumn('attempt_number');
+            $table->unique('recharge_request_id');
         });
 
         Schema::table('payment_orders', function (Blueprint $table) {
-            $table->unique('recharge_request_id');
+            $table->dropUnique(['recharge_request_id', 'attempt_number']);
+        });
+
+        Schema::table('payment_orders', function (Blueprint $table) {
+            $table->dropColumn('attempt_number');
         });
     }
 

@@ -34,10 +34,27 @@ class MercadoPagoPaymentProviderTest extends TestCase
     {
         parent::setUp();
 
+        // TEST ISOLATION (MOVA Yape Final Pre-Card Gate): estos 4 valores son
+        // los únicos que verifyWebhook() lee condicionalmente (`if
+        // ($expected... && $notification... !== null)`) — si no se fuerzan
+        // aquí, un desarrollador con MERCADOPAGO_APPLICATION_ID/
+        // MERCADOPAGO_EXPECTED_COLLECTOR_ID/MERCADOPAGO_EXPECTED_LIVE_MODE
+        // reales en su .env local hace que el resultado del test dependa de
+        // su máquina en vez del payload declarado (bug real encontrado:
+        // test_verify_webhook_accepts_a_valid_payment_notification_without_application_id_field
+        // fallaba solo cuando el .env local tenía un expected_collector_id
+        // real que no coincidía con el user_id ficticio del payload). Los
+        // tests que necesitan un valor concreto lo sobrescriben ellos mismos
+        // vía config() más abajo — este bloque solo fija el resto a un
+        // estado neutro (ningún chequeo condicional se dispara).
         config([
             'payments.mercadopago.base_url' => 'https://api.mercadopago.com',
             'payments.mercadopago.access_token' => self::LAB_ACCESS_TOKEN,
             'payments.mercadopago.webhook_secret' => 'unit-test-webhook-secret',
+            'payments.mercadopago.application_id' => null,
+            'payments.mercadopago.expected_collector_id' => null,
+            'payments.mercadopago.expected_live_mode' => null,
+            'payments.mercadopago.webhooks_enabled' => false,
         ]);
     }
 

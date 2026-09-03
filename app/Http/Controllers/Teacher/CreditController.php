@@ -57,6 +57,10 @@ class CreditController extends Controller
             'paymentDestination' => $this->rechargesEnabled()
                 ? config('credits.recharges.payment_destination')
                 : null,
+            // Checkout automático (Mercado Pago Yape) — interruptor propio,
+            // independiente del flujo manual de arriba (ver
+            // CreditCheckoutController::mercadoPagoCheckoutEnabled()).
+            'mercadoPagoCheckoutEnabled' => $this->mercadoPagoCheckoutEnabled(),
         ]);
     }
 
@@ -137,5 +141,20 @@ class CreditController extends Controller
     {
         return (bool) config('credits.recharges.enabled')
             && filled(config('credits.recharges.payment_destination'));
+    }
+
+    /**
+     * Misma regla que CreditCheckoutController::mercadoPagoCheckoutEnabled()
+     * — duplicada a propósito en vez de compartida vía un trait/helper: es
+     * una sola expresión booleana de tres condiciones, y una dependencia
+     * cruzada entre estos dos controladores por algo tan pequeño no vale el
+     * acoplamiento (ver Dependency Budget en CLAUDE.md, mismo criterio
+     * aplicado a acoplamiento interno).
+     */
+    private function mercadoPagoCheckoutEnabled(): bool
+    {
+        return (bool) config('payments.enabled')
+            && config('payments.provider') === 'mercadopago'
+            && filled(config('payments.mercadopago.public_key'));
     }
 }

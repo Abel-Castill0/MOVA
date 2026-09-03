@@ -17,6 +17,17 @@ return [
 
     'provider' => env('PAYMENT_PROVIDER', 'fake'),
 
+    // PROVIDER SOURCE OF TRUTH (MOVA Yape Checkout Pre-Card Hardening): la
+    // ÚNICA lista de proveedores reales de pago soportados por MOVA.
+    // AppServiceProvider (ProviderGuard::resolve()) y
+    // Console\Commands\HealthCheck la leen desde aquí — antes cada uno
+    // tenía su propio array hardcodeado y ya habían divergido una vez
+    // (HealthCheck se quedó con solo 'culqi' cuando se agregó Mercado
+    // Pago, reportando PAYMENT_PROVIDER_INVALID pese a una config
+    // perfectamente válida). No es 'fake' — ProviderGuard::FAKE ya lo
+    // representa por separado y no es "un proveedor real soportado".
+    'supported_providers' => ['culqi', 'mercadopago'],
+
     'culqi' => [
         'public_key' => env('CULQI_PUBLIC_KEY'),
         'private_key' => env('CULQI_PRIVATE_KEY'),

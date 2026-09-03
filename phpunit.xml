@@ -33,6 +33,21 @@
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="DIAGNOSTIC_AI_ENABLED" value="false" force="true"/>
         <env name="WHATSAPP_ENABLED" value="false" force="true"/>
+        <!-- TEST ENV ISOLATION (MOVA Yape Checkout Pre-Card Hardening): sin
+             esto, config/payments.php lee PAYMENTS_ENABLED/PAYMENT_PROVIDER
+             directo del .env local del desarrollador (env() no cacheado en
+             testing) — dos tests (PaymentOrderTest, ProviderGuardTest)
+             asumían "el contenedor resuelve FakePaymentProvider por
+             defecto" sin fijar su propio config(), y ese supuesto se rompía
+             en cualquier máquina cuyo .env tuviera Mercado Pago activado
+             (exactamente lo que pasó durante el E2E real de esta fase).
+             Mismo patrón que WHATSAPP_ENABLED arriba: un default forzado y
+             centralizado, no un Config::set repetido en cada test. Un test
+             que necesite un proveedor real (MercadoPagoPaymentProviderTest,
+             CreditCheckoutControllerTest, etc.) sigue pudiendo hacer su
+             propio config([...]) en setUp() como ya hacían. -->
+        <env name="PAYMENTS_ENABLED" value="false" force="true"/>
+        <env name="PAYMENT_PROVIDER" value="fake" force="true"/>
         <env name="ZOOM_ACCOUNT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_SECRET" value="" force="true"/>
