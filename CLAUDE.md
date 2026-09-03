@@ -1,49 +1,55 @@
-# MOVA — Reglas del proyecto
+# MOVA — Project Instructions
 
-Stack: Laravel 10 + Vue 3 + Inertia + Tailwind. Plataforma de tutorías online en Perú (padres, profesores, alumnos menores de edad).
+Laravel 10 + Vue 3 + Inertia + Tailwind.
+Plataforma peruana de tutorías con padres, profesores y alumnos menores de edad.
 
----
+## 1. Trabajo sobre el código
 
-## Reglas que SIEMPRE aplican (en cualquier tarea, sin excepción)
+- Inspecciona el código real y sus patrones antes de diseñar una solución. No asumas arquitectura, contratos ni estados.
+- Haz el cambio mínimo que resuelva correctamente el problema. No amplíes el scope sin necesidad.
+- Preserva comportamiento existente salvo que la tarea exija cambiarlo.
+- No sobrescribas, reviertas ni incluyas cambios ajenos/no relacionados.
+- Si una ambigüedad crítica sobre dinero, autenticación, menores o integridad de datos no puede resolverse leyendo el código, detente y repórtala antes de modificar comportamiento.
 
-### Código
-- Respeta el patrón ya establecido: controladores delgados + Policies para autorización (`app/Policies/`), transacciones con `lockForUpdate()` en toda mutación financiera, ledger de `credit_transactions` append-only con `idempotency_key` único.
-- No introduzcas vulnerabilidades.
+## 2. Seguridad e integridad
 
-### Razonamiento
-Antes de proponer cambios complejos o arquitectónicos: observar el código real primero (no asumir), orientarse contra los patrones ya existentes en el repo, decidir explícitamente el enfoque, y recién ejecutar. Si algo no está claro, preguntar antes de tocar código — no adivinar sobre partes críticas (dinero, menores, autenticación).
+- Autorización y reglas de negocio sensibles se validan server-side; nunca confíes en IDs, roles, cantidades, precios, créditos o estados enviados por el cliente.
+- No expongas ni registres secretos, tokens, credenciales o datos sensibles innecesarios.
+- Las mutaciones financieras deben conservar transacciones, locking, idempotencia y el ledger append-only existentes.
+- Nunca conviertas un estado financiero incierto o pendiente en éxito o rechazo sin evidencia suficiente.
+- No debilites Policies, middleware, ownership checks, constraints o validación para hacer pasar una prueba.
 
-### Diseño (frontend Vue/Tailwind)
-Todo componente debe verse elegante, profesional y "caro": profundidad sutil (sombras), tipografía limpia, microinteracciones fluidas, espaciado generoso, bordes redondeados suaves. Nada genérico ni sobrecargado. Movimiento fluido y apropiado al dispositivo, priorizando 60fps cuando sea razonablemente alcanzable, sin sacrificar accesibilidad ni rendimiento.
+## 3. Base de datos
 
----
+- Nunca ejecutes `migrate:fresh`, `migrate:reset`, `db:wipe`, truncados o acciones destructivas sobre la DB normal sin autorización explícita.
+- Las pruebas destructivas pertenecen a una base QA dedicada.
+- No reescribas una migration que pudo ejecutarse en un entorno compartido; usa una migration forward-fix.
 
-## Reglas CONDICIONALES (aplican solo cuando la tarea toca el área indicada)
+## 4. Git
 
-### Si tocas UI compleja (nueva página, rediseño, componente visual no trivial)
-Invoca las skills `ui-ux-pro-max` e `impeccable` antes de escribir el componente.
+- Antes de una tarea que modifica archivos, confirma `git status --short`.
+- No incluyas archivos inesperados en commits.
+- No hagas `git push` sin aprobación explícita del usuario.
+- No uses reset/checkout/clean destructivos para resolver conflictos de scope.
 
-### Si tocas cambios sensibles (auth, dinero, datos de menores)
-Requieren una pasada explícita de revisión de seguridad antes de darse por terminados — no basta con que los tests pasen.
+## 5. Dependencias
 
-### Si tocas Jitsi, el manejo de datos de estudiantes, o el modelo `Student`/`teacher_profiles`
-Debe pasar por una revisión de seguridad explícita antes de mergear (MOVA maneja videollamadas y datos de menores).
+- No añadas una dependencia si el stack existente o unas pocas líneas mantenibles resuelven el problema.
+- Si una dependencia es necesaria, revisa duplicación, mantenimiento, licencia, seguridad, compatibilidad y coste de bundle/runtime antes de instalarla.
 
-### Si tocas páginas públicas (`Welcome`, `Marketplace`, perfiles públicos de profesor)
-Deben llevar meta tags, Open Graph y structured data cuando se toquen.
+## 6. Validación
 
-### Si el usuario escribe `/handoff`
-Generar `docs/SESSION_HANDOFF.md` con: objetivos de la sesión, qué se probó, qué falló, qué se logró, y siguientes pasos concretos.
+- Empieza por tests dirigidos al código modificado.
+- Evita repetir suites completas sin cambios de código.
+- Ejecuta la suite completa una sola vez en el gate final cuando el cambio lo justifique.
+- Una afirmación de “verificado”, “corregido” o “seguro” debe estar respaldada por evidencia ejecutada contra el snapshot correcto.
 
-### Dependency Budget — antes de añadir cualquier dependencia nueva a MOVA
-No basta con que una librería resuelva el problema. Antes de instalarla, evaluar explícitamente: impacto en bundle/runtime, mantenimiento del proyecto upstream, licencia, vulnerabilidades conocidas, compatibilidad con Vue/Laravel, duplicación con algo ya instalado, y — la pregunta que más filtra — si el mismo resultado se logra con código propio de pocas líneas. Nunca añadir una dependencia solo para ahorrar unas pocas líneas de código.
+## 7. Instrucciones especializadas
 
-### Si evalúas herramientas, skills, librerías o MCPs nuevos (para MOVA o para mi propia configuración de Claude Code)
-No instalar algo solo porque es bueno, popular o apareció en una lista — debe justificar: problema real de MOVA, beneficio concreto, ausencia de solución equivalente ya instalada, coste de mantenimiento/contexto, riesgo de seguridad/supply-chain. Clasificar siempre en una de cuatro categorías: **INSTALL NOW** (brecha real, se implementa ya), **INSTALL LATER** (útil, pero depende de una fase futura del roadmap — ej. UX/UI premium), **OPTIONAL** (solo ante una necesidad concreta que aún no existe), **REJECT** (con motivo explícito: incompatible con el stack, redundante con algo que ya existe, o sin caso de uso). No acumular herramientas redundantes entre sí (dos librerías de animación, dos MCPs de browser, dos sistemas de memoria) — un stack pequeño y coherente gana sobre uno grande. Cuando el tooling compite con otro trabajo por prioridad: seguridad/producción > integridad de negocio (créditos/pagos/reservas) > QA > performance > UX/UI > SEO > growth/marketing. "Analiza/evalúa todo" nunca significa "instala todo" — significa evaluar cada ítem contra este filtro y ejecutar solo lo que lo supera.
+Las reglas específicas de Laravel, Vue/UI y páginas públicas viven en `.claude/rules/`.
 
-### Si haces una auditoría, revisión de seguridad, o cualquier afirmación de tipo "esto ya está arreglado/verificado" — Audit Snapshot Contract
-Una auditoría de esta base de código encontró, de forma verificada, que un checkout aislado (`git worktree` desde `HEAD`) puede describir un estado del código distinto al del directorio de trabajo real cuando hay cambios sin commitear — y que confundir ambos produjo un hallazgo de seguridad reportado como abierto cuando ya estaba corregido.
+Para Mercado Pago usa la skill `mova-mercadopago`.
 
-Toda verificación debe declarar explícitamente, antes de cualquier conclusión, el snapshot exacto contra el que se hizo: `HEAD` (hash), `origin/<rama>` (hash y si diverge), si se usó un checkout aislado o el directorio de trabajo real, estado del working tree (limpio / N archivos modificados-untracked), y la marca de tiempo. Nunca declarar algo "verificado" o "corregido" sin decir contra qué snapshot — y nunca mezclar evidencia de un checkout aislado con evidencia del directorio de trabajo real sin señalarlo explícitamente.
+Para una auditoría formal usa `/mova-audit`.
 
-Al reportar la exposición de un secreto, mantener siempre separadas estas cinco dimensiones, sin mezclarlas bajo una sola cifra: exposición histórica (todo lo que alguna vez lo contuvo), exposición en `HEAD` local, exposición en el remoto actual, exposición en el working tree, y validez de la credencial. Rotar una credencial, limpiar el remoto actual (commit+push hacia adelante) y purgar el historial de git son tres controles distintos que actúan sobre superficies distintas — nunca tratar uno como sustituto de otro.
+Antes de cerrar una fase o hacer `/clear`, usa `/handoff`.
