@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -46,6 +47,25 @@ class MonetizationIntegrityTest extends TestCase
     protected function tearDown(): void
     {
         Carbon::setTestNow();
+
+        // MOVA MYSQL QA GATE: los dos tests marcados #[RunInSeparateProcess]
+        // más abajo ejecutan DDL real (Migration::down()/up()) dentro del
+        // propio test — bajo MySQL eso hace COMMIT implícito de la
+        // transacción que RefreshDatabase abrió, así que lo que esos dos
+        // tests crean ANTES del DDL (teacher/profile/recharges) queda
+        // permanente en mova_qa aunque el rollback normal de tearDown() ya
+        // no tenga nada que revertir. Limpieza dirigida solo a esos dos
+        // nombres, por su costo, y porque los otros 48 tests de esta clase
+        // sí se revierten normalmente y no lo necesitan.
+        if (in_array($this->name(), [
+            'test_monetization_migration_aborts_before_schema_changes_for_legacy_duplicates',
+            'test_monetization_rollback_refuses_to_discard_financial_history',
+        ], true)) {
+            RechargeRequest::query()->delete();
+            TeacherProfile::query()->delete();
+            User::query()->delete();
+        }
+
         parent::tearDown();
     }
 
@@ -1062,6 +1082,16 @@ class MonetizationIntegrityTest extends TestCase
         );
     }
 
+    /**
+     * MOVA MYSQL QA GATE: #[RunInSeparateProcess] (solo este método, no toda
+     * la clase — el resto de MonetizationIntegrityTest no toca DDL). up()/
+     * down() ejecutan DDL real; bajo MySQL eso hace COMMIT implícito de la
+     * transacción abierta por RefreshDatabase, lo que rompería el rollback
+     * de cualquier otro test que compartiera proceso con este. Mismo motivo
+     * que MercadoPagoMigrationsTest, aislado por método porque aquí conviven
+     * con 48 tests más que no lo necesitan.
+     */
+    #[RunInSeparateProcess]
     public function test_monetization_migration_aborts_before_schema_changes_for_legacy_duplicates(): void
     {
         [, $profile] = $this->teacher();
@@ -1091,6 +1121,12 @@ class MonetizationIntegrityTest extends TestCase
         }
     }
 
+    /**
+     * MOVA MYSQL QA GATE: mismo motivo que el test anterior — DDL real vía
+     * down(), aislado en su propio proceso para no romper el rollback de
+     * RefreshDatabase de los demás tests de esta clase bajo MySQL.
+     */
+    #[RunInSeparateProcess]
     public function test_monetization_rollback_refuses_to_discard_financial_history(): void
     {
         [, $profile] = $this->teacher();

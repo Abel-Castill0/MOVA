@@ -63,6 +63,34 @@ return [
             ]) : [],
         ],
 
+        // MOVA MYSQL QA GATE: conexión dedicada para pruebas destructivas
+        // (migrate:fresh, sondas de concurrencia reales) y NUNCA para la app
+        // normal. Reusa el mismo host/usuario/password que la conexión
+        // 'mysql' de arriba (mismas credenciales locales, sin secretos
+        // nuevos), pero el nombre de la base de datos está fijo en código
+        // como el literal 'mova_qa' — a propósito NO lee DB_DATABASE ni
+        // ninguna otra variable de entorno, así que ningún .env mal
+        // configurado puede hacer que esta conexión apunte a la base de
+        // datos de desarrollo o de producción. Ver App\Support\QaDatabaseGuard.
+        'mysql_qa' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => 'mova_qa',
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),

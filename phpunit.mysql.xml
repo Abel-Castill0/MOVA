@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <!-- MOVA MYSQL QA GATE, NO es el gate normal (ver phpunit.xml). Corre
+         los mismos tests de tests/Feature pero contra MySQL real (conexión
+         'mysql_qa', base de datos 'mova_qa' fija en código), para ejercitar
+         semántica que SQLite en memoria no puede: locking real de filas,
+         constraints/engine reales de MySQL. Uso normal: con la opción
+         "filter" de phpunit para correr solo el subconjunto de alto valor
+         (ver docs/SESSION_HANDOFF.md o el comando mova:qa-mysql-fresh-migrate
+         para preparar el schema antes de correr esto).
+         tests/CreatesApplication::guardSafeTestingEnvironment() falla
+         cerrado si DB_CONNECTION no es exactamente 'mysql_qa' con
+         database 'mova_qa' cuando APP_ENV=testing.
+
+         Aislamiento de DDL: los tests que invocan Migration::up()/down()
+         directamente (MercadoPagoMigrationsTest,
+         RechargeOperationNumberNullableMigrationTest, y dos métodos de
+         MonetizationIntegrityTest) ya llevan #[RunClassInSeparateProcess] o
+         #[RunInSeparateProcess] en su propio código — PHPUnit los corre en
+         un proceso PHP aparte automáticamente, sin necesidad de invocarlos
+         por separado a mano ni de recordar un orden de ejecución. Una sola
+         invocación de phpunit contra este archivo, con o sin la opción
+         "filter", es segura. -->
+    <testsuites>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_DEBUG" value="false" force="true"/>
+        <env name="APP_URL" value="http://localhost" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_DRIVER" value="array" force="true"/>
+        <!-- Único cambio real respecto a phpunit.xml: la conexión por
+             defecto. El nombre de la base de datos ('mova_qa') NO se fuerza
+             aquí porque está hardcodeado en config/database.php — a
+             propósito, para que ninguna variable de entorno pueda
+             desviarlo. -->
+        <env name="DB_CONNECTION" value="mysql_qa" force="true"/>
+        <env name="DB_FOREIGN_KEYS" value="true" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="DIAGNOSTIC_AI_ENABLED" value="false" force="true"/>
+        <env name="WHATSAPP_ENABLED" value="false" force="true"/>
+        <env name="PAYMENTS_ENABLED" value="false" force="true"/>
+        <env name="PAYMENT_PROVIDER" value="fake" force="true"/>
+        <env name="ZOOM_ACCOUNT_ID" value="" force="true"/>
+        <env name="ZOOM_CLIENT_ID" value="" force="true"/>
+        <env name="ZOOM_CLIENT_SECRET" value="" force="true"/>
+        <env name="ZOOM_EMAIL" value="" force="true"/>
+        <env name="GMAIL_CLIENT_ID" value="" force="true"/>
+        <env name="GMAIL_CLIENT_SECRET" value="" force="true"/>
+        <env name="GMAIL_REFRESH_TOKEN" value="" force="true"/>
+        <env name="OPENAI_API_KEY" value="" force="true"/>
+        <env name="GEMINI_API_KEY" value="" force="true"/>
+        <env name="SENTRY_LARAVEL_DSN" value="" force="true"/>
+        <env name="SENTRY_DSN" value="" force="true"/>
+        <env name="JAAS_APP_ID" value="test-app-id" force="true"/>
+        <env name="JAAS_KEY_ID" value="test-key-id" force="true"/>
+        <env name="JAAS_PRIVATE_KEY" value="LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tDQpNSUlFdlFJQkFEQU5CZ2txaGtpRzl3MEJBUUVGQUFTQ0JLY3dnZ1NqQWdFQUFvSUJBUUM5QTZTZEdTQWcyeXhYDQpMbkFtUXJWdjNMZkZFYTBLdlJNVXQyTmRHMXR0UFh2MDZSZ0h5T0hBNUx6bEVJUmJLSzBYc0thYkhrT2xqV1hsDQp2MGRMRXNPZVdiMFI4WExrcFg4NlhqR3lnNFR3UkJMVTBKYnZYTHhpR2xzVi9VSXlPMmR6ZTVqUU1neWxRMHZsDQpvbVZSRy8rK1RHaUhNQkRhVGF5NkFLWDR1Z0RHWURTWjV5TG0yUUtadWNXeEtIMXV1cUo3Q3BzajlNTFkzUkRLDQpCWWFxTEM2Q1Juc0VQQWNxRGYybUNrTXVjRWxpTGVPbFhaQ2xRZUZKMkc1TWt0WTJ5aHViZUlNWlA0UzZGNTNhDQpWLzlRaFRyd3pFSXZ5cVAySzlra2twQW9XSWcrUW1FU2h4a0VUOFZIUXNDZEJPSStiamRpRTlDaG5ZbE81US9YDQozQUZIanVQckFnTUJBQUVDZ2dFQUFUK2d1dXlSTTJaY1V2d3g2RjFXb0FhNHJHZ0k4R2Z5bWZTYzQvWXh3Vkp1DQpHd0ZTemdwY0JrOXczRnAvd21tcTZ3cHFhWUZhOGlFeGh2QkNoZS9pVnVxMlNrbXdZTWgwNWlXZlVtc1pjU2s1DQpPa0h0QmdwTHNLSTFCcnVjL3JFS2ZiZmpHOHoxN1NhaDdIRERjNmpNbVBMWDVldEJ1ZmdwdndSdUZEeUh3andPDQpuRzVGc1hBem9icXBHWjlHbWo5WjRudDlKbng0UGc5QzB3SnJWMlMvdC9Lamkvb0FXYm0rWmgraTZTeGx5Y0owDQo5ZllocS8zcDhtRUVxOWhPY2JFSWp4WDBoNjFKemxCTHZtZ1ZYVUU4SVZUR0VIKzcyd3RwM3hUczJTRHM2WURlDQorSWdOTDNmUkNNemZUYzdrRWRkOTYvd3pHMVVsY0I5V05VemFhY2FFUVFLQmdRRDhZOWVoclZUei81RHhtSzdiDQpuRjR1S2NGR01LTXBEaTIxN0hLUWlJdUU4STFKTVNvNWNxZEovV1pnWXRIOVVNVVhEMHEwZnZqWXFid0pyaU9mDQozd0ZTQm1RUzJ3eWcvR2JKc3RWaFg5RW13eGw4NmtZQ1dDWDZMbXlaWmFRbkJwOGdoRUVpOGlmVHYxRFJUbnAvDQpwYmVwanVvamZ3L0FKbFFqWFVVcThoZzQyd0tCZ1FDL3Q3NEtYNk90L0FyOFd1bjJnVkh5YlVuNnBuUUJjdEJnDQp1Z0MrcDhHb1o1U0I0a2dmS1ZCNndMUU1DSTlTTmdrY3d4OXcvU0xMS3NhZUt3YjJ6Uktja2NQcmRnQWYzU0llDQpXemlRclVJTElvVUF1cDNuUWpSc0RmbnNUSzBtNTNNNzJ4VGlyZVQ4UFprUVBDVzJrSllDSlZlVitRS0dTT2FpDQpqMXVNb29xbU1RS0JnUUR4NWt1OHhPR0FmcmtRSmRPcDNzUVJvS21DdVlrWUIyUGVVb0kzYnZleDhkQ29qdnUyDQpWZUpxc3ZsVmRrRm5kZXVBdjRKTlhzam8rRDJtVllZRmEzcmJnQTZZVitSUnc3aE1weCtHbFl4amgyaTlaZGkxDQoxSUNKdWNjU2V1MkxEZmlqOUw1dFhRUzVHVXUvWUdWZVJKbTBaS3FhWE9UZXVKMjV5MkpJMkFKSk13S0JnSDBQDQpvREZtS0FDenZIclgxMjBNK09iYWNmckdvRC9kcEo2a1Z4NEhrcVdIUS9IaUtVZmlqSFEyeG54ZkRSY0UxcmJqDQpkZHdmMUpXUmh0VGdubjlhVVB5L2ZYMVlrVVkzMnl6UU5ycnh1blpIQTFueFlsWGI4eFJWbmFXT2N4bEF2QVBjDQpxdWdmcFpNQm41cGVrZjlnbStvMGI4a09FWjZGYWFXN1BHNG1EYW5SQW9HQUdSNkRRcGsvekg3SUl3d0kvU1JHDQpwNjFCbUNxS2xncFZVN2ZjNW9nck15SDgxcm1PT3JuTFhpazFaZmdRUGFSbnpnQUVqcjAxZENZUFBvSDVvMGY2DQpjbXVPZUlWQ2FqbzhlbFRnMFBLemtsbmE0cDdrWEgxWjBtQ2NsOGUwZ1RBVTRMUGRBRjhsUnZxZWxHZVdpUm5VDQpwUFpLQXEyRjJsc3JpUW1VR0FmN3BCcz0NCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0NCg==" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

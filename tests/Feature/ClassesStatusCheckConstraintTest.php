@@ -8,6 +8,7 @@ use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -91,7 +92,7 @@ class ClassesStatusCheckConstraintTest extends TestCase
     public function test_an_invalid_status_is_rejected_by_the_database_itself(): void
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessageMatches('/CHECK constraint failed/');
+        $this->expectExceptionMessageMatches($this->invalidStatusRejectionMessagePattern());
 
         Lesson::create([
             'teacher_profile_id' => $this->profile->id,
@@ -101,6 +102,29 @@ class ClassesStatusCheckConstraintTest extends TestCase
             'price_frozen_pen' => 20.00,
             'status' => 'not_a_real_status',
         ]);
+    }
+
+    /**
+     * El contrato de negocio que esta prueba verifica es "LA BASE DE DATOS
+     * rechaza un status inválido", no un string de error concreto — pero
+     * bajar la aserción a "cualquier QueryException" también sería
+     * debilitarla (una QueryException por cualquier otro motivo la haría
+     * pasar igual). El mensaje exacto SÍ es específico de cada driver:
+     * SQLite lo modela como CHECK constraint desde esta misma migración
+     * (2026_08_27_000003_add_check_constraint_to_classes_status_for_sqlite.php)
+     * y reporta "CHECK constraint failed"; MySQL ya tenía un ENUM real desde
+     * 2026_08_24_000002_remove_in_progress_from_classes_status_enum.php y,
+     * en modo estricto (config/database.php: 'strict' => true), rechaza el
+     * valor con "Data truncated for column...". Verificar el driver activo
+     * (DB::getDriverName()) mantiene la aserción tan estricta como antes en
+     * cada motor, sin exigir que ambos usen la misma redacción.
+     */
+    private function invalidStatusRejectionMessagePattern(): string
+    {
+        return match (DB::getDriverName()) {
+            'mysql' => '/Data truncated for column .status./',
+            default => '/CHECK constraint failed/',
+        };
     }
 
     /**

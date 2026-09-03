@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Support\QaDatabaseGuard;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use RuntimeException;
@@ -31,9 +32,23 @@ trait CreatesApplication
         $defaultConnection = config('database.default');
         $defaultDatabase = config("database.connections.{$defaultConnection}.database");
 
-        if ($defaultConnection !== 'sqlite' || $defaultDatabase !== ':memory:') {
+        $isSafeSqliteMemory = $defaultConnection === 'sqlite' && $defaultDatabase === ':memory:';
+
+        // MOVA MYSQL QA GATE: única excepción a "sqlite :memory: o nada".
+        // 'mysql_qa' tiene el nombre de base de datos fijo en código
+        // (config/database.php), pero se reconfirma aquí en runtime vía
+        // QaDatabaseGuard — el mismo guard que usan los comandos artisan
+        // destructivos — para que un único punto decida qué es "seguro".
+        $isSafeMysqlQa = $defaultConnection === 'mysql_qa' && $defaultDatabase === 'mova_qa';
+
+        if ($isSafeMysqlQa) {
+            QaDatabaseGuard::assertDatabase('mysql_qa', 'mova_qa');
+        }
+
+        if (!$isSafeSqliteMemory && !$isSafeMysqlQa) {
             throw new RuntimeException(
-                'Unsafe testing database configuration. PHPUnit must use sqlite :memory: for the safe local suite.'
+                'Unsafe testing database configuration. PHPUnit must use sqlite :memory: for the safe local suite, '.
+                "or the dedicated 'mysql_qa' connection (database 'mova_qa') for the MySQL QA gate."
             );
         }
 

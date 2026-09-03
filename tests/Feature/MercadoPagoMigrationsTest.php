@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Payment\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use PHPUnit\Framework\Attributes\RunClassInSeparateProcess;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -21,10 +22,49 @@ use Tests\TestCase;
  * migrada (RefreshDatabase) — sin `migrate:fresh` — invocando up()/down()
  * de la migración directamente, tal como sugiere el encargo ("testear
  * rollback donde sea viable sin migrate:fresh").
+ *
+ * MOVA MYSQL QA GATE: #[RunClassInSeparateProcess] es obligatorio aquí, no
+ * cosmético. up()/down() ejecutan DDL real (Schema::table()/dropColumn()) —
+ * bajo MySQL, una sentencia DDL hace COMMIT implícito de cualquier
+ * transacción abierta (SQLite no tiene este problema de la misma forma).
+ * RefreshDatabase envuelve cada test en una transacción que revierte en el
+ * tearDown; si el DDL de un test de esta clase corriera en el MISMO proceso
+ * que otros tests con RefreshDatabase, ese commit implícito rompe el
+ * tracking de nivel de transacción de Laravel para TODO test que corra
+ * después en ese proceso — sus inserts dejan de revertirse y quedan
+ * permanentes, sin ningún error visible (confirmado en vivo contra mova_qa:
+ * ver docs/SESSION_HANDOFF.md). Aislar la clase en su propio proceso PHP
+ * hace que el commit implícito no pueda contaminar transacciones de otras
+ * clases, sin depender de que alguien recuerde el orden de ejecución.
  */
+#[RunClassInSeparateProcess]
 class MercadoPagoMigrationsTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * MOVA MYSQL QA GATE: bajo MySQL, el DDL de down()/up() que corre DENTRO
+     * de cada test hace COMMIT implícito de la transacción que RefreshDatabase
+     * abrió para ese test — cualquier fila creada ANTES de ese DDL (el
+     * User/TeacherProfile/RechargeRequest/PaymentOrder de cada test) queda
+     * comprometida de verdad en mova_qa; el rollback normal de tearDown() ya
+     * no tiene nada que revertir. #[RunClassInSeparateProcess] evita que ese
+     * commit implícito rompa el tracking de transacciones de OTRAS clases,
+     * pero no borra lo que esta clase deja en la base de datos compartida —
+     * así que se limpia explícitamente aquí, en orden compatible con las FKs
+     * (PaymentOrder -> RechargeRequest -> TeacherProfile -> User). Bajo
+     * SQLite :memory: este bloque es un no-op inofensivo (el rollback normal
+     * ya dejó las tablas vacías).
+     */
+    protected function tearDown(): void
+    {
+        PaymentOrder::query()->delete();
+        RechargeRequest::query()->delete();
+        TeacherProfile::query()->delete();
+        User::query()->delete();
+
+        parent::tearDown();
+    }
 
     public function test_attempt_number_migration_rollback_aborts_when_multiple_attempts_exist(): void
     {

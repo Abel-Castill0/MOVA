@@ -5,10 +5,12 @@ namespace App\Console\Commands;
 use App\Models\ClassRequest;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
+use App\Models\LessonReport;
 use App\Models\RechargeRequest;
 use App\Models\TeacherProfile;
 use App\Services\LessonSettlementService;
 use App\Services\RechargeApprovalService;
+use App\Support\QaDatabaseGuard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -35,12 +37,29 @@ class ConcurrencyProbe extends Command
         {--scenario= : id del escenario compartido creado con --setup}
         {--setup : crea el escenario y devuelve su id}
         {--cleanup : elimina el escenario}
-        {--worker=0 : identificador del proceso, solo para el log}';
+        {--worker=0 : identificador del proceso, solo para el log}
+        {--connection= : nombre de conexión de base de datos a usar en vez de la de por defecto (MOVA MYSQL QA GATE: solo se acepta si resuelve exactamente a la base de datos mova_qa; falla cerrado en cualquier otro caso)}';
 
     protected $description = 'GAP-03: ejecuta un intento de una operación financiera para pruebas de concurrencia real';
 
     public function handle(): int
     {
+        // MOVA MYSQL QA GATE: incondicional, ANTES de la rama --connection.
+        // Sin esto, omitir --connection dejaba este comando mutando
+        // operaciones financieras reales (accept-lesson, settle, refund,
+        // approve-recharge) contra la conexión por defecto sin ningún guard
+        // — incluyendo, en teoría, un entorno APP_ENV=production. El uso
+        // histórico contra la conexión por defecto en local/testing sigue
+        // funcionando igual: assertSafeEnvironment() solo bloquea fuera de
+        // esos dos entornos, nunca exige mova_qa cuando --connection no se
+        // pasó.
+        QaDatabaseGuard::assertSafeEnvironment();
+
+        if ($connection = $this->option('connection')) {
+            config(['database.default' => $connection]);
+            QaDatabaseGuard::assertDatabase($connection, 'mova_qa');
+        }
+
         $operation = $this->argument('operation');
 
         if ($this->option('setup')) {
@@ -178,6 +197,24 @@ class ConcurrencyProbe extends Command
             ]);
         }
 
+        // MOVA MYSQL QA GATE: LessonSettlementService::consume() con
+        // actorId=null (el camino que attemptSettle() ejercita) ya no
+        // acepta liquidar una lección 'paid' sin reporte pedagógico (mismo
+        // guard que FinancialConcurrencyTest::settleableLesson() ya
+        // satisface). Sin esto, la sonda 'settle' perdía 100% de las
+        // carreras por un motivo ajeno a la concurrencia, no por ganar/
+        // perder el lock.
+        if ($operation === 'settle') {
+            LessonReport::create([
+                'lesson_id' => $lesson->id,
+                'teacher_profile_id' => $profile->id,
+                'student_id' => $student->id,
+                'topic_covered' => 'Tema de prueba (sonda de concurrencia)',
+                'student_performance' => 'Buen desempeño',
+                'sent_to_parent_at' => now(),
+            ]);
+        }
+
         $this->line((string) $lesson->id);
 
         return self::SUCCESS;
@@ -193,6 +230,12 @@ class ConcurrencyProbe extends Command
             }
 
             $requestIds = ClassRequest::where('subject_id', $subject->id)->pluck('id');
+            // Ownership EXACTA del/de los Student de este escenario: el
+            // student_id ya está en el propio ClassRequest que acabamos de
+            // acotar por subject_id — ninguna necesidad de buscar por
+            // nombre. Capturado ANTES de borrar el ClassRequest, que es
+            // donde vive esta relación.
+            $studentIds = ClassRequest::where('subject_id', $subject->id)->pluck('student_id')->unique();
             $lessonIds = Lesson::whereIn('class_request_id', $requestIds)->pluck('id');
 
             CreditTransaction::whereIn('lesson_id', $lessonIds)->delete();
@@ -203,10 +246,32 @@ class ConcurrencyProbe extends Command
             CreditTransaction::whereIn('teacher_profile_id', $profileIds)->delete();
             RechargeRequest::whereIn('teacher_profile_id', $profileIds)->delete();
             DB::table('teacher_subject')->whereIn('teacher_profile_id', $profileIds)->delete();
-            $userIds = TeacherProfile::whereIn('id', $profileIds)->pluck('user_id');
+
+            // BUG FIJADO (MOVA MYSQL QA GATE, ronda 1): setupScenario() crea
+            // un User sintético como padre de cada Student de la sonda
+            // ('parent_user_id' => User::factory()->create()->id) — antes,
+            // ese id nunca se capturaba y el padre quedaba huérfano tras la
+            // limpieza.
+            //
+            // BUG FIJADO (ronda 2 — ownership): la primera versión de este
+            // fix buscaba el Student por first_name='Probe', igual que la
+            // línea de borrado de abajo ya hacía. Ese selector NO tiene
+            // ninguna relación con el escenario actual — coincide con
+            // CUALQUIER Student de TODA la tabla que se llame así, real o
+            // no. Un Student real con ese nombre de pila (plausible, a
+            // diferencia de 'ConcurrencyProbe') habría hecho que este
+            // comando borrara a un padre real y, por el cascadeOnDelete()
+            // de students.parent_user_id, a CUALQUIER OTRO hijo real de ese
+            // padre — no solo al que coincidió por accidente. Reemplazado
+            // por $studentIds (ver arriba), la única relación EXACTA
+            // disponible desde la raíz del escenario (Subject -> ClassRequest
+            // .student_id), capturada antes de borrar el ClassRequest.
+            $parentUserIds = \App\Models\Student::withTrashed()->whereIn('id', $studentIds)->pluck('parent_user_id');
+
+            $teacherUserIds = TeacherProfile::whereIn('id', $profileIds)->pluck('user_id');
             TeacherProfile::whereIn('id', $profileIds)->delete();
-            \App\Models\Student::withTrashed()->where('first_name', 'Probe')->forceDelete();
-            \App\Models\User::whereIn('id', $userIds)->forceDelete();
+            \App\Models\Student::withTrashed()->whereIn('id', $studentIds)->forceDelete();
+            \App\Models\User::whereIn('id', $teacherUserIds->merge($parentUserIds)->unique())->forceDelete();
             $subject->delete();
         });
 

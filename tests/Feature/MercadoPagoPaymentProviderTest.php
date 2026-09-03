@@ -503,6 +503,23 @@ class MercadoPagoPaymentProviderTest extends TestCase
      */
     public function test_a_retry_after_a_connection_exception_resolves_via_search_reusing_the_same_row_and_key(): void
     {
+        // La recarga se crea ANTES de armar el fake para poder derivar el
+        // external_reference real (PaymentOrder::externalReference():
+        // "recharge:{id}:attempt:{n}") en vez de asumir recharge_request_id=1.
+        // Ese id lo asigna el motor de base de datos (AUTO_INCREMENT en
+        // MySQL, rowid en SQLite): bajo SQLite :memory: siempre da 1 porque
+        // cada test arranca desde una base vacía, pero bajo MySQL/InnoDB el
+        // contador de auto-incremento NUNCA retrocede aunque la transacción
+        // de un test anterior se revierta (RefreshDatabase hace rollback de
+        // los datos, no del contador) — así que asumir "1" aquí es seguro
+        // solo por accidente bajo SQLite y falla en cuanto corre después de
+        // cualquier otro test bajo mysql_qa. Este es el mismo attempt_number
+        // que resolveAttemptRow() le asignará (primer intento de una recarga
+        // nueva → 1), verificado más abajo contra $resolved->attempt_number.
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+        $externalReference = "recharge:{$recharge->id}:attempt:1";
+
         Http::fake([
             'api.mercadopago.com/v1/payments' => function () {
                 throw new ConnectionException('cURL error 28: Operation timed out');
@@ -516,7 +533,7 @@ class MercadoPagoPaymentProviderTest extends TestCase
                     'transaction_amount' => 10.0,
                     'transaction_amount_refunded' => 0,
                     'currency_id' => 'PEN',
-                    'external_reference' => 'recharge:1:attempt:1',
+                    'external_reference' => $externalReference,
                     'collector_id' => null,
                 ]],
             ], 200),
@@ -531,13 +548,11 @@ class MercadoPagoPaymentProviderTest extends TestCase
                 'transaction_amount' => 10.0,
                 'transaction_amount_refunded' => 0,
                 'currency_id' => 'PEN',
-                'external_reference' => 'recharge:1:attempt:1',
+                'external_reference' => $externalReference,
                 'collector_id' => null,
             ], 200),
         ]);
 
-        [, $profile] = $this->teacher();
-        $recharge = $this->recharge($profile);
         $provider = new MercadoPagoPaymentProvider();
 
         try {

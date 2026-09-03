@@ -7,6 +7,7 @@ use App\Models\CreditTransaction;
 use App\Models\Lesson;
 use App\Models\RechargeRequest;
 use App\Support\LedgerReconciliation;
+use App\Support\QaDatabaseGuard;
 use Illuminate\Console\Command;
 
 /**
@@ -18,12 +19,25 @@ use Illuminate\Console\Command;
  */
 class ConcurrencyVerify extends Command
 {
-    protected $signature = 'mova:concurrency-verify {operation} {scenario}';
+    protected $signature = 'mova:concurrency-verify {operation} {scenario} {--connection= : nombre de conexión de base de datos a usar en vez de la de por defecto (MOVA MYSQL QA GATE: solo se acepta si resuelve exactamente a la base de datos mova_qa; falla cerrado en cualquier otro caso)}';
 
     protected $description = 'GAP-03: comprueba que N procesos simultáneos produjeron exactamente una mutación';
 
     public function handle(): int
     {
+        // MOVA MYSQL QA GATE: incondicional, ANTES de la rama --connection —
+        // mismo motivo que ConcurrencyProbe. Sin esto, omitir --connection
+        // dejaba este comando corriendo (incluida la escritura de
+        // LedgerReconciliation) contra la conexión por defecto sin ningún
+        // guard, sin importar el entorno. El uso histórico en local/testing
+        // sigue igual.
+        QaDatabaseGuard::assertSafeEnvironment();
+
+        if ($connection = $this->option('connection')) {
+            config(['database.default' => $connection]);
+            QaDatabaseGuard::assertDatabase($connection, 'mova_qa');
+        }
+
         $operation = $this->argument('operation');
         $id = (int) $this->argument('scenario');
 

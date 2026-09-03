@@ -6,6 +6,7 @@ use App\Models\RechargeRequest;
 use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\RunClassInSeparateProcess;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -16,10 +17,34 @@ use Tests\TestCase;
  * Corre contra la base de datos de test ya migrada (RefreshDatabase, sin
  * migrate:fresh dentro del test) invocando up()/down() directamente, mismo
  * patrón que MercadoPagoMigrationsTest.
+ *
+ * MOVA MYSQL QA GATE: #[RunClassInSeparateProcess], mismo motivo exacto que
+ * MercadoPagoMigrationsTest — el DDL de up()/down() hace COMMIT implícito
+ * bajo MySQL, lo que rompe el rollback de RefreshDatabase para cualquier
+ * test que corra después en el mismo proceso PHP si esta clase compartiera
+ * proceso con ellos.
  */
+#[RunClassInSeparateProcess]
 class RechargeOperationNumberNullableMigrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * MOVA MYSQL QA GATE: mismo motivo exacto que MercadoPagoMigrationsTest
+     * — down()/up() ejecutan DDL dentro del test, que bajo MySQL hace COMMIT
+     * implícito de la transacción de RefreshDatabase; lo creado antes de esa
+     * línea (User/TeacherProfile/RechargeRequest) queda permanente en
+     * mova_qa aunque tearDown() intente revertir. Se limpia explícitamente
+     * aquí, en orden compatible con las FKs. No-op inofensivo bajo SQLite.
+     */
+    protected function tearDown(): void
+    {
+        RechargeRequest::query()->delete();
+        TeacherProfile::query()->delete();
+        User::query()->delete();
+
+        parent::tearDown();
+    }
 
     public function test_a_mercadopago_recharge_can_be_created_with_null_operation_number(): void
     {
