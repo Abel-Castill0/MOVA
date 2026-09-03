@@ -470,6 +470,116 @@ class CreditCheckoutControllerTest extends TestCase
     }
 
     /**
+     * 3DS Challenge (MOVA Card Payment Brick 3DS): pay() debe exponer
+     * action_required con exactamente lo que Checkout.vue necesita para
+     * dibujar el iframe, y NUNCA acreditar ni marcar 'approved' solo porque
+     * Mercado Pago devolvió pending_challenge en la respuesta síncrona.
+     */
+    public function test_card_payment_pending_challenge_exposes_action_required_without_crediting(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9106,
+                'status' => 'pending',
+                'status_detail' => 'pending_challenge',
+                'three_ds_info' => [
+                    'external_resource_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+                    'creq' => 'eyJmYWtlIjoiY3JlcSJ9',
+                ],
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ]);
+
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('credits_credited', false);
+        $response->assertJsonPath('action_required.type', 'challenge');
+        $response->assertJsonPath('action_required.payment_id', '9106');
+        $response->assertJsonPath('action_required.external_resource_url', 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges');
+        $response->assertJsonPath('action_required.creq', 'eyJmYWtlIjoiY3JlcSJ9');
+        $this->assertSame(0, $profile->fresh()->credits_available);
+
+        // status()/refresh() (GET/POST posteriores, ej. tras un reload de la
+        // pantalla) deben seguir reportando exactamente el mismo Challenge —
+        // nunca lo pierden ni lo inventan de nuevo.
+        $statusResponse = $this->actingAs($teacher)->getJson(route('teacher.credits.checkout.status', $recharge));
+        $statusResponse->assertJsonPath('action_required.type', 'challenge');
+        $statusResponse->assertJsonPath('action_required.creq', 'eyJmYWtlIjoiY3JlcSJ9');
+
+        // CACHE SAFETY (ronda de hardening final): un `creq` es un dato de un
+        // solo Challenge — ningún caché compartido/de navegador debe
+        // guardarlo.
+        $response->assertHeader('Cache-Control', 'no-store, private');
+        $statusResponse->assertHeader('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * CHALLENGE TIMEOUT (ronda de hardening final): pasada la ventana de
+     * ~5 minutos (PaymentOrder.three_ds_expires_at — columna DEDICADA,
+     * nunca la `expires_at` genérica del PaymentOrder), el backend deja de
+     * exponer action_required — nunca sigue ofreciendo un iframe que el ACS
+     * del banco ya dejó de servir — pero el intento sigue 'pending' (nunca
+     * se marca rechazado solo por esto) y credits_credited sigue false.
+     */
+    public function test_expired_challenge_stops_exposing_action_required_but_stays_pending(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        PaymentOrder::create([
+            'recharge_request_id' => $recharge->id,
+            'attempt_number' => 1,
+            'provider' => 'mercadopago',
+            'provider_order_id' => '9200',
+            'status' => 'pending',
+            'submission_status' => 'submitted',
+            'provider_status' => 'pending',
+            'provider_status_detail' => 'pending_challenge',
+            'three_ds_challenge_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            'three_ds_creq' => 'eyJmYWtlIjoiY3JlcSJ9',
+            'three_ds_expires_at' => now()->subMinute(), // ya vencido
+            'amount_minor' => 1000,
+            'currency' => 'PEN',
+        ]);
+
+        $response = $this->actingAs($teacher)->getJson(route('teacher.credits.checkout.status', $recharge));
+
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('action_required', null);
+        $response->assertJsonPath('credits_credited', false);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+    }
+
+    public function test_card_payment_without_challenge_never_exposes_action_required(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments' => Http::response([
+                'id' => 9107, 'status' => 'pending', 'status_detail' => 'pending_contingency',
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'payment_method' => 'card',
+            'token' => 'card-brick-token',
+            'payment_method_id' => 'visa',
+            'installments' => 1,
+        ]);
+
+        $response->assertJsonPath('action_required', null);
+    }
+
+    /**
      * Regresión de RESOLVE ATTEMPT ROW (MercadoPagoPaymentProvider): tras
      * un rechazo TERMINAL (status='failed'), un reintento del profesor —
      * ahora con OTRO token/tarjeta — debe crear un intento NUEVO

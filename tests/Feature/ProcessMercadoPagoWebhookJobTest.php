@@ -82,6 +82,56 @@ class ProcessMercadoPagoWebhookJobTest extends TestCase
         $this->assertSame('processed', $webhook->fresh()->status);
     }
 
+    /**
+     * 3DS Challenge (MOVA Card Payment Brick 3DS): una vez que la
+     * reconciliación resuelve el intento a un estado TERMINAL, los datos
+     * del iframe (puramente de presentación, ver docblock de la migración)
+     * se limpian — ya no hay ningún Challenge que mostrar.
+     */
+    public function test_three_ds_challenge_fields_are_cleared_once_the_attempt_resolves(): void
+    {
+        [$order, $recharge, $profile, $webhook] = $this->scenario(credits: 5, amountPen: '10.00');
+        $order->update([
+            'provider_status_detail' => 'pending_challenge',
+            'three_ds_challenge_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            'three_ds_creq' => 'eyJmYWtlIjoiY3JlcSJ9',
+            'three_ds_expires_at' => now()->addMinutes(5),
+        ]);
+        $this->fakePaymentTruth($order, $recharge, 'approved', 'accredited', transactionAmount: 10.0);
+
+        $this->runJob($webhook);
+
+        $this->assertSame('paid', $order->fresh()->status);
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertNull($order->fresh()->three_ds_challenge_url);
+        $this->assertNull($order->fresh()->three_ds_creq);
+        $this->assertNull($order->fresh()->three_ds_expires_at);
+    }
+
+    /**
+     * Mismo criterio que el test 'paid' de arriba, para la otra rama
+     * terminal (applyFailed()) — un Challenge que termina en rechazo
+     * tampoco debe dejar el iframe/ventana vivos en la fila.
+     */
+    public function test_three_ds_challenge_fields_are_cleared_when_the_attempt_resolves_to_failed(): void
+    {
+        [$order, $recharge, , $webhook] = $this->scenario(credits: 5, amountPen: '10.00');
+        $order->update([
+            'provider_status_detail' => 'pending_challenge',
+            'three_ds_challenge_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            'three_ds_creq' => 'eyJmYWtlIjoiY3JlcSJ9',
+            'three_ds_expires_at' => now()->addMinutes(5),
+        ]);
+        $this->fakePaymentTruth($order, $recharge, 'rejected', 'cc_rejected_insufficient_amount', transactionAmount: 10.0);
+
+        $this->runJob($webhook);
+
+        $this->assertSame('failed', $order->fresh()->status);
+        $this->assertNull($order->fresh()->three_ds_challenge_url);
+        $this->assertNull($order->fresh()->three_ds_creq);
+        $this->assertNull($order->fresh()->three_ds_expires_at);
+    }
+
     public function test_yape_approved_credits_exactly_once(): void
     {
         // Misma lógica de reconciliación para Yape — no hay una segunda

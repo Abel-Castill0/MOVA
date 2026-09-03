@@ -35,6 +35,13 @@ class MercadoPagoPaymentStatusMapperTest extends TestCase
 
             'rejected cualquier detail → failed' => ['rejected', 'cc_rejected_insufficient_amount', 'failed'],
             'cancelled cualquier detail → failed' => ['cancelled', 'by_collector', 'failed'],
+            // status_detail 'expired' documentado como el estado TERMINAL de
+            // expiración del proveedor (nunca confundir con la ventana ~5min
+            // del Challenge de MOVA, three_ds_expires_at — ver
+            // MercadoPagoPaymentReconciliationService::applyFailed()) — cae
+            // en el mismo match arm que cualquier otro detail bajo
+            // 'cancelled', sin una rama separada que probar.
+            'cancelled/expired (terminal de proveedor) → failed' => ['cancelled', 'expired', 'failed'],
 
             'refunded/refunded (total) → reversed' => ['refunded', 'refunded', 'reversed'],
             'refunded/by_admin → reversed' => ['refunded', 'by_admin', 'reversed'],

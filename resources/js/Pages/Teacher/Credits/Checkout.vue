@@ -142,6 +142,17 @@
           </p>
         </div>
 
+        <!-- 3DS Challenge (MOVA Card Payment Brick 3DS): el banco pide una verificación adicional
+             dentro de un iframe — nunca se le dice al profesor que "está verificando" sin mostrarle
+             qué hacer, y nunca se acredita ni se muestra "aprobado" solo porque el Challenge terminó
+             (ver watchChallengeCompletion() en mercadoPagoChallenge.js: solo dispara un refresh, la
+             verdad sigue viniendo de refresh()/status()). -->
+        <div v-else-if="showChallenge" class="flex flex-col gap-3 py-2 text-center">
+          <p class="font-semibold text-slate-900">{{ statusMessage }}</p>
+          <p class="text-xs text-slate-400">No cierres ni actualices esta pantalla mientras completas la verificación.</p>
+          <div ref="challengeContainer" class="overflow-hidden rounded-xl border border-gray-100" />
+        </div>
+
         <!-- Verificando / pendiente / incierto: NUNCA se muestra como "falló", nunca invita a pagar de nuevo -->
         <div v-else-if="isVerifying" class="flex flex-col items-center gap-3 py-4 text-center">
           <svg class="h-8 w-8 motion-safe:animate-spin text-brand-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -191,6 +202,7 @@ import Icon from '@/Components/Icon.vue'
 import { createYapeToken } from '@/lib/mercadoPagoYape'
 import { mountCardPaymentBrick, unmountCardPaymentBrick } from '@/lib/mercadoPagoCard'
 import { preloadMercadoPagoSdk } from '@/lib/mercadoPago'
+import { clearChallenge, renderChallenge, watchChallengeCompletion } from '@/lib/mercadoPagoChallenge'
 
 const props = defineProps({
   recharge: { type: Object, required: true },
@@ -209,6 +221,12 @@ const props = defineProps({
 const phase = ref(props.initialStatus.status === 'idle' ? 'idle' : 'server')
 const status = ref(props.initialStatus.status)
 const statusMessage = ref(props.initialStatus.message)
+// 3DS CHALLENGE: null salvo cuando el backend reporta
+// action_required.type==='challenge' (ver CreditCheckoutController::safeStatus()) —
+// nunca se infiere localmente, siempre viene tal cual del servidor.
+const actionRequired = ref(props.initialStatus.action_required || null)
+const challengeContainer = ref(null)
+let stopWatchingChallenge = null
 
 const form = reactive({ phoneNumber: '', otp: '' })
 const fieldErrors = reactive({ phoneNumber: '', otp: '' })
@@ -228,7 +246,14 @@ const brickReady = ref(false)
 // reaccionar a sus cambios, solo el código de esta función.
 let cardController = null
 
-const MAX_POLL_ATTEMPTS = 40 // presupuesto total de polls, nunca infinito
+// 3DS CHALLENGE: el Challenge de Mercado Pago tiene una ventana oficial de
+// ~5 minutos (ver documentación "Integrate 3DS") — el presupuesto anterior
+// (40 intentos, ~4 min) alcanzaba de sobra para Yape pero se quedaba corto
+// para dejar completar un Challenge de tarjeta entero. Subido a 46 intentos
+// y un cuarto escalón (~320s totales) — nunca infinito, solo con margen
+// suficiente para el caso nuevo; no cambia el comportamiento de Yape (que
+// casi siempre resuelve en los primeros escalones).
+const MAX_POLL_ATTEMPTS = 46
 // POLLING QUALITY (MOVA Yape Checkout Pre-Card Hardening): backoff
 // progresivo por escalones — la mayoría de los pagos Yape se resuelven en
 // los primeros segundos, así que empieza agresivo (3s) y se relaja según
@@ -238,6 +263,7 @@ const POLL_INTERVAL_STEPS = [
   { afterAttempt: 0, ms: 3000 },
   { afterAttempt: 10, ms: 5000 },
   { afterAttempt: 20, ms: 8000 },
+  { afterAttempt: 30, ms: 10000 },
 ]
 let pollTimer = null
 let pollAttempts = 0
@@ -253,6 +279,10 @@ function currentPollIntervalMs() {
 }
 
 const isBusy = computed(() => phase.value === 'tokenizing' || phase.value === 'submitting')
+// 3DS CHALLENGE: subconjunto de 'pending' — su v-else-if debe evaluarse
+// ANTES que isVerifying en el template para ganarle la rama (ambos son
+// simultáneamente 'true' mientras hay un Challenge activo).
+const showChallenge = computed(() => status.value === 'pending' && actionRequired.value?.type === 'challenge')
 const isVerifying = computed(() => ['pending', 'uncertain', 'review'].includes(status.value))
 // Bug real encontrado en el E2E negativo de esta ronda: incluir 'failed'
 // aquí hacía que, tras un pago rechazado, el formulario vacío reapareciera
@@ -350,6 +380,7 @@ function applyStatus(payload) {
   phase.value = 'server'
   status.value = payload.status
   statusMessage.value = payload.message
+  actionRequired.value = payload.action_required || null
 
   if (payload.status === 'approved' || payload.status === 'failed') {
     stopPolling()
@@ -464,6 +495,54 @@ watch(showCardBrick, async (show) => {
   }
 })
 
+/**
+ * Monta/desmonta el iframe del 3DS Challenge — mismo criterio de lifecycle
+ * que el watcher de showCardBrick de arriba (única fuente de verdad para
+ * montar/desmontar, nunca desde otro sitio). stopWatchingChallenge()
+ * SIEMPRE se llama antes de un nuevo renderChallenge() o al salir, para no
+ * dejar dos listeners de postMessage vivos si el profesor ve dos Challenges
+ * seguidos (reintento tras un Challenge fallido, por ejemplo).
+ */
+watch(showChallenge, async (show) => {
+  // immediate: true — a diferencia de showCardBrick (que arranca en
+  // 'idle', nunca true al montar), showChallenge SÍ puede ser true desde el
+  // primer render: recargar la pantalla de checkout a mitad de un Challenge
+  // llega con initialStatus.action_required ya poblado por el backend, y
+  // sin immediate el watcher nunca dispara porque el valor "no cambió".
+  if (stopWatchingChallenge) {
+    stopWatchingChallenge()
+    stopWatchingChallenge = null
+  }
+
+  if (show) {
+    await nextTick() // el <div ref="challengeContainer"> debe existir en el DOM antes de dibujar el iframe
+    if (!challengeContainer.value || !actionRequired.value) return
+
+    const challengeIframe = renderChallenge(challengeContainer.value, {
+      externalResourceUrl: actionRequired.value.external_resource_url,
+      creq: actionRequired.value.creq,
+    })
+
+    stopWatchingChallenge = watchChallengeCompletion(challengeIframe, () => {
+      // NUNCA se acredita ni se marca "aprobado" aquí — el evento solo
+      // significa "el profesor ya interactuó con el Challenge", no que el
+      // pago se resolvió (ver docblock de mercadoPagoChallenge.js). Se
+      // limita a adelantar el próximo poll ya programado (mismo
+      // refresh()/status() de siempre) para que el resultado real se vea
+      // apenas Mercado Pago lo confirme, sin esperar el resto del intervalo.
+      if (pollingActive) {
+        if (pollTimer) {
+          window.clearTimeout(pollTimer)
+          pollTimer = null
+        }
+        runPoll()
+      }
+    })
+  } else {
+    clearChallenge(challengeContainer.value)
+  }
+}, { immediate: true })
+
 function startPolling() {
   stopPolling()
   pollAttempts = 0
@@ -532,6 +611,7 @@ function handleVisibilityChange() {
 function retry() {
   status.value = 'idle'
   phase.value = 'idle'
+  actionRequired.value = null
   resetFieldErrors()
 }
 
@@ -551,5 +631,11 @@ onBeforeUnmount(() => {
   // un controller de Brick vivo referenciando un <div> que Vue está a
   // punto de desmontar.
   unmountCardBrick()
+  // 3DS CHALLENGE: mismo criterio — nunca dejar el listener de postMessage
+  // vivo después de que Vue desmonte challengeContainer.
+  if (stopWatchingChallenge) {
+    stopWatchingChallenge()
+    stopWatchingChallenge = null
+  }
 })
 </script>

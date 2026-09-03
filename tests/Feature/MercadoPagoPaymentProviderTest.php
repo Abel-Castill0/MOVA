@@ -10,8 +10,10 @@ use App\Payment\Contracts\CardPaymentInstrument;
 use App\Payment\Contracts\YapePaymentInstrument;
 use App\Payment\MercadoPago\MalformedWebhookPayloadException;
 use App\Payment\MercadoPagoPaymentProvider;
+use App\Services\MercadoPagoPaymentReconciliationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\TestCase;
@@ -170,8 +172,261 @@ class MercadoPagoPaymentProviderTest extends TestCase
             return $request['payment_method_id'] === 'yape'
                 && $request['installments'] === 1
                 && $request['token'] === 'yape-token-xyz'
-                && $request['transaction_amount'] === 25.0;
+                && $request['transaction_amount'] === 25.0
+                // Yape ya tiene su propio mecanismo de autenticación (OTP) —
+                // Payments API no documenta three_d_secure_mode para este
+                // medio de pago, así que MOVA nunca debe enviarlo aquí.
+                && ! isset($request['three_d_secure_mode']);
         });
+    }
+
+    // ---- 3DS Challenge (MOVA Card Payment Brick 3DS) ------------------------
+
+    public function test_card_payload_enables_3ds_in_optional_mode(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 400,
+            'status' => 'approved',
+            'status_detail' => 'accredited',
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        Http::assertSent(fn ($request) => $request['three_d_secure_mode'] === 'optional');
+    }
+
+    /**
+     * CARD PAYLOAD CONTRACT (ronda de hardening final): capture=true y
+     * binary_mode=false explícitos — CRÍTICO para binary_mode, ver docblock
+     * de createPaymentAttempt(): activado, Mercado Pago rechazaría de
+     * inmediato cualquier pago que de otro modo quedaría pending, incluido
+     * un Challenge 3DS. Se verifica para AMBOS medios de pago (no es
+     * exclusivo de 3DS/tarjeta como three_d_secure_mode).
+     */
+    public function test_card_payload_always_sends_capture_true_and_binary_mode_false(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response(['id' => 1, 'status' => 'pending', 'status_detail' => 'x'], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+        (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        Http::assertSent(fn ($request) => $request['capture'] === true && $request['binary_mode'] === false);
+    }
+
+    public function test_yape_payload_always_sends_capture_true_and_binary_mode_false(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response(['id' => 1, 'status' => 'pending', 'status_detail' => 'x'], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+        (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, new YapePaymentInstrument(token: 'yape-token-cap'));
+
+        Http::assertSent(fn ($request) => $request['capture'] === true && $request['binary_mode'] === false);
+    }
+
+    /**
+     * El caso central de esta ronda: una respuesta síncrona 'pending_challenge'
+     * NUNCA acredita (sigue cayendo en la misma rama $localStatus='pending' de
+     * siempre) y además persiste los dos datos que el frontend necesita para
+     * dibujar el iframe del banco — ver
+     * MercadoPagoPaymentProvider::extractChallengeFields().
+     */
+    public function test_pending_challenge_response_stores_challenge_fields_without_crediting(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 401,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'three_ds_info' => [
+                'external_resource_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+                'creq' => 'eyJ0aHJlZURTU2VydmVyVHJhbnNJRCI6ImJmYTVhZjI0In0',
+            ],
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('submitted', $order->submission_status);
+        $this->assertSame('pending_challenge', $order->provider_status_detail);
+        $this->assertSame('https://acs-public.tp.mastercard.com/api/v1/browser_Challenges', $order->three_ds_challenge_url);
+        $this->assertSame('eyJ0aHJlZURTU2VydmVyVHJhbnNJRCI6ImJmYTVhZjI0In0', $order->three_ds_creq);
+        $this->assertSame(0, $recharge->fresh()->teacherProfile->credits_available, 'un status_detail pending_challenge nunca debe acreditar créditos');
+    }
+
+    public function test_non_challenge_response_never_sets_challenge_fields(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 402,
+            'status' => 'approved',
+            'status_detail' => 'accredited',
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        $this->assertNull($order->three_ds_challenge_url);
+        $this->assertNull($order->three_ds_creq);
+    }
+
+    public function test_malformed_three_ds_info_is_ignored_and_still_stays_pending(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 403,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'three_ds_info' => ['external_resource_url' => '', 'creq' => null],
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        $this->assertSame('pending', $order->status);
+        $this->assertNull($order->three_ds_challenge_url);
+        $this->assertNull($order->three_ds_creq);
+        // Sin URL/creq utilizables no hay Challenge que temporizar.
+        $this->assertNull($order->three_ds_expires_at);
+    }
+
+    /**
+     * CHALLENGE URL SAFETY (ronda de hardening final): un
+     * external_resource_url que no sea HTTPS válida (scheme distinto,
+     * javascript:/data:/file:, o sin host) nunca se persiste — el intento
+     * sigue 'pending' (sin riesgo financiero nuevo), pero
+     * three_ds_challenge_url queda null, así que
+     * CreditCheckoutController::safeStatus() nunca expondrá action_required
+     * para este intento.
+     *
+     * @dataProvider unsafeChallengeUrls
+     */
+    public function test_unsafe_external_resource_url_is_discarded_and_never_persisted(string $unsafeUrl): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 404,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'three_ds_info' => ['external_resource_url' => $unsafeUrl, 'creq' => 'valid-creq-token'],
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        $this->assertSame('pending', $order->status);
+        $this->assertNull($order->three_ds_challenge_url);
+        $this->assertNull($order->three_ds_expires_at);
+    }
+
+    public static function unsafeChallengeUrls(): array
+    {
+        return [
+            'javascript scheme' => ['javascript:alert(1)'],
+            'data scheme' => ['data:text/html,<script>alert(1)</script>'],
+            'file scheme' => ['file:///etc/passwd'],
+            'plain http, no TLS' => ['http://acs-public.tp.mastercard.com/challenge'],
+            'sin scheme ni host' => ['not-a-url'],
+        ];
+    }
+
+    /**
+     * CHALLENGE TIMEOUT (ronda de hardening final): un Challenge utilizable
+     * (URL HTTPS válida + creq) fija `three_ds_expires_at` ~5 minutos
+     * adelante — columna DEDICADA, nunca `payment_orders.expires_at` (ver
+     * docblock de createPaymentAttempt(), sección CHALLENGE TIMEOUT).
+     */
+    public function test_valid_challenge_sets_an_expires_at_about_five_minutes_ahead(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 405,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'three_ds_info' => [
+                'external_resource_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+                'creq' => 'valid-creq-token',
+            ],
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        $before = now();
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+
+        $this->assertNotNull($order->three_ds_expires_at);
+        $this->assertTrue($order->three_ds_expires_at->between($before->clone()->addMinutes(4), $before->clone()->addMinutes(6)));
+    }
+
+    /**
+     * CHALLENGE EXPIRY MUST NEVER SLIDE (ronda de semántica final):
+     * `three_ds_expires_at` se fija UNA sola vez, en createPaymentAttempt().
+     * Una reconciliación posterior mientras el Challenge sigue sin resolverse
+     * (Mercado Pago sigue reportando 'pending'/'pending_challenge') NUNCA
+     * debe reiniciar la ventana de 5 minutos — ver docblock de
+     * createPaymentAttempt(), sección "NUNCA SE DESLIZA".
+     */
+    public function test_challenge_expiry_never_slides_across_repeated_reconciliation(): void
+    {
+        Carbon::setTestNow('2026-09-03 10:00:00');
+
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 500,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'three_ds_info' => [
+                'external_resource_url' => 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+                'creq' => 'eyJmYWtlIjoiY3JlcSJ9',
+            ],
+        ], 201)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile, amountPen: '10.00');
+
+        $order = (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+        $originalExpiry = $order->three_ds_expires_at;
+        $this->assertSame('2026-09-03 10:05:00', $originalExpiry->toDateTimeString());
+
+        // El profesor sigue en la pantalla, el polling de refresh() reconcilia
+        // repetidamente mientras el Challenge sigue abierto — Mercado Pago
+        // TODAVÍA reporta 'pending'/'pending_challenge' (no resuelto).
+        Carbon::setTestNow('2026-09-03 10:02:00');
+        Http::fake(['api.mercadopago.com/v1/payments/500' => Http::response([
+            'id' => 500,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'transaction_amount' => 10.0,
+            'transaction_amount_refunded' => 0,
+            'currency_id' => 'PEN',
+            'external_reference' => $order->externalReference(),
+            'collector_id' => null,
+        ], 200)]);
+
+        $outcome = app(MercadoPagoPaymentReconciliationService::class)
+            ->reconcile($order->fresh(), null, new MercadoPagoPaymentProvider());
+
+        $this->assertSame('pending', $outcome);
+        $this->assertSame($originalExpiry->toDateTimeString(), $order->fresh()->three_ds_expires_at->toDateTimeString());
+
+        // Segunda ronda de reconciliación, más tarde todavía, mismo resultado.
+        Carbon::setTestNow('2026-09-03 10:04:30');
+        app(MercadoPagoPaymentReconciliationService::class)
+            ->reconcile($order->fresh(), null, new MercadoPagoPaymentProvider());
+
+        $this->assertSame($originalExpiry->toDateTimeString(), $order->fresh()->three_ds_expires_at->toDateTimeString());
+        // Los datos del iframe tampoco se tocan mientras sigue sin resolverse.
+        $this->assertSame('eyJmYWtlIjoiY3JlcSJ9', $order->fresh()->three_ds_creq);
+
+        Carbon::setTestNow();
     }
 
     // ---- resultado síncrono negativo se refleja, positivo nunca ------------
@@ -880,6 +1135,11 @@ class MercadoPagoPaymentProviderTest extends TestCase
         $this->assertSame('recharge:1:attempt:1', $truth['external_reference']);
         $this->assertSame('470183340', $truth['collector_id']);
         $this->assertSame('visa', $truth['payment_method_id']);
+        // status_detail='accredited' (no 'pending_challenge') — el boundary
+        // único de extracción (extractChallengeFields(), ver
+        // mapPaymentJson()) nunca expone un Challenge para este estado.
+        $this->assertNull($truth['three_ds_challenge_url']);
+        $this->assertNull($truth['three_ds_creq']);
     }
 
     public function test_fetch_payment_returns_null_on_error_status(): void

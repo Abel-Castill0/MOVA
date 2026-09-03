@@ -12,6 +12,7 @@ use App\Payment\Money;
 use App\Services\MercadoPagoPaymentReconciliationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -274,6 +275,119 @@ class MercadoPagoUncertainSubmissionRecoveryTest extends TestCase
         ];
     }
 
+    // ---- LOST-CREATE-RESPONSE RECOVERY (ronda de recovery-gap) ----------------
+    //
+    // Modela: POST /v1/payments llega a Mercado Pago, crea un
+    // pending_challenge, pero MOVA nunca recibe/persiste esa respuesta
+    // (excepción de red) — el intento local queda 'uncertain', sin ningún
+    // dato de Challenge. La recuperación por external_reference encuentra el
+    // pago vía /search (resumen, SIN three_ds_info — ver SEARCH SUMMARY
+    // FALLBACK) y reconcile() hace su propio GET canónico por id, que SÍ
+    // trae three_ds_info — ese GET es lo que realmente recupera el
+    // Challenge, ver MercadoPagoPaymentReconciliationService::
+    // recoverChallengeFieldsIfMissing().
+
+    public function test_lost_create_response_recovers_challenge_fields_via_the_canonical_get_and_credits_nothing(): void
+    {
+        [$order, , $profile] = $this->uncertainOrder(amountPen: '10.00', credits: 5);
+        $this->fakeSearchAndFetchWithChallenge(
+            $order,
+            id: 600,
+            challengeUrl: 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            creq: 'eyJmYWtlIjoiY3JlcSJ9'
+        );
+
+        $before = now();
+        $outcome = $this->reconcile($order);
+
+        $this->assertSame('resolved', $outcome);
+        $fresh = $order->fresh();
+        $this->assertSame('600', $fresh->provider_order_id);
+        $this->assertSame('pending', $fresh->status);
+        $this->assertSame('https://acs-public.tp.mastercard.com/api/v1/browser_Challenges', $fresh->three_ds_challenge_url);
+        $this->assertSame('eyJmYWtlIjoiY3JlcSJ9', $fresh->three_ds_creq);
+        $this->assertNotNull($fresh->three_ds_expires_at);
+        $this->assertTrue($fresh->three_ds_expires_at->between($before->clone()->addMinutes(4), $before->clone()->addMinutes(6)));
+        $this->assertSame(0, $profile->fresh()->credits_available, 'un pending_challenge recuperado nunca acredita');
+    }
+
+    /**
+     * CHALLENGE EXPIRY MUST NEVER SLIDE — también para un Challenge
+     * RECUPERADO (no solo el capturado en createPaymentAttempt(), ver
+     * MercadoPagoPaymentProviderTest::test_challenge_expiry_never_slides_across_repeated_reconciliation()):
+     * una vez que recoverChallengeFieldsIfMissing() fija
+     * `three_ds_expires_at` la primera vez, reconciliaciones posteriores
+     * mientras el Challenge sigue sin resolverse nunca la reinician.
+     */
+    public function test_recovered_challenge_expiry_never_slides_across_repeated_reconciliation(): void
+    {
+        Carbon::setTestNow('2026-09-03 11:00:00');
+
+        [$order] = $this->uncertainOrder(amountPen: '10.00');
+        $this->fakeSearchAndFetchWithChallenge(
+            $order,
+            id: 601,
+            challengeUrl: 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            creq: 'eyJmYWtlIjoiY3JlcSJ9'
+        );
+
+        $this->reconcile($order);
+        $recoveredExpiry = $order->fresh()->three_ds_expires_at;
+        $this->assertSame('2026-09-03 11:05:00', $recoveredExpiry->toDateTimeString());
+
+        // Reconciliación normal posterior (ya no pasa por
+        // reconcileUncertainSubmission() — el intento ya tiene
+        // provider_order_id) mientras el Challenge sigue abierto.
+        Carbon::setTestNow('2026-09-03 11:03:00');
+        Http::fake(['api.mercadopago.com/v1/payments/601' => Http::response([
+            'id' => 601,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'transaction_amount' => 10.0,
+            'transaction_amount_refunded' => 0,
+            'currency_id' => 'PEN',
+            'external_reference' => $order->externalReference(),
+        ], 200)]);
+
+        app(MercadoPagoPaymentReconciliationService::class)
+            ->reconcile($order->fresh(), null, app(MercadoPagoPaymentProvider::class));
+
+        $this->assertSame($recoveredExpiry->toDateTimeString(), $order->fresh()->three_ds_expires_at->toDateTimeString());
+        $this->assertSame('eyJmYWtlIjoiY3JlcSJ9', $order->fresh()->three_ds_creq);
+
+        Carbon::setTestNow();
+    }
+
+    /**
+     * CHALLENGE URL SAFETY también en el camino de recuperación: un
+     * external_resource_url no-HTTPS llegado vía el GET canónico de
+     * recuperación nunca se persiste — ni siquiera parcialmente (creq solo,
+     * sin URL) — y el intento sigue 'pending' sin acreditar nada. El pago SÍ
+     * se recupera (provider_order_id se fija igual — es un recurso remoto
+     * real), solo el Challenge se descarta.
+     */
+    public function test_unsafe_challenge_url_arriving_through_recovery_is_never_persisted_and_credits_nothing(): void
+    {
+        [$order, , $profile] = $this->uncertainOrder(amountPen: '10.00', credits: 5);
+        $this->fakeSearchAndFetchWithChallenge(
+            $order,
+            id: 602,
+            challengeUrl: 'javascript:alert(1)',
+            creq: 'eyJmYWtlIjoiY3JlcSJ9'
+        );
+
+        $outcome = $this->reconcile($order);
+
+        $this->assertSame('resolved', $outcome);
+        $fresh = $order->fresh();
+        $this->assertSame('602', $fresh->provider_order_id);
+        $this->assertSame('pending', $fresh->status);
+        $this->assertNull($fresh->three_ds_challenge_url);
+        $this->assertNull($fresh->three_ds_creq);
+        $this->assertNull($fresh->three_ds_expires_at);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+    }
+
     // ---- REVIEW AUDIT — tres estados distinguibles -----------------------------
 
     public function test_review_audit_distinguishes_never_active_and_resolved(): void
@@ -381,6 +495,37 @@ class MercadoPagoUncertainSubmissionRecoveryTest extends TestCase
                 200
             ),
             "api.mercadopago.com/v1/payments/{$id}" => Http::response($body, 200),
+        ]);
+    }
+
+    /**
+     * Variante de fakeSearchAndFetch() para el escenario LOST-CREATE-RESPONSE:
+     * el resumen de /search NUNCA trae `three_ds_info` (SEARCH SUMMARY
+     * FALLBACK) — solo el GET canónico por id, que es el que
+     * recoverChallengeFieldsIfMissing() realmente consume.
+     */
+    private function fakeSearchAndFetchWithChallenge(PaymentOrder $order, int $id, ?string $challengeUrl, ?string $creq): void
+    {
+        $searchBody = [
+            'id' => $id,
+            'status' => 'pending',
+            'status_detail' => 'pending_challenge',
+            'transaction_amount' => 10.0,
+            'external_reference' => $order->externalReference(),
+            'currency_id' => 'PEN',
+        ];
+
+        $fetchBody = $searchBody + [
+            'transaction_amount_refunded' => 0,
+            'three_ds_info' => ['external_resource_url' => $challengeUrl, 'creq' => $creq],
+        ];
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response(
+                ['paging' => ['total' => 1, 'limit' => 10, 'offset' => 0], 'results' => [$searchBody]],
+                200
+            ),
+            "api.mercadopago.com/v1/payments/{$id}" => Http::response($fetchBody, 200),
         ]);
     }
 

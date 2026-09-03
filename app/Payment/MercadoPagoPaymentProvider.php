@@ -59,6 +59,19 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
     }
 
     /**
+     * Ventana del Challenge 3DS — ~5 minutos según la documentación oficial
+     * ("Integrate 3DS"). Usada tanto para `three_ds_expires_at` (ver
+     * createPaymentAttempt()) como referencia única de este valor (nunca un
+     * número mágico repetido en dos sitios). PÚBLICA (ronda de
+     * recovery-gap): MercadoPagoPaymentReconciliationService::
+     * recoverChallengeFieldsIfMissing() la reutiliza al fijar
+     * `three_ds_expires_at` cuando un Challenge se recupera fuera de
+     * createPaymentAttempt() — misma referencia única, nunca un segundo
+     * número mágico en el servicio de reconciliación.
+     */
+    public const CHALLENGE_WINDOW_MINUTES = 5;
+
+    /**
      * @param  TokenizedPaymentInstrument|null  $instrument  Token ya generado por
      *         Card Payment Brick (CardPaymentInstrument) o `mp.yape.create()`
      *         (YapePaymentInstrument) — sin esto no hay forma de crear un
@@ -149,6 +162,27 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             'transaction_amount' => $this->amountMinorToApiNumber($order->amount_minor),
             'description' => 'Recarga de créditos MOVA: '.$recharge->package_name,
             'external_reference' => $order->externalReference(),
+            // Explícitos EN VEZ de confiar en el default de la API (ronda de
+            // hardening final 3DS, verificado vía MCP oficial contra los
+            // ejemplos de request body documentados de /v1/payments):
+            //   - 'capture' => true: captura inmediata (auto-capture), nunca
+            //     el flujo de dos pasos authorize→capture ("Capture
+            //     authorized payment") que MOVA no usa — mismo valor que el
+            //     default documentado, hecho explícito para no depender de
+            //     que ese default nunca cambie.
+            //   - 'binary_mode' => false: CRÍTICO para 3DS — la propia
+            //     documentación oficial ("Enable binary mode") advierte que
+            //     activarlo fuerza a Mercado Pago a solo devolver
+            //     approved/rejected, y "will by default automatically
+            //     reject" cualquier pago que quedaría pending/en revisión.
+            //     Un Challenge 3DS (status_detail='pending_challenge') ES
+            //     exactamente un resultado pending — con binary_mode=true el
+            //     Challenge nunca podría existir, Mercado Pago rechazaría el
+            //     pago de inmediato en su lugar. Mismo default documentado
+            //     (false), pero explícito porque este es el invariante que
+            //     hace posible todo el flujo de Challenge.
+            'capture' => true,
+            'binary_mode' => false,
             'payer' => $payer,
             ...$instrumentData,
         ];
@@ -323,6 +357,73 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
         $normalized = is_string($status) ? MercadoPagoPaymentStatusMapper::normalize($status, $statusDetail) : 'review';
         $localStatus = $normalized === 'failed' ? 'failed' : 'pending';
 
+        // 3DS CHALLENGE (MOVA Card Payment Brick 3DS): status_detail
+        // 'pending_challenge' ya cae en la rama $localStatus='pending' de
+        // arriba (ningún riesgo financiero nuevo — sigue sin acreditar nada
+        // hasta reconciliación server-to-server). Lo único que agrega esta
+        // sección es EXTRAER `three_ds_info.{external_resource_url,creq}` de
+        // la MISMA respuesta síncrona para que el frontend pueda dibujar el
+        // iframe del Challenge — ver extractChallengeFields().
+        //
+        // CHALLENGE TIMEOUT (ronda de semántica final): `three_ds_expires_at`
+        // es una columna DEDICADA — NUNCA se reutiliza `payment_orders.expires_at`.
+        // Esa otra columna ya tiene un significado propio, más amplio, y
+        // DECLARADO desde la migración original que creó payment_orders
+        // ("PaymentOrder solo agrega lo específico del proveedor externo: su
+        // id remoto, su estado de cobro, su expiración"): expiración del
+        // INTENTO COMPLETO frente al proveedor, emparejada con el propio
+        // `status` enum ('created','pending','paid','failed','expired',
+        // 'cancelled') — 'expired' se LEE como estado terminal en varios
+        // puntos (resolveAttemptRow(), applyPaid/applyFailed(),
+        // PaymentWebhookService, safeStatus()) aunque hoy ningún código
+        // todavía lo ESCRIBA. Un futuro barrido genérico que sí lo escriba
+        // ("intento vencido → status=expired") interpretaría CUALQUIER
+        // `expires_at` pasado como "este PaymentOrder entero está muerto,
+        // bloquea un reintento" — mucho más severo que lo que el vencimiento
+        // de un Challenge debe causar (solo ocultar el iframe, jamás tocar
+        // `status` ni bloquear resolveAttemptRow()). Pisar esa columna habría
+        // sido una colisión de significado silenciosa; de ahí la columna
+        // separada — ver migración.
+        //
+        // Se fija SOLO cuando hay un Challenge utilizable (URL+creq
+        // válidos) — nunca para un 'pending_challenge' cuyo three_ds_info
+        // vino vacío/malformado, que de todas formas nunca expone
+        // action_required (ver CreditCheckoutController::safeStatus()).
+        // Vencida, el backend deja de exponer action_required (nunca marca
+        // el pago rechazado) mientras la reconciliación server-to-server
+        // sigue intentando resolver el intento por el camino normal.
+        //
+        // NUNCA SE DESLIZA (CHALLENGE EXPIRY MUST NEVER SLIDE): este bloque
+        // es el lugar PRIMARIO que escribe `three_ds_expires_at` a un valor
+        // no-null — corre EXCLUSIVAMENTE dentro de createPaymentAttempt(),
+        // que a su vez solo se invoca una vez por intento (resolveAttemptRow()
+        // nunca permite un segundo POST sobre una fila ya
+        // 'submitted'/pending_challenge activa). Ni reconcile() ni
+        // recordResolvedTruth() (ver MercadoPagoPaymentReconciliationService)
+        // tocan este campo para el desenlace 'pending' de cada poll — un
+        // Challenge repetidamente reconciliado mientras sigue sin resolverse
+        // NUNCA reinicia su ventana de 5 minutos. Ver
+        // test_challenge_expiry_never_slides_across_repeated_reconciliation().
+        //
+        // LOST-CREATE-RESPONSE RECOVERY (ronda de recovery-gap): el ÚNICO
+        // otro lugar que puede fijar `three_ds_expires_at`/challenge fields a
+        // no-null es MercadoPagoPaymentReconciliationService::
+        // recoverChallengeFieldsIfMissing() — y solo cuando esta misma
+        // escritura de aquí NUNCA llegó a ocurrir (la respuesta síncrona de
+        // creación se perdió, el intento quedó 'uncertain', y la
+        // recuperación por external_reference encontró el pago con un
+        // Challenge todavía utilizable). Ese método respeta el MISMO
+        // invariante "nunca se desliza" (solo escribe si el campo local
+        // sigue null) — ver su docblock.
+        $challengeData = $this->extractChallengeFields($statusDetail, $response->json('three_ds_info'));
+
+        $challengeFields = [
+            ...$challengeData,
+            'three_ds_expires_at' => $challengeData['three_ds_challenge_url'] !== null && $challengeData['three_ds_creq'] !== null
+                ? now()->addMinutes(self::CHALLENGE_WINDOW_MINUTES)
+                : null,
+        ];
+
         $order->update([
             'provider_order_id' => (string) $paymentId,
             'status' => $localStatus,
@@ -334,9 +435,81 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             'submission_status' => 'submitted',
             'provider_status' => is_string($status) ? $status : null,
             'provider_status_detail' => $statusDetail,
+            ...$challengeFields,
         ]);
 
         return $order->fresh();
+    }
+
+    /**
+     * SINGLE CHALLENGE EXTRACTION BOUNDARY (ronda de recovery-gap): único
+     * lugar de todo el archivo que interpreta `three_ds_info` — usado tanto
+     * por la respuesta síncrona de creación (createPaymentAttempt(), vía
+     * `$response->json('three_ds_info')`) como por CUALQUIER lectura
+     * posterior del mismo pago (mapPaymentJson(), compartido por
+     * fetchPayment()/GET y searchPaymentsByExternalReference()/search).
+     * safeChallengeUrl() sigue siendo el único validador HTTPS — nunca
+     * duplicado en ninguno de los caminos que pueden ingerir `three_ds_info`.
+     *
+     * Gateado por `$statusDetail === 'pending_challenge'`: nunca se intenta
+     * extraer/exponer un Challenge para un pago cuyo status_detail no lo
+     * declara, sin importar qué traiga el body — antes este gate vivía
+     * suelto en el único llamador que existía (createPaymentAttempt());
+     * ahora vive una sola vez aquí, para que un segundo llamador (
+     * mapPaymentJson()) no tenga que repetirlo ni pueda olvidarlo.
+     *
+     * Defensivo por diseño (fail closed a null, nunca una excepción):
+     * `three_ds_info` es un campo documentado pero no forma parte de
+     * ninguna verdad financiera — si viniera ausente/malformado, el intento
+     * sigue resolviéndose igual por su camino normal (status/status_detail),
+     * solo que sin datos utilizables para dibujar el iframe.
+     *
+     * @return array{three_ds_challenge_url:?string,three_ds_creq:?string}
+     */
+    private function extractChallengeFields(?string $statusDetail, mixed $threeDsInfo): array
+    {
+        if ($statusDetail !== 'pending_challenge') {
+            return ['three_ds_challenge_url' => null, 'three_ds_creq' => null];
+        }
+
+        $url = is_array($threeDsInfo) ? ($threeDsInfo['external_resource_url'] ?? null) : null;
+        $creq = is_array($threeDsInfo) ? ($threeDsInfo['creq'] ?? null) : null;
+
+        return [
+            'three_ds_challenge_url' => $this->safeChallengeUrl($url),
+            'three_ds_creq' => is_string($creq) && $creq !== '' ? $creq : null,
+        ];
+    }
+
+    /**
+     * CHALLENGE URL SAFETY (ronda de hardening final): `external_resource_url`
+     * es un valor que MOVA nunca genera, solo reenvía tal cual al frontend
+     * (ver mercadoPagoChallenge.js) para que arme un <form method="post"
+     * action="...">. Un valor malformado o con un scheme distinto de
+     * `https` (`javascript:`, `data:`, `file:`, o incluso `http:` sin TLS)
+     * NUNCA se persiste — se descarta a null, lo que hace que
+     * CreditCheckoutController::safeStatus() jamás exponga action_required
+     * para este intento (el chequeo exige AMBOS `three_ds_challenge_url` y
+     * `three_ds_creq` no-null). Deliberadamente SIN whitelist de host de
+     * banco: el ACS puede ser cualquier emisor, la documentación oficial no
+     * publica una lista cerrada de dominios.
+     */
+    private function safeChallengeUrl(mixed $url): ?string
+    {
+        if (! is_string($url) || $url === '') {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if (! is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])) {
+            Log::warning('[MercadoPago] three_ds_info.external_resource_url no es HTTPS válida — descartada, el Challenge no se expondrá al frontend.', [
+                'scheme' => is_array($parts) ? ($parts['scheme'] ?? null) : null,
+            ]);
+
+            return null;
+        }
+
+        return $url;
     }
 
     /**
@@ -695,7 +868,8 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
      *   id:string,status:string,status_detail:?string,transaction_amount:?float,
      *   transaction_amount_refunded:?float,currency_id:?string,
      *   external_reference:?string,collector_id:?string,
-     *   payment_method_id:?string,payment_type_id:?string
+     *   payment_method_id:?string,payment_type_id:?string,
+     *   three_ds_challenge_url:?string,three_ds_creq:?string
      * }|null
      */
     public function fetchPayment(string $paymentId): ?array
@@ -763,7 +937,21 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
      * Un array vacío `[]` SÍ es un resultado válido y distinto: "Mercado
      * Pago confirma que no existe ningún pago con esa referencia todavía".
      *
-     * @return array<int,array{id:string,status:string,status_detail:?string,transaction_amount:?float,transaction_amount_refunded:?float,currency_id:?string,external_reference:?string,collector_id:?string,payment_method_id:?string,payment_type_id:?string}>|null
+     * SEARCH SUMMARY FALLBACK (ronda de recovery-gap): este endpoint es de
+     * BÚSQUEDA — nada garantiza que su resumen incluya `three_ds_info` igual
+     * que la respuesta síncrona de creación (mapPaymentJson() de todas
+     * formas intenta extraerlo vía el mismo boundary único, sin asumir que
+     * nunca vendrá). No hace falta un GET adicional aquí para compensar
+     * eso: reconcileUncertainSubmission() SIEMPRE reutiliza reconcile() en
+     * cuanto encuentra un único resultado que coincide, y reconcile()
+     * SIEMPRE hace su propio `fetchPayment()` (GET canónico por id) antes de
+     * decidir nada — ese GET, no este search, es el que realmente puede
+     * recuperar el Challenge si el resumen de búsqueda no lo trajo (ver
+     * MercadoPagoPaymentReconciliationService::recoverChallengeFieldsIfMissing()).
+     * Ningún presupuesto/backoff de recuperación se ve afectado — cero
+     * llamadas HTTP nuevas, solo se aprovecha la que este flujo ya hacía.
+     *
+     * @return array<int,array{id:string,status:string,status_detail:?string,transaction_amount:?float,transaction_amount_refunded:?float,currency_id:?string,external_reference:?string,collector_id:?string,payment_method_id:?string,payment_type_id:?string,three_ds_challenge_url:?string,three_ds_creq:?string}>|null
      */
     public function searchPaymentsByExternalReference(string $externalReference): ?array
     {
@@ -840,8 +1028,23 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
      * exactamente la misma forma a MercadoPagoPaymentReconciliationService.
      * Devuelve null si `id`/`status` no están utilizables (fail closed).
      *
+     * three_ds_challenge_url/three_ds_creq (ronda de recovery-gap): incluidos
+     * aquí vía extractChallengeFields() — el MISMO boundary único que usa
+     * createPaymentAttempt(), nunca una segunda copia de la lógica de
+     * extracción/validación HTTPS. La documentación oficial de Payments API
+     * no confirma que `three_ds_info` se repita en GET/search (el ejemplo
+     * documentado solo lo muestra en la respuesta síncrona de creación — ver
+     * docblock de la migración que agregó estas columnas), así que en la
+     * práctica esto resuelve a null casi siempre en este método; se
+     * mantiene de todas formas como boundary único en vez de asumir que la
+     * creación es la ÚNICA fuente posible — ver
+     * MercadoPagoPaymentReconciliationService::recoverChallengeFieldsIfMissing(),
+     * que consume estos dos campos si alguna vez vinieran no-null desde
+     * aquí (recuperación de un Challenge cuya respuesta de creación se
+     * perdió).
+     *
      * @param  array<string,mixed>  $payment
-     * @return array{id:string,status:string,status_detail:?string,transaction_amount:?float,transaction_amount_refunded:?float,currency_id:?string,external_reference:?string,collector_id:?string,payment_method_id:?string,payment_type_id:?string}|null
+     * @return array{id:string,status:string,status_detail:?string,transaction_amount:?float,transaction_amount_refunded:?float,currency_id:?string,external_reference:?string,collector_id:?string,payment_method_id:?string,payment_type_id:?string,three_ds_challenge_url:?string,three_ds_creq:?string}|null
      */
     private function mapPaymentJson(array $payment): ?array
     {
@@ -852,10 +1055,12 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             return null;
         }
 
+        $statusDetail = $payment['status_detail'] ?? null;
+
         return [
             'id' => (string) $id,
             'status' => $status,
-            'status_detail' => $payment['status_detail'] ?? null,
+            'status_detail' => $statusDetail,
             'transaction_amount' => $payment['transaction_amount'] ?? null,
             'transaction_amount_refunded' => $payment['transaction_amount_refunded'] ?? null,
             'currency_id' => $payment['currency_id'] ?? null,
@@ -863,6 +1068,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             'collector_id' => isset($payment['collector_id']) ? (string) $payment['collector_id'] : null,
             'payment_method_id' => $payment['payment_method_id'] ?? null,
             'payment_type_id' => $payment['payment_type_id'] ?? null,
+            ...$this->extractChallengeFields(is_string($statusDetail) ? $statusDetail : null, $payment['three_ds_info'] ?? null),
         ];
     }
 
@@ -938,6 +1144,18 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 'token' => $instrument->token,
                 'payment_method_id' => $instrument->paymentMethodId,
                 'installments' => $instrument->installments,
+                // 3DS (MOVA Card Payment Brick 3DS): verificado vía MCP
+                // oficial contra la documentación vigente de Payments API
+                // ("Integrate 3DS") — 'optional' es el único valor no-default
+                // documentado ("3DS may or may not be required, depending on
+                // the risk profile of the transaction") y el que Mercado
+                // Pago recomienda explícitamente para balancear seguridad y
+                // aprobación; el otro valor documentado, 'not_supported', es
+                // el default y equivale a no mandar el campo. Solo para
+                // tarjetas — Yape ya tiene su propio mecanismo de
+                // autenticación (OTP en la app) y Payments API no documenta
+                // three_d_secure_mode para ese medio de pago.
+                'three_d_secure_mode' => 'optional',
             ];
 
             if ($instrument->issuerId !== null) {

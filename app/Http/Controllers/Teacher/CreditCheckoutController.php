@@ -244,7 +244,7 @@ class CreditCheckoutController extends Controller
 
         $recharge = $recharge->fresh(['latestPaymentOrder']);
 
-        return response()->json($this->safeStatus($recharge, $recharge->latestPaymentOrder));
+        return $this->uncachedJson($this->safeStatus($recharge, $recharge->latestPaymentOrder));
     }
 
     /**
@@ -294,7 +294,7 @@ class CreditCheckoutController extends Controller
         $this->authorize('view', $recharge);
         abort_unless($recharge->payment_method === 'mercadopago', 404);
 
-        return response()->json($this->safeStatus($recharge, $recharge->latestPaymentOrder));
+        return $this->uncachedJson($this->safeStatus($recharge, $recharge->latestPaymentOrder));
     }
 
     /**
@@ -328,7 +328,21 @@ class CreditCheckoutController extends Controller
             $recharge = $recharge->fresh();
         }
 
-        return response()->json($this->safeStatus($recharge, $order));
+        return $this->uncachedJson($this->safeStatus($recharge, $order));
+    }
+
+    /**
+     * CACHE SAFETY (ronda de hardening final): status/refresh/pay exponen
+     * `action_required.creq` (dato de un solo Challenge, ~5 min de validez —
+     * ver MercadoPagoPaymentProvider::CHALLENGE_WINDOW_MINUTES) y el estado
+     * financiero del profesor — ningún caché compartido/de navegador debe
+     * guardar una respuesta que puede quedar obsoleta en segundos. Mismo
+     * patrón que LessonController::show() para el token de Jitsi. El schema
+     * de la respuesta no cambia — solo el header.
+     */
+    private function uncachedJson(array $payload)
+    {
+        return response()->json($payload)->header('Cache-Control', 'no-store, private');
     }
 
     /**
@@ -386,7 +400,7 @@ class CreditCheckoutController extends Controller
      * verdaderamente autoritativa, nunca el status local de PaymentOrder
      * por sí solo.
      *
-     * @return array{status:string,message:string,credits_credited:bool,action_required:?string}
+     * @return array{status:string,message:string,credits_credited:bool,action_required:?array{type:string,payment_id:?string,external_resource_url:string,creq:string}}
      */
     private function safeStatus(RechargeRequest $recharge, ?PaymentOrder $order): array
     {
@@ -424,16 +438,62 @@ class CreditCheckoutController extends Controller
             return $this->statusPayload('pending', $uncertainMessage, false);
         }
 
+        // 3DS CHALLENGE (MOVA Card Payment Brick 3DS): esta rama es la
+        // única donde `action_required` puede traer algo — un intento
+        // 'pending' (no uncertain/review/failed/paid) cuyo último
+        // status_detail conocido de Mercado Pago sigue siendo
+        // 'pending_challenge' Y ya tiene los dos datos del iframe
+        // persistidos (ver MercadoPagoPaymentProvider::extractChallengeFields();
+        // desde la ronda de recovery-gap, esta persistencia puede venir tanto
+        // de createPaymentAttempt() como de MercadoPagoPaymentReconciliationService::
+        // recoverChallengeFieldsIfMissing() — a safeStatus() no le importa cuál).
+        // Self-correcting: en cuanto una reconciliación posterior actualice
+        // provider_status_detail a cualquier otro valor (aprobado, fallido,
+        // u otro tipo de pending), esta condición deja de cumplirse sola —
+        // nunca hace falta borrar three_ds_challenge_url/creq a mano fuera
+        // de los casos terminales (ver MercadoPagoPaymentReconciliationService).
+        if ($order->provider_status_detail === 'pending_challenge'
+            && $order->three_ds_challenge_url !== null
+            && $order->three_ds_creq !== null) {
+            // CHALLENGE TIMEOUT (ronda de hardening final): la ventana del
+            // Challenge (~5 min, ver
+            // MercadoPagoPaymentProvider::CHALLENGE_WINDOW_MINUTES) se evalúa
+            // aquí con el reloj de MOVA (`now()`), no con nada que el
+            // proveedor reporte — así que aunque reconcile() nunca se
+            // volviera a llamar, el frontend deja de recibir un iframe
+            // vencido en cuanto pasa el tiempo. NUNCA se marca
+            // 'failed'/'rejected' por esto solo: el estado sigue 'pending' —
+            // sigue siendo desconocido hasta que la reconciliación
+            // server-to-server (disparada por refresh(), que el frontend
+            // sigue llamando mientras status='pending') resuelva el intento
+            // por el camino normal.
+            //
+            // `three_ds_expires_at`, NUNCA `expires_at` — columna dedicada
+            // (ver docblock de MercadoPagoPaymentProvider::createPaymentAttempt(),
+            // sección CHALLENGE TIMEOUT): `expires_at` ya tiene su propio
+            // significado, más amplio, a nivel de todo el PaymentOrder.
+            if ($order->three_ds_expires_at !== null && $order->three_ds_expires_at->isPast()) {
+                return $this->statusPayload('pending', 'La ventana de verificación de tu banco venció. Estamos confirmando el resultado con Mercado Pago — no vuelvas a pagar mientras tanto.', false);
+            }
+
+            return $this->statusPayload('pending', 'Tu banco pide una verificación adicional. Complétala en la ventana de abajo sin cerrar esta pantalla.', false, [
+                'type' => 'challenge',
+                'payment_id' => $order->provider_order_id,
+                'external_resource_url' => $order->three_ds_challenge_url,
+                'creq' => $order->three_ds_creq,
+            ]);
+        }
+
         return $this->statusPayload('pending', $uncertainMessage, false);
     }
 
-    private function statusPayload(string $status, string $message, bool $creditsCredited): array
+    private function statusPayload(string $status, string $message, bool $creditsCredited, ?array $actionRequired = null): array
     {
         return [
             'status' => $status,
             'message' => $message,
             'credits_credited' => $creditsCredited,
-            'action_required' => null,
+            'action_required' => $actionRequired,
         ];
     }
 

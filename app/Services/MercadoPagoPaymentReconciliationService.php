@@ -43,6 +43,17 @@ use RuntimeException;
  * MercadoPagoPaymentProvider::classifyHttpFailure()) vía búsqueda DIRIGIDA
  * por external_reference — nunca confía en la respuesta síncrona ni en un
  * segundo camino de crédito.
+ *
+ * LOST-CREATE-RESPONSE RECOVERY (ronda de recovery-gap): cuando ese mismo
+ * intento incierto resulta ser un Challenge 3DS (Mercado Pago SÍ creó el
+ * pago con `status_detail=pending_challenge`, pero MOVA nunca llegó a
+ * persistir `three_ds_info` porque la respuesta síncrona se perdió), el GET
+ * canónico que reconcile() ya hace SIEMPRE antes de decidir nada puede
+ * traer un Challenge todavía utilizable — ver
+ * recoverChallengeFieldsIfMissing(), llamada desde applyResolved() para el
+ * desenlace 'pending'. Mismos invariantes que createPaymentAttempt(): nunca
+ * reemplaza un Challenge local ya válido, nunca desliza
+ * `three_ds_expires_at` una vez fijado, cero crédito.
  */
 class MercadoPagoPaymentReconciliationService
 {
@@ -321,13 +332,77 @@ class MercadoPagoPaymentReconciliationService
     /**
      * Registra la verdad resuelta (limpia cualquier review_reason previo) y
      * devuelve el outcome tal cual — helper compartido por las ramas que NO
-     * necesitan lógica adicional más allá de dejar constancia.
+     * necesitan lógica adicional más allá de dejar constancia. Para el
+     * desenlace 'pending', primero intenta recuperar campos de Challenge que
+     * el intento local nunca haya capturado (ver
+     * recoverChallengeFieldsIfMissing()) — nunca para 'paid'/'failed'/
+     * 'reversed', que ya limpian estos campos por su cuenta (applyPaid()/
+     * applyFailed()).
      */
     private function applyResolved(PaymentOrder $order, array $truth, string $outcome): string
     {
+        if ($outcome === 'pending') {
+            $this->recoverChallengeFieldsIfMissing($order, $truth);
+        }
+
         $this->recordResolvedTruth($order, $truth);
 
         return $outcome;
+    }
+
+    /**
+     * LOST-CREATE-RESPONSE RECOVERY (ronda de recovery-gap): si este intento
+     * local nunca capturó `three_ds_challenge_url`/`three_ds_creq` —
+     * típicamente porque la respuesta síncrona de creación se perdió
+     * (excepción de red, timeout) y este PaymentOrder llegó hasta aquí vía
+     * reconcileUncertainSubmission()/recuperación por external_reference,
+     * dejando el intento 'pending'/'pending_challenge' pero sin ningún dato
+     * para dibujar el iframe — y esta reconciliación trae un Challenge
+     * utilizable en `$truth` (ya extraído y validado HTTPS por el único
+     * boundary de extracción, ver
+     * MercadoPagoPaymentProvider::extractChallengeFields()/mapPaymentJson()),
+     * se persiste AQUÍ. Este es el ÚNICO lugar además de
+     * MercadoPagoPaymentProvider::createPaymentAttempt() que escribe estos
+     * tres campos a un valor no-null — nunca un segundo camino con su propia
+     * validación.
+     *
+     * NUNCA REEMPLAZA UN CHALLENGE YA VÁLIDO: gateado por
+     * `three_ds_challenge_url === null` (comprobado también sobre `creq` por
+     * si alguna vez quedaran inconsistentes entre sí) — un Challenge que el
+     * profesor ya está completando nunca se reinicia solo porque llegó otra
+     * reconciliación de por medio.
+     *
+     * NUNCA SE DESLIZA: `three_ds_expires_at` solo se fija cuando este
+     * bloque decide persistir un Challenge recién recuperado — es decir,
+     * exactamente la primera vez que MOVA conoce este Challenge. Cualquier
+     * reconciliación posterior sobre el MISMO intento ya recuperado entra
+     * al gate de arriba con `three_ds_challenge_url` no-null y no vuelve a
+     * tocar nada — mismo invariante que createPaymentAttempt(), ver
+     * test_recovered_challenge_expiry_never_slides_across_repeated_reconciliation().
+     * Cero riesgo financiero: esta función nunca acredita ni cambia
+     * `status` — solo corre dentro del desenlace 'pending' ya decidido por
+     * el llamador.
+     *
+     * @param  array{three_ds_challenge_url?:?string,three_ds_creq?:?string}  $truth
+     */
+    private function recoverChallengeFieldsIfMissing(PaymentOrder $order, array $truth): void
+    {
+        if ($order->three_ds_challenge_url !== null || $order->three_ds_creq !== null) {
+            return;
+        }
+
+        $url = $truth['three_ds_challenge_url'] ?? null;
+        $creq = $truth['three_ds_creq'] ?? null;
+
+        if ($url === null || $creq === null) {
+            return;
+        }
+
+        $order->update([
+            'three_ds_challenge_url' => $url,
+            'three_ds_creq' => $creq,
+            'three_ds_expires_at' => now()->addMinutes(MercadoPagoPaymentProvider::CHALLENGE_WINDOW_MINUTES),
+        ]);
     }
 
     private function applyPaid(PaymentOrder $order, RechargeRequest $recharge, array $truth): string
@@ -349,7 +424,16 @@ class MercadoPagoPaymentReconciliationService
             return $order->status;
         }
 
-        $order->update(['status' => 'paid', 'paid_at' => now()]);
+        // three_ds_challenge_url/creq/expires_at (MOVA Card Payment Brick
+        // 3DS): dato puramente de presentación, ya inútil una vez resuelto
+        // el intento — ver docblock de la migración que las agregó. Limpiar
+        // aquí (no en recordResolvedTruth(), que también corre para el
+        // desenlace 'pending' de CADA poll) evita borrar el iframe del
+        // Challenge mientras el profesor todavía lo está completando.
+        // `three_ds_expires_at` — NUNCA `payment_orders.expires_at` (columna
+        // separada, significado separado — ver
+        // MercadoPagoPaymentProvider::createPaymentAttempt()).
+        $order->update(['status' => 'paid', 'paid_at' => now(), 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null]);
         // recordResolvedTruth() (no un update inline) para que la
         // transición review_reason≠null → null también fije
         // review_resolved_at cuando corresponda (ver REVIEW AUDIT).
@@ -377,7 +461,8 @@ class MercadoPagoPaymentReconciliationService
             return 'failed'; // ya terminal, idempotente
         }
 
-        $order->update(['status' => 'failed']);
+        // three_ds_challenge_url/creq/three_ds_expires_at: ver comentario equivalente en applyPaid().
+        $order->update(['status' => 'failed', 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null]);
         $this->recordResolvedTruth($order, $truth);
 
         return 'failed';
