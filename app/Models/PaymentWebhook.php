@@ -16,6 +16,7 @@ class PaymentWebhook extends Model
         'processed_at',
         'status',
         'error',
+        'recovery_attempts',
     ];
 
     protected $casts = [

@@ -5,6 +5,7 @@ namespace App\Payment;
 use App\Models\PaymentOrder;
 use App\Models\RechargeRequest;
 use App\Payment\Contracts\PaymentProviderContract;
+use App\Payment\Contracts\TokenizedPaymentInstrument;
 use RuntimeException;
 
 /**
@@ -23,7 +24,7 @@ use RuntimeException;
  */
 class CulqiPaymentProvider implements PaymentProviderContract
 {
-    public function createOrder(RechargeRequest $recharge): PaymentOrder
+    public function createPaymentAttempt(RechargeRequest $recharge, ?TokenizedPaymentInstrument $instrument = null): PaymentOrder
     {
         throw new RuntimeException(
             'CulqiPaymentProvider no está implementado todavía: MOVA no tiene cuenta '

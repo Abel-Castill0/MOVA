@@ -58,8 +58,22 @@ class RechargeRequest extends Model
         return $this->belongsTo(User::class, 'reversed_by');
     }
 
-    public function paymentOrder()
+    /**
+     * Todos los intentos de pago (ver PaymentOrder::$attempt_number) — ya
+     * no es 1:1: un intento rechazado no impide un segundo intento legítimo
+     * sobre la misma RechargeRequest.
+     */
+    public function paymentOrders()
     {
-        return $this->hasOne(PaymentOrder::class);
+        return $this->hasMany(PaymentOrder::class);
+    }
+
+    /**
+     * El intento más reciente — lo que casi siempre se quiere al preguntar
+     * "¿en qué quedó el pago de esta recarga?".
+     */
+    public function latestPaymentOrder()
+    {
+        return $this->hasOne(PaymentOrder::class)->latestOfMany('attempt_number');
     }
 }

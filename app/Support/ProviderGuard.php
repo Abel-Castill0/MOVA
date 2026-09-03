@@ -91,6 +91,45 @@ class ProviderGuard
     }
 
     /**
+     * Exige un conjunto mínimo de configuración cuando la integración está
+     * realmente habilitada — mismo espíritu fail-closed que resolve(), pero
+     * para variables que resolve() no puede validar por sí solo (no son "el
+     * nombre del proveedor", son datos específicos que el proveedor
+     * necesita para operar de forma segura). Sin esto, un operador podía
+     * dejar PAYMENTS_ENABLED=true + PAYMENT_PROVIDER=mercadopago con, por
+     * ejemplo, el binding de cuenta vendedora (expected_collector_id) sin
+     * configurar — el chequeo quedaba silenciosamente "omitido" en vez de
+     * bloquear el arranque, que es exactamente el defecto que este método
+     * corrige (sección de config fail-closed de la ronda de pivot a
+     * Payments API).
+     *
+     * @param  array<string,mixed>  $required  envVarName => valor actual de config
+     *
+     * @throws RuntimeException
+     */
+    public static function requireConfig(string $kind, bool $featureEnabled, array $required): void
+    {
+        if (! $featureEnabled) {
+            return;
+        }
+
+        $missing = [];
+        foreach ($required as $envVarName => $value) {
+            if ($value === null || $value === '') {
+                $missing[] = $envVarName;
+            }
+        }
+
+        if ($missing !== []) {
+            throw new RuntimeException(
+                "Configuración de {$kind} incompleta: faltan ".implode(', ', $missing).'. '
+                .'MOVA no arranca con pagos habilitados y configuración financiera incompleta '
+                .'(dejar un binding de seguridad sin configurar equivale a omitirlo en silencio).'
+            );
+        }
+    }
+
+    /**
      * Devuelve el valor permitido más parecido, si la diferencia es pequeña
      * (hasta 2 ediciones). Por encima de eso no es un typo sino otra cosa, y
      * sugerir algo lejano confundiría más que ayudar.

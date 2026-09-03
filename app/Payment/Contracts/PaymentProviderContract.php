@@ -17,13 +17,25 @@ use App\Payment\PaymentWebhookEvent;
 interface PaymentProviderContract
 {
     /**
-     * Crea la orden de pago remota para una RechargeRequest ya existente
-     * (con package_code/credits/amount_pen ya congelados desde
-     * config/credits.php) y devuelve el PaymentOrder local que la
+     * Crea/procesa UN intento de pago remoto para una RechargeRequest ya
+     * existente (con package_code/credits/amount_pen ya congelados desde
+     * config/credits.php) y devuelve el PaymentOrder local que lo
      * representa. El monto en amount_minor se congela aquí, en el momento
      * de creación — nunca se vuelve a leer el catálogo de paquetes.
+     *
+     * Renombrado desde `createOrder()` (ronda de pivot a Payments API): el
+     * nombre anterior sugería un recurso "order" de Mercado Pago Orders
+     * API, que este proyecto ya no usa — "payment attempt" es el concepto
+     * provider-agnostic real (una RechargeRequest puede tener varios
+     * intentos; ver PaymentOrder::$attempt_number).
+     *
+     * $instrument es opcional y provider-agnostic (TokenizedPaymentInstrument
+     * — nunca un array sin tipar, nunca algo específico de un proveedor).
+     * Money/créditos/moneda/referencia externa SIEMPRE los decide MOVA
+     * server-side a partir de $recharge — el instrumento solo carga el
+     * medio de pago ya tokenizado.
      */
-    public function createOrder(RechargeRequest $recharge): PaymentOrder;
+    public function createPaymentAttempt(RechargeRequest $recharge, ?TokenizedPaymentInstrument $instrument = null): PaymentOrder;
 
     /**
      * Verifica la autenticidad de un webhook entrante (firma/secreto del

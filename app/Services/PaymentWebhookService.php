@@ -25,9 +25,12 @@ use Throwable;
  *      RechargeApprovalService::credit() — este servicio JAMÁS toca
  *      credit_transactions/teacher_profiles directamente.
  *
- * No expone ninguna ruta HTTP todavía — se llama directamente desde tests
- * y, cuando exista CulqiPaymentProvider real, desde el controlador de
- * webhook que se agregue en esa fase.
+ * Para Mercado Pago (webhook HTTP real, ver MercadoPagoWebhookController)
+ * el flujo se parte en dos: el controller llama solo a persist() y responde
+ * 200 rápido; ProcessMercadoPagoWebhook (job en cola) hace la verificación
+ * server-to-server y aplica el resultado. handle() sigue siendo el camino
+ * síncrono completo (persist + procesar) que usan Fake/Culqi y los tests
+ * existentes — no cambió de comportamiento.
  */
 class PaymentWebhookService
 {
@@ -35,10 +38,17 @@ class PaymentWebhookService
     {
     }
 
-    public function handle(string $provider, PaymentWebhookEvent $event): PaymentWebhook
+    /**
+     * Solo la mitad de persistencia/dedupe — UNIQUE(provider,event_id) es
+     * la garantía de que un mismo evento externo nunca se procesa dos
+     * veces, con o sin cola de por medio. `$webhook->wasRecentlyCreated`
+     * distingue "evento nuevo, hay que procesarlo" de "ya lo vimos, no
+     * hacer nada más" para el llamador (controller o handle() mismo).
+     */
+    public function persist(string $provider, PaymentWebhookEvent $event): PaymentWebhook
     {
         try {
-            $webhook = PaymentWebhook::create([
+            return PaymentWebhook::create([
                 'provider' => $provider,
                 'event_id' => $event->eventId,
                 'event_type' => $event->eventType,
@@ -50,9 +60,19 @@ class PaymentWebhookService
         } catch (UniqueConstraintViolationException) {
             // Evento ya visto antes (retry/duplicado del proveedor) — no se
             // reprocesa; se devuelve el registro original tal cual quedó.
+            // wasRecentlyCreated es false en un modelo obtenido por
+            // where()->firstOrFail(), nunca true por accidente aquí.
             return PaymentWebhook::where('provider', $provider)
                 ->where('event_id', $event->eventId)
                 ->firstOrFail();
+        }
+    }
+
+    public function handle(string $provider, PaymentWebhookEvent $event): PaymentWebhook
+    {
+        $webhook = $this->persist($provider, $event);
+        if (! $webhook->wasRecentlyCreated) {
+            return $webhook;
         }
 
         try {

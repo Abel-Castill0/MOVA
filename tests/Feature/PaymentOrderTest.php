@@ -43,7 +43,7 @@ class PaymentOrderTest extends TestCase
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile, amountPen: '30.00', credits: 15);
 
-        $order = app(FakePaymentProvider::class)->createOrder($recharge);
+        $order = app(FakePaymentProvider::class)->createPaymentAttempt($recharge);
 
         $this->assertSame($recharge->id, $order->recharge_request_id);
         $this->assertSame('fake', $order->provider);
@@ -54,15 +54,22 @@ class PaymentOrderTest extends TestCase
         $this->assertNotNull($order->expires_at);
     }
 
-    public function test_a_recharge_request_can_only_have_one_payment_order(): void
+    public function test_a_recharge_request_cannot_have_two_payment_orders_with_the_same_attempt_number(): void
     {
+        // UNIQUE(recharge_request_id, attempt_number) — reemplaza al viejo
+        // UNIQUE(recharge_request_id) simple (ver migración
+        // 2026_09_01_000002_add_attempt_number_to_payment_orders_table):
+        // dos filas para el MISMO intento siguen bloqueadas; un SEGUNDO
+        // intento legítimo (attempt_number distinto) sí está permitido —
+        // ver MercadoPagoPaymentProviderTest para ese caso.
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile);
-        app(FakePaymentProvider::class)->createOrder($recharge);
+        app(FakePaymentProvider::class)->createPaymentAttempt($recharge); // attempt_number=1 por default
 
         $this->expectException(\Illuminate\Database\QueryException::class);
         PaymentOrder::create([
             'recharge_request_id' => $recharge->id,
+            'attempt_number' => 1,
             'provider' => 'fake',
             'provider_order_id' => 'fake_otra',
             'status' => 'created',
@@ -76,7 +83,7 @@ class PaymentOrderTest extends TestCase
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
         $provider = app(FakePaymentProvider::class);
-        $order = $provider->createOrder($recharge);
+        $order = $provider->createPaymentAttempt($recharge);
         $event = $provider->simulatePaidEvent($order, eventId: 'evt_fixed_1');
 
         $webhook = app(PaymentWebhookService::class)->handle('fake', $event);
@@ -94,7 +101,7 @@ class PaymentOrderTest extends TestCase
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
         $provider = app(FakePaymentProvider::class);
-        $order = $provider->createOrder($recharge);
+        $order = $provider->createPaymentAttempt($recharge);
         $event = $provider->simulatePaidEvent($order, eventId: 'evt_fixed_dup');
 
         $service = app(PaymentWebhookService::class);
@@ -114,7 +121,7 @@ class PaymentOrderTest extends TestCase
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
         $provider = app(FakePaymentProvider::class);
-        $order = $provider->createOrder($recharge);
+        $order = $provider->createPaymentAttempt($recharge);
         $service = app(PaymentWebhookService::class);
 
         $service->handle('fake', $provider->simulatePaidEvent($order, eventId: 'evt_a'));
@@ -129,7 +136,7 @@ class PaymentOrderTest extends TestCase
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile);
         $provider = app(FakePaymentProvider::class);
-        $order = $provider->createOrder($recharge);
+        $order = $provider->createPaymentAttempt($recharge);
 
         app(PaymentWebhookService::class)->handle('fake', $provider->simulateFailedEvent($order));
 
@@ -213,7 +220,7 @@ class PaymentOrderTest extends TestCase
         $culqi = new CulqiPaymentProvider();
 
         $this->expectException(RuntimeException::class);
-        $culqi->createOrder($recharge);
+        $culqi->createPaymentAttempt($recharge);
     }
 
     public function test_container_resolves_fake_provider_by_default(): void

@@ -5,6 +5,7 @@ namespace App\Payment;
 use App\Models\PaymentOrder;
 use App\Models\RechargeRequest;
 use App\Payment\Contracts\PaymentProviderContract;
+use App\Payment\Contracts\TokenizedPaymentInstrument;
 use Illuminate\Support\Str;
 
 /**
@@ -19,7 +20,7 @@ use Illuminate\Support\Str;
  */
 class FakePaymentProvider implements PaymentProviderContract
 {
-    public function createOrder(RechargeRequest $recharge): PaymentOrder
+    public function createPaymentAttempt(RechargeRequest $recharge, ?TokenizedPaymentInstrument $instrument = null): PaymentOrder
     {
         return PaymentOrder::create([
             'recharge_request_id' => $recharge->id,
