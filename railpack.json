@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": {
+    "php": "8.3"
+  },
+  "deploy": {
+    "variables": {
+      "RAILPACK_SKIP_MIGRATIONS": "true"
+    }
+  }
+}

@@ -8,12 +8,13 @@ use Illuminate\Console\Command;
 /**
  * Comando de recuperación durable — reutilizable, seguro de correr las
  * veces que haga falta (ver docblock de MercadoPagoWebhookRecoveryService:
- * nunca duplica créditos/reversals). NO está agendado en el scheduler —
- * decisión explícita pendiente del operador (agregar
- * `$schedule->command('mercadopago:reconcile')->everyFiveMinutes()` en
- * app/Console/Kernel.php); mientras tanto es un PRODUCTION BLOCKER
- * explícito: sin scheduler, la recuperación solo corre si alguien la
- * ejecuta a mano.
+ * nunca duplica créditos/reversals). Agendado cada 5 minutos en
+ * app/Console/Kernel.php (PRODUCTION ENABLEMENT, readiness pass) — antes
+ * de eso era un PRODUCTION BLOCKER explícito: sin scheduler, la
+ * recuperación solo corría si alguien la ejecutaba a mano. Requiere que
+ * mova-scheduler esté realmente corriendo en Railway (ver
+ * docs/DEPLOY_RAILWAY.md) — el agendado por sí solo no basta si el
+ * servicio del scheduler está caído.
  *
  * Todos los umbrales vienen de config/payments.php ('mercadopago.recovery')
  * por defecto — las opciones de abajo solo existen para overridear un

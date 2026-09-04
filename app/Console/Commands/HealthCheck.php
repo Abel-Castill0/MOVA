@@ -109,6 +109,59 @@ class HealthCheck extends Command
             ];
         }
 
+        // PRODUCTION ENABLEMENT (readiness pass): "sync" es válido para el
+        // chequeo de arriba (SendClassReminders), pero rompe una premisa
+        // DISTINTA del webhook de Mercado Pago: MercadoPagoWebhookController
+        // encola ProcessMercadoPagoWebhook precisamente para responder
+        // rápido y nunca hacer el trabajo financiero (consulta a Mercado
+        // Pago, acreditación) dentro del ciclo de la request HTTP. Con
+        // QUEUE_CONNECTION=sync (el default de config/queue.php si la
+        // variable falta en Railway — ver docs/DEPLOY_RAILWAY.md), ese job
+        // se ejecuta INLINE dentro del propio POST del webhook: el ACK deja
+        // de ser rápido y un GET lento/caído a Mercado Pago retiene la
+        // respuesta al webhook en vez de solo el reintento del job.
+        if ($queueDriver === 'sync'
+            && (bool) config('payments.enabled', false)
+            && config('payments.provider') === 'mercadopago'
+            && (bool) config('payments.mercadopago.webhooks_enabled', false)
+        ) {
+            $warnings[] = [
+                'code'    => 'MERCADOPAGO_WEBHOOK_QUEUE_SYNC',
+                'message' => 'QUEUE_CONNECTION=sync con el webhook de Mercado Pago habilitado: '
+                    .'ProcessMercadoPagoWebhook se ejecutaría dentro del propio request HTTP del webhook '
+                    .'en vez de en el worker, perdiendo el ACK rápido y desacoplado que exige el diseño '
+                    .'del endpoint. Configura QUEUE_CONNECTION=database en Railway.',
+            ];
+        }
+
+        // PRODUCTION ENABLEMENT (Railpack reality check): withoutOverlapping()
+        // (classmate:send-reminders, mova:settle-lessons, mercadopago:reconcile
+        // — ver app/Console/Kernel.php) usa como mutex el cache store por
+        // defecto. Eso SOLO es un lock compartido entre procesos/réplicas si
+        // el store es realmente compartido (database/redis) — el default de
+        // config/cache.php (y de .env.example) es 'file', local al
+        // contenedor. En 'file' el lock sigue siendo válido dentro de un
+        // mismo proceso/contenedor (protege contra que schedule:work se
+        // solape consigo mismo), pero NO protege si mova-scheduler llegara a
+        // escalar a más de una réplica.
+        //
+        // CORREGIDO (Railpack runtime final gate): esto es SOLO informativo,
+        // nunca falla el health-check. La arquitectura de producción
+        // actualmente aceptada es CACHE_DRIVER=file + mova-scheduler en
+        // EXACTAMENTE 1 réplica (ver docs/DEPLOY_RAILWAY.md) — eso es una
+        // configuración válida y suficiente, no una que deba bloquear un
+        // despliegue o un gate de monitorización. 'file' en producción no
+        // es, por sí solo, evidencia de un problema: lo sería únicamente
+        // combinado con más de una réplica, y eso no es observable desde
+        // dentro de la aplicación.
+        $cacheStore  = config('cache.default');
+        $cacheDriver = config("cache.stores.{$cacheStore}.driver");
+        $checks['cache_driver'] = (string) $cacheDriver;
+
+        $info['scheduler_lock_shared'] = in_array($cacheDriver, ['database', 'redis'], true)
+            ? "sí (CACHE_DRIVER=\"{$cacheDriver}\")"
+            : "no (CACHE_DRIVER=\"{$cacheDriver}\") — válido siempre que mova-scheduler corra con exactamente 1 réplica";
+
         // ── F-20: el timeout del worker debe ser MENOR que retry_after ───
         // Si son iguales (lo estaban: ambos 90), un job que se acerca a su
         // límite puede liberarse a la cola y ser recogido por un segundo worker

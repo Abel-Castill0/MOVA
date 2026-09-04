@@ -1,5 +1,8 @@
 [build]
-builder = "nixpacks"
+# CORREGIDO (Railpack reality check): "nixpacks" ya no es un valor válido
+# en la documentación actual de Config-as-Code de Railway (solo RAILPACK
+# y DOCKERFILE) — Nixpacks está retirado.
+builder = "RAILPACK"
 buildCommand = """
 composer install --no-dev --optimize-autoloader && \
 npm ci && npm run build && \
@@ -10,6 +13,38 @@ php artisan storage:link
 """
 
 [deploy]
-startCommand = "while true; do php artisan config:clear && php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+# Este servicio define su propio `startCommand` explícito, así que NUNCA
+# invoca el `/start-container.sh` que Railpack genera para Laravel —
+# `RAILPACK_SKIP_MIGRATIONS` (ver railway.toml del servicio web) no
+# aplica aquí, este comando no corre `migrate` bajo ninguna condición.
+#
+# CORREGIDO (Railpack reality check): el loop manual anterior
+# (`while true; do schedule:run; sleep 60; done`) re-arranca Laravel
+# desde cero en cada vuelta y el próximo chequeo ocurre a
+# `runtime_del_comando + 60s` desde que TERMINÓ el anterior, no cada 60s
+# de reloj — si algo tarda (ej. un barrido lento de mercadopago:reconcile,
+# o Mercado Pago degradado), el siguiente `schedule:run` se corre tarde y
+# puede saltarse el minuto exacto que le tocaba a otro comando (ej.
+# classmate:send-reminders, que corre cada minuto).
+#
+# `php artisan schedule:work` es el mecanismo NATIVO de Laravel para
+# exactamente este caso (disponible desde Laravel 8, confirmado instalado
+# — `php artisan list schedule` sobre Laravel 10.50.2): un único proceso
+# de foreground que duerme hasta el siguiente límite exacto de minuto y
+# despacha los comandos debidos sin bloquear el propio chequeo del
+# scheduler en la duración de lo que dispara — sin loop de shell escrito
+# a mano. `config:clear` corre UNA sola vez al arrancar el proceso (no en
+# cada minuto, porque ahora es un solo proceso de larga duración, no un
+# `php artisan` nuevo por vuelta) — mismo patrón que ya usan mova-web/
+# mova-queue.
+#
+# INVARIANTE: este servicio debe correr con EXACTAMENTE 1 réplica. El
+# mutex de withoutOverlapping() usa el cache store por defecto
+# (config('cache.default')), que solo es un lock compartido entre
+# procesos si CACHE_DRIVER=database/redis está configurado — el default
+# del repo es 'file' (local al contenedor). No asumir protección contra
+# solapamiento entre réplicas sin haber confirmado eso primero (ver
+# docs/DEPLOY_RAILWAY.md).
+startCommand = "php artisan config:clear && php artisan schedule:work -v"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

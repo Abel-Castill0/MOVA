@@ -110,6 +110,61 @@ class SchedulerConfigurationTest extends TestCase
 
         $this->assertStringContainsString('classmate:send-reminders', $commands);
         $this->assertStringContainsString('mova:settle-lessons', $commands);
+        $this->assertStringContainsString('mercadopago:reconcile', $commands);
+    }
+
+    // PRODUCTION ENABLEMENT (readiness pass) — mercadopago:reconcile era un
+    // PRODUCTION BLOCKER explícito (ver docblock de
+    // App\Console\Commands\MercadoPagoReconcile) mientras no estuviera
+    // agendado: la recuperación de webhooks/pagos atascados solo corría si
+    // alguien la ejecutaba a mano. Este test fija que quede agendado y
+    // protegido, igual que los otros dos comandos de arriba.
+    public function test_mercadopago_reconcile_is_scheduled_and_protected_against_overlapping(): void
+    {
+        $this->assertTrue(
+            $this->findScheduled('mercadopago:reconcile')->withoutOverlapping,
+            'mercadopago:reconcile debe usar withoutOverlapping().'
+        );
+    }
+
+    // PAYMENT SCHEDULER ISOLATION GATE — inspecciona las propiedades reales
+    // del Event generado (Illuminate\Console\Scheduling\Event), no solo el
+    // string del comando: cadencia exacta, expiry corregido del mutex, y
+    // runInBackground() para que un barrido largo no bloquee
+    // classmate:send-reminders/mova:settle-lessons dentro del mismo
+    // schedule:run (ver comentario en app/Console/Kernel.php).
+    public function test_mercadopago_reconcile_runs_every_five_minutes_in_background_with_the_corrected_expiry(): void
+    {
+        $event = $this->findScheduled('mercadopago:reconcile');
+
+        $this->assertSame('*/5 * * * *', $event->expression, 'debe correr cada 5 minutos.');
+        $this->assertTrue($event->withoutOverlapping, 'debe seguir protegido contra solaparse consigo mismo.');
+        $this->assertSame(
+            900,
+            $event->expiresAt,
+            'expiry del mutex: 900 min, con margen sobre la cota de ~555 min derivada de retry(2,300) = 2 intentos.'
+        );
+        $this->assertTrue(
+            $event->runInBackground,
+            'debe correr en background para no bloquear otros eventos agendados en el mismo schedule:run.'
+        );
+    }
+
+    // Prueba negativa explícita del riesgo que runInBackground() cierra:
+    // classmate:send-reminders y mova:settle-lessons deben seguir agendados
+    // en foreground (bloquear intencionalmente NO es un problema para
+    // ellos — corren rápido) y sin verse afectados por el cambio anterior.
+    public function test_reminders_and_settlement_remain_scheduled_in_foreground_unaffected_by_reconcile(): void
+    {
+        $reminders = $this->findScheduled('classmate:send-reminders');
+        $this->assertSame('* * * * *', $reminders->expression);
+        $this->assertTrue($reminders->withoutOverlapping);
+        $this->assertFalse($reminders->runInBackground, 'no necesita background — no debe cambiar sin motivo.');
+
+        $settlement = $this->findScheduled('mova:settle-lessons');
+        $this->assertSame('0 * * * *', $settlement->expression);
+        $this->assertTrue($settlement->withoutOverlapping);
+        $this->assertFalse($settlement->runInBackground, 'no necesita background — no debe cambiar sin motivo.');
     }
 
     // ── Health check de configuración peligrosa ──────────────────────────
@@ -145,6 +200,110 @@ class SchedulerConfigurationTest extends TestCase
         config(['services.whatsapp.provider' => 'twilio']);
 
         $this->artisan('mova:health-check')->assertExitCode(1);
+    }
+
+    // PRODUCTION ENABLEMENT (readiness pass) — QUEUE_CONNECTION=sync es
+    // válido para el chequeo QUEUE_NOT_TRANSACTIONAL (SendClassReminders),
+    // pero rompe una premisa distinta: el webhook de Mercado Pago encola
+    // ProcessMercadoPagoWebhook precisamente para responder rápido y nunca
+    // hacer el trabajo financiero dentro del ciclo de la request. Con
+    // sync, ese job correría inline en el propio POST del webhook.
+    public function test_health_check_flags_sync_queue_when_mercadopago_webhook_is_enabled(): void
+    {
+        config([
+            'queue.default' => 'sync',
+            'payments.enabled' => true,
+            'payments.provider' => 'mercadopago',
+            'payments.mercadopago.webhooks_enabled' => true,
+        ]);
+
+        $this->artisan('mova:health-check')
+            ->expectsOutputToContain('MERCADOPAGO_WEBHOOK_QUEUE_SYNC')
+            ->assertExitCode(1);
+    }
+
+    public function test_health_check_does_not_flag_sync_queue_when_mercadopago_webhook_is_disabled(): void
+    {
+        // MERCADOPAGO_WEBHOOKS_ENABLED=false es el default seguro (el
+        // endpoint ya rechaza todo sin importar la firma) — sync no es
+        // peligroso todavía porque ProcessMercadoPagoWebhook no puede
+        // encolarse en absoluto mientras el webhook siga inerte.
+        config([
+            'queue.default' => 'sync',
+            'payments.enabled' => true,
+            'payments.provider' => 'mercadopago',
+            'payments.mercadopago.webhooks_enabled' => false,
+        ]);
+
+        $this->artisan('mova:health-check')->assertExitCode(0);
+    }
+
+    // PRODUCTION ENABLEMENT (Railpack runtime final gate) — CACHE_DRIVER=file
+    // + mova-scheduler en exactamente 1 réplica es la arquitectura de
+    // producción actualmente ACEPTADA (ver docs/DEPLOY_RAILWAY.md), no una
+    // configuración peligrosa. El estado del lock del scheduler es
+    // puramente informativo — nunca debe tumbar un health-check por sí
+    // solo, ni siquiera en producción.
+    public function test_health_check_reports_non_shared_cache_as_informational_only_in_production(): void
+    {
+        $this->app['env'] = 'production';
+        config(['cache.default' => 'array']);
+
+        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput();
+        $outputStyle = new \Illuminate\Console\OutputStyle(
+            new \Symfony\Component\Console\Input\ArrayInput(['--json' => true]),
+            $bufferedOutput
+        );
+        \Illuminate\Support\Facades\Artisan::call('mova:health-check', ['--json' => true], $outputStyle);
+        $decoded = json_decode($bufferedOutput->fetch(), true);
+
+        $codes = array_column($decoded['warnings'], 'code');
+        $this->assertNotContains('SCHEDULER_LOCK_NOT_SHARED', $codes, 'el estado del cache store no debe ser un warning que bloquea.');
+        $this->assertSame('array', $decoded['checks']['cache_driver']);
+        $this->assertStringContainsString('no (CACHE_DRIVER="array")', $decoded['info']['scheduler_lock_shared']);
+    }
+
+    public function test_health_check_reports_shared_cache_informationally(): void
+    {
+        $this->app['env'] = 'production';
+        config(['cache.default' => 'database']);
+
+        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput();
+        $outputStyle = new \Illuminate\Console\OutputStyle(
+            new \Symfony\Component\Console\Input\ArrayInput(['--json' => true]),
+            $bufferedOutput
+        );
+        \Illuminate\Support\Facades\Artisan::call('mova:health-check', ['--json' => true], $outputStyle);
+        $decoded = json_decode($bufferedOutput->fetch(), true);
+
+        $this->assertSame('database', $decoded['checks']['cache_driver']);
+        $this->assertStringContainsString('sí (CACHE_DRIVER="database")', $decoded['info']['scheduler_lock_shared']);
+    }
+
+    public function test_informational_checks_never_affect_the_exit_code_covers_scheduler_lock(): void
+    {
+        // Reafirma explícitamente para este check nuevo la garantía general
+        // ya cubierta por test_informational_checks_never_affect_the_exit_code:
+        // nada dentro de $info puede tumbar mova:health-check por sí solo,
+        // ni siquiera con la combinación más adversa (producción + cache no
+        // compartida + settlement en live, para aislar de otros warnings
+        // conocidos).
+        $this->app['env'] = 'production';
+        config([
+            'cache.default' => 'array',
+            'credits.settlement_mode' => SettlementMode::LIVE,
+        ]);
+
+        $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput();
+        $outputStyle = new \Illuminate\Console\OutputStyle(
+            new \Symfony\Component\Console\Input\ArrayInput(['--json' => true]),
+            $bufferedOutput
+        );
+        $exitCode = \Illuminate\Support\Facades\Artisan::call('mova:health-check', ['--json' => true], $outputStyle);
+        $decoded = json_decode($bufferedOutput->fetch(), true);
+
+        $this->assertNotContains('SCHEDULER_LOCK_NOT_SHARED', array_column($decoded['warnings'], 'code'));
+        $this->assertSame(0, $exitCode, 'un cache store no compartido en producción no debe hacer fallar el health-check por sí solo.');
     }
 
     // ── APP_DEBUG: peligroso solo en producción ───────────────────────────

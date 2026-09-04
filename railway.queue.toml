@@ -1,5 +1,8 @@
 [build]
-builder = "nixpacks"
+# CORREGIDO (Railpack reality check): "nixpacks" ya no es un valor válido
+# en la documentación actual de Config-as-Code de Railway (solo RAILPACK
+# y DOCKERFILE) — Nixpacks está retirado.
+builder = "RAILPACK"
 buildCommand = """
 composer install --no-dev --optimize-autoloader && \
 npm ci && npm run build && \
@@ -10,6 +13,11 @@ php artisan storage:link
 """
 
 [deploy]
+# Este servicio define su propio `startCommand` explícito, así que NUNCA
+# invoca el `/start-container.sh` que Railpack genera para Laravel —
+# `RAILPACK_SKIP_MIGRATIONS` (ver railway.toml del servicio web) no
+# aplica aquí, este comando no corre `migrate` bajo ninguna condición.
+#
 # F-20 — `--timeout` DEBE ser estrictamente menor que `retry_after`
 # (config/queue.php -> connections.database.retry_after = 90).
 #

@@ -1,5 +1,9 @@
 [build]
-builder = "nixpacks"
+# CORREGIDO (Railpack reality check): "nixpacks" ya no aparece como valor
+# válido en la documentación actual de Railway Config-as-Code (solo
+# RAILPACK y DOCKERFILE) — Nixpacks está retirado. Railpack es el builder
+# real que Railway usa hoy para este repo (PHP + artisan detectados).
+builder = "RAILPACK"
 buildCommand = """
 composer install --no-dev --optimize-autoloader && \
 npm ci && npm run build && \
@@ -10,7 +14,56 @@ php artisan storage:link
 """
 
 [deploy]
-startCommand = "php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
+# PRODUCTION ENABLEMENT (readiness pass, ver docs/DEPLOY_RAILWAY.md § "Servidor web"):
+#
+# 1) `migrate --force` vive en `preDeployCommand` — Railway lo corre UNA
+#    vez por deploy, en un contenedor aparte, ANTES de reemplazar el
+#    deploy anterior. Nunca en cada restart/réplica del proceso web.
+#
+# 2) `startCommand` se deja SIN definir: el Railpack PHP provider detecta
+#    Laravel (archivo `artisan`) y arranca FrankenPHP vía Caddy
+#    (`docker-php-entrypoint --config /Caddyfile --adapter caddyfile`,
+#    confirmado leyendo core/providers/php/start-container.sh del propio
+#    repo railwayapp/railpack) — nunca `php artisan serve`. El document
+#    root se detecta solo como `/app/public` cuando hay `artisan`
+#    (confirmado en core/providers/php/php.go: `getConfigFiles()`), así
+#    que NO hace falta declarar RAILPACK_PHP_ROOT_DIR a mano.
+#
+# 3) CRÍTICO — el propio script de arranque de Railpack para Laravel
+#    (`/start-container.sh`, generado por el builder, no por este repo)
+#    corre `php artisan migrate --force` EN CADA arranque del contenedor
+#    salvo que la variable `RAILPACK_SKIP_MIGRATIONS=true` esté puesta —
+#    es decir, sin esa variable, el mismo problema que preDeployCommand
+#    vino a resolver reaparece por otra vía. `railway.toml`/`railway.json`
+#    NO tiene sección de variables (confirmado en la documentación de
+#    Config-as-Code) — PERO `railpack.json` (raíz del repo) SÍ soporta
+#    `deploy.variables`, confirmado contra el schema oficial
+#    (schema.railpack.com: `deploy.variables`, objeto string→string) y
+#    contra el código fuente de railwayapp/railpack
+#    (core/generate/context.go: `maps.Copy(c.Deploy.Variables,
+#    c.Config.Deploy.Variables)` alimenta el mismo `AddEnvVars()` que fija
+#    variables de entorno reales del contenedor, como APP_ENV/IS_LARAVEL).
+#    Por eso `RAILPACK_SKIP_MIGRATIONS=true` está en `railpack.json`, NO
+#    solo documentado como paso manual — esta propiedad de correctitud ya
+#    no depende de que un humano recuerde agregar una variable en el
+#    dashboard de Railway. La única verificación pendiente es que el
+#    VALOR EFECTIVO en runtime sea `true` (ver checklist en
+#    docs/DEPLOY_RAILWAY.md) — no se pudo confirmar en vivo esta fase
+#    porque no se desplegó nada.
+#
+# El mismo script SIEMPRE corre (con o sin RAILPACK_SKIP_MIGRATIONS)
+# `storage:link`, `optimize:clear` y `optimize` en cada arranque — eso
+# reemplaza la necesidad de un `config:clear` manual que este repo usaba
+# antes: `optimize` recachea config/rutas/vistas con las variables de
+# entorno REALES del contenedor en ese momento, no con lo cacheado en
+# build. No confirmado contra un deploy real (fuera de alcance — no se
+# desplegó nada esta fase).
+#
+# VERIFICAR en el primer deploy real de mova-web: logs muestran a Caddy/
+# FrankenPHP arrancando (nunca "Server running on..." de `php artisan
+# serve`, y sin "Running migrations" repetido en cada restart una vez
+# puesta RAILPACK_SKIP_MIGRATIONS=true), `/healthz` responde 200.
+preDeployCommand = ["php artisan config:clear && php artisan migrate --force"]
 healthcheckPath = "/healthz"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
