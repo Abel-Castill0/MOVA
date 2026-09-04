@@ -1511,6 +1511,62 @@ class MercadoPagoPaymentProviderTest extends TestCase
         (new MercadoPagoPaymentProvider())->verifyWebhook(json_encode($payload), $this->validHeadersFor('74581527758'));
     }
 
+    /**
+     * ENVELOPE INTEGRITY (ronda de hardening de webhook): x-signature solo
+     * cubre `data.id` del QUERY STRING (ver
+     * MercadoPagoWebhookSignatureVerifier) — el body NUNCA está firmado.
+     * Una notificación con firma perfectamente válida para el data.id del
+     * query, pero con OTRO data.id en el body, debe rechazarse como
+     * malformed — nunca usarse para decidir qué PaymentOrder reconciliar.
+     */
+    public function test_verify_webhook_throws_when_body_data_id_does_not_match_signed_query_data_id(): void
+    {
+        // Firma válida para '74581527758' (el data.id que de verdad viaja
+        // en el query string firmado) — el body trae un data.id DISTINTO.
+        $payload = ['id' => '123456', 'type' => 'payment', 'data' => ['id' => '99999999999']];
+
+        $this->expectException(MalformedWebhookPayloadException::class);
+
+        (new MercadoPagoPaymentProvider())->verifyWebhook(json_encode($payload), $this->validHeadersFor('74581527758'));
+    }
+
+    /**
+     * data.id se normaliza a minúsculas antes de compararse (mismo criterio
+     * que ya aplica MercadoPagoWebhookSignatureVerifier al armar el
+     * manifest) — un body con el mismo id en otra capitalización nunca debe
+     * rechazarse solo por eso.
+     */
+    public function test_verify_webhook_accepts_body_data_id_matching_query_in_different_case(): void
+    {
+        $payload = ['id' => '123456', 'type' => 'payment', 'data' => ['id' => 'ORDER123']];
+
+        $event = (new MercadoPagoPaymentProvider())->verifyWebhook(json_encode($payload), $this->validHeadersFor('order123'));
+
+        $this->assertNotNull($event);
+        $this->assertSame('ORDER123', $event->providerOrderId);
+    }
+
+    /**
+     * CASO NEGATIVO CRÍTICO (cierre final de hardening): el algoritmo
+     * genérico de Mercado Pago OMITE del manifest cualquier componente
+     * ausente — así que una firma perfectamente válida puede construirse
+     * SIN NINGÚN componente "id:...;" en absoluto, simplemente no mandando
+     * data.id en el query. validHeadersFor(null) hace exactamente eso: HMAC
+     * real, válido, sobre un manifest sin id. Sin la firma atando NINGÚN
+     * data.id, un body que sí trae uno (el único id "real" que llegaría a
+     * usarse para decidir qué PaymentOrder reconciliar) nunca debe
+     * aceptarse — el query data.id es obligatorio para este endpoint
+     * (type=payment), sin excepción.
+     */
+    public function test_verify_webhook_throws_when_query_data_id_is_entirely_absent_even_with_a_body_data_id(): void
+    {
+        $payload = ['id' => '123456', 'type' => 'payment', 'data' => ['id' => '74581527758']];
+
+        $this->expectException(MalformedWebhookPayloadException::class);
+
+        (new MercadoPagoPaymentProvider())->verifyWebhook(json_encode($payload), $this->validHeadersFor(null));
+    }
+
     // ---- helpers ------------------------------------------------------------
 
     private function cardInstrument(): CardPaymentInstrument

@@ -150,6 +150,50 @@ class MercadoPagoWebhookControllerTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    /**
+     * ENVELOPE INTEGRITY: la firma solo cubre el data.id del QUERY STRING —
+     * un body con otro data.id (firma por lo demás válida) nunca debe
+     * persistirse ni encolarse (ver test unitario dedicado en
+     * MercadoPagoPaymentProviderTest para el detalle del chequeo).
+     */
+    public function test_body_data_id_mismatching_signed_query_data_id_returns_400(): void
+    {
+        Queue::fake();
+
+        $response = $this->postJson(
+            '/api/webhooks/mercadopago?data_id=ORD-ABC',
+            ['id' => 'evt-mismatch', 'type' => 'payment', 'data' => ['id' => 'ORD-OTHER']],
+            $this->validSignatureHeaders('ORD-ABC')
+        );
+
+        $response->assertStatus(400);
+        $this->assertDatabaseCount('payment_webhooks', 0);
+        Queue::assertNothingPushed();
+    }
+
+    /**
+     * CASO NEGATIVO CRÍTICO (cierre final de hardening), end-to-end: sin
+     * data.id en el query, una firma HMAC real puede construirse
+     * válidamente (el algoritmo genérico omite el componente ausente) —
+     * pero un body que sí trae data.id nunca debe aceptarse: la firma no
+     * ató ese id a nada. Nunca debe llegar a persistirse ni a encolar el
+     * job (cero GET al proveedor, cero crédito).
+     */
+    public function test_missing_query_data_id_with_a_body_data_id_returns_400_without_persisting(): void
+    {
+        Queue::fake();
+
+        $response = $this->postJson(
+            '/api/webhooks/mercadopago', // sin ?data_id= en absoluto
+            ['id' => 'evt-no-query-id', 'type' => 'payment', 'data' => ['id' => 'ORD-ABC']],
+            $this->validSignatureHeaders(null)
+        );
+
+        $response->assertStatus(400);
+        $this->assertDatabaseCount('payment_webhooks', 0);
+        Queue::assertNothingPushed();
+    }
+
     public function test_notification_with_unexpected_type_returns_400(): void
     {
         Queue::fake();
@@ -218,6 +262,50 @@ class MercadoPagoWebhookControllerTest extends TestCase
 
         $response->assertStatus(413);
         $this->assertDatabaseCount('payment_webhooks', 0);
+    }
+
+    // ---- REVIEW: entrega duplicada de un evento ya en dead-letter -------------
+
+    /**
+     * DUPLICATE REVIEW EVENT (cierre final de hardening): un evento que ya
+     * cayó en 'review' (dead-letter — ver
+     * MercadoPagoWebhookRecoveryService::requeueOrExhaustFailed() /
+     * MercadoPagoPaymentReconciliationService::markReview()) es un evento
+     * YA CONOCIDO. persist() siempre devuelve la fila EXISTENTE tal cual
+     * quedó (wasRecentlyCreated=false), sin tocar su status — ningún camino
+     * del controller ni del job resucita una fila 'review' (el job en sí
+     * también la ignora explícitamente, ver
+     * in_array($webhook->status, ['processed','review'])). Una segunda
+     * entrega EXACTA (mismo provider+event_id, firma válida) recibe 200
+     * (MOVA ya "vio" este evento — no tiene sentido que Mercado Pago lo
+     * siga reintentando), pero sin reencolar el job ni tocar el status: la
+     * fila queda en 'review' hasta una intervención manual explícita, que
+     * hoy no existe en ningún camino automático.
+     */
+    public function test_duplicate_delivery_of_an_already_review_event_never_resurrects_it(): void
+    {
+        Queue::fake();
+
+        $payload = ['id' => 'evt-already-review', 'type' => 'payment', 'data' => ['id' => 'ORD-ABC']];
+        $headers = $this->validSignatureHeaders('ORD-ABC');
+
+        $first = $this->postJson('/api/webhooks/mercadopago?data_id=ORD-ABC', $payload, $headers);
+        $first->assertStatus(200);
+
+        // Simula que, entre la primera y la segunda entrega, el evento ya
+        // cayó en 'review' (dead-letter) — p. ej. por
+        // MercadoPagoWebhookRecoveryService al agotar su retry budget.
+        $webhook = PaymentWebhook::where('event_id', 'evt-already-review')->firstOrFail();
+        $webhook->update(['status' => 'review', 'error' => 'discrepancia financiera — revisión manual pendiente']);
+
+        Queue::fake(); // reset: ninguna llamada nueva debería encolarse desde aquí
+
+        $second = $this->postJson('/api/webhooks/mercadopago?data_id=ORD-ABC', $payload, $headers);
+
+        $second->assertStatus(200);
+        $this->assertSame(1, PaymentWebhook::where('event_id', 'evt-already-review')->count());
+        $this->assertSame('review', $webhook->fresh()->status); // nunca resucitado a 'received'
+        Queue::assertNothingPushed();
     }
 
     /**

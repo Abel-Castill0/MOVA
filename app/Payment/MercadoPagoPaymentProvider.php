@@ -776,6 +776,13 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
      *     nunca como requisito de forma.
      *   - `user_id`: validado contra expected_collector_id cuando esté
      *     configurado (mismo criterio condicional).
+     *   - `data.id` del QUERY STRING (el único que cubre la firma) es
+     *     REQUERIDO para este endpoint — SIEMPRE, sin condición — y
+     *     `data.id` del BODY debe coincidir con él (ronda de hardening de
+     *     webhook, sección "ENVELOPE INTEGRITY" más abajo). Nunca se toca la
+     *     tolerancia genérica de `x-request-id` ausente del verificador de
+     *     firma — el contrato oficial la permite y sigue aplicando sin
+     *     cambios.
      *
      * @param  array<string,?string>  $headers
      *
@@ -804,6 +811,51 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
 
         if (! is_string($paymentId) && ! is_int($paymentId)) {
             throw new MalformedWebhookPayloadException('Falta data.id (id del pago) en la notificación.');
+        }
+
+        // ENVELOPE INTEGRITY (ronda de hardening de webhook, sección 3 +
+        // cierre final): el BODY de la notificación no está cubierto por
+        // x-signature — el manifest HMAC solo cubre `id` (data.id del QUERY
+        // STRING), `x-request-id` y `ts` (ver
+        // MercadoPagoWebhookSignatureVerifier), y el algoritmo genérico de
+        // Mercado Pago OMITE del manifest cualquier componente ausente en
+        // vez de rechazar — así que una firma perfectamente válida puede
+        // construirse SIN ningún componente `id:...;` en absoluto (basta con
+        // no mandar data.id en el query). Ese comportamiento genérico es
+        // correcto para el algoritmo en general, pero este endpoint
+        // solamente entiende `type=payment`, y confirmado contra el ejemplo
+        // oficial completo query+body+header ("Validar origen de la
+        // notificación", tópico payment) — nunca memoria de entrenamiento —
+        // Mercado Pago SIEMPRE entrega `data.id` en el query para este
+        // tópico. Por eso, para ESTE endpoint (nunca se toca la tolerancia
+        // genérica de x-request-id en el verificador, que sigue aplicando
+        // sin cambios), MOVA exige adicionalmente:
+        //   1. data.id del QUERY presente y no vacío — si falta, la firma
+        //      pudo haberse calculado válidamente sin NINGÚN componente id,
+        //      y el body pasaría data.id sin que la firma lo haya atado a
+        //      nada; rechazar aquí, no confiar en que "si falta, es
+        //      igual de por sí".
+        //   2. data.id del BODY coincide (normalizado a minúsculas, mismo
+        //      criterio que ya aplica el verificador de firma) con el del
+        //      query ya validado en el paso 1.
+        // Sin este chequeo, una notificación con firma válida (con o sin
+        // data.id en el query) podría traer un body con OTRO data.id,
+        // redirigiendo qué recurso se consulta vía fetchPayment(). El radio
+        // de impacto real ya está acotado — truthMatchesExpectedContext()
+        // exige que el pago pertenezca a un PaymentOrder que MOVA ya creó,
+        // así que esto nunca podría fabricar crédito — pero rechazar la
+        // inconsistencia aquí, antes de persistir/encolar nada, es más
+        // barato y más honesto que confiar solo en esa segunda capa.
+        if ($dataIdForSignature === null || $dataIdForSignature === '') {
+            throw new MalformedWebhookPayloadException(
+                'Falta data.id en el query string — requerido para este endpoint (type=payment); sin él, la firma no ata el body a ningún recurso.'
+            );
+        }
+
+        if (strtolower((string) $paymentId) !== strtolower($dataIdForSignature)) {
+            throw new MalformedWebhookPayloadException(
+                'data.id del body no coincide con el data.id firmado del query string.'
+            );
         }
 
         $type = $payload['type'] ?? null;

@@ -682,6 +682,61 @@ class ProcessMercadoPagoWebhookJobTest extends TestCase
         Http::assertNothingSent();
     }
 
+    // ---- PROCESSING: dos ejecuciones solapadas del MISMO webhook aún ---------
+    // 'received' (el schema no tiene un estado 'processing' intermedio — ver
+    // migración create_payment_webhooks_table; el job nunca marca nada
+    // mientras corre) ----------------------------------------------------------
+
+    /**
+     * Un segundo "worker" reentrante — disparado desde DENTRO del propio
+     * closure de Http::fake() que responde el GET del primero, mismo patrón
+     * ya usado en MercadoPagoLostChallengeCompensationTest para
+     * compensateLostChallenge() — corre su handle() COMPLETO (incluida su
+     * propia GET + reconcile()) antes de que el primer worker llegue a abrir
+     * su propia transacción/lockForUpdate() sobre la PaymentOrder. Prueba
+     * que la garantía real de exactamente-once bajo procesamiento
+     * concurrente del MISMO evento es el lock de fila de PaymentOrder +
+     * applyPaid() idempotente — NUNCA el status de payment_webhooks (que ni
+     * siquiera cambia entre los dos workers hasta que ambos terminan).
+     */
+    public function test_reentrant_processing_of_the_same_still_received_webhook_never_double_credits(): void
+    {
+        [$order, $recharge, $profile, $webhook] = $this->scenario(credits: 5, amountPen: '10.00');
+
+        $reentered = false;
+        Http::fake([
+            "api.mercadopago.com/v1/payments/{$order->provider_order_id}" => function () use (&$reentered, $webhook, $order) {
+                if (! $reentered) {
+                    $reentered = true;
+                    // El segundo worker ve el MISMO payment_webhook, todavía
+                    // 'received' (nadie lo marcó "processing" — no existe
+                    // ese estado) — corre a completitud, incluida su propia
+                    // llamada a fetchPayment() (que reentra en este mismo
+                    // closure con $reentered ya en true, sin recursión
+                    // infinita).
+                    $this->runJob($webhook->fresh());
+                }
+
+                return Http::response([
+                    'id' => $order->provider_order_id,
+                    'status' => 'approved',
+                    'status_detail' => 'accredited',
+                    'transaction_amount' => 10.0,
+                    'transaction_amount_refunded' => 0,
+                    'external_reference' => $order->externalReference(),
+                    'currency_id' => 'PEN',
+                ], 200);
+            },
+        ]);
+
+        $this->runJob($webhook);
+
+        $this->assertSame('paid', $order->fresh()->status);
+        $this->assertSame(5, $profile->fresh()->credits_available); // nunca 10
+        $this->assertSame(1, CreditTransaction::where('idempotency_key', "recharge:{$recharge->id}:deposit")->count());
+        $this->assertSame('processed', $webhook->fresh()->status);
+    }
+
     // ---- helpers --------------------------------------------------------------
 
     private function runJob(PaymentWebhook $webhook): void
