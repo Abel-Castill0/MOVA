@@ -419,10 +419,55 @@ class CreditCheckoutController extends Controller
         }
 
         if ($order->review_reason !== null) {
+            // Cualquier anomalía real (mismatch de monto/moneda/referencia,
+            // refund inconsistente, etc. — ver
+            // MercadoPagoPaymentReconciliationService::markReview()) gana
+            // siempre sobre la copia de compensación de abajo: si ADEMÁS
+            // este intento calzara en el escenario de Challenge perdido,
+            // sigue siendo más seguro pedirle al profesor que espere una
+            // revisión que prometerle que "ya se está cerrando" mientras
+            // hay algo sin resolver que un humano debe mirar primero.
             return $this->statusPayload('review', $uncertainMessage, false);
         }
 
+        // COMPENSATING CANCELLATION (LOST 3DS CHALLENGE, ronda de
+        // auditoría de seguridad financiera final): condición PURAMENTE
+        // DERIVADA de columnas ya persistidas — NUNCA un marcador escrito
+        // solo para esto (una ronda anterior escribía `provider_status =
+        // 'compensating_cancel'`, corregido: esa columna está documentada
+        // como "último status/status_detail CRUDO que el proveedor
+        // reportó" — ver migración 2026_09_01_000005 — y jamás debe
+        // contener un valor sintético de MOVA).
+        // isLostChallengeCompensationCandidate() es una lectura PURA (sin
+        // efectos secundarios, sin I/O, sin escritura) — preserva el
+        // invariante GET STATUS SIDE EFFECT (ver docblock de status()).
+        // Se auto-limpia sola: en cuanto la compensación (corriendo en
+        // este worker, en otro, o en el próximo barrido) resuelve el
+        // intento a un estado terminal, esta condición deja de cumplirse
+        // sola — nunca hace falta borrar nada a mano, y nunca depende de
+        // si un claim está activo en este preciso instante (ver
+        // MercadoPagoPaymentReconciliationService::compensation_claimed_at)
+        // — "el sistema está trabajando en cerrar esto" es cierto tanto
+        // antes de que el próximo barrido reclame la compensación como
+        // durante ella.
+        if (app(MercadoPagoPaymentReconciliationService::class)->isLostChallengeCompensationCandidate($order)) {
+            return $this->statusPayload('pending', 'Estamos cerrando de forma segura el intento anterior. No vuelvas a pagar todavía.', false);
+        }
+
         if ($order->status === 'failed') {
+            // provider_status==='cancelled' (ronda de compensación): valor
+            // CRUDO que Mercado Pago reportó, persistido sin cambios por
+            // recordResolvedTruth() — MercadoPagoPaymentStatusMapper ya
+            // mapea un `status='cancelled'` del proveedor al mismo
+            // 'failed' que un rechazo normal (ver su docblock, sin
+            // cambios), así que esta es la única señal disponible para
+            // distinguir "Mercado Pago canceló este pago" (incluida la
+            // cancelación compensatoria de un Challenge perdido) de un
+            // rechazo genérico, sin inventar un valor de `status` nuevo.
+            if ($order->provider_status === 'cancelled') {
+                return $this->statusPayload('failed', 'El intento anterior fue cancelado de forma segura. Ya puedes volver a intentarlo.', false);
+            }
+
             return $this->statusPayload('failed', 'El pago no pudo completarse. Puedes intentarlo de nuevo.', false);
         }
 

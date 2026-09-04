@@ -65,6 +65,10 @@ class MercadoPagoReconcile extends Command
                 ['payment_orders inciertas con budget agotado → "review"', $result['uncertain_exhausted']],
                 ['payment_orders inciertas con búsqueda ambigua/inconsistente → "review"', $result['uncertain_ambiguous']],
                 ['payment_orders inciertas con búsqueda fallida (reintento en próximo barrido)', $result['uncertain_search_failed']],
+                ['payment_orders con Challenge 3DS perdido: compensación resuelta (paid/failed/reversed)', $result['lost_challenge_resolved']],
+                ['payment_orders con Challenge 3DS perdido: sigue pending (no elegible/carrera/no confirmado)', $result['lost_challenge_still_pending']],
+                ['payment_orders con Challenge 3DS perdido: anomalía → "review"', $result['lost_challenge_review']],
+                ['payment_orders con Challenge 3DS perdido: GET incierto (reintento en próximo barrido)', $result['lost_challenge_transport_uncertain']],
             ]
         );
 

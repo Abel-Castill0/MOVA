@@ -558,6 +558,76 @@ class CreditCheckoutControllerTest extends TestCase
         $this->assertSame(0, $profile->fresh()->credits_available);
     }
 
+    /**
+     * COMPENSATING CANCELLATION (LOST 3DS CHALLENGE, ronda de auditoría de
+     * seguridad financiera final, segunda pasada, sección 3): la copia
+     * "Estamos cerrando de forma segura..." se deriva de
+     * isLostChallengeCompensationCandidate() — una lectura PURA de
+     * status/submission_status/provider_status_detail/three_ds_(challenge)/
+     * last_verified_at/created_at, NUNCA de `compensation_claimed_at` (ver
+     * docblock de safeStatus()). Este test verifica explícitamente que eso
+     * es seguro: con un claim FRESCO activo (el estado real que deja
+     * claimForCompensation() mientras un worker está en medio de la
+     * ronda — GET→PUT→GET), NADA de lo que esa condición sí consulta
+     * cambia, así que la copia de compensación sigue mostrándose durante
+     * TODA la ventana en la que la compensación está genuinamente en
+     * curso — nunca desaparece a mitad de camino.
+     */
+    public function test_status_shows_the_compensating_message_and_hides_retry_while_a_fresh_claim_is_active(): void
+    {
+        [$teacher, $profile] = $this->teacher(availableCredits: 0);
+        $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
+
+        $order = PaymentOrder::create([
+            'recharge_request_id' => $recharge->id,
+            'attempt_number' => 1,
+            'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'provider' => 'mercadopago',
+            'provider_order_id' => '9300',
+            'status' => 'pending',
+            'submission_status' => 'submitted',
+            'provider_status' => 'pending',
+            'provider_status_detail' => 'pending_challenge',
+            'three_ds_challenge_url' => null, // Challenge perdido — nunca capturado
+            'three_ds_creq' => null,
+            'three_ds_expires_at' => null,
+            'amount_minor' => 1000,
+            'currency' => 'PEN',
+        ]);
+
+        // Presupuesto de recuperación agotado (mismo umbral que
+        // isLostChallengeCompensationCandidate() exige, ver su docblock) +
+        // ya verificado al menos una vez.
+        $order->timestamps = false;
+        $order->forceFill([
+            'created_at' => now()->subMinutes(45),
+            'updated_at' => now()->subMinutes(45),
+            'last_verified_at' => now()->subMinutes(45),
+        ])->save();
+
+        // Claim FRESCO — exactamente el estado que deja claimForCompensation()
+        // mientras un worker está a mitad de la ronda GET→PUT→GET.
+        $order->update(['compensation_claimed_at' => now()]);
+
+        $response = $this->actingAs($teacher)->getJson(route('teacher.credits.checkout.status', $recharge));
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'pending'); // nunca 'failed' — ningún reintento debe ofrecerse
+        $response->assertJsonPath('credits_credited', false);
+        $response->assertJsonPath('action_required', null);
+        $response->assertJson(fn ($json) => $json
+            ->where('message', 'Estamos cerrando de forma segura el intento anterior. No vuelvas a pagar todavía.')
+            ->etc());
+        $this->assertSame(0, $profile->fresh()->credits_available);
+
+        // GET STATUS SIDE EFFECT: lectura pura, nunca reconcilia (isLostChallengeCompensationCandidate() no hace I/O).
+        $claimedAt = $order->fresh()->compensation_claimed_at;
+        Http::fake();
+        $this->actingAs($teacher)->getJson(route('teacher.credits.checkout.status', $recharge));
+        Http::assertNothingSent();
+        $this->assertEquals($claimedAt, $order->fresh()->compensation_claimed_at, 'status() nunca toca el claim');
+    }
+
     public function test_card_payment_without_challenge_never_exposes_action_required(): void
     {
         [$teacher, $profile] = $this->teacher(availableCredits: 0);

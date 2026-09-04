@@ -43,6 +43,14 @@ use Throwable;
  *      MercadoPagoPaymentProvider::createPaymentAttempt(). Presupuesto
  *      propio (`payment_orders.recovery_attempts`, ver migración
  *      2026_09_01_000006) — nunca reintenta para siempre.
+ *   6. COMPENSATING CANCELLATION (LOST 3DS CHALLENGE, ronda de
+ *      compensación): PaymentOrder `submitted`/`pending`/
+ *      `pending_challenge` SIN Challenge local utilizable, atascada más
+ *      allá de `stuck_order_minutes` (MISMO umbral que la pasada 3, ver
+ *      MercadoPagoPaymentReconciliationService::
+ *      isLostChallengeCompensationCandidate()) — delega TODA la decisión
+ *      y el algoritmo race-safe (GET→cancelación→GET) en
+ *      compensateLostChallenge(), nunca duplicado aquí.
  *
  * Nunca duplica créditos/reversals: todo pasa por
  * MercadoPagoPaymentReconciliationService, que relee la verdad
@@ -80,7 +88,9 @@ class MercadoPagoWebhookRecoveryService
      *   stuck_orders_reconciled:int,stuck_orders_errored:int,
      *   paid_lookback_reconciled:int,paid_lookback_errored:int,
      *   uncertain_resolved:int,uncertain_still_uncertain:int,
-     *   uncertain_exhausted:int,uncertain_ambiguous:int,uncertain_search_failed:int
+     *   uncertain_exhausted:int,uncertain_ambiguous:int,uncertain_search_failed:int,
+     *   lost_challenge_resolved:int,lost_challenge_still_pending:int,
+     *   lost_challenge_review:int,lost_challenge_transport_uncertain:int
      * }
      */
     public function recover(
@@ -115,6 +125,10 @@ class MercadoPagoWebhookRecoveryService
             'uncertain_exhausted' => 0,
             'uncertain_ambiguous' => 0,
             'uncertain_search_failed' => 0,
+            'lost_challenge_resolved' => 0,
+            'lost_challenge_still_pending' => 0,
+            'lost_challenge_review' => 0,
+            'lost_challenge_transport_uncertain' => 0,
         ];
 
         $this->requeueStaleReceived($staleReceivedMinutes, $batchSize, $result);
@@ -122,6 +136,7 @@ class MercadoPagoWebhookRecoveryService
         $this->reconcileStuckOrders($stuckOrderMinutes, $batchSize, $result);
         $this->reconcilePaidLookback($paidLookbackDays, $paidLookbackMinAgeMinutes, $batchSize, $result);
         $this->reconcileUncertainSubmissions($uncertainMinAgeMinutes, $uncertainMaxAttempts, $batchSize, $result);
+        $this->compensateLostChallenges($stuckOrderMinutes, $batchSize, $result);
 
         return $result;
     }
@@ -303,6 +318,64 @@ class MercadoPagoWebhookRecoveryService
                 };
 
                 Log::info('[MercadoPago/Recovery] Intento incierto procesado.', [
+                    'payment_order_id' => $order->id,
+                    'outcome' => $outcome,
+                ]);
+            });
+    }
+
+    /**
+     * COMPENSATING CANCELLATION (LOST 3DS CHALLENGE) — barrido en LOTE.
+     * La consulta SQL de abajo prefiltra por las condiciones ESTRUCTURALES
+     * expresables en una columna (status/submission_status/
+     * provider_status_detail/provider_order_id/last_verified_at/
+     * created_at) — el único chequeo que NO puede expresarse aquí ("no
+     * locally-valid actionable Challenge data", que depende de comparar
+     * `three_ds_expires_at` contra el reloj) lo re-verifica
+     * MercadoPagoPaymentReconciliationService::
+     * isLostChallengeCompensationCandidate() bajo lock, dentro de
+     * compensateLostChallenge() — misma defensa en profundidad que ya usan
+     * reconcileStuckOrders()/reconcileUncertainSubmissions() (la query
+     * acota candidatos por eficiencia, el servicio decide la verdad final).
+     *
+     * `stuck_order_minutes` (MISMO umbral que la pasada 3, nunca uno
+     * nuevo) actúa aquí como el "presupuesto de recuperación normal
+     * agotado" — ver docblock de
+     * MercadoPagoPaymentReconciliationService::
+     * isLostChallengeCompensationCandidate().
+     *
+     * FILTRA POR `created_at`, NUNCA `updated_at` — la pasada 3
+     * (reconcileStuckOrders(), justo arriba en recover()) ya visita esta
+     * MISMA fila en cada barrido y refresca `updated_at` en cada
+     * reconcile(); filtrar por esa columna aquí haría que esta pasada
+     * nunca encontrara nada (ver el docblock de
+     * isLostChallengeCompensationCandidate(), que aplica el MISMO criterio
+     * al re-verificar bajo lock).
+     */
+    private function compensateLostChallenges(int $stuckOrderMinutes, int $batchSize, array &$result): void
+    {
+        PaymentOrder::query()
+            ->where('provider', 'mercadopago')
+            ->where('status', 'pending')
+            ->where('submission_status', 'submitted')
+            ->where('provider_status_detail', 'pending_challenge')
+            ->whereNotNull('provider_order_id')
+            ->whereNotNull('last_verified_at')
+            ->where('created_at', '<=', now()->subMinutes($stuckOrderMinutes))
+            ->limit($batchSize)
+            ->get()
+            ->each(function (PaymentOrder $order) use ($stuckOrderMinutes, &$result) {
+                $outcome = $this->reconciler->compensateLostChallenge($order, $this->provider, $stuckOrderMinutes);
+
+                match ($outcome) {
+                    'paid', 'failed', 'reversed' => $result['lost_challenge_resolved']++,
+                    'pending', 'race_resolved', 'not_eligible' => $result['lost_challenge_still_pending']++,
+                    'review' => $result['lost_challenge_review']++,
+                    'transport_uncertain' => $result['lost_challenge_transport_uncertain']++,
+                    default => null,
+                };
+
+                Log::info('[MercadoPago/Recovery] Compensación de Challenge 3DS perdido procesada.', [
                     'payment_order_id' => $order->id,
                     'outcome' => $outcome,
                 ]);

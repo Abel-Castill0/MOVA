@@ -1182,6 +1182,204 @@ class MercadoPagoPaymentProviderTest extends TestCase
         $this->assertNull((new MercadoPagoPaymentProvider())->fetchPayment('1'));
     }
 
+    // ---- cancelPayment() (ronda de auditoría de seguridad financiera final)
+    // -------------------------------------------------------------------------
+    //
+    // Clasificación de la respuesta HTTP de `PUT /v1/payments/{id}` — nunca
+    // verdad financiera por sí sola (el llamador siempre relee vía
+    // fetchPayment() después, ver
+    // MercadoPagoPaymentReconciliationService::compensateLostChallenge()).
+    // Los códigos numéricos 2018/2016/4017/2000 están documentados por la
+    // referencia oficial de cancelación de Payments API (ver docblock de
+    // cancelPayment()). Un 400 SIN ninguno de esos códigos ni de la tabla
+    // API-wide confirmada ya NO se infiere como conflicto de estado "por
+    // eliminación": cae en 'client_error_unclassified', honesto sobre la
+    // falta de evidencia en esa respuesta puntual.
+
+    public function test_cancel_payment_2xx_is_requested(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/501' => Http::response(
+            ['id' => 501, 'status' => 'cancelled', 'status_detail' => 'by_collector'],
+            200
+        )]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('501');
+
+        $this->assertSame('requested', $result['outcome']);
+    }
+
+    public function test_cancel_payment_400_with_a_confirmed_input_error_code_is_invalid_request_never_not_cancellable(): void
+    {
+        // property_value está en la tabla confirmada de códigos de
+        // request/input (TERMINAL_400_CODES) — un 400 con ESTE código es
+        // un bug de integración (payload mal formado), nunca una carrera
+        // de estado del pago.
+        Http::fake(['api.mercadopago.com/v1/payments/502' => Http::response(
+            ['error' => 'property_value', 'message' => 'invalid status value'],
+            400
+        )]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('502');
+
+        $this->assertSame('invalid_request', $result['outcome']);
+    }
+
+    public function test_cancel_payment_400_with_numeric_code_2018_is_not_cancellable(): void
+    {
+        // 2018 = "action invalid for current payment state" — documentado
+        // por la referencia oficial de cancelación de Payments API.
+        Http::fake(['api.mercadopago.com/v1/payments/512' => Http::response(
+            ['message' => 'invalid state', 'cause' => [['code' => 2018, 'description' => 'the action requested is not valid for the current payment state']]],
+            400
+        )]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('512');
+
+        $this->assertSame('not_cancellable', $result['outcome']);
+    }
+
+    /**
+     * @dataProvider documentedInvalidRequestCodes
+     */
+    public function test_cancel_payment_400_with_numeric_codes_2016_or_4017_is_invalid_request(int $code): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/513' => Http::response(
+            ['message' => 'invalid request', 'cause' => [['code' => $code, 'description' => 'invalid state update/request']]],
+            400
+        )]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('513');
+
+        $this->assertSame('invalid_request', $result['outcome']);
+    }
+
+    /**
+     * 2016 = "invalid state/update request", 4017 = "status cannot be
+     * null" — ambos documentados por la referencia oficial de cancelación
+     * de Payments API.
+     */
+    public static function documentedInvalidRequestCodes(): array
+    {
+        return [[2016], [4017]];
+    }
+
+    public function test_cancel_payment_400_without_any_recognized_code_is_client_error_unclassified_never_a_state_conflict_guess(): void
+    {
+        // Sin NINGÚN código reconocido en esta respuesta puntual (ni los
+        // numéricos documentados de cancelación — 2018/2016/4017 — ni la
+        // tabla API-wide confirmada): sin evidencia en ESTE body concreto,
+        // MOVA ya no adivina la causa — nunca 'not_cancellable' por
+        // defecto.
+        Http::fake(['api.mercadopago.com/v1/payments/503' => Http::response(
+            ['message' => 'cannot update payment with current status'],
+            400
+        )]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('503');
+
+        $this->assertSame('client_error_unclassified', $result['outcome']);
+        $this->assertNotSame('not_cancellable', $result['outcome']);
+    }
+
+    public function test_cancel_payment_400_without_any_body_is_client_error_unclassified(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/504' => Http::response([], 400)]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('504');
+
+        $this->assertSame('client_error_unclassified', $result['outcome']);
+    }
+
+    /**
+     * @dataProvider authConfigStatuses
+     */
+    public function test_cancel_payment_401_403_are_auth_config_error(int $status): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/505' => Http::response(['message' => 'unauthorized'], $status)]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('505');
+
+        $this->assertSame('auth_config_error', $result['outcome']);
+    }
+
+    public static function authConfigStatuses(): array
+    {
+        return [[401], [403]];
+    }
+
+    public function test_cancel_payment_404_is_payment_not_found_distinct_from_auth_config_error(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/506' => Http::response(['message' => 'not found'], 404)]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('506');
+
+        $this->assertSame('payment_not_found', $result['outcome']);
+        $this->assertNotSame('auth_config_error', $result['outcome']);
+        $this->assertNotSame('not_cancellable', $result['outcome']);
+    }
+
+    public function test_cancel_payment_429_is_rate_limited(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/507' => Http::response(['message' => 'usage_quota_exceeded'], 429)]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('507');
+
+        $this->assertSame('rate_limited', $result['outcome']);
+    }
+
+    /**
+     * @dataProvider serverErrorStatuses
+     */
+    public function test_cancel_payment_5xx_is_server_error(int $status): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/508' => Http::response(['message' => 'internal_error'], $status)]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('508');
+
+        $this->assertSame('server_error', $result['outcome']);
+    }
+
+    public static function serverErrorStatuses(): array
+    {
+        return [[500], [503]];
+    }
+
+    public function test_cancel_payment_connection_exception_is_transport_uncertain(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/509' => function () {
+            throw new ConnectionException('timeout');
+        }]);
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('509');
+
+        $this->assertSame('transport_uncertain', $result['outcome']);
+    }
+
+    public function test_cancel_payment_without_access_token_is_transport_uncertain_and_sends_nothing(): void
+    {
+        config(['payments.mercadopago.access_token' => null]);
+        Http::fake();
+
+        $result = (new MercadoPagoPaymentProvider())->cancelPayment('510');
+
+        $this->assertSame('transport_uncertain', $result['outcome']);
+        Http::assertNothingSent();
+    }
+
+    public function test_cancel_payment_uses_put_with_the_documented_body_never_orders_api(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments/511' => Http::response(['id' => 511, 'status' => 'cancelled'], 200)]);
+
+        (new MercadoPagoPaymentProvider())->cancelPayment('511');
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'PUT'
+                && $request->url() === 'https://api.mercadopago.com/v1/payments/511'
+                && $request['status'] === 'cancelled'
+                && ! str_contains($request->url(), '/orders/');
+        });
+    }
+
     // ---- verifyWebhook() ------------------------------------------------------
 
     public function test_verify_webhook_returns_event_for_valid_signature_and_well_formed_payload(): void

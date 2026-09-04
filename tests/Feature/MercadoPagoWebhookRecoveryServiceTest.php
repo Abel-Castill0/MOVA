@@ -419,6 +419,141 @@ class MercadoPagoWebhookRecoveryServiceTest extends TestCase
         return [$order, $recharge, $profile, $webhook];
     }
 
+    // ---- COMPENSATING CANCELLATION (LOST 3DS CHALLENGE) — pasada 6 -------------
+    //
+    // Cobertura profunda del algoritmo en sí vive en
+    // MercadoPagoLostChallengeCompensationTest (escenarios A-F); aquí solo se
+    // prueba el CABLEADO — que compensateLostChallenges() encuentra al
+    // candidato correcto y respeta el mismo umbral que la pasada 3, y que
+    // NUNCA toca un Challenge todavía usable.
+
+    public function test_sweep_compensates_an_eligible_lost_challenge_order(): void
+    {
+        [$order, $recharge, $profile] = $this->lostChallengeScenario();
+
+        $cancelled = false;
+        Http::fake([
+            "api.mercadopago.com/v1/payments/{$order->provider_order_id}" => function ($request) use (&$cancelled, $order) {
+                if ($request->method() === 'PUT') {
+                    $cancelled = true;
+
+                    return Http::response(['id' => $order->provider_order_id, 'status' => 'cancelled'], 200);
+                }
+
+                $truth = $cancelled
+                    ? ['status' => 'cancelled', 'status_detail' => 'by_collector']
+                    : ['status' => 'pending', 'status_detail' => 'pending_challenge'];
+
+                return Http::response([
+                    'id' => $order->provider_order_id,
+                    'transaction_amount' => 10.0,
+                    'transaction_amount_refunded' => 0,
+                    'external_reference' => $order->externalReference(),
+                    'currency_id' => 'PEN',
+                ] + $truth, 200);
+            },
+        ]);
+
+        $result = $this->recover(stuckOrderMinutes: 30);
+
+        $this->assertSame(1, $result['lost_challenge_resolved']);
+        $fresh = $order->fresh();
+        $this->assertSame('failed', $fresh->status);
+        $this->assertSame('cancelled', $fresh->provider_status);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertSame(0, CreditTransaction::count());
+        $this->assertSame('pending', $recharge->fresh()->status);
+    }
+
+    public function test_sweep_never_compensates_an_order_with_a_usable_challenge(): void
+    {
+        [$order] = $this->lostChallengeScenario(
+            challengeUrl: 'https://acs-public.tp.mastercard.com/api/v1/browser_Challenges',
+            creq: 'eyJmYWtlIjoiY3JlcSJ9',
+            challengeExpiresAt: now()->addMinutes(3),
+        );
+
+        // También calza en el prefiltro SQL más amplio de la pasada 3
+        // (reconcileStuckOrders() — cualquier 'pending' atascado, sin
+        // noción de Challenge) — esa pasada SÍ hace su propio GET
+        // inofensivo (nunca escribe nada relevante aquí); lo que este test
+        // prueba es que la pasada 6 nunca llega a solicitar una
+        // CANCELACIÓN (PUT) para este intento, sin importar qué haga la
+        // pasada 3.
+        Http::fake();
+
+        $result = $this->recover(stuckOrderMinutes: 30);
+
+        $this->assertSame(0, $result['lost_challenge_resolved']);
+        // La query SQL de la pasada 6 no puede expresar "sin Challenge
+        // utilizable" (depende de comparar three_ds_expires_at contra el
+        // reloj) — selecciona este candidato por prefiltro, pero
+        // isLostChallengeCompensationCandidate() lo rechaza bajo lock
+        // (defensa en profundidad, ver su docblock) → 'not_eligible', que
+        // esta pasada tabula junto con 'pending'/'race_resolved'.
+        $this->assertSame(1, $result['lost_challenge_still_pending']);
+        Http::assertNotSent(fn ($request) => $request->method() === 'PUT');
+        $this->assertNotNull($order->fresh()->three_ds_challenge_url, 'un Challenge normal/usable nunca se toca');
+    }
+
+    /**
+     * @return array{0:PaymentOrder,1:RechargeRequest,2:TeacherProfile}
+     */
+    private function lostChallengeScenario(
+        ?string $challengeUrl = null,
+        ?string $creq = null,
+        ?\Illuminate\Support\Carbon $challengeExpiresAt = null,
+        int $stuckMinutesAgo = 45,
+    ): array {
+        $teacher = User::factory()->create(['password' => 'password']);
+        $teacher->assignRole('teacher');
+        $profile = TeacherProfile::create([
+            'user_id' => $teacher->id,
+            'is_verified' => true,
+            'credits_available' => 0,
+            'credits_reserved' => 0,
+        ]);
+
+        $operation = fake()->unique()->numerify('OP########');
+        $recharge = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id,
+            'package_code' => 'inicio',
+            'package_name' => 'Inicio',
+            'credits' => 5,
+            'amount_pen' => '10.00',
+            'payment_method' => 'mercadopago',
+            'operation_number' => $operation,
+            'operation_number_normalized' => $operation,
+            'status' => 'pending',
+        ]);
+
+        $order = PaymentOrder::create([
+            'recharge_request_id' => $recharge->id,
+            'attempt_number' => 1,
+            'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'provider' => 'mercadopago',
+            'provider_order_id' => 'PAY-LOST-'.$recharge->id,
+            'status' => 'pending',
+            'submission_status' => 'submitted',
+            'provider_status' => 'pending',
+            'provider_status_detail' => 'pending_challenge',
+            'three_ds_challenge_url' => $challengeUrl,
+            'three_ds_creq' => $creq,
+            'three_ds_expires_at' => $challengeExpiresAt,
+            'amount_minor' => Money::solesToMinor('10.00'),
+            'currency' => 'PEN',
+        ]);
+
+        $order->timestamps = false;
+        $order->forceFill([
+            'last_verified_at' => now()->subMinutes($stuckMinutesAgo),
+            'created_at' => now()->subMinutes($stuckMinutesAgo),
+            'updated_at' => now()->subMinutes($stuckMinutesAgo),
+        ])->save();
+
+        return [$order->fresh(), $recharge, $profile];
+    }
+
     private function markPaid(PaymentOrder $order, int $hoursAgo): void
     {
         $order->timestamps = false;

@@ -854,6 +854,263 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
     }
 
     /**
+     * COMPENSATING CANCELLATION (LOST 3DS CHALLENGE): `PUT
+     * /v1/payments/{id}` con body `{"status":"cancelled"}` — única
+     * operación de cancelación documentada de Payments API (verificado vía
+     * MCP oficial, sección "Cancel payment"/"Refunds and cancellations":
+     * "you can only cancel payments that are in pending or in_process").
+     * NUNCA Orders API (esa expone `POST /v1/orders/{order_id}/cancel`, un
+     * endpoint distinto que este proyecto no usa — ver docblock de la
+     * clase).
+     *
+     * SIN X-Idempotency-Key a propósito: el ejemplo curl oficial (el más
+     * cercano a esta integración — HTTP directo, sin SDK) no lo incluye, a
+     * diferencia de `POST /v1/payments` (creación, documentada
+     * explícitamente con ese header). A diferencia de una creación, esta
+     * llamada nunca puede generar un recurso duplicado — solo transiciona
+     * uno YA EXISTENTE a un estado deseado — así que repetirla (dos
+     * workers concurrentes, un reintento tras un timeout) es segura por
+     * construcción: Mercado Pago la resuelve por el ESTADO ACTUAL del
+     * pago, no por una clave de idempotencia.
+     *
+     * EL RESULTADO DE ESTA LLAMADA NUNCA ES VERDAD FINANCIERA SUFICIENTE
+     * POR SÍ SOLO — el único llamador autorizado
+     * (MercadoPagoPaymentReconciliationService::compensateLostChallenge())
+     * SIEMPRE relee la verdad vía fetchPayment() después de invocar esto,
+     * sin importar qué outcome devuelva. Este método solo clasifica la
+     * respuesta HTTP para logging/observabilidad — mismo criterio
+     * defensivo que classifyHttpFailure(), nunca escribe nada en
+     * PaymentOrder (eso es responsabilidad exclusiva del llamador, vía
+     * reconcile()).
+     *
+     * CLASIFICACIÓN DE 400/404 (ronda de auditoría de seguridad financiera
+     * final): la referencia oficial de cancelación de Payments API
+     * (`PUT /v1/payments/{payment_id}`) documenta códigos numéricos
+     * específicos en `cause[].code`:
+     *   - 400 / 2018 — acción solicitada inválida para el estado actual
+     *     del pago (el caso "no está pending/in_process" — carrera con
+     *     otra resolución).
+     *   - 400 / 2016 — solicitud/actualización de estado inválida para
+     *     este endpoint.
+     *   - 400 / 4017 — atributo `status` nulo.
+     *   - 404 / 2000 — pago no encontrado.
+     * (Nota de herramienta: `search_documentation`, que sí sirve para las
+     * páginas de guías, no indexa la referencia REST — es una página
+     * renderizada del lado del cliente — así que una búsqueda de texto
+     * ahí nunca iba a encontrar estos códigos; no es evidencia de que no
+     * existan.)
+     *
+     * Clasificación resultante, en dos capas — NUNCA "por eliminación"
+     * (una ronda anterior clasificaba cualquier 400 sin código como
+     * `not_cancellable`, sin evidencia; corregido):
+     *   1. Si el body trae uno de los códigos numéricos documentados
+     *      arriba en `cause[]`/raíz (mismo extractProviderErrorCode() ya
+     *      existente, sin duplicar lógica): 2018 → 'not_cancellable';
+     *      2016/4017 → 'invalid_request'.
+     *   2. Si no, se reutiliza el mecanismo YA CONFIRMADO
+     *      (isConfirmedTerminalValidationError()/TERMINAL_400_CODES —
+     *      tabla API-wide, la misma que usa createPaymentAttempt() para
+     *      POST /v1/payments) para separar un error de request/input
+     *      CONFIRMADO ('invalid_request') de cualquier otro 400.
+     *   3. Cualquier 400 que no calce en NINGUNA de las dos capas
+     *      anteriores → 'client_error_unclassified' — nunca
+     *      'not_cancellable' por defecto: sin un código presente en la
+     *      respuesta, MOVA no afirma una causa específica.
+     * El 404 se clasifica por status HTTP solo (mismo resultado que exige
+     * el código 2000 documentado — no hace falta inspeccionar el body
+     * para llegar al mismo desenlace).
+     *
+     * @return array{outcome:string} outcome:
+     *   'requested' (2xx — Mercado Pago aceptó la solicitud, sin que esto
+     *     confirme nada por sí solo),
+     *   'not_cancellable' (400 con código documentado 2018 — el pago ya
+     *     no está pending/in_process, típicamente una carrera con una
+     *     resolución concurrente; NUNCA se interpreta como "se canceló" ni
+     *     como "falló financieramente"),
+     *   'invalid_request' (400 con código documentado 2016/4017, O con un
+     *     código de error de request/input API-wide CONFIRMADO
+     *     (TERMINAL_400_CODES) — bug de integración, nunca una carrera de
+     *     estado),
+     *   'client_error_unclassified' (400 sin ningún código reconocido —
+     *     honesto: no se infiere ninguna causa específica sin evidencia),
+     *   'auth_config_error' (401/403 — error de integración/autorización
+     *     de MOVA, no del pago),
+     *   'payment_not_found' (404, código documentado 2000 — distinto de
+     *     401/403: este mismo provider_order_id ya fue confirmado momentos
+     *     antes por el GET canónico previo dentro del mismo algoritmo —
+     *     ver MercadoPagoPaymentReconciliationService::
+     *     compensateLostChallenge() — así que un 404 aquí es una
+     *     inconsistencia del proveedor o de la integración, no "nunca
+     *     existió"),
+     *   'rate_limited' (429 — transitorio, documentado como
+     *     usage_quota_exceeded, mismo criterio que classifyHttpFailure()),
+     *   'server_error' (5xx),
+     *   'transport_uncertain' (excepción de red/config faltante),
+     *   'unclassified' (cualquier otra respuesta no exitosa — fail
+     *     closed).
+     *
+     *   NINGUNA de estas clasificaciones es verdad financiera suficiente
+     *   por sí sola (sección 2 del encargo) — el único llamador autorizado
+     *   (MercadoPagoPaymentReconciliationService::compensateLostChallenge())
+     *   SIEMPRE relee la verdad vía fetchPayment() después de invocar
+     *   esto, sin importar qué outcome devuelva. Este método solo
+     *   clasifica la respuesta HTTP para logging/observabilidad — nunca
+     *   escribe nada en PaymentOrder.
+     */
+    /**
+     * Códigos numéricos (`cause[].code`) documentados por la referencia
+     * oficial de cancelación de Payments API para `PUT /v1/payments/{id}`
+     * — ver docblock de cancelPayment(). Constantes propias (nunca
+     * mezcladas con TERMINAL_400_CODES, que es una tabla API-wide
+     * distinta) para que quede explícito en el código cuál es cuál.
+     */
+    private const CANCEL_STATE_CONFLICT_CODE = 2018;
+
+    private const CANCEL_INVALID_REQUEST_CODES = [2016, 4017];
+
+    /**
+     * 404 / 2000 — documentado como "payment not found". No se usa
+     * activamente en la clasificación (el 404 ya se resuelve por status
+     * HTTP solo, mismo resultado) — se deja como referencia explícita del
+     * código documentado.
+     */
+    private const CANCEL_PAYMENT_NOT_FOUND_CODE = 2000;
+
+    public function cancelPayment(string $paymentId): array
+    {
+        $accessToken = config('payments.mercadopago.access_token');
+        if (! $accessToken) {
+            Log::error('[MercadoPago] cancelPayment sin access_token configurado — fail closed.');
+
+            return ['outcome' => 'transport_uncertain'];
+        }
+
+        try {
+            $response = Http::withToken($accessToken)
+                ->acceptJson()
+                ->connectTimeout(5)
+                ->timeout(15)
+                ->put($this->baseUrl()."/v1/payments/{$paymentId}", ['status' => 'cancelled']);
+        } catch (Throwable $e) {
+            Log::error('[MercadoPago] Excepción de red al solicitar la cancelación del pago — resultado incierto.', [
+                'provider_order_id' => $paymentId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['outcome' => 'transport_uncertain'];
+        }
+
+        if ($response->successful()) {
+            Log::info('[MercadoPago] Cancelación de pago solicitada y aceptada por Mercado Pago.', [
+                'provider_order_id' => $paymentId,
+                'status_reportado' => $response->json('status'),
+            ]);
+
+            return ['outcome' => 'requested'];
+        }
+
+        $status = $response->status();
+
+        if (in_array($status, [401, 403], true)) {
+            Log::critical('[MercadoPago] Error de integración/autorización al solicitar la cancelación del pago.', [
+                'provider_order_id' => $paymentId,
+                'status' => $status,
+                'error' => $this->safeErrorFromResponse($response),
+            ]);
+
+            return ['outcome' => 'auth_config_error'];
+        }
+
+        if ($status === 404) {
+            // Distinto de 401/403: el algoritmo llamante SIEMPRE confirmó
+            // este mismo id vía GET canónico momentos antes de llegar aquí
+            // — un 404 justo después de eso es una inconsistencia
+            // (proveedor o integración), no evidencia de que el pago
+            // "nunca existió". Se registra por separado para no
+            // confundirlo con un problema de credenciales.
+            Log::critical('[MercadoPago] El pago no fue encontrado al solicitar la cancelación (inesperado — el GET canónico previo lo confirmó existente).', [
+                'provider_order_id' => $paymentId,
+                'error' => $this->safeErrorFromResponse($response),
+            ]);
+
+            return ['outcome' => 'payment_not_found'];
+        }
+
+        if ($status === 400) {
+            $rawCode = $this->extractProviderErrorCode($response);
+            $numericCode = is_numeric($rawCode) ? (int) $rawCode : null;
+
+            if ($numericCode === self::CANCEL_STATE_CONFLICT_CODE) {
+                Log::info('[MercadoPago] Cancelación rechazada con código documentado 2018 (acción inválida para el estado actual del pago) — tratado como conflicto de estado (posible carrera con otra resolución).', [
+                    'provider_order_id' => $paymentId,
+                    'error' => $this->safeErrorFromResponse($response),
+                ]);
+
+                return ['outcome' => 'not_cancellable'];
+            }
+
+            if ($numericCode !== null && in_array($numericCode, self::CANCEL_INVALID_REQUEST_CODES, true)) {
+                Log::error('[MercadoPago] Cancelación rechazada con código documentado '.$numericCode.' (solicitud/atributo inválido) — tratado como bug de integración, nunca una carrera de estado.', [
+                    'provider_order_id' => $paymentId,
+                    'error' => $this->safeErrorFromResponse($response),
+                ]);
+
+                return ['outcome' => 'invalid_request'];
+            }
+
+            if ($this->isConfirmedTerminalValidationError($response)) {
+                Log::error('[MercadoPago] Cancelación rechazada por un error de request/input CONFIRMADO (tabla API-wide) — bug de integración, nunca una carrera de estado.', [
+                    'provider_order_id' => $paymentId,
+                    'codigo' => $rawCode,
+                    'error' => $this->safeErrorFromResponse($response),
+                ]);
+
+                return ['outcome' => 'invalid_request'];
+            }
+
+            // Ningún código reconocido (ni los numéricos documentados de
+            // cancelación, ni la tabla API-wide confirmada) — NUNCA se
+            // infiere "conflicto de estado" por eliminación (ver docblock):
+            // sin evidencia real en ESTA respuesta puntual, MOVA no afirma
+            // una causa. Nunca se interpreta como "se canceló" ni como un
+            // rechazo financiero — el llamador siempre relee la verdad real
+            // después vía fetchPayment().
+            Log::warning('[MercadoPago] Cancelación rechazada (400) sin ningún código reconocido — causa desconocida, no se infiere conflicto de estado sin evidencia.', [
+                'provider_order_id' => $paymentId,
+                'codigo' => $rawCode,
+                'error' => $this->safeErrorFromResponse($response),
+            ]);
+
+            return ['outcome' => 'client_error_unclassified'];
+        }
+
+        if ($status === 429) {
+            Log::warning('[MercadoPago] Cancelación limitada por tasa (429) — transitorio.', [
+                'provider_order_id' => $paymentId,
+            ]);
+
+            return ['outcome' => 'rate_limited'];
+        }
+
+        if ($status >= 500 && $status < 600) {
+            Log::warning('[MercadoPago] Error de servidor de Mercado Pago al solicitar la cancelación.', [
+                'provider_order_id' => $paymentId,
+                'status' => $status,
+            ]);
+
+            return ['outcome' => 'server_error'];
+        }
+
+        Log::warning('[MercadoPago] Respuesta no clasificada al solicitar la cancelación del pago.', [
+            'provider_order_id' => $paymentId,
+            'status' => $status,
+            'error' => $this->safeErrorFromResponse($response),
+        ]);
+
+        return ['outcome' => 'unclassified'];
+    }
+
+    /**
      * `GET /v1/payments/{id}` — única fuente de verdad financiera. Nunca
      * lanza por un error HTTP/red: devuelve null (fail closed).
      *

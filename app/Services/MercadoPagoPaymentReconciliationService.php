@@ -402,6 +402,28 @@ class MercadoPagoPaymentReconciliationService
             'three_ds_challenge_url' => $url,
             'three_ds_creq' => $creq,
             'three_ds_expires_at' => now()->addMinutes(MercadoPagoPaymentProvider::CHALLENGE_WINDOW_MINUTES),
+            // COMPENSATION CLAIM (ronda de auditoría de seguridad
+            // financiera final, tercera pasada): este es el punto EXACTO
+            // en el que "compensar este intento" deja de tener sentido —
+            // el Challenge que se estaba dando por perdido acaba de
+            // volverse utilizable de nuevo, sin importar QUIÉN disparó
+            // esta reconciliación (compensateLostChallenge() propio, la
+            // pasada 3 del barrido reconciliando cualquier 'pending'
+            // atascado, un futuro webhook). Un claim que un worker de
+            // compensación anterior hubiera dejado activo/vencido en esta
+            // MISMA fila (p. ej. murió justo antes de completar su propia
+            // ronda) se libera aquí — nunca queda huérfano bloqueando una
+            // reclamación futura sobre un intento que ya no lo necesita.
+            // Deliberadamente NO en recordResolvedTruth()/applyResolved()
+            // (que corre en CADA desenlace 'pending', incluidos los que NO
+            // recuperan nada nuevo) — eso sí recrearía el bug de
+            // concurrencia original (ver docblock de
+            // compensateLostChallenge(): "claim → GET sigue pending →
+            // claim borrado → un segundo worker reclama"). Este bloque
+            // completo es un no-op salvo que de verdad se esté
+            // persistiendo un Challenge nuevo — evento raro, nunca "cada
+            // poll".
+            'compensation_claimed_at' => null,
         ]);
     }
 
@@ -433,7 +455,18 @@ class MercadoPagoPaymentReconciliationService
         // `three_ds_expires_at` — NUNCA `payment_orders.expires_at` (columna
         // separada, significado separado — ver
         // MercadoPagoPaymentProvider::createPaymentAttempt()).
-        $order->update(['status' => 'paid', 'paid_at' => now(), 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null]);
+        //
+        // compensation_claimed_at (ronda de auditoría de seguridad
+        // financiera final, tercera pasada): mismo criterio — se limpia
+        // AQUÍ, en la transición real a un estado TERMINAL, nunca en
+        // recordResolvedTruth() (que corre también para 'pending'). Cubre
+        // el caso en que un worker de compensación reclamó este intento y
+        // murió antes de completar su propia ronda, y ALGO AJENO a
+        // compensateLostChallenge() (esta misma reconciliación, disparada
+        // por un webhook, la pasada 3 del barrido, o cualquier otro
+        // camino) resuelve el pago de forma independiente — nunca debe
+        // quedar un claim huérfano sobre un PaymentOrder ya 'paid'.
+        $order->update(['status' => 'paid', 'paid_at' => now(), 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null, 'compensation_claimed_at' => null]);
         // recordResolvedTruth() (no un update inline) para que la
         // transición review_reason≠null → null también fije
         // review_resolved_at cuando corresponda (ver REVIEW AUDIT).
@@ -461,8 +494,16 @@ class MercadoPagoPaymentReconciliationService
             return 'failed'; // ya terminal, idempotente
         }
 
-        // three_ds_challenge_url/creq/three_ds_expires_at: ver comentario equivalente en applyPaid().
-        $order->update(['status' => 'failed', 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null]);
+        // three_ds_challenge_url/creq/three_ds_expires_at/
+        // compensation_claimed_at: ver comentario equivalente en
+        // applyPaid() — mismo criterio, misma transición real a un estado
+        // TERMINAL. Cubre también el desenlace EXITOSO de la propia
+        // compensación (Mercado Pago reporta status='cancelled', que el
+        // mapper ya traduce a 'failed' — ver docblock de
+        // compensateLostChallenge()): sin este reset explícito aquí, el
+        // claim que el propio worker de compensación tomó quedaría
+        // huérfano tras SU PROPIO éxito.
+        $order->update(['status' => 'failed', 'three_ds_challenge_url' => null, 'three_ds_creq' => null, 'three_ds_expires_at' => null, 'compensation_claimed_at' => null]);
         $this->recordResolvedTruth($order, $truth);
 
         return 'failed';
@@ -652,5 +693,365 @@ class MercadoPagoPaymentReconciliationService
         }
 
         return true;
+    }
+
+    /**
+     * Ventana de un CLAIM de compensación (ver claimForCompensation()) antes
+     * de tratarse como abandonado — tiempo de sobra para una ronda completa
+     * (GET + PUT + GET, cada uno con connectTimeout(5)/timeout(15) y hasta 2
+     * reintentos en fetchPayment()) sin arriesgar robarle el claim a un
+     * worker que sigue genuinamente activo. Deliberadamente UNA constante
+     * propia — nunca CHALLENGE_WINDOW_MINUTES (significa algo totalmente
+     * distinto: cuánto dura utilizable el Challenge del BANCO frente al
+     * profesor) ni ningún umbral de config('mercadopago.recovery') (esos
+     * gobiernan presupuestos de BARRIDO, no la duración de un claim
+     * individual).
+     */
+    private const COMPENSATION_CLAIM_STALE_MINUTES = 5;
+
+    /**
+     * COMPENSATING CANCELLATION (LOST 3DS CHALLENGE): único punto que
+     * decide y ejecuta la cancelación compensatoria de un intento
+     * 'pending_challenge' cuyos datos de Challenge MOVA perdió de forma
+     * permanente — nunca desde un controlador ni desde
+     * MercadoPagoWebhookRecoveryService directamente (ambos solo llaman
+     * aquí, ver reconcileStuckOrders()-equivalente en ese servicio).
+     * Reutiliza reconcile() para TODA lectura/aplicación de verdad
+     * server-to-server: este método nunca interpreta status/status_detail
+     * por su cuenta, nunca acredita, nunca marca 'failed' directamente —
+     * eso sigue siendo responsabilidad exclusiva de reconcile()/
+     * MercadoPagoPaymentStatusMapper, el mismo choke point que usa
+     * cualquier otro camino (webhook, recovery sweep, polling).
+     *
+     * ALGORITMO RACE-SAFE (sección 3 del encargo):
+     *   1. Elegibilidad barata, SOLO LECTURA, sin lock — prefiltro rápido
+     *      (ver isLostChallengeCompensationCandidate()) para no pagar el
+     *      coste de un GET completo sobre una fila obviamente no elegible.
+     *      Nunca autoritativa por sí sola — se re-evalúa bajo lock más
+     *      abajo.
+     *   2. GET canónico PREVIO — vía reconcile(), que hace su propio
+     *      fetchPayment(): si el proveedor YA NO está pending, reconcile()
+     *      ya aplicó la verdad completa (paid/failed/reversed/review) y
+     *      este método NUNCA continúa hacia la cancelación.
+     *   3. Re-chequeo ESTRUCTURAL tras ese GET — el propio reconcile() pudo
+     *      haber recuperado un Challenge utilizable vía
+     *      recoverChallengeFieldsIfMissing(), o el status_detail pudo
+     *      cambiar a otra variante de "pending" — nunca se cancela algo
+     *      que ya no calza exactamente en el escenario "Challenge perdido
+     *      sin datos utilizables".
+     *   4. CLAIM ATÓMICO (ver claimForCompensation()) — el ÚNICO punto que
+     *      decide si ESTE worker es quien puede llamar a cancelPayment().
+     *      Bajo lock, re-verifica TODO de nuevo (elegibilidad estructural +
+     *      "sin claim activo de otro worker") y escribe
+     *      `compensation_claimed_at` en la MISMA transacción — nunca
+     *      separado en dos pasos, nunca sostiene el lock durante I/O de
+     *      red. Si el claim falla (otro worker ya lo tiene, dentro de su
+     *      ventana normal), este método se DETIENE aquí — cancelPayment()
+     *      JAMÁS se invoca sin haber ganado el claim.
+     *   5. Solicita la cancelación (MercadoPagoPaymentProvider::
+     *      cancelPayment()). Su resultado NUNCA es verdad financiera
+     *      suficiente por sí solo (sección 2 del encargo) — se usa solo
+     *      para logging/observabilidad.
+     *   6. GET canónico FINAL — vía reconcile() otra vez, SIEMPRE, sin
+     *      importar qué haya devuelto el PUT. Única fuente de verdad sobre
+     *      el desenlace:
+     *        - 'paid': crédito exactamente-once (RechargeApprovalService::
+     *          credit()) — nunca se fuerza 'failed' solo porque se envió
+     *          un PUT de cancelación; si el pago se aprobó en la carrera
+     *          entre el GET previo y este, se acredita igual que cualquier
+     *          otro pago aprobado.
+     *        - 'failed': incluye el caso EXITOSO de esta cancelación —
+     *          Mercado Pago reporta `status='cancelled'`, que
+     *          MercadoPagoPaymentStatusMapper ya mapea a 'failed' (mismo
+     *          criterio que un 'rejected' — decisión deliberada: no se
+     *          introduce un tercer mapeo especial para no divergir del
+     *          mapper ya probado por el resto del sistema). Mismo estado
+     *          terminal: cero créditos, Challenge limpio (applyFailed() ya
+     *          limpia three_ds_*), reintento permitido (resolveAttemptRow()
+     *          ya trata 'failed' como terminal-reintentable).
+     *          CreditCheckoutController::safeStatus() distingue esta
+     *          variante de un 'failed' genérico vía `provider_status ===
+     *          'cancelled'` (el valor CRUDO que Mercado Pago reportó,
+     *          persistido sin cambios por recordResolvedTruth() — nunca un
+     *          valor sintético de MOVA, ver ronda de auditoría de
+     *          seguridad financiera final) para mostrar la copia
+     *          específica de "cancelado de forma segura" en vez del
+     *          mensaje genérico de rechazo.
+     *        - 'reversed'/'review': semántica existente sin cambios
+     *          (altamente improbable para un pago nunca capturado —
+     *          `captured: false` según la documentación de cancelación —
+     *          pero manejado igual por seguridad).
+     *        - 'pending': la cancelación no se confirmó (el PUT falló de
+     *          forma incierta, o Mercado Pago simplemente no la aplicó
+     *          todavía) — sigue recuperable, NUNCA se fuerza 'failed'
+     *          localmente solo porque se intentó un PUT. El claim se DEJA
+     *          intacto en este caso (y en 'transport_uncertain') — expira
+     *          solo tras COMPENSATION_CLAIM_STALE_MINUTES, nunca antes:
+     *          "no premature retry" (sección 3 del encargo).
+     *
+     * CONCURRENCIA (sección 4 del encargo, ronda de auditoría final):
+     * `compensation_claimed_at` (ver claimForCompensation()) es el ÚNICO
+     * mecanismo que garantiza como máximo un worker activo por intento —
+     * investigado y descartado explícitamente reutilizar
+     * `review_reason`/`provider_status`/`submission_status` para esto (ver
+     * docblock de la migración 2026_09_03_000002): CUALQUIER columna que
+     * reconcile() toque (todas excepto submission_status) se limpiaría sola
+     * en cuanto OTRO worker concurrente ejecutara su PROPIO paso 2 (el GET
+     * previo es obligatorio para TODOS), sin que el primer worker se
+     * enterara — dos workers podrían terminar llamando a cancelPayment()
+     * igual. `submission_status` sobrevive a reconcile(), pero ya tiene su
+     * propio contrato angosto (cuatro valores, ver
+     * MercadoPagoPaymentProvider::resolveAttemptRow()) que un quinto valor
+     * sintético habría corrompido igual que el problema original de
+     * `provider_status`.
+     *
+     * @return string outcome: 'not_eligible'|'race_resolved'|'transport_uncertain'|'paid'|'pending'|'failed'|'reversed'|'review'
+     */
+    public function compensateLostChallenge(PaymentOrder $order, MercadoPagoPaymentProvider $provider, ?int $stuckOrderMinutes = null): string
+    {
+        $stuckOrderMinutes ??= (int) config('payments.mercadopago.recovery.stuck_order_minutes', 30);
+
+        if (! $this->isLostChallengeCompensationCandidate($order->fresh(), $stuckOrderMinutes)) {
+            return 'not_eligible';
+        }
+
+        try {
+            $preOutcome = $this->reconcile($order->fresh(), null, $provider);
+        } catch (RuntimeException $e) {
+            Log::warning('[MercadoPago/Compensation] GET canónico previo a la cancelación falló — sigue pending/recuperable, no se cancela.', [
+                'payment_order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return 'transport_uncertain';
+        }
+
+        if ($preOutcome !== 'pending') {
+            // El GET PREVIO ya resolvió el intento a un desenlace terminal
+            // (paid/failed/reversed/review) — ver escenarios A/B del
+            // encargo ("pre/final GET → cancelled/approved → claim
+            // cleared"). Ningún claim se tomó todavía EN ESTA llamada
+            // (claimForCompensation() vive más abajo), pero un worker
+            // ANTERIOR pudo haber dejado uno activo/vencido antes de morir
+            // — se libera de forma defensiva e incondicional (no-op seguro
+            // si ya era null) para no dejar rastro huérfano sobre un
+            // intento que la propia compensación ya sabe que terminó.
+            PaymentOrder::whereKey($order->id)->update(['compensation_claimed_at' => null]);
+
+            return $preOutcome;
+        }
+
+        $fresh = $order->fresh();
+        if (! $this->isStructurallyCancellable($fresh)) {
+            // El GET previo cambió las condiciones (recuperó un Challenge
+            // utilizable, o el status_detail ya no es 'pending_challenge')
+            // — nunca se cancela algo que ya no calza en el escenario
+            // exacto de esta compensación (escenario C del encargo: "pre-
+            // cancel GET recovers a valid actionable Challenge →
+            // compensation stops → claim cleared → normal Challenge
+            // remains usable"). Mismo criterio defensivo que arriba: se
+            // libera cualquier claim que pudiera haber quedado activo de
+            // un worker anterior — el Challenge recién recuperado sigue
+            // 100% intacto/usable, esto solo limpia el mutex interno de
+            // MOVA, nunca toca three_ds_*.
+            PaymentOrder::whereKey($fresh->id)->update(['compensation_claimed_at' => null]);
+
+            return 'race_resolved';
+        }
+
+        if (! $this->claimForCompensation($fresh)) {
+            // Otro worker ya tiene el claim activo (dentro de su ventana
+            // normal), o una revisión humana real está en curso sobre este
+            // MISMO intento por otro motivo — nunca se pisa ninguna de las
+            // dos. cancelPayment() JAMÁS se invoca sin haber ganado el
+            // claim.
+            return 'not_eligible';
+        }
+
+        $cancelResult = $provider->cancelPayment($fresh->provider_order_id);
+        Log::info('[MercadoPago/Compensation] Cancelación compensatoria de Challenge perdido solicitada.', [
+            'payment_order_id' => $fresh->id,
+            'resultado_put' => $cancelResult['outcome'],
+        ]);
+
+        try {
+            $outcome = $this->reconcile($fresh->fresh(), null, $provider);
+        } catch (RuntimeException $e) {
+            Log::warning('[MercadoPago/Compensation] GET canónico final tras la cancelación falló — sigue pending/recuperable.', [
+                'payment_order_id' => $fresh->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            // El claim se DEJA intacto — expira solo tras
+            // COMPENSATION_CLAIM_STALE_MINUTES (ver docblock de la clase).
+            return 'transport_uncertain';
+        }
+
+        if ($outcome !== 'pending') {
+            // Terminal (paid/failed/reversed/review): la compensación
+            // realmente terminó — se libera el claim de inmediato, no hace
+            // falta esperar a que expire por sí solo.
+            PaymentOrder::whereKey($fresh->id)->update(['compensation_claimed_at' => null]);
+        }
+        // 'pending' (la cancelación no se confirmó): el claim se DEJA
+        // intacto — mismo criterio que transport_uncertain arriba, "no
+        // premature retry".
+
+        return $outcome;
+    }
+
+    /**
+     * ATOMIC CLAIM (ronda de auditoría de seguridad financiera final,
+     * sección 3): bajo el MISMO lockForUpdate() que el resto del código
+     * financiero ya usa (nunca un mecanismo de locking nuevo, nunca
+     * sostenido durante I/O de red — la transacción entera es puramente
+     * local), re-verifica que $order sigue estructuralmente cancelable Y
+     * que ningún OTRO worker tiene un claim activo, y si ambas cosas se
+     * cumplen, escribe `compensation_claimed_at = now()` en la MISMA
+     * transacción antes de devolver true. Un claim "activo" es uno cuyo
+     * timestamp es más reciente que COMPENSATION_CLAIM_STALE_MINUTES — más
+     * viejo que eso se trata como abandonado (el worker que lo tomó murió
+     * antes de completar su ronda) y se sobrescribe con un timestamp
+     * nuevo, permitiendo que ESTE worker retome la compensación — nunca
+     * queda un intento permanentemente atascado.
+     *
+     * DELIBERADAMENTE en su PROPIA columna (`compensation_claimed_at`,
+     * nunca `review_reason`/`provider_status`/`submission_status`) — ver
+     * docblock de la migración 2026_09_03_000002 y de
+     * compensateLostChallenge() para la evidencia completa de por qué
+     * ninguna columna existente puede representar esto con seguridad.
+     *
+     * "STALE CLAIM ON A TERMINAL ORDER" (excepción documentada, ronda de
+     * auditoría de seguridad financiera final, segunda pasada) —
+     * compensateLostChallenge() limpia el claim explícitamente en TODOS
+     * los desenlaces que ella misma determina (pre-check terminal,
+     * race_resolved, post-check terminal — ver esos tres puntos más
+     * arriba). El ÚNICO caso que puede dejar `compensation_claimed_at`
+     * huérfano en una fila YA terminal es que ALGO AJENO a esta
+     * compensación (un webhook, otra pasada del barrido) resuelva el MISMO
+     * PaymentOrder de forma independiente mientras un claim de un worker
+     * de compensación previo (activo o ya vencido) sigue sin limpiar — un
+     * evento genuinamente raro (requiere que ambas cosas coincidan en la
+     * misma ventana). Deliberadamente NO se resuelve haciendo que
+     * reconcile()/recordResolvedTruth() conozcan esta columna: sería
+     * exactamente el mismo error que motivó esta ronda de auditoría (mezclar
+     * lógica de claim de esta feature en el choke point compartido y ya
+     * probado por webhook/polling/todas las demás pasadas del barrido). Es
+     * seguro dejarlo así porque el valor queda PROBADAMENTE inerte:
+     * isLostChallengeCompensationCandidate() — la ÚNICA puerta de entrada
+     * que consulta esta columna, vía claimForCompensation() — exige
+     * `status === 'pending'` antes que cualquier otra cosa; una fila
+     * terminal nunca vuelve a pasar por ahí, así que un
+     * `compensation_claimed_at` residual ahí nunca vuelve a leerse ni a
+     * bloquear ni a permitir nada.
+     */
+    private function claimForCompensation(PaymentOrder $order): bool
+    {
+        return DB::transaction(function () use ($order) {
+            $locked = PaymentOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            if (! $this->isStructurallyCancellable($locked)) {
+                return false;
+            }
+
+            if ($locked->compensation_claimed_at !== null
+                && $locked->compensation_claimed_at->gt(now()->subMinutes(self::COMPENSATION_CLAIM_STALE_MINUTES))) {
+                return false;
+            }
+
+            $locked->update(['compensation_claimed_at' => now()]);
+
+            return true;
+        });
+    }
+
+    /**
+     * "No locally-valid actionable Challenge data" (sección 1 del
+     * encargo): un Challenge cuenta como UTILIZABLE solo con los tres
+     * campos presentes Y `three_ds_expires_at` todavía en el futuro —
+     * mismo criterio que CreditCheckoutController::safeStatus() ya usa
+     * para decidir si expone `action_required` al frontend (nunca un
+     * segundo criterio divergente).
+     */
+    private function hasUsableChallenge(PaymentOrder $order): bool
+    {
+        return $order->three_ds_challenge_url !== null
+            && $order->three_ds_creq !== null
+            && $order->three_ds_expires_at !== null
+            && $order->three_ds_expires_at->isFuture();
+    }
+
+    /**
+     * Condiciones ESTRUCTURALES del escenario "Challenge 3DS perdido" —
+     * evaluables en cualquier momento, sin referencia a cuánto tiempo lleva
+     * atascado el intento (esa parte, el "presupuesto de recuperación", vive
+     * aparte en isLostChallengeCompensationCandidate() porque
+     * compensateLostChallenge() necesita re-evaluar SOLO esta parte después
+     * de su propio GET previo — ese GET ya actualiza `updated_at`, así que
+     * reutilizar el gate completo ahí se auto-invalidaría de inmediato).
+     *
+     * NUNCA cancela un Challenge normal/usable: el chequeo central es
+     * `! hasUsableChallenge()`. `submission_status === 'submitted'` excluye
+     * por construcción cualquier fila que todavía pertenezca al OTRO camino
+     * de recuperación existente (`submitting`/`uncertain`, ver
+     * reconcileUncertainSubmission()) — ambos presupuestos nunca se pisan.
+     */
+    private function isStructurallyCancellable(PaymentOrder $order): bool
+    {
+        return $order->provider === 'mercadopago'
+            && $order->status === 'pending'
+            && $order->submission_status === 'submitted'
+            && $order->provider_order_id !== null
+            && $order->provider_status_detail === 'pending_challenge'
+            && ! $this->hasUsableChallenge($order);
+    }
+
+    /**
+     * ELIGIBILITY CONTRACT completo (sección 1 del encargo) — candidato a
+     * cancelación compensatoria si, ADEMÁS de isStructurallyCancellable():
+     *
+     *   - ya se verificó server-to-server al menos una vez
+     *     (`last_verified_at` no-null) — nunca se compensa un intento cuya
+     *     única "verdad" conocida es la respuesta síncrona original de
+     *     createPaymentAttempt(); tiene que haber pasado por al menos una
+     *     reconciliación real que haya tenido oportunidad de recuperar el
+     *     Challenge vía recoverChallengeFieldsIfMissing() y confirmado que
+     *     sigue sin datos utilizables.
+     *   - el intento lleva existiendo (`created_at`) al menos
+     *     `$stuckOrderMinutes` — reutiliza DELIBERADAMENTE el MISMO umbral
+     *     que ya define "intento pending atascado" para el barrido en lote
+     *     existente (MercadoPagoWebhookRecoveryService::
+     *     reconcileStuckOrders(),
+     *     config('payments.mercadopago.recovery.stuck_order_minutes'),
+     *     default 30 minutos) — es el "presupuesto de recuperación normal"
+     *     al que se refiere la sección 1 del encargo ("existing
+     *     recovery/search budget has reached the point where normal
+     *     Challenge reconstruction is no longer possible"): ningún número
+     *     mágico nuevo, ninguna columna de contador nueva, ninguna
+     *     state machine nueva — PaymentOrder ya expresa esto con las
+     *     columnas que tiene.
+     *
+     *     DELIBERADAMENTE `created_at`, NUNCA `updated_at` (encontrado en
+     *     vivo escribiendo el test de cableado del barrido, ver
+     *     MercadoPagoWebhookRecoveryServiceTest): `reconcileStuckOrders()`
+     *     (pasada 3) visita esta MISMA fila en CADA barrido mientras siga
+     *     'pending' y llama a reconcile(), que SIEMPRE actualiza
+     *     `updated_at` (y `last_verified_at`) vía recordResolvedTruth() —
+     *     sin importar si el Challenge sigue perdido. Si esta elegibilidad
+     *     hubiera usado `updated_at`, la pasada 3 (que corre ANTES que
+     *     esta, dentro del mismo recover()) refrescaría el reloj en cada
+     *     barrido y este umbral nunca se cumpliría jamás — un gate que se
+     *     auto-invalida solo, silenciosamente, sin ningún error visible.
+     *     `created_at` es inmutable una vez creada la fila — el único
+     *     ancla de tiempo que ninguna reconciliación normal puede tocar.
+     */
+    public function isLostChallengeCompensationCandidate(PaymentOrder $order, ?int $stuckOrderMinutes = null): bool
+    {
+        $stuckOrderMinutes ??= (int) config('payments.mercadopago.recovery.stuck_order_minutes', 30);
+
+        return $this->isStructurallyCancellable($order)
+            && $order->last_verified_at !== null
+            && $order->created_at !== null
+            && $order->created_at->lte(now()->subMinutes($stuckOrderMinutes));
     }
 }

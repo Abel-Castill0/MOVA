@@ -31,6 +31,7 @@ class PaymentOrder extends Model
         'status',
         'submission_status',
         'recovery_attempts',
+        'compensation_claimed_at',
         'provider_status',
         'provider_status_detail',
         'three_ds_challenge_url',
@@ -49,6 +50,7 @@ class PaymentOrder extends Model
     protected $casts = [
         'attempt_number' => 'integer',
         'recovery_attempts' => 'integer',
+        'compensation_claimed_at' => 'datetime',
         'amount_minor' => 'integer',
         'expires_at' => 'datetime',
         'three_ds_expires_at' => 'datetime',
