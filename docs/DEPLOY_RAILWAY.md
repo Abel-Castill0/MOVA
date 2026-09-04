@@ -28,13 +28,23 @@ Railway detecta PHP automáticamente con **Railpack** (sin Dockerfile), soporta 
 > verdad legacy hasta que exista un equivalente probado en IaC — no se
 > borran a la ligera.
 >
-> **Próxima fase de infraestructura (no iniciada, no diseñada aquí):**
-> migración a `.railway/railway.ts` para `mova-web`/`mova-queue`/
-> `mova-scheduler`, usando `railway config migrate` (comando oficial que
-> lee los `railway*.toml`/`.json` del repo, incluyendo monorepos, y emite
-> un `.railway/railway.ts` equivalente) como punto de partida, no como
-> sustituto de una revisión manual de equivalencia antes de confiar en él
-> para producción.
+> **Intento de migración a IaC realizado (2026-09-04): BLOQUEADO para
+> paridad 1:1 solo-repo.** Ver sección "Migración a Infrastructure as Code
+> (IaC)" más abajo para la evidencia completa. Resumen preciso: Railway
+> **como plataforma** sigue teniendo Pre-Deploy Commands — la funcionalidad
+> no desapareció. El gap verificado es más estrecho: el nuevo DSL de IaC
+> (`service()` en `.railway/railway.ts`) **todavía no expone un campo
+> equivalente a `preDeployCommand`** — confirmado explícitamente contra la
+> documentación oficial. Esto significa que una migración 1:1,
+> representada enteramente en el repo vía `.railway/railway.ts`, no puede
+> hoy preservar el invariante "migrate --force corre una vez por deploy,
+> nunca en cada restart". No significa que Railway carezca de forma segura
+> de correr migraciones, ni que no exista ningún camino — significa que el
+> camino repo-only vía IaC todavía no está disponible. No se creó ningún
+> `.railway/railway.ts`: un archivo que "parece" una migración completa
+> pero no puede preservar ese invariante sería más peligroso que no migrar
+> todavía. El seguimiento de esto es trabajo activo, no una espera pasiva
+> — ver "Cronograma" en la sección de IaC.
 
 ---
 
@@ -115,12 +125,38 @@ docker-php-entrypoint --config /Caddyfile --adapter caddyfile
 
 Sin `RAILPACK_SKIP_MIGRATIONS=true` en `mova-web`, el mismo problema que
 `preDeployCommand` vino a resolver (migración en cada restart, no una vez
-por deploy) **reaparece por otra vía** — y esta vez no se puede evitar
-desde `railway.toml`: Railway Config-as-Code no tiene sección de
-variables de entorno (confirmado en su documentación), así que esto es
-**obligatoriamente** una variable puesta a mano en el dashboard de
-`mova-web` (ver checklist abajo). Este repo no puede forzarlo por sí
-solo — es un blocker de configuración de Railway, no de código.
+por deploy) **reaparece por otra vía** — y `railway.toml`/`railway.json`
+(Config-as-Code) no tiene sección de variables de entorno propia
+(confirmado en su documentación) para forzarla desde ahí.
+
+**SOURCE OF TRUTH: `railpack.json` → `deploy.variables`.** Esta variable
+**ya está repo-enforced**, no es una tarea manual pendiente de dashboard:
+
+```json
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": { "php": "8.3" },
+  "deploy": {
+    "variables": { "RAILPACK_SKIP_MIGRATIONS": "true" }
+  }
+}
+```
+
+Verificado tres veces de forma independiente en la sesión que introdujo
+esto (`ef43601`): schema oficial de Railpack (`schema.railpack.com`), el
+struct Go real (`core/config`) y el código de merge real
+(`core/generate/context.go`: `maps.Copy(c.Deploy.Variables,
+c.Config.Deploy.Variables)`) — ese campo de `railpack.json` sí se traduce
+en una variable de entorno real del contenedor de deploy (como
+`APP_ENV`/`IS_LARAVEL`), no solo en sustitución de plantillas. El repo se
+basta a sí mismo; no depende de que un humano recuerde configurarla en el
+dashboard de Railway.
+
+**POST-DEPLOY VERIFICATION** (pendiente, no bloqueante de código): la
+única verificación que falta es que el **valor efectivo en runtime** del
+contenedor sea `true` — no confirmado contra un deploy real esta fase
+(fuera de alcance, no se desplegó nada). Ver checklist al final del
+documento.
 
 (`storage:link`, `optimize:clear` y `optimize` SIEMPRE corren, con o sin
 `RAILPACK_SKIP_MIGRATIONS`. Esto además reemplaza el rol que
@@ -424,8 +460,9 @@ php artisan storage:link
 # Web — pre-deploy (una vez por deploy, contenedor aparte, antes de reemplazar el anterior)
 php artisan config:clear && php artisan migrate --force
 # Web — start: sin comando propio, lo maneja Railpack (FrankenPHP vía Caddy).
-# Requiere RAILPACK_SKIP_MIGRATIONS=true como variable de Railway — ver
-# sección "Servidor web" arriba.
+# RAILPACK_SKIP_MIGRATIONS=true es repo-enforced vía railpack.json
+# (deploy.variables) — no requiere configuración manual. Ver sección
+# "Servidor web" arriba para la verificación post-deploy pendiente.
 
 # Queue worker
 php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction
@@ -440,6 +477,197 @@ php artisan mercadopago:reconcile
 # Seed de producción (idempotente)
 php artisan db:seed --class=ProductionSeeder --force
 ```
+
+---
+
+## Migración a Infrastructure as Code (IaC) — hallazgos verificados (2026-09-04)
+
+Intento de migración de los tres `railway*.toml` (Config as Code, deprecado,
+corte 2026-12-01) a `.railway/railway.ts` (IaC, formato sucesor). Verificado
+contra la documentación oficial de Railway (`railwayapp/docs`, vía Context7,
+no memoria) y contra el comportamiento real de la Railway CLI instalada
+(`v5.27.0`, proyecto `tranquil-creativity` ya enlazado:
+servicios `MOVA`/`mova-queue`/`mova-scheduler` + `MySQL`).
+
+### Tabla de paridad
+
+| Legacy (`railway*.toml`) | Equivalente IaC (`service()`) | Evidencia | Migrado |
+|---|---|---|---|
+| `builder = "RAILPACK"` | Sin campo `builder` — Railpack es el único builder que `service()` soporta (Dockerfile builder/path **no** existe en IaC) | `infrastructure-as-code/reference.md` (nota explícita) | ✅ implícito |
+| `buildCommand` (composer/npm/artisan cache) | `service({ build: "..." })` | `reference.md` — `build` string | ✅ directo |
+| *(sin `startCommand`, Railpack detecta Laravel)* | Igual: omitir `start` dentro de lo que Railpack soporta | No verificado si IaC permite omitir `start` para dejarlo a Railpack — no evidenciado en la doc revisada | ⚠️ no confirmado |
+| `startCommand` (queue/scheduler) | `service({ start: "..." })` | `reference.md` — `start` string | ✅ directo |
+| `healthcheckPath` / `healthcheckTimeout` | `service({ healthcheck, healthcheckTimeout })` | `reference.md` | ✅ directo |
+| `preDeployCommand` (`migrate --force`, una vez por deploy, contenedor aparte) | **No existe en `service()`.** Confirmado explícitamente: *"pre-deploy command... are NOT available in the IaC `service()` config — those only exist in the deprecated Config-as-Code format"* | `infrastructure-as-code/reference.md` | ❌ **BLOQUEADO** |
+| `restartPolicyType` / `restartPolicyMaxRetries` | **No existe en `service()`** tampoco (misma nota que preDeploy). El default de plataforma es `ON_FAILURE` / 10 reintentos (confirmado vía API GraphQL `ServiceInstanceUpdateInput.apiDefault`) | `reference.md` + `integrations/api/manage-services.md` | ⚠️ parcial — pierde el ajuste fino (web/scheduler usan 3, no 10) pero conserva `ON_FAILURE` |
+| Config File Path por servicio (dashboard, apuntando cada uno a su `.toml`) | No aplica: un solo `.railway/railway.ts` define los tres `service()` en el mismo archivo | `infrastructure-as-code.md` | ✅ mejora (elimina la causa raíz del "Incidente conocido" documentado arriba) |
+| Variables de entorno (`${{MySQL.MYSQLHOST}}`, secretos a mano en dashboard) | `env: { X: preserve() }` para conservar valores existentes, o `db.env.VAR` para referencias tipadas entre recursos IaC | `reference.md` — `preserve()` | ✅ directo (no evaluado en profundidad — fuera de alcance sin tocar el servicio MySQL real) |
+| `mercadopago:reconcile` cada 5 min (`app/Console/Kernel.php`, dentro de `schedule:work`) | Sin cambio — vive en código de la app, no en config Railway | N/A | ✅ no aplica a IaC |
+
+### Alcance exacto del gap (leer con cuidado)
+
+| Capa | Pre-Deploy Command | Estado |
+|---|---|---|
+| Funcionalidad de la plataforma Railway | Existe y sigue soportada (`docs/deployments/pre-deploy-command.md`) | ✅ |
+| Representación en Config-as-Code legacy (`railway.toml`) | `[deploy].preDeployCommand` | ✅ (es lo que usa hoy `mova-web`) |
+| Representación en el DSL de IaC (`service()` de `.railway/railway.ts`) | Ningún campo equivalente documentado | ❌ **actualmente** |
+
+Es decir: **Railway no se quedó sin forma segura de correr migraciones** —
+la funcionalidad de plataforma sigue ahí. El gap es puntual: el nuevo DSL
+repo-only (IaC) todavía no la expone. Esto NO es lo mismo que "no existe
+ningún workaround" — significa que los dos workarounds obvios *dentro del
+propio repo* no sirven (ver abajo), y que cualquier otro camino (gestión
+externa del pre-deploy, un servicio/job dedicado, un gate de CI) es una
+opción sin verificar todavía, no descartada por falta de alternativas sino
+por falta de evidencia suficiente para elegir una sin probarla primero.
+
+1. **No hay workaround vía `build`**: la red privada de Railway (necesaria
+   para llegar a MySQL) **no está disponible durante el build**, solo en
+   runtime — confirmado explícitamente (`networking/private-networking/how-it-works.md`:
+   *"database migrations requiring internal connectivity should run as part
+   of the start command"*). Meter `migrate --force` al final de `build` no
+   podría conectar a la base de datos.
+2. **No hay workaround vía `start`**: mover `migrate --force` al `start`
+   de `mova-web` es exactamente el bug original que `preDeployCommand`
+   vino a resolver esta misma sesión — correría en cada restart/réplica,
+   no una vez por deploy.
+3. **Sin ordenamiento entre servicios en el trigger real de este repo —
+   y esto es independiente de CasC vs. IaC**: verificado explícitamente
+   que Railway solo ordena despliegues simultáneos vía variables de
+   referencia (`service.env` cruzado) para *template deploys, staged
+   changes, duplicado de environments y PR environments* — **no** para el
+   disparador real de este proyecto: *"When services deploy independently,
+   no ordering is performed. This applies to GitHub push deploys, even in
+   a monorepo..."* (`deployments/deployment-actions.md`). Consecuencia
+   directa: **incluso el `preDeployCommand` que `mova-web` usa HOY (Config
+   as Code) no garantiza que `mova-queue`/`mova-scheduler` esperen a que la
+   migración termine** antes de arrancar código nuevo — esto ya era cierto
+   antes de esta fase, no es una regresión de IaC. Ninguna de las opciones
+   evaluadas en el encargo (A/B/C/D) puede apoyarse en un mecanismo nativo
+   de orden de Railway para el push-deploy real de
+   `mova-web`/`mova-queue`/`mova-scheduler`. La única protección real hoy
+   — y la única que sobrevive cualquier elección de formato de config — es
+   disciplina de migraciones **expand/contract** a nivel de aplicación:
+   el schema debe tolerar código viejo y nuevo corriendo a la vez.
+4. **Gestión dual no soportada**: un servicio no puede estar administrado
+   por Config as Code e IaC a la vez (*"Services cannot be managed by both
+   ... simultaneously"*) — migrar es un corte por servicio, sin red de
+   seguridad combinada durante la transición.
+5. **IaC sigue "experimental"** (`infrastructure-as-code.md` §Limitations):
+   sin historial persistido de changesets, sin flujo "apply-later", y el
+   propio formato de archivo generado puede cambiar.
+
+### Limitación de validación offline
+
+Los subcomandos `railway config plan/pull/apply/init` requieren un runner
+adicional ("Railway TypeScript SDK" / `railway-iac-ts`) **no instalado en
+este entorno** — confirmado al ejecutar `railway config pull --json`:
+`Could not find Railway configuration support for this project. Install
+the Railway TypeScript SDK...`. No se instaló: (a) la sesión prohíbe
+dependencias salvo que la propia herramienta IaC lo exija de forma
+verificada — ya verificado que sí lo exige, pero (b) el hallazgo
+bloqueante (§ arriba) ya está confirmado con evidencia primaria de la
+documentación oficial y no depende de poder ejecutar `plan`/`pull`; instalar
+un SDK adicional solo para reconfirmarlo no habría cambiado la
+recomendación. `railway --version` (5.27.0) y `railway status` sí se
+verificaron sin instalar nada: el proyecto (`tranquil-creativity`) está
+enlazado, con servicios `MOVA` (Failed), `mova-queue` (Offline),
+`mova-scheduler` (Sleeping) y `MySQL` (Failed) — estados preexistentes, no
+tocados ni diagnosticados en esta fase (fuera de alcance: infra-only,
+sin deploy).
+
+### Por qué NO usar `railway run` como fallback de migración
+
+Una idea obvia es reemplazar `preDeployCommand` por un paso manual/CI que
+corra la migración por fuera. `railway run` **no sirve para esto en la
+topología actual de MOVA**, y no por falta de permisos sino por diseño:
+
+- `railway run` está documentado como *"Run a **local** command using
+  variables from the active environment"* — confirmado en
+  `railway run --help` de la CLI instalada: inyecta las variables de
+  Railway en un proceso que corre en la máquina que ejecuta el comando
+  (un laptop, un runner de CI), **no** dentro de la red de Railway.
+- La red privada de Railway (`*.railway.internal`) — donde vive el
+  hostname interno de MySQL — es **runtime-only y solo resoluble desde
+  dentro de la red de Railway** (mismo hallazgo de la sección anterior).
+  Un proceso local o de CI fuera de Railway no puede resolver ni alcanzar
+  ese hostname.
+- Consecuencia: `php artisan migrate --force` corrido vía `railway run`
+  desde fuera de Railway fallaría al conectar a la base de datos de
+  producción de MOVA, salvo que MySQL exponga un endpoint público — **no
+  se propone esto**: exponer la base de datos públicamente solo para que
+  un fallback de migración funcione sería debilitar la superficie de
+  ataque a cambio de conveniencia de tooling, lo contrario de lo que pide
+  esta fase.
+
+No se descarta que Railway ofrezca otro mecanismo capaz de ejecutar
+*dentro* de la red (p. ej. algo apoyado en `railway ssh`, un servicio
+dedicado, o un runner de CI conectado por el proxy TCP/SSH de Railway) —
+simplemente no se investigó ni se verificó en esta fase, así que no se
+documenta como alternativa hasta probarlo.
+
+### Direcciones futuras posibles (sin elegir — requieren prueba antes de adoptarse)
+
+Ninguna de estas se elige en esta corrección de documentación. Se listan
+como opciones a investigar en la próxima fase dedicada, cada una con lo
+que haría falta verificar antes de confiar en ella:
+
+- **A. Config as Code temporal hasta que exista un reemplazo** — mantener
+  `mova-web` en `railway.toml` (con su `preDeployCommand`) más allá de
+  esta fase, aceptando que corre como "servicio legacy" hasta el corte de
+  2026-12-01. Requiere confirmar qué pasa exactamente ese día para
+  servicios que no migraron (¿deja de desplegar? ¿se congela la config?).
+- **B. Pre-deploy gestionado fuera del repo (dashboard) conviviendo con
+  IaC** — si Railway permite configurar un pre-deploy a nivel de
+  servicio/dashboard para un servicio administrado por IaC. No verificado:
+  la documentación revisada dice que CasC e IaC no pueden coadministrar el
+  mismo servicio, pero no aclara si un ajuste de dashboard fuera del
+  archivo `railway.toml` cuenta como "Config as Code" a estos efectos.
+- **C. Servicio/job de release dedicado** — un servicio separado que solo
+  corre la migración y termina, disparado explícitamente por el pipeline
+  de release. Requiere resolver cómo se dispara de forma confiable en cada
+  release (no hay ordenamiento nativo de Railway para push-deploys, ver
+  arriba) sin convertirse en una cuarta pieza de infraestructura permanente
+  no evidenciada como necesaria.
+- **D. Gate de release controlado por CI** — el pipeline de CI/CD ejecuta
+  la migración contra producción (con acceso de red legítimo, no
+  `railway run` local) como parte del propio proceso de release, antes de
+  disparar o confirmar el deploy de los tres servicios. Requiere decidir
+  cómo el CI alcanza la red privada de Railway sin exponer MySQL
+  públicamente.
+- **E. Expand/contract como red de seguridad permanente** — independiente
+  de A–D: dado que ni CasC ni IaC garantizan orden entre
+  `mova-web`/`mova-queue`/`mova-scheduler` en un push-deploy real (ver
+  arriba), las migraciones de schema deben seguir siendo
+  backward-compatible entre versiones consecutivas del código sin importar
+  qué mecanismo de release se elija. Esto no es opcional ni sustituible
+  por ninguna de A–D — es el invariante que ya debería cumplirse hoy.
+
+### Decisión
+
+**No migrar todavía.** Los tres `railway*.toml` siguen siendo la fuente de
+verdad — ninguna de las condiciones de arriba se resolvió en esta fase, así
+que no hay base para elegir entre A–D todavía.
+
+No se creó `.railway/railway.ts`: un archivo que se ve como una migración
+terminada pero no puede expresar el invariante de migración más crítico del
+repo es más riesgoso que no tener el archivo — alguien podría aplicarlo
+(`railway config apply`) asumiendo paridad completa.
+
+### Cronograma — esto es trabajo activo, no una espera pasiva
+
+- **Corte de Config as Code**: 2026-12-01 (confirmado, oficial).
+- **Fecha actual**: 2026-09-04.
+- **Margen**: ~3 meses (menos, considerando tiempo de staging/QA antes del
+  corte, no hasta el corte mismo).
+
+Esto **no** significa "esperar a que se acerque el 2026-12-01 para
+reaccionar". Significa que la próxima fase dedicada debe, cuanto antes:
+(1) verificar las opciones A–D con evidencia real (no solo documentación
+de prosa, como en esta fase), (2) elegir una con justificación explícita,
+y (3) validarla en un entorno de staging con tiempo suficiente de sobra
+antes del corte — no en la semana previa. El estado BLOQUEADO de esta
+fase es sobre la paridad IaC hoy, no sobre el ritmo de la siguiente fase.
 
 ---
 
@@ -462,13 +690,14 @@ Las siguientes variables contienen secretos y **nunca deben estar en el reposito
 | `ADMIN_EMAIL` | Email del administrador de producción |
 | `ADMIN_PASSWORD` | Contraseña segura del admin |
 
-No son secretos pero son **obligatorios** para que `mova-web` arranque correctamente sin `startCommand` propio (ver sección "Servidor web" — CRÍTICO):
-
-| Variable | Servicio | Valor |
-|---|---|---|
-| `RAILPACK_SKIP_MIGRATIONS` | mova-web | `true` |
-
 (No hace falta ninguna variable de document root — Railpack detecta `public/` automáticamente al encontrar `artisan`. No usar `NIXPACKS_PHP_ROOT_DIR`, es del builder retirado.)
+
+> **`RAILPACK_SKIP_MIGRATIONS` NO va en esta tabla.** A diferencia de las
+> variables de arriba, no es un valor manual de dashboard: está
+> repo-enforced vía `railpack.json` → `deploy.variables` (ver sección
+> "Servidor web" — CRÍTICO). Lo único pendiente es verificar, tras el
+> primer deploy real, que el valor efectivo en el contenedor sea `true`
+> (ver checklist).
 
 ---
 
@@ -529,13 +758,13 @@ dependencias) — es solo fijar qué construye Railpack.
 | `APP_KEY` vacío en producción | Alta | Generar y pegar antes del deploy |
 | `APP_DEBUG=true` accidentalmente | Alta | Verificar siempre antes del push |
 | Config file path no configurado en mova-queue/scheduler | Alta | Seguir Pasos 5 y 6 exactamente — ver "Incidente conocido" arriba |
-| `RAILPACK_SKIP_MIGRATIONS` no configurada en mova-web | Alta | El script de arranque de Railpack corre `migrate --force` en cada restart del contenedor, no solo en el deploy — ver sección "Servidor web" |
+| Valor efectivo de `RAILPACK_SKIP_MIGRATIONS` en runtime no confirmado | Media (repo-enforced vía `railpack.json`, no una tarea manual pendiente — riesgo es de verificación, no de configuración) | Confirmar en los logs del primer deploy real que no aparezca "Running migrations" en un *restart* (no deploy) — ver sección "Servidor web" |
 | `QUEUE_CONNECTION` ausente en algún servicio (cae a `sync` por default de `config/queue.php`) | Alta | `mova:health-check` lo detecta como `MERCADOPAGO_WEBHOOK_QUEUE_SYNC` si el webhook de Mercado Pago está habilitado — ver sección de pagos abajo |
 | `CACHE_DRIVER` ausente/`file` con `mova-scheduler` escalado a >1 réplica | Alta | `mova:health-check` lo detecta como `SCHEDULER_LOCK_NOT_SHARED` en producción; mientras tanto, mantener `mova-scheduler` en exactamente 1 réplica (invariante actual, no requiere Redis) |
 | `MERCADOPAGO_WEBHOOKS_ENABLED=true` sin la callback URL registrada aún en el panel de Mercado Pago | Alta | No activar el flag hasta configurar el webhook (skill `mp-webhooks`, `save_webhook`) — mientras esté en `false`, el endpoint rechaza todo (404) aunque la firma sea válida |
 | `mercadopago:reconcile` agendado pero `mova-scheduler` caído | Alta | El agendado (`app/Console/Kernel.php`) no sustituye verificar que el servicio esté `Online` — confirmar en logs cada ~5 min |
 | Laravel 10 sin soporte de seguridad desde 2025-02-04 | Alta (blocker de fase, no de este checkpoint) | Ver sección "PHP: versión y soporte del framework" — próxima fase dedicada, fuera de este diff |
-| Config as Code (`railway*.toml`) deprecado, corte duro 2026-12-01 | Alta (blocker de longevidad, no de este checkpoint) | Ver nota arriba — próxima fase dedicada: migración a `.railway/railway.ts` vía `railway config migrate` + revisión manual de equivalencia |
+| Config as Code (`railway*.toml`) deprecado, corte duro 2026-12-01 (hoy: 2026-09-04, ~3 meses de margen) | Alta (blocker de longevidad, activo — no esperar al corte) | Ver sección "Migración a Infrastructure as Code (IaC)": migración a `.railway/railway.ts` bloqueada hoy por falta de equivalente a `preDeployCommand` en el DSL de IaC (`railway config init/pull/plan/apply`, no `railway config migrate` — ese comando no existe en la CLI v5.27.0). Próxima fase debe verificar y elegir entre las opciones A–D documentadas, con tiempo de staging antes del corte, no reaccionar cerca de la fecha |
 | `SENTRY_TRACES_SAMPLE_RATE=1.0` en prod | Media | Usar 0.1 para no agotar cuota |
 | Queue worker sin supervisión | Media | Monitorear logs en Railway |
 
@@ -548,7 +777,7 @@ dependencias) — es solo fijar qué construye Railpack.
 - [ ] `APP_ENV=production`
 - [ ] `APP_URL` apunta al dominio de Railway
 - [ ] Variables DB vinculadas con `${{MySQL.MYSQLHOST}}` etc.
-- [ ] Variables de correo configuradas (Gmail App Password)
+- [ ] Variables de correo configuradas (Gmail API/OAuth: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_FROM_ADDRESS`)
 - [ ] Variables Zoom configuradas
 - [ ] Variables Twilio configuradas
 - [ ] `SENTRY_LARAVEL_DSN` configurado
@@ -556,10 +785,10 @@ dependencias) — es solo fijar qué construye Railpack.
 - [ ] `ADMIN_EMAIL` y `ADMIN_PASSWORD` configurados
 - [ ] mova-queue → Config File Path → `/railway.queue.toml`
 - [ ] mova-scheduler → Config File Path → `/railway.scheduler.toml`
-- [ ] mova-web → variable `RAILPACK_SKIP_MIGRATIONS=true` (CRÍTICO — ver "Servidor web")
 - [ ] `QUEUE_CONNECTION=database` en los tres servicios
 - [ ] `CACHE_DRIVER=database` en los tres servicios (comparte el mutex de `withoutOverlapping()`)
 - [ ] `mova-scheduler` en exactamente 1 réplica (no escalar sin adoptar antes un lock distribuido deliberado)
 - [ ] `php artisan mova:health-check` en verde antes de habilitar pagos/webhooks reales
 - [ ] ProductionSeeder ejecutado tras primer deploy
 - [ ] Primer deploy de `mova-web` verificado según la sección "Servidor web" (logs de Caddy/FrankenPHP, `/healthz`, sin migración repetida en un restart)
+- [ ] **Post-deploy**: confirmar que el valor efectivo de `RAILPACK_SKIP_MIGRATIONS` en el contenedor de `mova-web` sea `true` en runtime — repo-enforced vía `railpack.json`, ya no requiere configurarse a mano; esto es solo la verificación pendiente (ver "Servidor web" — CRÍTICO)
