@@ -2,10 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Models\OperationalAlert;
+use App\Services\OperationalAlertService;
 use App\Support\ProviderGuard;
 use App\Support\SettlementMode;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * F-02 / F-03 — Detecta configuraciones que son válidas para arrancar pero
@@ -22,7 +25,21 @@ use Illuminate\Support\Facades\DB;
  */
 class HealthCheck extends Command
 {
-    protected $signature = 'mova:health-check {--json : Salida en JSON para monitorización}';
+    protected $signature = 'mova:health-check
+        {--json : Salida en JSON para monitorización}
+        {--alert : Además de informar, registra las incidencias para que los administradores reciban aviso (lo usa el scheduler)}';
+
+    /**
+     * H-03 — Severidad por código de aviso.
+     *
+     * Todo lo que este comando emite ya es, por definición, "válido para
+     * arrancar pero peligroso para operar", así que el default es CRÍTICO. La
+     * única excepción es el backlog de la cola: que existan jobs fallidos es
+     * información operativa que hay que revisar, no una configuración rota.
+     */
+    private const NON_CRITICAL_CODES = [
+        'QUEUE_FAILED_JOBS',
+    ];
 
     protected $description = 'Revisa configuraciones válidas pero operacionalmente peligrosas';
 
@@ -269,6 +286,8 @@ class HealthCheck extends Command
 
         $healthy = $warnings === [];
 
+        $this->publishFindings($warnings, $environment);
+
         if ($this->option('json')) {
             $this->line((string) json_encode([
                 'environment' => $environment,
@@ -304,6 +323,76 @@ class HealthCheck extends Command
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * H-03 — Hace que el resultado salga de la consola.
+     *
+     * Antes este comando escribía todo con `$this->warn()`. Agendado, esa salida
+     * no la lee nadie: el hallazgo original era precisamente que MOVA sabía
+     * detectar `LESSON_SETTLEMENT_MODE=dry_run` en producción y ese aviso no
+     * llegaba a ninguna parte.
+     *
+     * Dos canales, con propósitos distintos:
+     *
+     *   - LOG ESTRUCTURADO, siempre. Es barato, y desde H-01 un `Log::error`
+     *     no reemplaza a Sentry pero sí queda en la traza del contenedor.
+     *
+     *   - INCIDENCIAS (`--alert`), solo cuando lo pide el llamador. El
+     *     scheduler lo pasa; una ejecución manual en local NO, para que
+     *     depurar configuración no llene la bandeja de los administradores de
+     *     incidencias que no existen en producción.
+     *
+     * Cuando un aviso DESAPARECE, su incidencia se resuelve. Así el panel
+     * refleja el estado actual y no un histórico, y si el problema vuelve, se
+     * vuelve a avisar.
+     *
+     * @param  array<int, array{code:string,message:string}>  $warnings
+     */
+    private function publishFindings(array $warnings, string $environment): void
+    {
+        $codesSeen = [];
+
+        foreach ($warnings as $warning) {
+            $isCritical = ! in_array($warning['code'], self::NON_CRITICAL_CODES, true);
+            $codesSeen[] = $warning['code'];
+
+            Log::log($isCritical ? 'error' : 'warning', '[HealthCheck] '.$warning['code'], [
+                'code' => $warning['code'],
+                'message' => $warning['message'],
+                'environment' => $environment,
+            ]);
+        }
+
+        if (! $this->option('alert')) {
+            return;
+        }
+
+        $alerts = app(OperationalAlertService::class);
+
+        foreach ($warnings as $warning) {
+            $isCritical = ! in_array($warning['code'], self::NON_CRITICAL_CODES, true);
+
+            $alerts->raise(
+                key: 'health:'.$warning['code'],
+                type: OperationalAlert::TYPE_HEALTH_CHECK,
+                title: 'Configuración peligrosa: '.$warning['code'],
+                message: $warning['message'],
+                context: ['Entorno' => $environment],
+                severity: $isCritical
+                    ? OperationalAlert::SEVERITY_CRITICAL
+                    : OperationalAlert::SEVERITY_WARNING,
+            );
+        }
+
+        // Cierra las incidencias de health-check que ya no se reproducen.
+        // Se consultan solo las abiertas de este tipo: son unas pocas filas.
+        OperationalAlert::query()
+            ->open()
+            ->where('type', OperationalAlert::TYPE_HEALTH_CHECK)
+            ->pluck('alert_key')
+            ->reject(fn (string $key) => in_array(substr($key, strlen('health:')), $codesSeen, true))
+            ->each(fn (string $key) => $alerts->resolve($key));
     }
     /**
      * Extrae `--timeout=N` del comando de arranque del worker declarado en

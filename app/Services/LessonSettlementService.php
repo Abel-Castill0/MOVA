@@ -35,6 +35,10 @@ use Illuminate\Support\Facades\DB;
 class LessonSettlementService
 {
     /** Estados desde los que se puede consumir (liquidar cobrando el crédito). */
+    public function __construct(private readonly OperationalAlertService $alerts)
+    {
+    }
+
     private const CONSUMABLE_STATES = ['paid', 'pending_parent_confirmation', 'needs_admin_review'];
 
     /** Estados desde los que se puede devolver (liquidar sin cobrar). */
@@ -179,6 +183,13 @@ class LessonSettlementService
             return $lesson->fresh();
         });
 
+        // La clase llegó a un estado TERMINAL, así que la incidencia
+        // "varada esperando decisión del admin" (si la había) se acabó.
+        // Se llama incondicionalmente: es un UPDATE indexado que afecta a 0
+        // filas en el caso normal, y preguntarlo antes exigiría arrastrar el
+        // estado previo fuera de la transacción sin ganar nada.
+        $this->alerts->resolve("lesson:{$lesson->id}:needs_admin_review");
+
         // Notificar SIEMPRE fuera de la transacción (Fase 3B §13 — una cola
         // con after_commit=false podría procesar la notificación antes del
         // commit real si se despachara dentro).
@@ -205,7 +216,7 @@ class LessonSettlementService
      */
     public function refund(Lesson $lesson, ?int $actorId = null, ?string $reason = null, string $eventType = 'class_cancelled'): Lesson
     {
-        return DB::transaction(function () use ($lesson, $actorId, $reason, $eventType) {
+        $result = DB::transaction(function () use ($lesson, $actorId, $reason, $eventType) {
             // Eager load classRequest: se lee más abajo (is_mentorship) para
             // decidir si liberar el cupo de mentoría. Sin esto, el lazy load
             // ocurriría con el lock de teacherProfile ya tomado, alargando
@@ -279,6 +290,11 @@ class LessonSettlementService
 
             return $lesson->fresh();
         });
+
+        // Mismo criterio que en consume(): estado terminal, incidencia cerrada.
+        $this->alerts->resolve("lesson:{$lesson->id}:needs_admin_review");
+
+        return $result;
     }
 
 }

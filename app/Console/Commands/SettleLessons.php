@@ -5,7 +5,9 @@ namespace App\Console\Commands;
 use App\Models\ClassEvent;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
+use App\Models\OperationalAlert;
 use App\Services\LessonSettlementService;
+use App\Services\OperationalAlertService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Console\Command;
 
@@ -202,7 +204,7 @@ class SettleLessons extends Command
     private function escalateToReview(int $id, string $reason): string
     {
         try {
-            return DB::transaction(function () use ($id, $reason) {
+            $outcome = DB::transaction(function () use ($id, $reason) {
                 $lesson = Lesson::whereKey($id)->lockForUpdate()->firstOrFail();
 
                 // Releído bajo lock: si otro proceso ya la movió, no hay nada
@@ -217,6 +219,32 @@ class SettleLessons extends Command
 
                 return 'escalated';
             });
+
+            // Una clase varada en needs_admin_review es dinero detenido: los
+            // créditos del profesor siguen RESERVADOS hasta que un admin decida
+            // (force-complete o force-refund). Antes esto no avisaba a nadie —
+            // ni al padre, ni al profesor, ni al admin
+            // (docs/MOVA_SYSTEM_MAP.md §19.3).
+            //
+            // Solo se alerta en 'escalated': en 'raced' la clase ya la movió
+            // otro proceso, y quien la movió ya alertó.
+            if ($outcome === 'escalated') {
+                app(OperationalAlertService::class)->raise(
+                    key: "lesson:{$id}:needs_admin_review",
+                    type: OperationalAlert::TYPE_LESSON_NEEDS_REVIEW,
+                    title: 'Clase varada a la espera de decisión del administrador',
+                    message: 'Una clase se escaló automáticamente a needs_admin_review. Los créditos del '
+                        .'profesor siguen reservados y no se liberarán ni se consumirán hasta que un '
+                        .'administrador cierre la clase (forzar cierre) o la devuelva (forzar devolución).',
+                    context: [
+                        'Clase' => $id,
+                        'Motivo' => $reason,
+                    ],
+                    severity: OperationalAlert::SEVERITY_WARNING,
+                );
+            }
+
+            return $outcome;
         } catch (\Throwable $e) {
             $this->error("  Lesson {$id}: {$e->getMessage()}");
             report($e);

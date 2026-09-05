@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\OperationalAlert;
 use App\Models\PaymentOrder;
 use App\Models\PaymentWebhook;
 use App\Models\RechargeRequest;
@@ -190,6 +191,44 @@ class MercadoPagoPaymentReconciliationService
             'payment_order_id' => $order?->id,
             'motivo' => $reason,
         ]);
+
+        // "Revisión humana" tenía que llegar a un humano. Hasta ahora terminaba
+        // en esta línea de log y en una columna que ninguna pantalla mostraba
+        // (docs/MOVA_SYSTEM_MAP.md R-04). La clave se ancla al recurso, no al
+        // evento: el barrido de mercadopago:reconcile corre cada 5 minutos y
+        // puede reencontrar la misma anomalía indefinidamente sin volver a
+        // avisar. raise() nunca lanza — no puede tumbar la reconciliación.
+        $this->alerts()->raise(
+            key: $order !== null
+                ? "payment_order:{$order->id}:review"
+                : "payment_webhook:{$webhook?->id}:review",
+            type: $order !== null
+                ? OperationalAlert::TYPE_PAYMENT_REVIEW
+                : OperationalAlert::TYPE_WEBHOOK_REVIEW,
+            title: 'Pago de Mercado Pago en revisión',
+            message: 'Un pago quedó marcado para revisión humana y MOVA no ha aplicado ninguna acción '
+                .'financiera automática sobre él. Requiere una decisión manual.',
+            context: array_filter([
+                'Motivo' => $reason,
+                'PaymentOrder' => $order?->id,
+                'Recarga' => $order?->recharge_request_id,
+                'Intento' => $order?->attempt_number,
+                'PaymentWebhook' => $webhook?->id,
+                'Estado en el proveedor' => $truth['status'] ?? null,
+                'Detalle del proveedor' => $truth['status_detail'] ?? null,
+            ], fn ($value) => $value !== null),
+            severity: OperationalAlert::SEVERITY_CRITICAL,
+        );
+    }
+
+    /**
+     * Resuelto por el servicio, no por el llamador: markReview() y este método
+     * son las dos caras de la misma transición, y la clave de la incidencia debe
+     * calcularse en un solo sitio para que no puedan divergir.
+     */
+    private function alerts(): OperationalAlertService
+    {
+        return app(OperationalAlertService::class);
     }
 
     /**
@@ -211,6 +250,14 @@ class MercadoPagoPaymentReconciliationService
             'review_resolved_at' => $wasInReview ? now() : $order->review_resolved_at,
             'last_verified_at' => now(),
         ]);
+
+        // Cierra la incidencia abierta por markReview(). Solo cuando realmente
+        // estaba en revisión: un intento que nunca tuvo anomalía no tiene nada
+        // que resolver, y resolve() sería un no-op igualmente, pero preguntarlo
+        // aquí evita una consulta por cada reconciliación normal.
+        if ($wasInReview) {
+            $this->alerts()->resolve("payment_order:{$order->id}:review");
+        }
     }
 
     /**

@@ -2,10 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Models\OperationalAlert;
 use App\Models\PaymentOrder;
 use App\Models\PaymentWebhook;
 use App\Payment\MercadoPagoPaymentProvider;
 use App\Services\MercadoPagoPaymentReconciliationService;
+use App\Services\OperationalAlertService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -124,5 +126,26 @@ class ProcessMercadoPagoWebhook implements ShouldQueue
             'payment_webhook_id' => $this->paymentWebhookId,
             'error' => $exception->getMessage(),
         ]);
+
+        // Un webhook que agota sus 5 reintentos es una notificación de pago que
+        // MOVA nunca llegó a aplicar. Hasta ahora terminaba en este
+        // `Log::critical` y en `failed_jobs`, sin destinatario humano
+        // (docs/MOVA_SYSTEM_MAP.md §29.3). La pasada 2 de
+        // MercadoPagoWebhookRecoveryService todavía puede rescatarlo, pero eso
+        // no es motivo para no avisar: si el rescate funciona, la incidencia se
+        // resuelve sola en la siguiente reconciliación con éxito.
+        app(OperationalAlertService::class)->raise(
+            key: "payment_webhook:{$this->paymentWebhookId}:failed",
+            type: OperationalAlert::TYPE_RECONCILIATION_FAILURE,
+            title: 'Webhook de Mercado Pago agotó sus reintentos',
+            message: 'Una notificación de pago no pudo procesarse tras 5 intentos. El pago que describe '
+                .'puede no estar reflejado en MOVA. El barrido de `mercadopago:reconcile` intentará '
+                .'recuperarlo, pero conviene revisarlo manualmente.',
+            context: [
+                'PaymentWebhook' => $this->paymentWebhookId,
+                'Error' => substr($exception->getMessage(), 0, 300),
+            ],
+            severity: OperationalAlert::SEVERITY_CRITICAL,
+        );
     }
 }
