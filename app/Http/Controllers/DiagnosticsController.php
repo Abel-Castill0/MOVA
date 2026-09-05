@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\ClassRequestCreated;
 use App\Models\ClassOffer;
 use App\Models\ClassRequest;
+use App\Models\DiagnosticRecommendation;
 use App\Models\StudentDiagnostic;
 use App\Models\Subject;
 use App\Services\DiagnosticAiEnrichmentService;
@@ -114,6 +115,18 @@ class DiagnosticsController extends Controller
             ->with('success', 'Diagnóstico completado. Enviamos una solicitud genérica a los profesores verificados de la materia.');
     }
 
+    /**
+     * H-08 — Las recomendaciones ahora LLEGAN a la pantalla.
+     *
+     * `DiagnosticRecommendationService::compute()` calculaba y persistía hasta 5
+     * recomendaciones con su ranking y sus razones... y esta acción devolvía
+     * `'recommendations' => []` fijo, sobre una vista que ni siquiera declaraba
+     * esa prop (docs/MOVA_SYSTEM_MAP.md H-08). Trabajo hecho y tirado a la
+     * basura en cada diagnóstico.
+     *
+     * Tampoco se pasaba ya `subjects`: era una consulta a toda la tabla de
+     * materias en cada carga para una prop que la vista no declaraba.
+     */
     public function results(StudentDiagnostic $diagnostic)
     {
         $this->authorize('view', $diagnostic);
@@ -129,9 +142,78 @@ class DiagnosticsController extends Controller
                     ? $diagnostic->ai_summary
                     : null,
             ],
-            'recommendations' => [],
-            'subjects' => Subject::orderBy('name')->get(['id', 'name']),
+            'recommendations' => $this->presentableRecommendations($diagnostic),
         ]);
+    }
+
+    /**
+     * Las recomendaciones guardadas, revalidadas y traducidas a algo que un
+     * padre pueda leer.
+     *
+     * NO SE RECALCULA NADA. El ranking se computó una sola vez, al crear el
+     * diagnóstico; volver a puntuar en cada visita cambiaría el orden bajo los
+     * pies del usuario y multiplicaría el coste de una pantalla de solo lectura.
+     *
+     * PERO SÍ SE REVALIDA LA ELEGIBILIDAD, porque el ranking es una foto y el
+     * mundo se mueve: entre que se calculó y que el padre entra, un profesor
+     * pudo ser rechazado por un admin, suspendido, o haber desactivado su
+     * oferta. Recomendar a un profesor suspendido sería peor que no recomendar
+     * a nadie — se filtran aquí, en la lectura, sin tocar las filas guardadas
+     * (que siguen siendo el registro de qué se calculó y por qué).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function presentableRecommendations(StudentDiagnostic $diagnostic): array
+    {
+        return $diagnostic->recommendations()
+            ->with([
+                'classOffer.subject:id,name',
+                'classOffer.teacherProfile:id,user_id,bio,hourly_rate,is_verified',
+                'classOffer.teacherProfile.user:id,name,avatar_url,suspended_at',
+            ])
+            ->get()
+            ->filter(function (DiagnosticRecommendation $recommendation) {
+                $offer = $recommendation->classOffer;
+                $profile = $offer?->teacherProfile;
+
+                return $offer?->is_active
+                    && $profile?->is_verified
+                    && $profile->user !== null
+                    && $profile->user->suspended_at === null;
+            })
+            ->map(fn (DiagnosticRecommendation $recommendation) => [
+                'id' => $recommendation->id,
+                'rank' => $recommendation->rank,
+                'teacher_profile_id' => $recommendation->teacher_profile_id,
+                'teacher_name' => $recommendation->classOffer->teacherProfile->user->name,
+                'avatar_url' => $recommendation->classOffer->teacherProfile->user->avatar_url,
+                'subject' => $recommendation->classOffer->subject?->name,
+                'offer_title' => $recommendation->classOffer->title,
+                'hourly_rate' => $recommendation->classOffer->specific_rate
+                    ?? $recommendation->classOffer->teacherProfile->hourly_rate,
+                'avg_rating' => $recommendation->classOffer->teacherProfile->avgRating(),
+                'review_count' => $recommendation->classOffer->teacherProfile->reviewCount(),
+                // Las razones ya vienen en castellano desde el servicio
+                // ("Enseña Matemática", "Atiende el nivel educativo de tu
+                // hijo"). Son exactamente lo que hay que mostrar.
+                'reasons' => $recommendation->reasons ?? [],
+                // El `score` interno (0–100) NO se expone: un "87" sin escala
+                // ni unidades no significa nada para un padre y solo invita a
+                // compararlo con un 85 como si la diferencia importara. Se
+                // traduce a una banda cualitativa.
+                'match_label' => $this->matchLabel((int) $recommendation->score),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function matchLabel(int $score): string
+    {
+        return match (true) {
+            $score >= 80 => 'Coincidencia muy alta',
+            $score >= 60 => 'Buena coincidencia',
+            default => 'Coincidencia parcial',
+        };
     }
 
     /**
