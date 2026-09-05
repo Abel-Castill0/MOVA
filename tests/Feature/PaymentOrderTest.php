@@ -182,11 +182,24 @@ class PaymentOrderTest extends TestCase
         $this->assertSame(1, CreditTransaction::where('idempotency_key', "recharge:{$recharge->id}:reversal")->count());
     }
 
-    public function test_a_reversal_can_leave_balance_negative_if_already_spent(): void
+    /**
+     * §7 — CONTRATO REVISADO: el saldo negativo depende de QUIEN revierte.
+     *
+     * Este test pasaba `$admin->id` y afirmaba que el saldo podia quedar en
+     * negativo. Contradecia a `AGENTS.md` («No permitas saldos negativos») y
+     * ademas mezclaba dos escenarios distintos bajo el nombre "Chargeback": un
+     * contracargo NUNCA lo confirma un admin humano, lo confirma el proveedor.
+     *
+     * Ahora refleja el camino REAL de un contracargo: `$actorId = null`, la
+     * marca de "esto lo confirmo Mercado Pago". Ahi el dinero ya volvio al
+     * pagador, asi que el negativo es el registro honesto de una deuda; negarse
+     * dejaria a MOVA con creditos que ningun pago respalda.
+     *
+     * El caso del ADMIN humano (rechazo fail-closed) lo cubre
+     * AdminRechargeReversalTest.
+     */
+    public function test_a_provider_confirmed_reversal_can_leave_balance_negative_if_already_spent(): void
     {
-        // Documenta el comportamiento deliberado: MOVA no inventa créditos
-        // ni bloquea la cuenta en silencio si el profesor ya gastó lo
-        // revertido — ver el comentario en RechargeApprovalService::reverse().
         [, $profile] = $this->teacher();
         $admin = $this->userWithRole('admin');
         $recharge = $this->recharge($profile, amountPen: '10.00', credits: 5);
@@ -198,7 +211,9 @@ class PaymentOrderTest extends TestCase
         // emitiría el UPDATE real.
         TeacherProfile::whereKey($profile->id)->update(['credits_available' => 0]); // simula que ya gastó los 5 créditos
 
-        app(RechargeApprovalService::class)->reverse($recharge, $admin->id, 'Chargeback');
+        // actorId = null: contracargo confirmado por el proveedor, no una
+        // correccion administrativa.
+        app(RechargeApprovalService::class)->reverse($recharge, null, 'Chargeback confirmado por Mercado Pago');
 
         $this->assertSame(-5, $profile->fresh()->credits_available);
     }

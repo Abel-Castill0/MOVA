@@ -82,8 +82,31 @@ class RechargeRequestPolicy
         return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
     }
 
+    /**
+     * H-02 — Reversión manual de una recarga ya aprobada.
+     *
+     * Existía como método de policy y como servicio probado, pero NINGUNA ruta
+     * lo alcanzaba: un Yape falso aprobado a mano no se podía deshacer desde el
+     * producto (docs/MOVA_SYSTEM_MAP.md H-02). Ahora hay camino de producto, y
+     * esta policy es su límite.
+     *
+     * SE EXCLUYE mercadopago, por el mismo criterio que approve()/reject().
+     *
+     * Una recarga de Mercado Pago está respaldada por un pago real en el
+     * proveedor. Revertirla a mano en MOVA descontaría los créditos SIN que el
+     * dinero haya vuelto al profesor, dejando a MOVA contradiciendo a Mercado
+     * Pago, que sigue siendo la fuente de verdad. El camino correcto para esas
+     * es el inverso: emitir el reembolso en Mercado Pago y dejar que
+     * MercadoPagoPaymentReconciliationService lo confirme server-to-server y
+     * llame a reverse() con la evidencia — que es exactamente lo que ya hace.
+     *
+     * Consecuencia asumida y explícita: si hiciera falta revertir una recarga de
+     * Mercado Pago sin pasar por el proveedor, hoy no se puede desde la interfaz.
+     * Es deliberado: preferimos un hueco conocido antes que una vía para
+     * desincronizar MOVA del proveedor en silencio.
+     */
     public function reverse(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
     }
 }

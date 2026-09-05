@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Exceptions\ReversalWouldGoNegative;
 use App\Models\RechargeRequest;
 use App\Models\TeacherProfile;
+use App\Notifications\RechargeApprovedNotification;
+use App\Notifications\RechargeReversedNotification;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +28,39 @@ class RechargeApprovalService
      * automático ya verificado (sin actor humano).
      */
     public function credit(RechargeRequest $recharge, ?int $reviewerId): array
+    {
+        $result = $this->creditWithinTransaction($recharge, $reviewerId);
+
+        // H-11 — EL AVISO VIVE AQUÍ, NO EN CADA LLAMANTE.
+        //
+        // Antes `RechargeApprovedNotification` solo se enviaba desde
+        // Admin\RechargeController::approve(). Una recarga acreditada por
+        // Mercado Pago (webhook, polling o barrido de reconciliación) abonaba
+        // los créditos y NO avisaba a nadie: el profesor solo se enteraba si
+        // dejaba abierta la pantalla de checkout
+        // (docs/MOVA_SYSTEM_MAP.md §19.3, H-11).
+        //
+        // POR QUÉ ES EXACTAMENTE-UNA-VEZ: `changed` es true únicamente en la
+        // ejecución que de verdad movió la recarga a 'approved', dentro de la
+        // transacción y bajo `lockForUpdate`. Un webhook duplicado, un polling
+        // simultáneo, el barrido de los 5 minutos o un reintento del job
+        // encuentran la recarga ya aprobada y salen por el early-return con
+        // `changed => false`. La misma garantía que ya protege al ledger
+        // protege ahora al aviso, sin ningún estado extra que mantener.
+        //
+        // Fuera de la transacción a propósito: una cola con after_commit=false
+        // podría procesar el job antes del commit y leer una recarga que
+        // todavía no está aprobada.
+        if ($result['changed']) {
+            $result['recharge']->teacherProfile?->user?->notify(
+                new RechargeApprovedNotification($result['recharge'])
+            );
+        }
+
+        return $result;
+    }
+
+    private function creditWithinTransaction(RechargeRequest $recharge, ?int $reviewerId): array
     {
         try {
             return DB::transaction(function () use ($recharge, $reviewerId) {
@@ -120,14 +156,54 @@ class RechargeApprovalService
      * el depósito original — crea un asiento 'reversal' inverso (amount
      * negativo) para que el ledger siga siendo append-only y auditable.
      *
-     * Si el profesor ya gastó esos créditos, credits_available puede quedar
-     * en negativo aquí — es una decisión deliberada: MOVA no inventa
-     * créditos de la nada para "tapar" el hueco ni bloquea la cuenta
-     * silenciosamente. Qué hacer con un balance negativo (recuperación,
-     * restricción de cuenta) es una política de producto pendiente de
-     * definir explícitamente, no algo que este método deba decidir.
+     * SALDO NEGATIVO — DOS CAMINOS CON REGLAS DISTINTAS (§7).
+     *
+     * `AGENTS.md` («Dinero y créditos») dice literalmente **"No permitas saldos
+     * negativos"**. El docblock anterior de este método afirmaba justo lo
+     * contrario ("es una decisión deliberada... política pendiente"). Era una
+     * contradicción real, no una ambigüedad, y se resuelve distinguiendo QUIÉN
+     * revierte:
+     *
+     * A) REVERSIÓN MANUAL DE UN ADMIN ($actorId !== null) → FAIL CLOSED.
+     *    No hay dinero moviéndose fuera de MOVA: es una corrección
+     *    administrativa. Si el profesor ya gastó esos créditos, descontarlos
+     *    fabricaría una deuda silenciosa que nadie decidió. Se rechaza ANTES de
+     *    escribir nada —sin asiento, sin cambio de estado, sin saldo tocado— y
+     *    el caso escala a decisión humana. Es exactamente lo que pide AGENTS.md.
+     *
+     * B) REVERSIÓN CONFIRMADA POR EL PROVEEDOR ($actorId === null) → SE APLICA.
+     *    Aquí el dinero YA volvió al pagador: Mercado Pago confirmó un reembolso
+     *    total o un contracargo. Negarse a registrarlo dejaría a MOVA con
+     *    créditos vivos que ningún pago respalda, que es peor que un saldo
+     *    negativo: el ledger dejaría de describir la realidad. El saldo negativo
+     *    resultante es el registro HONESTO de una deuda real y queda visible
+     *    para resolución administrativa.
+     *
+     * Esta asimetría es deliberada y está pendiente de decisión de producto solo
+     * en el lado B: qué hacer con esa deuda (recuperación, restricción de
+     * cuenta) sigue sin definirse. Ver docs/MOVA_SYSTEM_MAP.md §16.6.
      */
     public function reverse(RechargeRequest $recharge, ?int $actorId, string $reason): array
+    {
+        $result = $this->reverseWithinTransaction($recharge, $actorId, $reason);
+
+        // §5 — Una reversión legítima RESTA créditos ya abonados. Antes eso
+        // ocurría en silencio: el saldo del profesor bajaba y la única
+        // explicación vivía en la etiqueta del historial de créditos, que solo
+        // ve quien entra a mirar (docs/MOVA_SYSTEM_MAP.md §19.3).
+        //
+        // Misma garantía de exactamente-una-vez que en credit(): `changed` solo
+        // es true en la ejecución que realmente movió la recarga a 'reversed'.
+        if ($result['changed']) {
+            $result['recharge']->teacherProfile?->user?->notify(
+                new RechargeReversedNotification($result['recharge'])
+            );
+        }
+
+        return $result;
+    }
+
+    private function reverseWithinTransaction(RechargeRequest $recharge, ?int $actorId, string $reason): array
     {
         try {
             return DB::transaction(function () use ($recharge, $actorId, $reason) {
@@ -148,6 +224,21 @@ class RechargeApprovalService
                 $teacherProfile = TeacherProfile::whereKey($recharge->teacher_profile_id)
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                // §7 — CAMINO A (admin humano): fail closed antes de escribir
+                // nada. Ver el docblock de reverse() para la asimetría A/B.
+                //
+                // La comprobación va DENTRO de la transacción y DESPUÉS del
+                // lockForUpdate del perfil: leer el saldo fuera del lock sería
+                // una carrera — otra operación podría consumir créditos entre la
+                // lectura y la escritura, y la reversión acabaría en negativo
+                // justo en el camino donde está prohibido.
+                if ($actorId !== null && $teacherProfile->credits_available < $recharge->credits) {
+                    throw new ReversalWouldGoNegative(
+                        (int) $teacherProfile->credits_available,
+                        (int) $recharge->credits,
+                    );
+                }
 
                 $teacherProfile->creditTransactions()->create([
                     'idempotency_key' => "recharge:{$recharge->id}:reversal",

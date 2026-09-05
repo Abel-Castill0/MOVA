@@ -249,4 +249,85 @@ class RechargeProviderSeparationTest extends TestCase
             'status' => 'pending',
         ]);
     }
+
+    // ── H-11 — La acreditación AUTOMÁTICA avisa al profesor ──────────────
+
+    /**
+     * El hallazgo (docs/MOVA_SYSTEM_MAP.md H-11): `RechargeApprovedNotification`
+     * solo se enviaba desde Admin\RechargeController. Una recarga acreditada por
+     * Mercado Pago abonaba los créditos y NO avisaba a nadie — el profesor solo
+     * se enteraba si dejaba abierta la pantalla de checkout.
+     */
+    public function test_automatic_mercadopago_crediting_notifies_the_teacher(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->mercadoPagoRecharge($profile);
+        $this->paidPaymentOrderFor($recharge);
+
+        app(RechargeApprovalService::class)->credit($recharge, null);
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $teacher,
+            \App\Notifications\RechargeApprovedNotification::class
+        );
+    }
+
+    /**
+     * EXACTAMENTE UNA VEZ. Un webhook duplicado, el polling del checkout, el
+     * barrido de `mercadopago:reconcile` (cada 5 min) y un reintento del job
+     * pueden llamar a credit() muchas veces sobre la misma recarga.
+     *
+     * La garantía no es un contador nuevo: es `changed`, que solo es true en la
+     * ejecución que de verdad movió la recarga a 'approved' bajo lock. El mismo
+     * mecanismo que ya hacía el crédito exactamente-once protege ahora al aviso.
+     */
+    public function test_the_teacher_is_notified_exactly_once_no_matter_how_many_paths_credit(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->mercadoPagoRecharge($profile);
+        $this->paidPaymentOrderFor($recharge);
+
+        // Webhook, polling, barrido, reintento del job… cinco caminos.
+        foreach (range(1, 5) as $ignored) {
+            app(RechargeApprovalService::class)->credit($recharge->fresh(), null);
+        }
+
+        $this->assertSame(5, $profile->fresh()->credits_available, 'Y los créditos tampoco se duplican.');
+
+        \Illuminate\Support\Facades\Notification::assertSentToTimes(
+            $teacher,
+            \App\Notifications\RechargeApprovedNotification::class,
+            1
+        );
+    }
+
+    /**
+     * La aprobación manual del admin sigue avisando UNA sola vez: al mover el
+     * envío al servicio hubo que quitarlo del controller, o habría enviado dos.
+     */
+    public function test_manual_admin_approval_still_notifies_exactly_once(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        [$teacher, $profile] = $this->teacher();
+        $recharge = $this->manualRecharge($profile);
+
+        $admin = \App\Models\User::factory()->create();
+        $admin->assignRole('admin');
+
+        $this->actingAs($admin)
+            ->post(route('admin.recharges.approve', $recharge))
+            ->assertRedirect();
+
+        \Illuminate\Support\Facades\Notification::assertSentToTimes(
+            $teacher,
+            \App\Notifications\RechargeApprovedNotification::class,
+            1
+        );
+    }
+
 }

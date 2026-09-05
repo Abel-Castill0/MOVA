@@ -99,6 +99,33 @@
                   >
                     Gestionado por Mercado Pago · intento {{ recharge.latest_payment_order?.status ?? 'sin registrar' }}
                   </span>
+                  <!--
+                    H-02: una recarga aprobada por error (p. ej. un número de
+                    operación Yape falso que pasó la revisión) no tenía forma de
+                    deshacerse desde el producto. Mismo criterio que arriba para
+                    mercadopago: esas las revierte la conciliación con evidencia
+                    del proveedor, así que no se pinta un botón que acabaría en
+                    403 (RechargeRequestPolicy::reverse()).
+                  -->
+                  <div
+                    v-else-if="recharge.status === 'approved' && recharge.payment_method !== 'mercadopago'"
+                    class="flex justify-end"
+                  >
+                    <button
+                      type="button"
+                      class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
+                      :disabled="isProcessing(recharge.id)"
+                      @click="openActionModal('reverse', recharge)"
+                    >
+                      Revertir
+                    </button>
+                  </div>
+                  <span
+                    v-else-if="recharge.status === 'reversed'"
+                    class="block text-right text-xs font-semibold text-rose-600"
+                  >
+                    Revertida
+                  </span>
                   <span v-else class="block text-right text-xs text-gray-400">Revisada</span>
                 </td>
               </tr>
@@ -156,7 +183,7 @@
               v-model="actionReason"
               rows="3"
               class="mt-1 block w-full rounded-xl border-gray-200 shadow-sm focus:border-brand-500 focus:ring-brand-500"
-              placeholder="Indica el motivo del rechazo"
+              :placeholder="activeConfig.reasonPlaceholder ?? 'Indica el motivo'"
             />
           </div>
 
@@ -226,10 +253,33 @@ const ACTION_CONFIG = {
     confirmClass: 'bg-red-600 hover:bg-red-700',
     warning: 'No se abonará ningún crédito. El profesor verá el motivo que indiques.',
     requiresReason: true,
+    minReason: 5,
+    reasonPlaceholder: 'Indica el motivo del rechazo',
+  },
+  // H-02 — Revertir una recarga YA aprobada.
+  //
+  // minReason: 10 coincide EXACTAMENTE con la validación del backend
+  // (RechargeController::reverse(), 'min:10'). Antes el frontend exigía 5 para
+  // todas las acciones: un motivo de 6 caracteres pasaba la comprobación del
+  // navegador y rebotaba en el servidor.
+  reverse: {
+    title: 'Revertir recarga aprobada',
+    routeName: 'admin.recharges.reverse',
+    confirmLabel: 'Revertir y descontar',
+    confirmClass: 'bg-rose-600 hover:bg-rose-700',
+    // §7: el texto anterior decia que el saldo "puede quedar en negativo".
+    // Desde que la reversion manual es fail-closed eso ya no ocurre nunca por
+    // esta via, asi que ese aviso habria sido falso.
+    warning: 'Esto DESCONTARÁ los créditos ya abonados y quedará como un asiento de reversión en el '
+      + 'ledger. Si el profesor ya los gastó, la reversión se rechazará y se abrirá una incidencia '
+      + 'para revisarla a mano: MOVA no crea saldos negativos. El profesor será notificado.',
+    requiresReason: true,
+    minReason: 10,
+    reasonPlaceholder: 'Ej.: el número de operación no corresponde a ningún abono recibido',
   },
 }
 
-const actionModal = ref(null) // { type: 'approve'|'reject', recharge }
+const actionModal = ref(null) // { type: 'approve'|'reject'|'reverse', recharge }
 const actionReason = ref('')
 const actionError = ref('')
 const submitting = ref(false)
@@ -256,8 +306,10 @@ function closeActionModal() {
 function submitAction() {
   const config = activeConfig.value
 
-  if (config.requiresReason && actionReason.value.trim().length < 5) {
-    actionError.value = 'El motivo debe tener al menos 5 caracteres.'
+  const minReason = config.minReason ?? 5
+
+  if (config.requiresReason && actionReason.value.trim().length < minReason) {
+    actionError.value = `El motivo debe tener al menos ${minReason} caracteres.`
     return
   }
 

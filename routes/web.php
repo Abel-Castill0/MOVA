@@ -183,6 +183,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
         Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
         Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware('throttle:20,1')->name('admin.recharges.reject');
+        // H-02: la reversión existía como servicio probado pero sin ninguna ruta
+        // que la alcanzara. throttle:10,1 igual que approve — es una operación
+        // financiera, no una consulta.
+        Route::post('/recharges/{recharge}/reverse', [RechargeController::class, 'reverse'])->middleware('throttle:10,1')->name('admin.recharges.reverse');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->middleware('throttle:20,1')->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->middleware('throttle:20,1')->name('admin.reviews.show');
