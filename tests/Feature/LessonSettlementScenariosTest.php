@@ -561,4 +561,94 @@ class LessonSettlementScenariosTest extends TestCase
             'sent_to_parent_at' => now(),
         ]);
     }
+
+    // ── §7 — Integración real: el sistema USA las alertas ────────────────
+
+    /**
+     * No basta con que OperationalAlertService funcione: hay que probar que
+     * SettleLessons lo invoca de verdad al escalar. Una clase varada en
+     * needs_admin_review es dinero detenido —los créditos siguen reservados—
+     * y antes no avisaba a nadie (docs/MOVA_SYSTEM_MAP.md §19.3).
+     */
+    public function test_escalating_a_lesson_to_admin_review_raises_an_operational_alert(): void
+    {
+        Notification::fake();
+        Role::findOrCreate('admin');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        [, , $lesson] = $this->lesson('scheduled', now()->subDays(9));
+
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        $this->assertSame('needs_admin_review', $lesson->fresh()->status);
+
+        $this->assertDatabaseHas('operational_alerts', [
+            'alert_key' => "lesson:{$lesson->id}:needs_admin_review",
+            'type' => \App\Models\OperationalAlert::TYPE_LESSON_NEEDS_REVIEW,
+            'resolved_at' => null,
+        ]);
+
+        Notification::assertSentTo($admin, \App\Notifications\OperationalAlertNotification::class);
+    }
+
+    /**
+     * Y que se cierra cuando el admin resuelve: si no, el panel acumularía
+     * incidencias ya atendidas y dejaría de ser útil.
+     */
+    public function test_settling_a_lesson_resolves_its_admin_review_alert(): void
+    {
+        Notification::fake();
+        Role::findOrCreate('admin');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        [, , $lesson] = $this->lesson('scheduled', now()->subDays(9));
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        $alertKey = "lesson:{$lesson->id}:needs_admin_review";
+        $this->assertDatabaseHas('operational_alerts', ['alert_key' => $alertKey, 'resolved_at' => null]);
+
+        // El admin fuerza la devolución (libera los créditos reservados).
+        app(LessonSettlementService::class)->refund(
+            $lesson->fresh(),
+            $admin->id,
+            'Clase no realizada',
+            'class_force_refunded'
+        );
+
+        $this->assertNotNull(
+            \App\Models\OperationalAlert::where('alert_key', $alertKey)->first()->resolved_at,
+            'Resolver la clase debe cerrar su incidencia operativa.'
+        );
+    }
+
+    /**
+     * El barrido corre cada hora. Si cada pasada reabriera o re-notificara la
+     * misma clase varada, un solo problema generaría 24 avisos diarios.
+     */
+    public function test_repeated_sweeps_never_re_notify_the_same_stranded_lesson(): void
+    {
+        Notification::fake();
+        Role::findOrCreate('admin');
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        [, , $lesson] = $this->lesson('paid', now()->subDays(9));
+
+        // Tres barridos consecutivos. El primero escala; los otros dos
+        // encuentran la clase ya en needs_admin_review (estado no elegible),
+        // así que ni siquiera vuelven a entrar en escalateToReview().
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+        $this->artisan('mova:settle-lessons')->assertExitCode(0);
+
+        $this->assertSame(
+            1,
+            \App\Models\OperationalAlert::where('alert_key', "lesson:{$lesson->id}:needs_admin_review")->count()
+        );
+
+        Notification::assertSentToTimes($admin, \App\Notifications\OperationalAlertNotification::class, 1);
+    }
+
 }

@@ -6,6 +6,7 @@ use App\Events\ClassConfirmed;
 use App\Models\ClassEvent;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
+use App\Models\Student;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\ClassRescheduledNotification;
@@ -64,8 +65,15 @@ class LessonController extends Controller
         }
         $this->authorize('accept', $classRequest);
 
-        if ($this->hasScheduleOverlap($profile->id, $data['start_time'], $data['duration_minutes'])) {
-            return back()->withErrors(['start_time' => 'Ya tienes una clase en ese horario.']);
+        $conflict = $this->scheduleConflict(
+            $profile->id,
+            $classRequest->student_id,
+            $data['start_time'],
+            $data['duration_minutes']
+        );
+
+        if ($conflict !== null) {
+            return back()->withErrors(['start_time' => $this->scheduleConflictMessage($conflict)]);
         }
 
         $lesson = DB::transaction(function () use ($classRequest, $data, $profile) {
@@ -83,14 +91,33 @@ class LessonController extends Controller
                 ]);
             }
 
-            if ($this->hasScheduleOverlap(
+            // §13 — PUNTO DE SERIALIZACIÓN PARA EL ALUMNO.
+            //
+            // El chequeo de solapamiento ahora también mira al alumno, pero un
+            // SELECT (aunque lleve lockForUpdate) no puede bloquear filas que
+            // todavía no existen: dos profesores distintos aceptando a la vez
+            // dos solicitudes del MISMO menor no comparten ningún lock — ni la
+            // ClassRequest (son distintas) ni el TeacherProfile (son distintos).
+            // Ambos verían la agenda libre y ambos crearían su clase.
+            //
+            // Bloquear la fila del alumno da a las dos transacciones un recurso
+            // COMPARTIDO sobre el que serializarse, así que la segunda solo
+            // llega al chequeo cuando la primera ya ha hecho commit y su clase
+            // es visible. Es el mismo patrón que ClassRequestController::store()
+            // ya usa para su ventana anti-duplicado.
+            Student::whereKey($classRequest->student_id)->lockForUpdate()->first();
+
+            $conflict = $this->scheduleConflict(
                 $profile->id,
+                $classRequest->student_id,
                 $data['start_time'],
                 $data['duration_minutes'],
                 true
-            )) {
+            );
+
+            if ($conflict !== null) {
                 throw ValidationException::withMessages([
-                    'start_time' => 'Ya tienes una clase en ese horario.',
+                    'start_time' => $this->scheduleConflictMessage($conflict),
                 ]);
             }
 
@@ -561,20 +588,33 @@ class LessonController extends Controller
                 ]);
             }
 
+            // Mismo punto de serialización que en store(): reprogramar mueve la
+            // clase a otra franja, y esa franja puede chocar con otra clase del
+            // MISMO alumno que otro profesor esté creando en paralelo.
+            Student::whereKey($lesson->student_id)->lockForUpdate()->first();
+
             // Reutiliza el mismo chequeo de solapamiento (con lock) que usa
             // store() para aceptar clases nuevas, en vez de una segunda query
             // inline independiente — así ambos flujos protegen la agenda del
-            // profesor con la misma estrategia. duration_minutes es el de la
-            // propia lesson (inmutable en v1), no un valor del request.
-            if ($this->hasScheduleOverlap(
+            // profesor Y la del alumno con la misma estrategia.
+            // duration_minutes es el de la propia lesson (inmutable en v1), no
+            // un valor del request.
+            $conflict = $this->scheduleConflict(
                 $lesson->teacher_profile_id,
+                $lesson->student_id,
                 $data['start_time'],
                 $lesson->duration_minutes,
                 true,
                 $lesson->id
-            )) {
+            );
+
+            if ($conflict !== null) {
                 throw ValidationException::withMessages([
-                    'start_time' => 'El profesor ya tiene una clase en ese horario.',
+                    // Aquí quien reprograma puede ser el padre, así que el
+                    // mensaje del profesor se redacta en tercera persona.
+                    'start_time' => $conflict === 'teacher'
+                        ? 'El profesor ya tiene una clase en ese horario.'
+                        : $this->scheduleConflictMessage($conflict),
                 ]);
             }
 
@@ -606,30 +646,78 @@ class LessonController extends Controller
         return back()->with('success', 'Clase reprogramada correctamente.');
     }
 
-    // $excludeLessonId: al reprogramar una clase, su propia fila candidatea
-    // contra su horario ACTUAL (aún no actualizado dentro de la transacción),
-    // así que debe excluirse o se detectaría como solapada consigo misma.
-    // store() no lo necesita (la lesson todavía no existe al chequear).
-    private function hasScheduleOverlap(
+    /**
+     * ¿Hay ya una clase que solape con la franja pedida, para el profesor O
+     * para el alumno?
+     *
+     * EL ALUMNO ES NUEVO (§13). Antes solo se protegía la agenda del PROFESOR,
+     * así que dos profesores distintos podían agendar dos clases simultáneas
+     * para el mismo menor sin que nada lo impidiera
+     * (docs/MOVA_SYSTEM_MAP.md R-14). El padre lo descubría al recibir dos
+     * recordatorios para la misma hora, con dos créditos ya reservados.
+     *
+     * Se comprueban ambos en UNA sola consulta en vez de dos: son la misma
+     * pregunta ("¿la franja está libre?") y separarlas duplicaría el `lock` y la
+     * aritmética de fin de clase, que es justo la deuda que C-2 vino a eliminar.
+     *
+     * SOLO 'scheduled' BLOQUEA, deliberadamente:
+     *   - `cancelled` libera la franja: esa clase ya no ocurre.
+     *   - `paid` / `pending_parent_confirmation` / `completed` son clases que ya
+     *     TERMINARON (el padre solo puede confirmar el pago después de
+     *     `end_time`), así que no compiten por una franja futura.
+     *   - `needs_admin_review` describe una clase vencida sin cerrar: tampoco
+     *     ocupa agenda futura.
+     *
+     * $excludeLessonId: al reprogramar, la propia fila candidatea contra su
+     * horario ACTUAL (aún no actualizado dentro de la transacción), así que debe
+     * excluirse o se detectaría como solapada consigo misma. store() no lo
+     * necesita (la lesson todavía no existe al chequear).
+     *
+     * @return null|'teacher'|'student'  Cuál de los dos está ocupado, para poder
+     *                                   dar un mensaje que diga la verdad.
+     */
+    private function scheduleConflict(
         int $teacherProfileId,
+        int $studentId,
         string $startTime,
         int $durationMinutes,
         bool $lock = false,
         ?int $excludeLessonId = null
-    ): bool {
+    ): ?string {
         $requestedStart = Carbon::parse($startTime);
         $requestedEnd = $requestedStart->copy()->addMinutes($durationMinutes);
-        $query = Lesson::where('teacher_profile_id', $teacherProfileId)
-            ->where('status', 'scheduled')
+
+        $query = Lesson::where('status', 'scheduled')
             ->where('start_time', '<', $requestedEnd)
+            ->where(function ($q) use ($teacherProfileId, $studentId) {
+                $q->where('teacher_profile_id', $teacherProfileId)
+                    ->orWhere('student_id', $studentId);
+            })
             ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId));
 
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        return $query->get()->contains(
+        $overlapping = $query->get()->filter(
             fn (Lesson $lesson) => $lesson->end_time->gt($requestedStart)
         );
+
+        if ($overlapping->isEmpty()) {
+            return null;
+        }
+
+        // El conflicto del profesor manda en el mensaje: es quien está eligiendo
+        // el horario y quien puede corregirlo en el acto.
+        return $overlapping->contains(fn (Lesson $lesson) => $lesson->teacher_profile_id === $teacherProfileId)
+            ? 'teacher'
+            : 'student';
+    }
+
+    private function scheduleConflictMessage(string $conflict): string
+    {
+        return $conflict === 'teacher'
+            ? 'Ya tienes una clase en ese horario.'
+            : 'El alumno ya tiene otra clase agendada en ese horario con otro profesor.';
     }
 }
