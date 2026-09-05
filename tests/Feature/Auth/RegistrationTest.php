@@ -100,4 +100,39 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('teacher_profiles', 0);
     }
+
+    /**
+     * H-12 (bug hermano) — El registro aceptaba cualquier cadena de <=20
+     * caracteres como teléfono, así que creaba cuentas con un número que
+     * NUNCA podría verificarse por WhatsApp. Ahora comparte la misma regla
+     * que el perfil, y el problema se corta en el origen.
+     */
+    public function test_registration_rejects_a_phone_that_could_never_be_verified(): void
+    {
+        $this->post('/register', [
+            'name' => 'Padre Prueba',
+            'email' => 'padre.prueba@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'phone' => '12345',
+            'role' => 'parent',
+            'accepted_terms' => true,
+        ])->assertSessionHasErrors('phone');
+
+        $this->assertDatabaseMissing('users', ['email' => 'padre.prueba@example.com']);
+    }
+
+    public function test_registration_still_allows_omitting_the_phone(): void
+    {
+        $this->post('/register', [
+            'name' => 'Padre Sin Telefono',
+            'email' => 'sin.telefono@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'role' => 'parent',
+            'accepted_terms' => true,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', ['email' => 'sin.telefono@example.com', 'phone' => null]);
+    }
 }

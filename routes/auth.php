@@ -32,6 +32,17 @@ Route::middleware('guest')->group(function () {
     Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])
                 ->name('auth.google.callback');
 
+    // R-19 — Elección de rol para una cuenta NUEVA que llega por Google.
+    // Sigue en el grupo `guest` a propósito: el usuario todavía no existe en la
+    // base de datos, su identidad vive solo en la sesión (ver
+    // GoogleAuthController::PENDING_SESSION_KEY).
+    Route::get('auth/google/role', [GoogleAuthController::class, 'showRoleSelection'])
+                ->name('auth.google.role');
+
+    Route::post('auth/google/role', [GoogleAuthController::class, 'storeRoleSelection'])
+                ->middleware('throttle:10,1')
+                ->name('auth.google.role.store');
+
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
                 ->name('password.request');
 

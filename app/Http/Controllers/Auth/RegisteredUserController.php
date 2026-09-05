@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Rules\NormalizablePhone;
 use App\Rules\NotProfane;
 use App\Services\SubjectNormalizer;
 use App\Notifications\WelcomeParentNotification;
@@ -43,7 +44,15 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => 'nullable|string|max:20',
+            // H-12 (bug hermano) — El registro validaba solo la longitud, así
+            // que aceptaba "12345" y creaba una cuenta con un teléfono que
+            // NUNCA podría verificarse. Ahora usa la misma regla que el perfil
+            // (App\Rules\NormalizablePhone → User::normalizePhone()), de modo
+            // que el número que entra al sistema es siempre uno que el flujo de
+            // verificación por WhatsApp puede procesar.
+            //
+            // Sigue siendo opcional: quien no quiera darlo, no lo da.
+            'phone' => ['nullable', 'string', 'max:20', new NormalizablePhone],
             'role' => 'required|in:parent,teacher',
             'accepted_terms' => 'accepted',
             'teacher_subject_names' => 'required_if:role,teacher|array',

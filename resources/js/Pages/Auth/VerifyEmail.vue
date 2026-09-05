@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
+import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
@@ -11,9 +12,14 @@ const props = defineProps({
 });
 
 const form = useForm({});
+const sendError = ref('');
 
 const submit = () => {
-    form.post(route('verification.send'));
+    form.post(route('verification.send'), {
+        onError: (errors) => {
+            sendError.value = errors.email ?? 'No se pudo reenviar el enlace. Inténtalo de nuevo.';
+        },
+    });
 };
 
 const verificationLinkSent = computed(() => props.status === 'verification-link-sent');
@@ -30,6 +36,8 @@ const verificationLinkSent = computed(() => props.status === 'verification-link-
         <div class="mb-4 font-medium text-sm text-green-600" v-if="verificationLinkSent">
             Se ha enviado un nuevo enlace de verificación al correo que proporcionaste al registrarte.
         </div>
+
+        <InputError v-if="sendError" class="mb-4" :message="sendError" />
 
         <form @submit.prevent="submit">
             <div class="mt-4 flex items-center justify-between">

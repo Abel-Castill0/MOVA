@@ -22,7 +22,7 @@
           </svg>
           Continuar con Google
         </button>
-        <p class="mt-2 text-center text-xs text-slate-400">Crea tu cuenta como padre/madre en un clic. ¿Eres profesor? Usa el formulario de abajo.</p>
+        <p class="mt-2 text-center text-xs text-slate-400">Te preguntaremos si eres familia o profesor justo después.</p>
         <div class="my-5 flex items-center gap-3">
           <div class="h-px flex-1 bg-gray-200"></div>
           <span class="text-xs font-medium text-gray-400">o completa el formulario</span>
