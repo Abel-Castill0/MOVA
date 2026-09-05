@@ -66,6 +66,18 @@
         <env name="SENTRY_DSN" value="" force="true"/>
         <env name="JAAS_APP_ID" value="test-app-id" force="true"/>
         <env name="JAAS_KEY_ID" value="test-key-id" force="true"/>
+        <!-- FIXTURE CRIPTOGRÁFICO SINTÉTICO — no es una credencial.
+             Clave RSA-2048 generada para las pruebas, en base64. JaaSService
+             solo la usa para FIRMAR un JWT en local (JWT::encode(..., 'RS256'),
+             JaaSService.php:80): no se contacta con ningún servidor de Jitsi,
+             así que cualquier par de claves válido sirve y ninguna credencial
+             real interviene. Los identificadores que la acompañan son
+             marcadores ('test-app-id' / 'test-key-id'), no un vpaas-magic-cookie
+             real, y JAAS_PRIVATE_KEY está VACÍA en .env.example: la clave de
+             producción vive solo en .env, que no se versiona.
+             Se deja inline a propósito. Sustituirla por un mock debilitaría las
+             pruebas, que hoy verifican la firma RS256 de verdad
+             (JitsiAccessWindowTest, MonetizationIntegrityTest). -->
         <env name="JAAS_PRIVATE_KEY" value="LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tDQpNSUlFdlFJQkFEQU5CZ2txaGtpRzl3MEJBUUVGQUFTQ0JLY3dnZ1NqQWdFQUFvSUJBUUM5QTZTZEdTQWcyeXhYDQpMbkFtUXJWdjNMZkZFYTBLdlJNVXQyTmRHMXR0UFh2MDZSZ0h5T0hBNUx6bEVJUmJLSzBYc0thYkhrT2xqV1hsDQp2MGRMRXNPZVdiMFI4WExrcFg4NlhqR3lnNFR3UkJMVTBKYnZYTHhpR2xzVi9VSXlPMmR6ZTVqUU1neWxRMHZsDQpvbVZSRy8rK1RHaUhNQkRhVGF5NkFLWDR1Z0RHWURTWjV5TG0yUUtadWNXeEtIMXV1cUo3Q3BzajlNTFkzUkRLDQpCWWFxTEM2Q1Juc0VQQWNxRGYybUNrTXVjRWxpTGVPbFhaQ2xRZUZKMkc1TWt0WTJ5aHViZUlNWlA0UzZGNTNhDQpWLzlRaFRyd3pFSXZ5cVAySzlra2twQW9XSWcrUW1FU2h4a0VUOFZIUXNDZEJPSStiamRpRTlDaG5ZbE81US9YDQozQUZIanVQckFnTUJBQUVDZ2dFQUFUK2d1dXlSTTJaY1V2d3g2RjFXb0FhNHJHZ0k4R2Z5bWZTYzQvWXh3Vkp1DQpHd0ZTemdwY0JrOXczRnAvd21tcTZ3cHFhWUZhOGlFeGh2QkNoZS9pVnVxMlNrbXdZTWgwNWlXZlVtc1pjU2s1DQpPa0h0QmdwTHNLSTFCcnVjL3JFS2ZiZmpHOHoxN1NhaDdIRERjNmpNbVBMWDVldEJ1ZmdwdndSdUZEeUh3andPDQpuRzVGc1hBem9icXBHWjlHbWo5WjRudDlKbng0UGc5QzB3SnJWMlMvdC9Lamkvb0FXYm0rWmgraTZTeGx5Y0owDQo5ZllocS8zcDhtRUVxOWhPY2JFSWp4WDBoNjFKemxCTHZtZ1ZYVUU4SVZUR0VIKzcyd3RwM3hUczJTRHM2WURlDQorSWdOTDNmUkNNemZUYzdrRWRkOTYvd3pHMVVsY0I5V05VemFhY2FFUVFLQmdRRDhZOWVoclZUei81RHhtSzdiDQpuRjR1S2NGR01LTXBEaTIxN0hLUWlJdUU4STFKTVNvNWNxZEovV1pnWXRIOVVNVVhEMHEwZnZqWXFid0pyaU9mDQozd0ZTQm1RUzJ3eWcvR2JKc3RWaFg5RW13eGw4NmtZQ1dDWDZMbXlaWmFRbkJwOGdoRUVpOGlmVHYxRFJUbnAvDQpwYmVwanVvamZ3L0FKbFFqWFVVcThoZzQyd0tCZ1FDL3Q3NEtYNk90L0FyOFd1bjJnVkh5YlVuNnBuUUJjdEJnDQp1Z0MrcDhHb1o1U0I0a2dmS1ZCNndMUU1DSTlTTmdrY3d4OXcvU0xMS3NhZUt3YjJ6Uktja2NQcmRnQWYzU0llDQpXemlRclVJTElvVUF1cDNuUWpSc0RmbnNUSzBtNTNNNzJ4VGlyZVQ4UFprUVBDVzJrSllDSlZlVitRS0dTT2FpDQpqMXVNb29xbU1RS0JnUUR4NWt1OHhPR0FmcmtRSmRPcDNzUVJvS21DdVlrWUIyUGVVb0kzYnZleDhkQ29qdnUyDQpWZUpxc3ZsVmRrRm5kZXVBdjRKTlhzam8rRDJtVllZRmEzcmJnQTZZVitSUnc3aE1weCtHbFl4amgyaTlaZGkxDQoxSUNKdWNjU2V1MkxEZmlqOUw1dFhRUzVHVXUvWUdWZVJKbTBaS3FhWE9UZXVKMjV5MkpJMkFKSk13S0JnSDBQDQpvREZtS0FDenZIclgxMjBNK09iYWNmckdvRC9kcEo2a1Z4NEhrcVdIUS9IaUtVZmlqSFEyeG54ZkRSY0UxcmJqDQpkZHdmMUpXUmh0VGdubjlhVVB5L2ZYMVlrVVkzMnl6UU5ycnh1blpIQTFueFlsWGI4eFJWbmFXT2N4bEF2QVBjDQpxdWdmcFpNQm41cGVrZjlnbStvMGI4a09FWjZGYWFXN1BHNG1EYW5SQW9HQUdSNkRRcGsvekg3SUl3d0kvU1JHDQpwNjFCbUNxS2xncFZVN2ZjNW9nck15SDgxcm1PT3JuTFhpazFaZmdRUGFSbnpnQUVqcjAxZENZUFBvSDVvMGY2DQpjbXVPZUlWQ2FqbzhlbFRnMFBLemtsbmE0cDdrWEgxWjBtQ2NsOGUwZ1RBVTRMUGRBRjhsUnZxZWxHZVdpUm5VDQpwUFpLQXEyRjJsc3JpUW1VR0FmN3BCcz0NCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0NCg==" force="true"/>
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>

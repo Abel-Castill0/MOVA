@@ -162,13 +162,26 @@ class ReminderDeliverySemanticsTest extends TestCase
         // Mitigación declarada: aunque un duplicado no se pueda PREVENIR, la
         // tabla whatsapp_messages permite detectarlo, porque provider_message_id
         // tiene UNIQUE(provider, provider_message_id).
-        $indexes = collect(DB::select("PRAGMA index_list('whatsapp_messages')"))
-            ->pluck('name')
-            ->map(fn ($name) => collect(DB::select("PRAGMA index_info('{$name}')"))->pluck('name')->all());
+        $message = [
+            'to' => '51999999999',
+            'template_key' => 'class_reminder',
+            'provider' => 'fake',
+            'provider_message_id' => 'test-duplicate-message',
+        ];
+        DB::table('whatsapp_messages')->insert($message);
 
-        $hasUnique = $indexes->contains(fn ($cols) => in_array('provider_message_id', $cols, true));
+        // Verifica la constraint real en ambos motores, no solo un índice
+        // que contenga la columna (el PRAGMA anterior ni comprobaba UNIQUE).
+        try {
+            DB::transaction(fn () => DB::table('whatsapp_messages')->insert($message));
+            $this->fail('El mismo ID del mismo proveedor debe rechazarse.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->assertSame('23000', (string) $e->getCode());
+        }
 
-        $this->assertTrue($hasUnique, 'whatsapp_messages debe poder detectar un reenvío del mismo mensaje.');
+        // El alcance es compuesto: otro proveedor puede reutilizar el ID.
+        DB::table('whatsapp_messages')->insert(array_replace($message, ['provider' => 'other']));
+        $this->assertSame(2, DB::table('whatsapp_messages')->count());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

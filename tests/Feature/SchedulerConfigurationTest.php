@@ -15,10 +15,9 @@ use Tests\TestCase;
  * con --dry-run hardcodeado, dejando C-1 permanentemente inactivo en
  * producción. Estos tests cierran ese punto ciego.
  *
- * RefreshDatabase añadido para los tests de resiliencia del health-check
- * (más abajo), que necesitan un DDL destructivo (Schema::drop) de forma
- * segura: sin esto, un DROP TABLE en un test sin transacción propia dejaría
- * la tabla ausente para el resto de la suite en el mismo proceso.
+ * RefreshDatabase aísla los datos. Los fallos de consulta se inyectan en
+ * el query builder: DROP TABLE hace commit implícito en MySQL y destruye
+ * la transacción de aislamiento de toda la suite.
  */
 class SchedulerConfigurationTest extends TestCase
 {
@@ -401,7 +400,7 @@ class SchedulerConfigurationTest extends TestCase
         // existe. Los demás checks (settlement, proveedores, timeouts) deben
         // seguir apareciendo en el reporte — el comando no debe reventar
         // entero por un problema localizado en una sola sección.
-        \Illuminate\Support\Facades\Schema::drop('jobs');
+        $this->breakQueueBacklogQuery();
 
         $result = $this->artisan('mova:health-check --json')->run();
 
@@ -410,7 +409,7 @@ class SchedulerConfigurationTest extends TestCase
 
     public function test_a_broken_queue_backlog_query_still_reports_other_sections(): void
     {
-        \Illuminate\Support\Facades\Schema::drop('jobs');
+        $this->breakQueueBacklogQuery();
 
         // Artisan::call() necesita un OutputStyle real, no un BufferedOutput
         // simple: RefreshDatabase migra la BD llamando a $this->artisan('migrate', ...)
@@ -437,5 +436,13 @@ class SchedulerConfigurationTest extends TestCase
         $this->assertArrayHasKey('settlement_mode', $decoded['checks']);
         $this->assertArrayHasKey('PAYMENT_PROVIDER', $decoded['checks']);
         $this->assertSame('no disponible', $decoded['checks']['queue_backlog']);
+    }
+
+    private function breakQueueBacklogQuery(): void
+    {
+        $query = \Mockery::mock(\Illuminate\Database\Query\Builder::class);
+        $query->shouldReceive('count')->once()->andThrow(new RuntimeException('Queue table unavailable'));
+        \Illuminate\Support\Facades\DB::partialMock()
+            ->shouldReceive('table')->with('jobs')->once()->andReturn($query);
     }
 }

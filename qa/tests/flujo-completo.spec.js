@@ -29,7 +29,7 @@
 // corridas.
 
 import { test, expect } from '@playwright/test';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 // Import intencional del util real de la app (no un residuo de copy-paste):
 // los pasos 7 y 10 necesitan reproducir el orden exacto en que
@@ -49,13 +49,48 @@ const MARKER = `E2E-PLAYWRIGHT-${Date.now()}`;
 
 /** Ejecuta un comando artisan en la raíz del proyecto Laravel y devuelve stdout. */
 function artisan(cmd) {
-  return execSync(`php artisan ${cmd}`, { cwd: PROJECT_ROOT, encoding: 'utf-8' }).trim();
+  return execFileSync('php', ['artisan', ...cmd.split(' ')], { cwd: PROJECT_ROOT, encoding: 'utf-8' }).trim();
 }
 
-/** Ejecuta PHP inline (tinker --execute) y devuelve stdout, ya trimeado. */
+/**
+ * Ejecuta PHP inline (tinker --execute) y devuelve stdout, ya trimeado —
+ * FALLANDO EN EL PUNTO REAL si el código lanza.
+ *
+ * POR QUÉ EL CENTINELA (verificado, no supuesto):
+ *
+ *   php artisan tinker --execute="throw new RuntimeException('BOOM');"
+ *   → imprime la excepción y sale con EXIT CODE 0.
+ *
+ * execFileSync NO lanza y el TEXTO DE LA EXCEPCIÓN se devuelve como si fuera
+ * un dato válido. En este mismo archivo eso se manifestaba como
+ * `Number(tinker(...))` → NaN y un `expect(...).toBeGreaterThan(0)` que
+ * culpaba al producto de un fallo del harness, muy lejos del punto real.
+ * (El mismo patrón ya había producido un 404 fantasma en
+ * stabilization.spec.js.)
+ *
+ * El centinela solo se imprime si se alcanzó la última instrucción: una
+ * excepción aborta antes, así que su ausencia es prueba de fallo con
+ * independencia del exit code.
+ */
+const TINKER_SENTINEL = '__MOVA_TINKER_OK__';
 function tinker(code) {
-  const escaped = code.replace(/"/g, '\\"');
-  return artisan(`tinker --execute="${escaped}"`);
+  const out = execFileSync(
+    'php',
+    ['artisan', 'tinker', `--execute=${code} echo '${TINKER_SENTINEL}';`],
+    { cwd: PROJECT_ROOT, encoding: 'utf-8' },
+  );
+
+  if (!out.includes(TINKER_SENTINEL)) {
+    throw new Error(
+      `Tinker no completó el fixture (probable excepción). Salida:
+${out.trim()}
+
+Código:
+${code}`,
+    );
+  }
+
+  return out.slice(0, out.indexOf(TINKER_SENTINEL)).trim();
 }
 
 async function login(page, email, password) {
@@ -99,6 +134,17 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
   let lessonId;
 
   test('flujo de 8 pasos: solicitud → agendar → pago → reporte → calificación', async ({ page }) => {
+    // Los 120 s por defecto de playwright.local.config.js NO alcanzan para
+    // este recorrido: son 10 pasos con 3 logins, 2 navegaciones de formulario
+    // y 6 llamadas a tinker (cada arranque de artisan cuesta ~1 s). Medido de
+    // punta a punta: ~150 s. El test agotaba el presupuesto en el paso 9 y
+    // Playwright lo reportaba como si la reseña no redirigiera — un fallo
+    // atribuido al producto que en realidad era el reloj del propio gate; la
+    // reseña sí se guardaba (comprobado en la BD QA).
+    //
+    // Se amplía SOLO este test, no el timeout global: los demás specs deben
+    // seguir fallando rápido si se cuelgan.
+    test.setTimeout(420_000);
     await test.step('0. Recargar créditos del profesor de prueba', async () => {
       // LessonController::store() descuenta Lesson::creditCostForMinutes()
       // (1 crédito por hora o fracción; este flujo agenda 1h = 1 crédito) del
@@ -121,14 +167,14 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // corrida (reutiliza MARKER) para que sea un depósito real y
       // trazable, no un número mágico.
       tinker(
-        `$tp = App\\Models\\TeacherProfile::whereHas('user', fn($q) => $q->where('email','${TEACHER_EMAIL}'))->first();` +
+        `Illuminate\\Support\\Facades\\DB::transaction(function () { $tp = App\\Models\\TeacherProfile::whereHas('user', fn($q) => $q->where('email','${TEACHER_EMAIL}'))->lockForUpdate()->firstOrFail();` +
           `$tp->creditTransactions()->create([` +
           `'idempotency_key' => 'e2e:${MARKER}:deposit',` +
           `'type' => 'deposit',` +
           `'amount' => 20,` +
           `'description' => 'Top-up E2E flujo-completo.spec.js',` +
           `]);` +
-          `$tp->update(['credits_available' => $tp->credits_available + 20]);`
+          `$tp->update(['credits_available' => $tp->credits_available + 20]); });`
       );
     });
 
@@ -242,9 +288,10 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // Playwright encuentra el locator, pero el nodo aún no es interactivo
       // de forma estable). Confirmar visibilidad primero replica el patrón
       // ya probado del resto del archivo.
-      const payButton = page.getByRole('button', { name: '✓ Ya pagué' }).nth(index);
+      const payButton = page.getByRole('button', { name: 'Ya pagué', exact: true }).nth(index);
       await expect(payButton).toBeVisible();
       await payButton.click();
+      await page.getByRole('button', { name: 'Confirmar pago', exact: true }).click();
       await page.waitForLoadState('networkidle');
 
       const status = tinker(`echo App\\Models\\Lesson::find(${lessonId})->status;`);
@@ -324,7 +371,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       expect(index).toBeGreaterThanOrEqual(0);
 
       await page.goto('/my-classes');
-      const card = page.locator(LESSON_CARD).nth(index);
+      const card = page.locator(LESSON_CARD).filter({ hasText: 'Alumno: Mateo Prueba' }).nth(index);
       await expect(card).toBeVisible();
       await expect(card.getByText('Completada').first()).toBeVisible();
     });
@@ -343,7 +390,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
     await test.step('3-4. Navegar a la página de créditos y verificar los 3 paquetes', async () => {
       await page.goto('/teacher/credits');
-      await expect(page.getByText('Mis creditos MOVA')).toBeVisible();
+      await expect(page.getByText('Mis créditos MOVA')).toBeVisible();
 
       // Botón destacado de recarga en la propia página de créditos — siempre
       // visible, apunta a la sección de paquetes.
@@ -408,14 +455,26 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
     });
 
     await test.step('3. El grid renderiza con al menos un bloque de clase (semana actual)', async () => {
-      // La semana actual (17-23 ago 2026) tiene la clase "scheduled" fija del
-      // seeder — ver ParentLessonCard ya visible en el test anterior.
-      // .first(): corridas repetidas de este archivo van acumulando clases
-      // "scheduled" en la semana actual (cada una con su propio bloque
-      // "Unirse →" — ver nota de idempotencia al inicio del archivo), así
-      // que puede haber más de una coincidencia. Basta con que exista una.
+      // Se comprueba que el grid RENDERIZA un bloque de clase, que es lo que
+      // este test dice verificar.
+      //
+      // Antes se afirmaba `getByText('Unirse →')`. Eso NO es una propiedad del
+      // calendario sino del reloj: WeeklyCalendar.vue:54 solo pinta "Unirse →"
+      // si `canJoinJitsi(l)`, que exige estar dentro de la ventana de
+      // JOIN_WINDOW_BEFORE_MINUTES = 15 minutos antes del inicio
+      // (resources/js/utils/lessonJoin.js:22). Las clases "scheduled" que
+      // siembra LocalTestDataSeeder empiezan al día siguiente, así que la
+      // ventana está cerrada y el producto hace lo correcto al no ofrecer el
+      // enlace. El comentario original daba por buena una semana fija
+      // ("17-23 ago 2026") que ya había pasado: la aserción caducó con el
+      // calendario, no con el código.
+      //
+      // Se ancla en la materia dentro del propio tabpanel para no volver a
+      // depender de la hora del sistema.
       await expect(page.getByText('LUN')).toBeVisible();
-      await expect(page.getByText('Unirse →').first()).toBeVisible();
+      await expect(
+        page.getByRole('tabpanel').getByText('Matemáticas').first()
+      ).toBeVisible();
     });
 
     await test.step('4. Navegar a la semana anterior muestra "Volver a hoy" y otras clases', async () => {
