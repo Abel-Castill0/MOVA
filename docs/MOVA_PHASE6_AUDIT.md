@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Fase 6: consentimiento explícito y cierre de gaps operativos
 
 **Fecha:** 2026-08-24

@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Auditoría Forense (Fase 2) · **actualizada tras Fase 3**
 
 **Diagnóstico original:** 2026-08-24 (Fase 2)

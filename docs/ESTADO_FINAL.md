@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Estado final
 
 MOVA conecta padres y profesores para clases particulares online en Perú, con un sistema de créditos prepagos, diagnóstico inicial del alumno, salas de videollamada integradas y reseñas.

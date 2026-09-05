@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA Monetization Audit
 
 Auditoría estática y QA local aislado sobre `master`, commit `aa5c9426c5f435089c55ecd7e8070ff7b734cad8`, realizada el 10 de julio de 2026. El estado de corrección se actualizó en la rama `fix/monetization-integrity` el 10 de julio de 2026.

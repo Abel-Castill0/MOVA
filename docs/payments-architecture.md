@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # Arquitectura de pagos — base para pagos automáticos (Culqi/otro PSP)
 
 Este documento describe la capa de pagos automáticos añadida sobre el

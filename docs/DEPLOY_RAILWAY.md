@@ -315,17 +315,39 @@ GMAIL_FROM_NAME=MOVA
 
 #### 4. Si no hay GMAIL_REFRESH_TOKEN configurado
 
-El `SafeMailChannel` detecta la ausencia y registra un warning en el log. Las notificaciones **in-app (database) y WhatsApp siguen funcionando** — el job no falla.
+El transporte de la Gmail API lanza una excepción al no poder autenticar. `SafeMailChannel` la
+captura, la registra y la reporta a Sentry (H-01), pero **no hace fallar el job**: las notificaciones
+**in-app (database), broadcast y WhatsApp siguen entregándose**. Reintentar el job reenviaría esos
+otros canales, así que se prefiere perder el correo y dejar constancia.
 
-### Cuándo migrar a Resend/Postmark/Mailgun
+Si quieres respaldo automático a SMTP, usa `MAIL_MAILER=failover` (ver `config/mail.php`): intenta
+`gmail_api` y solo pasa a `smtp` si el primero lanza — nunca ambos.
 
-Cuando tengas un dominio propio verificado, la migración es un cambio de 2 variables en Railway:
+### Cuándo migrar a un proveedor con dominio propio
+
+> **Cambiado en Fase 2A (H-04).** La dependencia `resend/resend-laravel` se **retiró**: no tenía ningún
+> consumidor en el código y a cambio registraba `POST /resend/webhook`, un endpoint público **sin
+> middleware**. Las instrucciones anteriores de este apartado (`MAIL_MAILER=resend`) ya no funcionan
+> tal cual.
+
+Cuando tengas un dominio propio verificado, añade el paquete del proveedor y configura su mailer.
+Para Resend:
+
+```bash
+composer require resend/resend-laravel
+```
 
 ```
 MAIL_MAILER=resend
 RESEND_API_KEY=re_xxxxx
 MAIL_FROM_ADDRESS=noreply@tudominio.com
 ```
+
+`ses`, `postmark` y `mailgun` ya están declarados en `config/mail.php` y solo requieren sus
+credenciales (y, en el caso de SES/Mailgun, su SDK).
+
+Si vuelves a añadir Resend, revisa si su ruta de webhook te hace falta: si no vas a rastrear
+bounces, déjala fuera o protégela — no dejes un endpoint público sin uso.
 
 ---
 

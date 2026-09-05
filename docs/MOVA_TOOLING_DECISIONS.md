@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Análisis y decisiones sobre herramientas, skills, librerías y prácticas
 
 **Fecha:** 2026-08-27. Cubre cada ítem de la lista que pasaste (~180 entradas: skills de Claude Code, librerías npm, repos de GitHub, MCPs, sitios de inspiración, checklists de SEO/seguridad/UX, comandos, y consideraciones legales). Ninguno se omitió — los que no requerían investigación profunda (sitios de inspiración, libros, conceptos de diseño) se clasifican igual, sin research extenso, porque no hay nada que "instalar" en ellos.

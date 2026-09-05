@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Matriz de Production Readiness
 
 > Estado del código y preparación previa a producción. **No constituye aprobación de producción real** — quedan dependencias de terceros (Culqi, Meta, JaaS) y decisiones humanas (Railway, activación de liquidación) fuera del alcance de cualquier auditoría de este repositorio. **Tampoco constituye una garantía de ausencia total de defectos** — cada ✅ READY refleja lo verificado por las auditorías realizadas hasta la fecha de este documento, no una prueba de corrección exhaustiva. F-23 (más abajo) es evidencia reciente de esto: un caso ya cubierto por un test se había clasificado como "comportamiento válido" en la ronda anterior, y resultó ser un defecto real — "está probado" y "es correcto" no son la misma afirmación.

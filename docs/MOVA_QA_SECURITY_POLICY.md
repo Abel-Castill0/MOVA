@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Política de seguridad de QA E2E (Playwright)
 
 **Fecha:** 2026-08-26. Nace de F-24A — la infraestructura de Playwright apuntaba por defecto a producción real con credenciales reales, sin ningún guard a nivel de configuración que lo impidiera. Ampliada con F-25 tras una segunda revisión: proteger el **target** (a qué host se apunta) no es lo mismo que proteger la **acción** (qué se le permite hacer a ese host) — son dos controles independientes, y esta política ahora cubre ambos. Ampliada de nuevo con **F-26/F-27** — ver [`MOVA_CREDENTIAL_EXPOSURE.md`](MOVA_CREDENTIAL_EXPOSURE.md): la búsqueda de referencias muertas encontró credenciales reales (contraseña de base de datos de producción, cookies de sesión de admin) que habían llegado al historial de git.

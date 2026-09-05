@@ -1,3 +1,7 @@
+> **HISTORICAL SNAPSHOT** — verify against `docs/MOVA_SYSTEM_MAP.md` and current code.
+> Documento de una fase anterior. Conservado como registro de decisiones, NO como
+> descripcion fiable del comportamiento actual.
+
 # MOVA — Exposición de credenciales en git history (F-26 / F-27 / F-24A)
 
 **Fecha de última revisión:** 2026-08-27. Documento dedicado, separado de `MOVA_QA_BASELINE.md`, porque este hallazgo dejó de ser "un detalle del saneamiento de QA" y pasó a ser un hallazgo de seguridad de infraestructura por derecho propio.
