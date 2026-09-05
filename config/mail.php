@@ -46,8 +46,20 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN'),
         ],
 
-        'resend' => [
-            'transport' => 'resend',
+        /*
+         * H-05 — Gmail API como mailer de PRIMERA CLASE.
+         *
+         * Antes `MAIL_MAILER=gmail_api` apuntaba a un mailer que no existía en
+         * este archivo: solo funcionaba porque SafeMailChannel interceptaba ese
+         * valor antes de que Laravel intentara resolverlo. Ahora es un mailer
+         * normal, respaldado por App\Mail\Transport\GmailApiTransport y
+         * registrado en AppServiceProvider::boot() con Mail::extend().
+         *
+         * Con esto, `Mail::send()`, los Mailables y cualquier paquete de
+         * terceros que envíe correo funcionan sin sorpresas.
+         */
+        'gmail_api' => [
+            'transport' => 'gmail_api',
         ],
 
         'ses' => [
@@ -83,11 +95,28 @@ return [
             'transport' => 'array',
         ],
 
+        /*
+         * H-05 — El respaldo, expresado con el mecanismo del framework.
+         *
+         * SafeMailChannel tenía un fallback escrito a mano: si la Gmail API
+         * fallaba, reasignaba `config(['mail.default' => 'smtp'])` en caliente y
+         * reenviaba. Eso era un segundo camino de envío mantenido a mano, con el
+         * riesgo de doble entrega si alguna vez ambos lograban salir.
+         *
+         * `failover` es el mecanismo nativo de Symfony/Laravel para exactamente
+         * esto: intenta los transportes EN ORDEN y solo pasa al siguiente cuando
+         * el anterior LANZA. Un envío exitoso nunca continúa la cadena, así que
+         * el doble envío es imposible por construcción.
+         *
+         * Para activarlo: MAIL_MAILER=failover. Con MAIL_MAILER=gmail_api (lo
+         * que hay hoy en producción) no hay respaldo, que es también una
+         * decisión válida y explícita.
+         */
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
+                'gmail_api',
                 'smtp',
-                'log',
             ],
         ],
 
@@ -111,9 +140,22 @@ return [
     |
     */
 
+    /*
+     * H-05 — COMPATIBILIDAD CON EL DESPLIEGUE ACTUAL.
+     *
+     * Antes la cabecera `From` la construía a mano GmailApiMailService a partir
+     * de GMAIL_FROM_ADDRESS/GMAIL_FROM_NAME. Ahora la construye Symfony desde
+     * este bloque, que lee MAIL_FROM_ADDRESS.
+     *
+     * Un despliegue que solo tuviera puesta GMAIL_FROM_ADDRESS habría empezado a
+     * enviar como `hello@example.com` y Gmail habría rechazado el envío (no se
+     * puede enviar en nombre de una dirección que la cuenta no controla). El
+     * respaldo explícito evita esa regresión silenciosa sin obligar a tocar
+     * variables en Railway.
+     */
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => env('MAIL_FROM_ADDRESS', env('GMAIL_FROM_ADDRESS', 'hello@example.com')),
+        'name' => env('MAIL_FROM_NAME', env('GMAIL_FROM_NAME', 'MOVA')),
     ],
 
     /*
@@ -128,7 +170,19 @@ return [
     */
 
     'markdown' => [
-        'theme' => 'default',
+        /*
+         * H-05 / C-10 — Identidad visual del correo por el mecanismo del
+         * framework.
+         *
+         * Los correos se maquetaban antes a mano dentro de GmailApiMailChannel
+         * con un indigo (#4f46e5) heredado de Breeze que ninguna decisión de
+         * marca eligió. Al pasar el correo al pipeline estándar de Laravel, el
+         * tema es el punto donde vive el color, y se alinea con
+         * tailwind.config.js.
+         *
+         * Ver resources/views/vendor/mail/html/themes/mova.css.
+         */
+        'theme' => 'mova',
 
         'paths' => [
             resource_path('views/vendor/mail'),

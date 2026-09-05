@@ -3,15 +3,18 @@
 namespace App\Providers;
 
 use App\Channels\SafeMailChannel;
+use App\Mail\Transport\GmailApiTransport;
 use App\Payment\Contracts\PaymentProviderContract;
 use App\Payment\CulqiPaymentProvider;
 use App\Payment\FakePaymentProvider;
 use App\Payment\MercadoPagoPaymentProvider;
+use App\Services\GmailApiMailService;
 use App\Support\ProviderGuard;
 use App\WhatsApp\Contracts\WhatsAppProviderContract;
 use App\WhatsApp\FakeWhatsAppProvider;
 use App\WhatsApp\MetaCloudApiProvider;
 use Illuminate\Notifications\Channels\MailChannel;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -120,5 +123,28 @@ class AppServiceProvider extends ServiceProvider
         if (app()->environment('production')) {
             URL::forceScheme('https');
         }
+
+        $this->registerGmailApiMailer();
+    }
+
+    /**
+     * H-05 — Convierte `gmail_api` en un mailer de Laravel de verdad.
+     *
+     * Sin esto, `config('mail.mailers.gmail_api')` existiría pero el framework
+     * no sabría construir su transporte, y `MAIL_MAILER=gmail_api` fallaría con
+     * "Unsupported mail transport [gmail_api]" en cuanto algo intentara enviar
+     * por el pipeline estándar (un Mailable, un `Mail::send()`, un paquete).
+     *
+     * Se registra SIEMPRE, incluso sin credenciales: el transporte existe y, si
+     * no puede autenticar, LANZA — que es justo lo que permite al mailer
+     * `failover` pasar al siguiente. Decidir aquí "no registrarlo si no hay
+     * credenciales" convertiría un fallo explícito en un mailer inexistente,
+     * que es un error mucho más confuso.
+     */
+    private function registerGmailApiMailer(): void
+    {
+        Mail::extend('gmail_api', function (array $config = []) {
+            return new GmailApiTransport($this->app->make(GmailApiMailService::class));
+        });
     }
 }

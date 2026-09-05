@@ -89,10 +89,6 @@ return [
         'require_verified' => env('WHATSAPP_REQUIRE_VERIFIED_PHONE', true),
     ],
 
-    'resend' => [
-        'key' => env('RESEND_API_KEY'),
-    ],
-
     'gmail' => [
         'client_id'     => env('GMAIL_CLIENT_ID'),
         'client_secret' => env('GMAIL_CLIENT_SECRET'),

@@ -15,7 +15,6 @@
         "laravel/socialite": "^5.29",
         "laravel/tinker": "^2.8",
         "pusher/pusher-php-server": "^7.2",
-        "resend/resend-laravel": "^1.4",
         "sentry/sentry-laravel": "^4.26",
         "spatie/laravel-permission": "^6.25",
         "tightenco/ziggy": "^2.6"
