@@ -153,7 +153,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
         Route::get('/lessons/{lesson}/report/create', [LessonReportController::class, 'create'])->name('lesson-reports.create');
         Route::post('/lessons/{lesson}/report', [LessonReportController::class, 'store'])->middleware('throttle:20,1')->name('lesson-reports.store');
-        Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
     });
 
     // ── Shared: cancel, reschedule & join (parent, teacher, admin) ────────────
@@ -161,6 +160,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/lessons/{lesson}/cancel', [LessonController::class, 'cancel'])->middleware('throttle:10,1')->name('lessons.cancel');
         Route::post('/lessons/{lesson}/reschedule', [LessonController::class, 'reschedule'])->middleware('throttle:20,1')->name('lessons.reschedule');
         Route::get('/lessons/{lesson}/join', [LessonController::class, 'join'])->name('lessons.join');
+
+        // H-06 — Movida desde el grupo `role:teacher`.
+        //
+        // La ruta era MÁS restrictiva que su propia autorización:
+        // LessonReportController::show() llama a authorize('view', $lesson), y
+        // LessonPolicy::view() autoriza al profesor dueño, al PADRE del alumno y
+        // al admin. Pero el middleware de rol daba 403 al padre antes de que la
+        // policy llegara a opinar (docs/MOVA_SYSTEM_MAP.md H-06, C-1).
+        //
+        // El padre ya veía exactamente estos datos en /my-reports, así que no se
+        // expone nada nuevo: se elimina una incoherencia por la que un enlace
+        // directo al reporte de su propio hijo fallaba. Quien decide sigue
+        // siendo la policy, que es donde vive la regla de ownership.
+        Route::get('/lessons/{lesson}/report', [LessonReportController::class, 'show'])->name('lesson-reports.show');
     });
 
     // ── Admin ────────────────────────────────────────────────────────────────
