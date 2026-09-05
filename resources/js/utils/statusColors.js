@@ -29,6 +29,9 @@ export const STATUS_STYLES = {
   rejected: { label: 'Rechazada', color: 'bg-red-100 text-red-700', ring: 'border-red-200', stripe: 'bg-red-500', dot: 'bg-red-400' },
   pending_parent_approval: { label: 'Pend. aprobación', color: 'bg-orange-100 text-orange-700', ring: 'border-orange-200', stripe: 'bg-orange-500', dot: 'bg-orange-400' },
   teacher_rejected: { label: 'Rechazada por profesor', color: 'bg-rose-100 text-rose-700', ring: 'border-rose-200', stripe: 'bg-rose-500', dot: 'bg-rose-400' },
+  // §14: gris, no rojo. Caducar no es un rechazo ni un error del padre — nadie
+  // la tomó a tiempo. Pintarla como "rechazada" sugeriría un juicio que no hubo.
+  expired: { label: 'Caducada', color: 'bg-slate-100 text-slate-600', ring: 'border-slate-200', stripe: 'bg-slate-400', dot: 'bg-slate-300' },
 }
 
 const FALLBACK = { label: null, color: 'bg-gray-100 text-gray-600', ring: 'border-gray-200', stripe: 'bg-gray-300', dot: 'bg-slate-300' }

@@ -136,6 +136,70 @@ class Kernel extends ConsoleKernel
             ->everyFiveMinutes()
             ->withoutOverlapping(900)
             ->runInBackground();
+
+        // H-03 — El health-check ya existía, era completo y NADIE lo ejecutaba.
+        //
+        // Ese era el hallazgo: MOVA sabía detectar que la liquidación automática
+        // estaba en dry_run en producción (créditos reservados para siempre),
+        // que APP_DEBUG estaba encendido, o que el timeout del worker colisiona
+        // con retry_after — y ese conocimiento no salía nunca de un comando que
+        // había que recordar lanzar a mano.
+        //
+        // CADA HORA, no cada minuto: comprueba CONFIGURACIÓN, que solo cambia en
+        // un deploy. Un barrido por minuto no detectaría nada antes y sí
+        // ejecutaría ~1.400 consultas diarias inútiles a `jobs`/`failed_jobs`/
+        // `users`. Una hora es el retardo máximo aceptable para enterarse de un
+        // despliegue mal configurado.
+        //
+        // --alert hace que los avisos lleguen a los administradores vía
+        // OperationalAlertService, deduplicados por código: mientras la
+        // configuración siga mal, es LA MISMA incidencia, no una por hora.
+        // Sigue siendo estrictamente de solo lectura sobre dinero y estados: lo
+        // único que escribe es la fila de incidencia.
+        $schedule->command('mova:health-check --alert')
+            ->hourly()
+            ->withoutOverlapping();
+
+        // El reconciliador del ledger tampoco estaba agendado, así que un
+        // descuadre entre credit_transactions y los saldos almacenados solo se
+        // descubría si a alguien se le ocurría mirar.
+        //
+        // DIARIO Y DE MADRUGADA (03:10 hora del servidor), no cada hora: recorre
+        // TODAS las clases y TODOS los perfiles sin paginar
+        // (LedgerReconciliation::classifyLessons()), así que su coste crece
+        // linealmente con el histórico. Un descuadre de ledger no es una
+        // urgencia de minutos —el dinero ya está mal o ya está bien, y la
+        // respuesta correcta es investigación manual, nunca un ajuste
+        // automático— así que una comprobación diaria es proporcionada.
+        //
+        // El minuto :10 evita coincidir con la hora en punto, cuando ya corren
+        // settle-lessons y health-check.
+        $schedule->command('mova:reconcile-ledger --alert')
+            ->dailyAt('03:10')
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // §14 — Cierra las solicitudes que nadie respondió.
+        //
+        // CADA HORA, no cada minuto: la ventana es de 24 h
+        // (CLASS_REQUEST_EXPIRY_HOURS), así que la precisión de un minuto no
+        // aportaría nada y multiplicaría por 60 un barrido que nadie está
+        // esperando. Con granularidad horaria, una solicitud caduca entre las
+        // 24 h y las 25 h de vida — indistinguible para el usuario.
+        //
+        // Al minuto :30 para no competir con settle-lessons y health-check, que
+        // corren en punto.
+        $schedule->command('mova:expire-class-requests')
+            ->hourlyAt(30)
+            ->withoutOverlapping();
+
+        // mova:reconcile-whatsapp NO se agenda en esta fase, a propósito.
+        //
+        // Es igual de read-only que los dos anteriores, pero su valor depende de
+        // que WhatsApp esté realmente encendido (WHATSAPP_ENABLED=false por
+        // defecto) y de que existan plantillas aprobadas por Meta. Agendarlo hoy
+        // sería un barrido diario garantizado a cero filas. Cuando WhatsApp pase
+        // a producción, este es el sitio donde debe añadirse.
     }
 
     /**

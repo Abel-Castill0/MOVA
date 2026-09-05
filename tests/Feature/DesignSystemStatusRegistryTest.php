@@ -50,7 +50,8 @@ class DesignSystemStatusRegistryTest extends TestCase
 
     private const CLASS_REQUEST_STATUSES = [
         'pending_parent_approval', 'open', 'accepted',
-        'rejected', 'teacher_rejected', 'completed',
+        // 'expired' añadido en §14 (add_expired_status_to_class_requests).
+        'rejected', 'teacher_rejected', 'completed', 'expired',
     ];
 
     private const RECHARGE_REQUEST_STATUSES = [
