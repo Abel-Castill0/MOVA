@@ -146,6 +146,29 @@ const maxWidthClass = computed(() => {
                     leave-from-class="translate-y-0 sm:scale-100 opacity-100"
                     leave-to-class="translate-y-full sm:translate-y-4 sm:scale-95 opacity-0 sm:opacity-0"
                 >
+                    <!--
+                      `sm:relative`, NUNCA `sm:static`.
+
+                      El backdrop hermano es `fixed` (posicionado). Si en
+                      escritorio el panel vuelve a `static` queda SIN posicionar,
+                      y el orden de pintado de CSS coloca los descendientes
+                      posicionados con `z-index:auto` (paso 8) por ENCIMA del
+                      contenido no posicionado (pasos 4 y 7). Resultado: el
+                      backdrop se pinta sobre el panel e intercepta los clics.
+
+                      Verificado en navegador real, no deducido del CSS: a
+                      1440x1000, un clic sobre "Revertir y descontar" CERRABA el
+                      modal en vez de activar el botón, porque el evento llegaba
+                      al backdrop. En móvil no ocurría porque ahí el panel sigue
+                      siendo `fixed`. Curiosamente `document.elementFromPoint()`
+                      SÍ devolvía el botón, así que el hit-test sintético no
+                      bastaba para verlo — solo el clic real.
+
+                      `relative` sin offsets ocupa exactamente el mismo espacio
+                      que `static`, así que el layout no cambia: solo convierte el
+                      panel en posicionado, y al ser el hermano POSTERIOR gana por
+                      orden de árbol (ambos con `z-index:auto`).
+                    -->
                     <div
                         v-show="show"
                         ref="panel"
@@ -153,7 +176,7 @@ const maxWidthClass = computed(() => {
                         aria-modal="true"
                         :aria-labelledby="titleId ?? undefined"
                         tabindex="-1"
-                        class="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-surface rounded-t-elevated shadow-elevation-3 outline-none pb-[env(safe-area-inset-bottom)] sm:static sm:mb-6 sm:mx-auto sm:max-h-none sm:rounded-elevated sm:overflow-visible sm:pb-0 sm:w-full"
+                        class="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-surface rounded-t-elevated shadow-elevation-3 outline-none pb-[env(safe-area-inset-bottom)] sm:relative sm:mb-6 sm:mx-auto sm:max-h-none sm:rounded-elevated sm:overflow-visible sm:pb-0 sm:w-full"
                         :class="maxWidthClass"
                         @click.stop
                     >
