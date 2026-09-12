@@ -19,6 +19,7 @@ use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\AiUsageController;
+use App\Http\Controllers\Admin\OperationsController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TeacherPublicController;
@@ -193,6 +194,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware('throttle:10,1')->name('admin.lessons.cancel');
         Route::post('/lessons/{lesson}/force-complete', [AdminController::class, 'forceCompleteLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-complete');
         Route::post('/lessons/{lesson}/force-refund', [AdminController::class, 'forceRefundLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-refund');
+        // Fase 3A — Centro de Operaciones. Solo lectura + cierre manual de la
+        // INCIDENCIA (no del recurso); ninguna acción financiera vive aquí
+        // (ver el docblock de OperationsController).
+        Route::get('/operations', [OperationsController::class, 'index'])->name('admin.operations');
+        Route::post('/operations/{alert}/close', [OperationsController::class, 'close'])
+            ->middleware('throttle:20,1')
+            ->name('admin.operations.close');
+
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
         Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
         Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware('throttle:20,1')->name('admin.recharges.reject');
