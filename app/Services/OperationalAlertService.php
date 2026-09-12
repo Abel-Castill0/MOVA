@@ -93,6 +93,15 @@ class OperationalAlertService
                     'last_detected_at' => now(),
                     'occurrences' => $wasResolved ? 1 : $alert->occurrences + 1,
                     'resolved_at' => null,
+                    // Reabrir debe borrar el rastro del cierre anterior. Si no,
+                    // una incidencia ABIERTA seguiria mostrando "cerrada por X
+                    // porque Y": una contradiccion en pantalla y una pista falsa
+                    // en una auditoria. Se acepta perder ese historico —
+                    // conservarlo exigiria una tabla aparte— porque el cierre ya
+                    // quedo registrado en el log con actor y motivo.
+                    'resolved_by' => $wasResolved ? null : $alert->resolved_by,
+                    'resolved_by_name' => $wasResolved ? null : $alert->resolved_by_name,
+                    'resolution_note' => $wasResolved ? null : $alert->resolution_note,
                     'notified_at' => $wasResolved ? null : $alert->notified_at,
                 ])->save();
 
@@ -150,6 +159,65 @@ class OperationalAlertService
             ]);
             report($e);
         }
+    }
+
+    /**
+     * Un admin CIERRA A MANO una incidencia.
+     *
+     * Cerrar la incidencia NO arregla el recurso: no toca el PaymentOrder,
+     * ni la Lesson, ni la recarga, ni el ledger. Solo declara que el asunto
+     * ya no requiere atencion en el panel. De ahi que se llame "cerrar" y no
+     * "resolver": esta accion no resuelve nada del dominio.
+     *
+     * NO ES UN "OCULTAR". Lo que hace seguro este botón es que `raise()`
+     * REABRE una incidencia resuelta cuando la condición vuelve a detectarse
+     * (y vuelve a avisar, porque `notified_at` se limpia): si el problema
+     * sigue vivo, el siguiente barrido lo devuelve al panel. Cerrar a mano algo
+     * que no se ha arreglado no lo esconde, solo retrasa su reaparición hasta
+     * la siguiente pasada del productor.
+     *
+     * CON UNA SALVEDAD IMPORTANTE: esa red de seguridad solo existe para los
+     * productores PERIÓDICOS (mova:health-check cada hora, mova:reconcile-ledger
+     * a diario, mova:settle-lessons). Las incidencias de un solo disparo
+     * —reversión manual bloqueada, webhook que agotó reintentos— no las
+     * re-emite nadie: si se cierran sin arreglar el recurso, no vuelven. Por eso
+     * el motivo es obligatorio y queda registrado con actor y fecha: en esos
+     * casos la trazabilidad es la única garantía que queda.
+     *
+     * Devuelve false si la incidencia ya estaba resuelta, para que dos admins
+     * pulsando a la vez no se pisen el motivo ni la autoría. La condición
+     * `whereNull('resolved_at')` la resuelve la propia base de datos.
+     */
+    public function closeManually(OperationalAlert $alert, User $actor, string $reason): bool
+    {
+        $claimed = OperationalAlert::whereKey($alert->id)
+            ->whereNull('resolved_at')
+            ->update([
+                'resolved_at' => now(),
+                'resolved_by' => $actor->id,
+                // Instantánea: el usuario puede borrarse y `resolved_by` es
+                // nullOnDelete, así que sin esto el cierre quedaría sin autor.
+                'resolved_by_name' => $actor->name,
+                'resolution_note' => $reason,
+                // Igual que en resolve(): si el problema reaparece, debe volver
+                // a avisar en vez de quedarse callado por un notified_at viejo.
+                'notified_at' => null,
+                'updated_at' => now(),
+            ]);
+
+        if ($claimed !== 1) {
+            return false;
+        }
+
+        Log::info('[OperationalAlert] Incidencia cerrada manualmente por un admin.', [
+            'alert_key' => $alert->alert_key,
+            'type' => $alert->type,
+            'severity' => $alert->severity,
+            'admin_id' => $actor->id,
+            'reason' => $reason,
+        ]);
+
+        return true;
     }
 
     /**

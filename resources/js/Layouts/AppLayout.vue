@@ -1,5 +1,15 @@
 <template>
   <Head :title="title" />
+  <!-- SE MANTIENE `bg-slate-50` FIJO, A PROPÓSITO.
+       Se probó migrarlo a `bg-canvas` (idéntico en claro, oscuro en dark) para
+       arreglar Operations, y la auditoría de contraste A/B demostró que
+       REGRESIONA otras páginas: los títulos del resto de pantallas usan texto
+       oscuro fijo (gray-900 / slate-900) directamente sobre este lienzo, así
+       que oscurecerlo los deja en un ratio de 1.05 —invisibles— en
+       /admin/lessons, /admin/recharges, /admin/requests, /admin/users,
+       /class-requests y los tres dashboards.
+       Mientras esas páginas no usen tokens de tinta, este fondo tiene que
+       seguir siendo claro. Operations pinta su propia superficie. -->
   <div class="min-h-screen bg-slate-50">
 
     <!-- Mobile overlay -->
@@ -70,6 +80,16 @@
           class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
           <Icon name="menu" :size="20" />
         </button>
+        <!-- DELIBERADAMENTE `text-slate-900` y no `text-ink`.
+             Esta barra y el sidebar siguen con superficies fijas (`bg-white`):
+             son una isla en tema claro dentro de una app que ya oscurece el
+             canvas y las tarjetas. Mientras el fondo sea blanco fijo, el texto
+             tiene que ser oscuro fijo: usar el token de tinta aquí lo vuelve
+             CLARO SOBRE BLANCO —invisible en modo oscuro—, que es peor que la
+             incoherencia actual.
+             Migrar la barra y el sidebar a tokens es un cambio de shell
+             (superficie, bordes, texto y estados de los enlaces a la vez) y
+             excede el alcance de esta pantalla; queda anotado como deuda. -->
         <h1 class="text-base font-bold text-slate-900 flex-1 truncate">{{ title }}</h1>
         <!-- Quién está logueado en mobile: en desktop ya se ve en el pie del
              sidebar (siempre visible ahí), pero en mobile el sidebar vive
@@ -181,6 +201,7 @@ const navItems = computed(() => {
   if (roles.includes('admin')) {
     return [
       { href: '/dashboard',               icon: 'dashboard',        label: 'Dashboard' },
+      { href: '/admin/operations',        icon: 'under-review',     label: 'Operaciones' },
       { href: '/admin/users',             icon: 'users',            label: 'Usuarios' },
       { href: '/admin/pending-teachers',  icon: 'verify-teachers',  label: 'Verificar profesores' },
       { href: '/admin/requests',          icon: 'requests',         label: 'Solicitudes' },
