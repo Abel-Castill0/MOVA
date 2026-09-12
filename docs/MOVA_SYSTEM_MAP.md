@@ -781,7 +781,7 @@ notificaban a nadie (bug F-10 corregido, documentado en `app/Models/ClassRequest
 | Falta | Impacto | Severidad |
 |---|---|---|
 | ~~Revertir una recarga aprobada por error~~ | **[FASE 2A] IMPLEMENTADO** — `POST /admin/recharges/{recharge}/reverse` con policy, motivo obligatorio (>=10), idempotencia y aviso al profesor. Excluye deliberadamente las recargas de Mercado Pago: esas las revierte la conciliacion con evidencia del proveedor | Resuelto |
-| Ver `payment_orders` / `payment_webhooks` en `review` | **[FASE 2A] PARCIAL** — ya generan una incidencia en `operational_alerts` y un correo al admin. Sigue **sin pantalla** que las liste: es el siguiente paso natural (Centro de Operaciones) | Media |
+| Ver `payment_orders` / `payment_webhooks` en `review` | **[FASE 3A] PARCIAL** — el Centro de Operaciones (`/admin/operations`) ya las lista, filtra y permite cerrarlas con motivo. Sigue **sin pantalla propia de `payment_orders`**: el deep link lleva al listado de recargas, no al pago concreto | Media |
 | Ver `class_events` | Existe una auditoría completa que ninguna UI muestra | Media |
 | Ver `failed_jobs` | El dashboard muestra el **contador**, pero no permite inspeccionar ni reintentar | Media |
 | Editar datos de un usuario | Corregir un email o teléfono mal escrito exige acceso a la base de datos | Media |
@@ -1425,6 +1425,138 @@ token de 120 min desde ahora. Decisión de producto explícita.
 regenera nada, y cancelar simplemente bloquea el acceso por estado.
 
 ---
+
+## 18-bis. Centro de Operaciones del admin (Fase 3A)
+
+`/admin/operations` — `Admin\OperationsController`, dentro del grupo `role:admin`
+existente. Responde a una sola pregunta: **¿hay algo que necesite atención ahora?**
+
+**No es una segunda fuente de verdad.** `PaymentOrder` sigue mandando sobre el pago,
+`Lesson` sobre la clase y el ledger sobre el dinero. Una `OperationalAlert` solo dice
+"esto necesita atención"; para actuar, la pantalla **navega** al recurso canónico en
+lugar de reimplementar su lógica.
+
+### Categorías
+
+Derivadas de los productores que existen, no de un catálogo aspiracional:
+
+| Categoría | Tipos |
+|---|---|
+| `finance` | `payment_review`, `webhook_review`, `ledger_anomaly`, `reconciliation_failure` |
+| `lesson` | `lesson_needs_review` |
+| `system` | `health_check` |
+
+**No hay categoría de entregas** (correo/WhatsApp): ningún productor levanta todavía
+una incidencia de ese tipo, y una categoría siempre vacía enseña al admin a ignorar
+el panel.
+
+La severidad sigue siendo `warning | critical`. Se mantuvo el contrato de dos niveles
+en lugar de introducir cuatro: los seis productores ya lo usan de forma coherente y
+ampliarlo obligaría a revisarlos todos sin ganar capacidad de decisión.
+
+### Incidencias que nadie resuelve automáticamente
+
+Auditado productor por productor. Estas tres se levantan pero **ningún camino del
+código las cierra**, así que quedan abiertas indefinidamente hasta que un admin
+actúe:
+
+| Clave | Productor |
+|---|---|
+| `recharge:{id}:manual_reversal_blocked` | `Admin\RechargeController` |
+| `payment_webhook:{id}:failed` | `ProcessMercadoPagoWebhook` |
+| `payment_webhook:{id}:review` | `MercadoPagoPaymentReconciliationService` (solo se resuelve la variante `payment_order:{id}:review`) |
+
+Es la razón por la que existe el cierre manual. No se "arregló" añadiendo resolución
+automática a esos flujos: eso tocaría el camino del dinero y excede el alcance de 3A.
+
+### Cerrar a mano: allowlist, no botón universal
+
+`OperationalAlertService::closeManually()` exige actor y motivo (10–500 caracteres) y los
+persiste en `resolved_by` / `resolved_by_name` / `resolution_note`.
+
+**Solo se puede cerrar a mano lo que nadie cierra solo.** El backend rechaza con 422
+cualquier otra (`OperationalAlert::isManuallyClosable()`), así que la allowlist son
+exactamente las tres claves de la tabla anterior. Si la fuente de verdad puede demostrar
+que el problema desapareció, debe cerrarla ella: un botón manual ahí sería una forma de
+silenciar algo que sigue roto.
+
+La allowlist es **por clave, no por tipo**, porque `ledger_anomaly` es mixto:
+`ledger:anomaly` lo resuelve `mova:reconcile-ledger`, pero
+`recharge:{id}:manual_reversal_blocked` no lo resuelve nadie.
+
+Se llama **cerrar**, no *resolver*: la acción no toca el `PaymentOrder`, ni la `Lesson`,
+ni la recarga, ni el ledger. Solo declara que el aviso ya no requiere atención.
+
+Al **reabrirse**, `raise()` limpia `resolved_by`, `resolved_by_name` y `resolution_note`:
+una incidencia abierta que siguiera diciendo "cerrada por X" sería una contradicción en
+pantalla y una pista falsa en una auditoría. Se acepta perder ese histórico — conservarlo
+exigiría una tabla aparte — porque el cierre queda registrado en el log con actor y motivo.
+
+`resolved_by_name` es una instantánea deliberadamente duplicada: un usuario **sí** puede
+borrarse físicamente (`ProfileController::destroy`, sin `SoftDeletes`), y sin ella el
+cierre se quedaría sin autor. La FK con `nullOnDelete` existe en MySQL (verificada en
+`information_schema`) pero **no en SQLite**, donde `$table->foreign()` sobre una tabla ya
+creada es un no-op silencioso; el snapshot es lo que garantiza la traza en ambos.
+
+### Salud por capacidad — sin verdes falsos
+
+`healthy` exige una **señal positiva**, no la ausencia de malas noticias.
+
+| Capacidad | Señal | Estado posible |
+|---|---|---|
+| Cola de trabajos | `failed_jobs` se puede contar | `healthy` / `attention` |
+| Pagos, ledger, clases, configuración | Solo incidencias abiertas; **no hay sonda** | `attention` / `unknown` |
+
+**No existe heartbeat del scheduler** (verificado: ninguna columna ni cache registra su
+última ejecución). Por eso ninguna capacidad salvo la cola puede reportarse como sana:
+"no hay alertas de WhatsApp" significa que MOVA no está mirando, no que funcione.
+
+### Presentación (Fase 3B)
+
+`type` **no se envía** al navegador: el controller manda `type_label`
+(`OperationalAlert::typeLabel()`), para que una clave interna como
+`payment_review` no pueda pintarse por descuido. Un productor sin etiqueta cae
+en «Incidencia operativa», que describe lo único que se sabe con certeza sin
+afirmar una causa.
+
+El `detail` de cada capacidad se deriva de su propio `status`. Antes se
+calculaba aparte y producía líneas contradictorias («Pagos — Requiere atención —
+*deshabilitados por configuración*»).
+
+`resolved_by`, `resolved_by_name` y `resolution_note` se añadieron a `$fillable`:
+el cierre manual usa el query builder y no los necesitaba, pero su ausencia los
+descartaba **en silencio** en cualquier otro camino (un seeder, un fixture), y un
+cierre sin autor ni motivo es justo lo que 3A.1 quiso evitar.
+
+**Deuda de shell conocida (no introducida aquí).** `AppLayout` sigue con
+superficies fijas en la barra superior y el sidebar (`bg-white`,
+`border-gray-100`, `text-slate-*`): son una isla en tema claro dentro de una app
+que ya oscurece canvas y tarjetas. El contenedor raíz sí se migró a `bg-canvas`
+—idéntico en claro, 248 250 252 en ambos casos—, porque con `bg-slate-50` fijo el
+lienzo seguía blanco en modo oscuro y **todo texto `text-ink` quedaba invisible
+sobre él**. Se detectó midiendo píxeles de una captura: `getComputedStyle` sobre
+`<body>` devolvía el canvas oscuro correcto y ocultaba el problema. Migrar barra
+y sidebar exige tocar superficie, bordes, texto y estados de los enlaces a la
+vez, y queda fuera del alcance de esta pantalla.
+
+### Seguridad del contexto — allowlist por tipo
+
+`OperationalAlert::safeContext()` usa una **allowlist explícita por tipo de incidencia**
+(`CONTEXT_ALLOWLIST`), derivada auditando los seis productores. Lo que no está declarado
+no sale, aunque exista en la fila; además se sigue exigiendo que el valor sea escalar.
+
+**Por qué no una blacklist.** La primera versión descartaba claves cuyo nombre sonara
+peligroso (`token`, `secret`, `payload`…). Eso falla con lo que no suena peligroso:
+`ProcessMercadoPagoWebhook` mete `'Error' => substr($exception->getMessage(), 0, 300)`,
+un mensaje de excepción crudo que puede arrastrar la URL del proveedor con su query
+string, y "Error" no coincidía con ningún patrón prohibido. Con una blacklist cada
+productor nuevo es una fuga potencial hasta que alguien la amplíe; con una allowlist un
+campo nuevo es invisible hasta que alguien decide que es seguro. `Error` queda
+deliberadamente fuera: el detalle técnico vive en el log y en Sentry.
+
+El filtro vive en el modelo, no en el controller, para que valga para cualquier consumidor.
+La página no usa `v-html` en ningún punto: `context` y `resolution_note` se pintan con
+interpolación, que Vue escapa.
 
 ## 19. Sistema completo de notificaciones
 
