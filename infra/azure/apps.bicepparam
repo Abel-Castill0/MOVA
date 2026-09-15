@@ -32,11 +32,16 @@ param mysqlAppPassword = length(appPw) < 16 ? fail('MOVA_MYSQL_APP_PASSWORD requ
 // Vacío = https://mova-web.<defaultDomain del ACA environment> (primer staging).
 param appUrl = readEnvironmentVariable('MOVA_APP_URL', '')
 
-// AZ-3D: staging deliberadamente sin side effects externos. No se inyectan
-// credenciales de Gmail/Meta/MercadoPago/JaaS/Pusher/OpenAI/Gemini/Sentry en
-// esta fase — solo flags que apagan cada integración o la ponen en modo fake.
+// AZ-3D/AZ-3F: staging deliberadamente sin side effects externos. No se
+// inyectan credenciales de Gmail/Meta/MercadoPago/JaaS/Pusher/OpenAI/Gemini/
+// Sentry en esta fase — solo flags que apagan cada integración o la ponen en
+// modo fake. MAIL_MAILER=array (AZ-3F): 'log' seguía escribiendo al log de
+// stderr en cada request/comando que dispara un mail; 'array' lo mantiene en
+// memoria del proceso sin ninguna E/S, cero entrega real de todos modos.
+// SEARCH_INDEXING_ENABLED=false: el FQDN temporal de ACA no debe indexarse
+// (ver config/seo.php).
 param appConfig = {
-  MAIL_MAILER: 'log'
+  MAIL_MAILER: 'array'
   BROADCAST_DRIVER: 'null'
   WHATSAPP_ENABLED: 'false'
   WHATSAPP_PROVIDER: 'fake'
@@ -47,6 +52,7 @@ param appConfig = {
   PAYMENT_PROVIDER: 'fake'
   MERCADOPAGO_WEBHOOKS_ENABLED: 'false'
   DIAGNOSTIC_AI_ENABLED: 'false'
+  SEARCH_INDEXING_ENABLED: 'false'
 }
 
 var key = readEnvironmentVariable('MOVA_APP_KEY', '')
