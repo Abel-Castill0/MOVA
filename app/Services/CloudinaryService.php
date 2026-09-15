@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AvatarStorageUnavailable;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -15,8 +16,16 @@ class CloudinaryService
 
     // Sin CLOUDINARY_URL en .env, cae a disco público local — la plataforma
     // sigue funcionando en desarrollo sin depender de una cuenta de terceros.
+    //
+    // En producción ese fallback está PROHIBIDO (AZ-2): el disco del
+    // contenedor es efímero y el avatar desaparecería en el próximo deploy.
+    // Se lanza AvatarStorageUnavailable en vez de persistir en silencio.
     public function uploadAvatar(UploadedFile $file, int $userId): string
     {
+        if (! $this->isConfigured() && app()->environment('production')) {
+            throw AvatarStorageUnavailable::cloudinaryNotConfigured();
+        }
+
         if ($this->isConfigured()) {
             $result = Cloudinary::upload($file->getRealPath(), [
                 'folder' => 'mova/avatars',

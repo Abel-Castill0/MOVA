@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AvatarStorageUnavailable;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -37,7 +39,17 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
-        $url = $cloudinary->uploadAvatar($request->file('avatar'), $user->id);
+
+        // AZ-2: en producción sin Cloudinary la subida falla de forma
+        // controlada — se muestra como error del campo (el formulario ya lo
+        // sabe pintar) en lugar de un 500 o de guardar en disco efímero.
+        try {
+            $url = $cloudinary->uploadAvatar($request->file('avatar'), $user->id);
+        } catch (AvatarStorageUnavailable $e) {
+            report($e);
+
+            throw ValidationException::withMessages(['avatar' => $e->getMessage()]);
+        }
 
         $user->update(['avatar_url' => $url]);
 

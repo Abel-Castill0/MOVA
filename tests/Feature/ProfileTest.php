@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -117,6 +118,30 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->avatar_url);
         $this->assertStringContainsString('/storage/avatars/', $user->avatar_url);
         Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+    }
+
+    // AZ-2: en producción (contenedor efímero) el fallback a disco local está
+    // prohibido — sin Cloudinary la subida debe fallar de forma controlada,
+    // sin persistir nada y sin tumbar la request con un 500.
+    public function test_avatar_upload_fails_closed_in_production_without_cloudinary(): void
+    {
+        config(['cloudinary.cloud_url' => null]);
+        Storage::fake('public');
+        // Fuera de 'testing' VerifyCsrfToken vuelve a exigir token (419);
+        // el CSRF no es lo que se prueba aquí.
+        $this->app['env'] = 'production';
+        $this->withoutMiddleware(VerifyCsrfToken::class);
+
+        $user = User::factory()->create();
+        $file = UploadedFile::fake()->create('avatar.jpg', 100, 'image/jpeg');
+
+        $response = $this->actingAs($user)->from('/profile')->post('/profile/avatar', ['avatar' => $file]);
+
+        $response->assertRedirect('/profile')->assertSessionHasErrors('avatar');
+
+        $this->assertNull($user->fresh()->avatar_url);
+        Storage::disk('public')->assertMissing("avatars/user-{$user->id}.jpg");
+        $this->assertEmpty(Storage::disk('public')->allFiles());
     }
 
     // UpdateAvatarForm.vue ahora se reutiliza en Teacher/Edit.vue
