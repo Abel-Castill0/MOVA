@@ -8,7 +8,17 @@
 //   MOVA_MYSQL_APP_PASSWORD, MOVA_APP_KEY (el actual, NO regenerar), MOVA_CLOUDINARY_URL, ...
 using './main.bicep'
 
-param location = 'brazilsouth'
+// Brazil South rechazada por esta suscripción Azure for Students con
+// ProvisionNotSupportedForRegion durante el provisioning real de MySQL
+// Flexible Server (AZ-3A, deployment real, no what-if). Región vigente
+// resuelta en AZ-3A-R por intersección real: Azure Policy
+// "Allowed resource deployment regions" de la suscripción
+// (westus, mexicocentral, canadacentral, northcentralus, brazilsouth)
+// ∩ regiones soportadas por Microsoft.DBforMySQL/flexibleServers,
+// Microsoft.App/managedEnvironments, Microsoft.ContainerRegistry/registries
+// y Microsoft.OperationalInsights/workspaces. Las 4 no-Brazil pasaron la
+// intersección; mexicocentral es la más cercana a Perú.
+param location = 'mexicocentral'
 param resourceGroupName = 'mova-prod-rg'
 param prefix = 'mova'
 

@@ -4,7 +4,9 @@
 // NO se despliega en AZ-2 — solo `az bicep build` y `what-if`.
 //
 // Topología:
-//   mova-prod-rg (brazilsouth)
+//   mova-prod-rg (mexicocentral — brazilsouth rechazada por la suscripción
+//   con ProvisionNotSupportedForRegion en el deployment real de MySQL, ver
+//   README §Pendientes AZ-3A-R)
 //   ├─ mova-vnet 10.20.0.0/16
 //   │   ├─ snet-aca   10.20.0.0/23  → Container Apps Environment (workload profiles)
 //   │   └─ snet-mysql 10.20.2.0/28  → delegada a Microsoft.DBforMySQL/flexibleServers
@@ -19,8 +21,12 @@
 //       └─ mova-scheduler  sin ingress, schedule:work, 1..1 réplica  (INVARIANTE)
 targetScope = 'subscription'
 
-@description('Región primaria. Brazil South por latencia hacia Perú.')
-param location string = 'brazilsouth'
+@description('''Región primaria. mexicocentral: la más cercana a Perú entre las
+regiones permitidas por la Azure Policy de esta suscripción Student que además
+soportan MySQL Flexible Server/Container Apps/ACR/Log Analytics. brazilsouth
+fue rechazada en AZ-3A con ProvisionNotSupportedForRegion en el deployment
+real de MySQL (el resto de la foundation sí se creó ahí).''')
+param location string = 'mexicocentral'
 
 @description('Resource Group destino. MOVA-RECURSOS/eastus (preexistente) NO se reutiliza.')
 param resourceGroupName string = 'mova-prod-rg'
@@ -48,7 +54,7 @@ param acrName string = ''
 @allowed(['Basic', 'Standard'])
 param acrSku string = 'Basic'
 
-@description('SKU de MySQL Flexible Server. B1MS_AVAILABILITY_PENDING_AZ3: reverificar disponibilidad en brazilsouth antes de provisionar.')
+@description('SKU de MySQL Flexible Server. B1MS_AVAILABILITY_PENDING_AZ3B: `list-skus` devuelve 500 para esta suscripción en cualquier región probada; la disponibilidad real se confirma por el resultado del deployment, no por ese endpoint.')
 param mysqlSkuName string = 'Standard_B1ms'
 
 @allowed(['Burstable', 'GeneralPurpose', 'MemoryOptimized'])

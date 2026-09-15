@@ -7,7 +7,7 @@ Railway sigue siendo producción/rollback hasta que AZ-3/AZ-4 lo reemplacen.
 
 | Archivo | Qué modela |
 |---|---|
-| `main.bicep` | Scope suscripción: RG `mova-prod-rg` (brazilsouth) + módulos |
+| `main.bicep` | Scope suscripción: RG `mova-prod-rg` (mexicocentral) + módulos |
 | `main.bicepparam` | Parámetros de deploy. **Sin valores reales**: secretos vía env, falla si falta el admin password |
 | `modules/network.bicep` | VNet `10.20.0.0/16`, `snet-aca` /23 (delegada a `Microsoft.App/environments`), `snet-mysql` /28 (delegada a `Microsoft.DBforMySQL/flexibleServers`), Private DNS MySQL |
 | `modules/mysql.bicep` | MySQL Flexible Server privado, TLS obligatorio, sin HA, sin geo-backup |
@@ -65,7 +65,8 @@ Sin privilegios server-wide.
 
 ## Pendientes marcados para AZ-3
 
-- `B1MS_AVAILABILITY_PENDING_AZ3B`: `az mysql flexible-server list-skus -l brazilsouth` sigue devolviendo 500 en AZ-3A (tercera vez consecutiva, AZ-1/AZ-2/AZ-3A; probado también vía `az rest` directo contra varias `api-version` y contra `eastus` como control — falla igual, así que es un problema de esta suscripción/API, no de la región). La disponibilidad real de `Standard_B1ms`/`8.4` en `brazilsouth` se confirma en AZ-3A por la vía que sí funciona: el resultado del `what-if`/deployment real de Bicep contra la suscripción, no por este endpoint de capacidades.
+- `B1MS_AVAILABILITY_PENDING_AZ3B`: `az mysql flexible-server list-skus -l <region>` sigue devolviendo 500 (cuarta vez consecutiva, AZ-1/AZ-2/AZ-3A/AZ-3A-R; probado también vía `az rest` directo contra varias `api-version` y contra varias regiones como control — falla igual, así que es un problema de esta suscripción/API, no de una región concreta). Tampoco `what-if` sirve como prueba de capacidad real: pasó limpio para `brazilsouth` y el deployment real de MySQL falló igual con `ProvisionNotSupportedForRegion`. La única prueba fiable es el resultado del deployment real.
+- **Región reubicada en AZ-3A-R**: `brazilsouth` fue rechazada por esta suscripción Azure for Students con `ProvisionNotSupportedForRegion` al crear el MySQL Flexible Server real (el resto de la foundation — RG, VNet, ACR, Identity, ACA Environment, Log Analytics — sí se creó ahí sin problema; se eliminó por completo tras el fallo). Región vigente: `mexicocentral`, elegida por intersección real entre la Azure Policy "Allowed resource deployment regions" de la suscripción (`westus`, `mexicocentral`, `canadacentral`, `northcentralus`, `brazilsouth`) y las regiones soportadas por los 4 providers de MOVA — las 4 no-Brazil pasan la intersección; `mexicocentral` es la más cercana a Perú.
 - `mysqlVersion`: confirmado `8.4` (AZ-2: dump real 9.4→8.4 con paridad de esquema/datos exacta y `migrate --force` 91/91 desde cero sobre el snapshot rescatado de Railway). Ya no es provisional.
 - Evidencia AZ-2.1: la imagen de producción (`mova:az2`, **sin** `doctrine/dbal`) ejecutó `migrate --force` desde cero sobre MySQL 8.0.46 efímero: 91 migraciones aplicadas, 0 pendientes; los `->change()` usan ALTER nativo. `doctrine/dbal` NO es dependencia de producción.
 - `acrSku`: `Basic` — el beneficio Standard de 12 meses no se pudo confirmar para esta suscripción (mismo problema de API que el punto anterior), así que se mantiene el valor conservador.
@@ -86,7 +87,7 @@ Sin privilegios server-wide.
 ```bash
 az bicep build --file infra/azure/main.bicep
 # foundation (MOVA_DEPLOY_APPS sin definir / false)
-az deployment sub what-if --location brazilsouth --template-file infra/azure/main.bicep --parameters infra/azure/main.bicepparam
+az deployment sub what-if --location mexicocentral --template-file infra/azure/main.bicep --parameters infra/azure/main.bicepparam
 # apps (MOVA_DEPLOY_APPS=true + MOVA_CONTAINER_IMAGE + MOVA_MYSQL_APP_PASSWORD)
 ```
 
