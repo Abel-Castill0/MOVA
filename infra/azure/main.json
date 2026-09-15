@@ -1,0 +1,1631 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.47.16.16243",
+      "templateHash": "5156155785107917224"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "brazilsouth",
+      "metadata": {
+        "description": "Región primaria. Brazil South por latencia hacia Perú."
+      }
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "defaultValue": "mova-prod-rg",
+      "metadata": {
+        "description": "Resource Group destino. MOVA-RECURSOS/eastus (preexistente) NO se reutiliza."
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "mova",
+      "minLength": 3,
+      "maxLength": 10,
+      "metadata": {
+        "description": "Prefijo corto para nombres de recursos."
+      }
+    },
+    "deployApps": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Despliegue en dos pasos. false = solo foundation (RG, red, DNS, logs, ACR,\nidentity, MySQL, ACA environment). true = además mova-web/worker/scheduler; exige\ncontainerImage (imagen MOVA real en el ACR) y mysqlAppPassword."
+      }
+    },
+    "containerImage": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Imagen MOVA en el ACR (<acr>.azurecr.io/mova@sha256:<digest>). Misma para web/worker/scheduler. Solo se usa con deployApps=true; sin fallback público."
+      }
+    },
+    "appUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "APP_URL de la aplicación. Vacío = se deriva del FQDN de mova-web en el ACA environment (primer staging). El dominio final lo fija el cutover."
+      }
+    },
+    "acrName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Nombre del ACR (solo alfanumérico, global). Se calcula si no se indica."
+      }
+    },
+    "acrSku": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "allowedValues": [
+        "Basic",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "SKU del ACR. AZ-3 elige Standard si el beneficio Student está confirmado; Basic si no."
+      }
+    },
+    "mysqlSkuName": {
+      "type": "string",
+      "defaultValue": "Standard_B1ms",
+      "metadata": {
+        "description": "SKU de MySQL Flexible Server. B1MS_AVAILABILITY_PENDING_AZ3: reverificar disponibilidad en brazilsouth antes de provisionar."
+      }
+    },
+    "mysqlSkuTier": {
+      "type": "string",
+      "defaultValue": "Burstable",
+      "allowedValues": [
+        "Burstable",
+        "GeneralPurpose",
+        "MemoryOptimized"
+      ]
+    },
+    "mysqlVersion": {
+      "type": "string",
+      "defaultValue": "8.0.21",
+      "allowedValues": [
+        "5.7",
+        "8.0.21",
+        "8.4"
+      ],
+      "metadata": {
+        "description": "Versión MySQL. PENDIENTE: confirmar versión real de Railway antes de AZ-3 — no combinar migración cloud con upgrade mayor."
+      }
+    },
+    "mysqlStorageGb": {
+      "type": "int",
+      "defaultValue": 32,
+      "minValue": 20,
+      "metadata": {
+        "description": "Storage en GB. 32 = objetivo del beneficio Student (mínimo Azure: 20)."
+      }
+    },
+    "mysqlBackupRetentionDays": {
+      "type": "int",
+      "defaultValue": 7,
+      "minValue": 1,
+      "maxValue": 35
+    },
+    "mysqlAdminUser": {
+      "type": "string",
+      "defaultValue": "mova_admin",
+      "metadata": {
+        "description": "Usuario administrador del servidor. SOLO infraestructura/bootstrap (Job manual); nunca llega a web/worker/scheduler."
+      }
+    },
+    "mysqlAdminPassword": {
+      "type": "securestring",
+      "minLength": 16,
+      "metadata": {
+        "description": "INFRA SECRET — nunca versionar. Solo se usa al crear el servidor y en el Job de bootstrap."
+      }
+    },
+    "mysqlAppUser": {
+      "type": "string",
+      "defaultValue": "mova_app",
+      "metadata": {
+        "description": "Usuario de aplicación con privilegios únicamente sobre la base `mova`. Lo crea el bootstrap de AZ-3."
+      }
+    },
+    "mysqlAppPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "APP SECRET — contraseña runtime de web/worker/scheduler. Obligatoria con deployApps=true."
+      }
+    },
+    "mysqlDatabaseName": {
+      "type": "string",
+      "defaultValue": "mova",
+      "metadata": {
+        "description": "Nombre de la base de datos de la aplicación."
+      }
+    },
+    "appConfig": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "APP CONFIG no sensible que las tres apps comparten (APP_URL, drivers, etc.). Ver README."
+      }
+    },
+    "appKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "APP_KEY actual de Railway, migrado EXACTAMENTE (nunca key:generate). Obligatorio con deployApps=true."
+      }
+    },
+    "appSecrets": {
+      "type": "secureObject",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Otros APP SECRETS (CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores."
+      }
+    }
+  },
+  "variables": {
+    "appsGuard": "[if(or(not(parameters('deployApps')), and(and(not(empty(parameters('containerImage'))), greaterOrEquals(length(parameters('mysqlAppPassword')), 16)), not(empty(parameters('appKey'))))), true(), fail('deployApps=true requires containerImage (ACR MOVA image), mysqlAppPassword (>= 16 chars) and appKey (current APP_KEY).'))]",
+    "runtimeSecrets": "[union(parameters('appSecrets'), createObject('APP_KEY', parameters('appKey'), 'DB_PASSWORD', parameters('mysqlAppPassword')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "project": "mova",
+        "env": "prod",
+        "managedBy": "bicep"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "network",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17340177938548200940"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "vnetAddressSpace": {
+              "type": "string",
+              "defaultValue": "10.20.0.0/16"
+            },
+            "acaSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.20.0.0/23"
+            },
+            "mysqlSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.20.2.0/28"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}-vnet', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[parameters('vnetAddressSpace')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "snet-aca",
+                    "properties": {
+                      "addressPrefix": "[parameters('acaSubnetPrefix')]",
+                      "delegations": [
+                        {
+                          "name": "aca",
+                          "properties": {
+                            "serviceName": "Microsoft.App/environments"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "snet-mysql",
+                    "properties": {
+                      "addressPrefix": "[parameters('mysqlSubnetPrefix')]",
+                      "delegations": [
+                        {
+                          "name": "mysql",
+                          "properties": {
+                            "serviceName": "Microsoft.DBforMySQL/flexibleServers"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}.private.mysql.database.azure.com', parameters('prefix'))]",
+              "location": "global"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', format('{0}.private.mysql.database.azure.com', parameters('prefix')), format('{0}-vnet-link', parameters('prefix')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('prefix')))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.mysql.database.azure.com', parameters('prefix')))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('prefix')))]"
+            },
+            "acaSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('prefix'))), '2024-01-01').subnets[0].id]"
+            },
+            "mysqlSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('prefix'))), '2024-01-01').subnets[1].id]"
+            },
+            "mysqlPrivateDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', format('{0}.private.mysql.database.azure.com', parameters('prefix')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logs",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17417293881558713399"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "retentionDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "minValue": 30
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}-logs', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionDays')]",
+                "workspaceCapping": {
+                  "dailyQuotaGb": 1
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', parameters('prefix')))]"
+            },
+            "customerId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', parameters('prefix'))), '2022-10-01').customerId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "acr",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "acrName": "[if(empty(parameters('acrName')), createObject('value', format('{0}acr{1}', parameters('prefix'), uniqueString(subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))))), createObject('value', parameters('acrName')))]",
+          "sku": {
+            "value": "[parameters('acrSku')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "8220665329040588612"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "acrName": {
+              "type": "string"
+            },
+            "sku": {
+              "type": "string",
+              "allowedValues": [
+                "Basic",
+                "Standard"
+              ]
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[parameters('acrName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]"
+            },
+            "loginServer": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName')), '2023-07-01').loginServer]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "identity",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "acrId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.id.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "8287130288398840901"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "acrId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}-apps-identity', parameters('prefix'))]",
+              "location": "[parameters('location')]"
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', last(split(parameters('acrId'), '/')))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', last(split(parameters('acrId'), '/'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix'))), variables('acrPullRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix'))), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix')))]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix'))), '2023-01-31').principalId]"
+            },
+            "clientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-apps-identity', parameters('prefix'))), '2023-01-31').clientId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "mysql",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "serverName": {
+            "value": "[format('{0}-mysql-{1}', parameters('prefix'), uniqueString(subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))))]"
+          },
+          "adminUser": {
+            "value": "[parameters('mysqlAdminUser')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('mysqlAdminPassword')]"
+          },
+          "skuName": {
+            "value": "[parameters('mysqlSkuName')]"
+          },
+          "skuTier": {
+            "value": "[parameters('mysqlSkuTier')]"
+          },
+          "version": {
+            "value": "[parameters('mysqlVersion')]"
+          },
+          "storageGb": {
+            "value": "[parameters('mysqlStorageGb')]"
+          },
+          "backupRetentionDays": {
+            "value": "[parameters('mysqlBackupRetentionDays')]"
+          },
+          "delegatedSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.mysqlSubnetId.value]"
+          },
+          "privateDnsZoneId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.mysqlPrivateDnsZoneId.value]"
+          },
+          "databaseName": {
+            "value": "[parameters('mysqlDatabaseName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "12543090514153824153"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "serverName": {
+              "type": "string"
+            },
+            "adminUser": {
+              "type": "string"
+            },
+            "adminPassword": {
+              "type": "securestring"
+            },
+            "skuName": {
+              "type": "string"
+            },
+            "skuTier": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "storageGb": {
+              "type": "int"
+            },
+            "backupRetentionDays": {
+              "type": "int"
+            },
+            "delegatedSubnetId": {
+              "type": "string"
+            },
+            "privateDnsZoneId": {
+              "type": "string"
+            },
+            "databaseName": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DBforMySQL/flexibleServers",
+              "apiVersion": "2023-12-30",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "administratorLogin": "[parameters('adminUser')]",
+                "administratorLoginPassword": "[parameters('adminPassword')]",
+                "version": "[parameters('version')]",
+                "storage": {
+                  "storageSizeGB": "[parameters('storageGb')]",
+                  "autoGrow": "Disabled",
+                  "iops": 360
+                },
+                "backup": {
+                  "backupRetentionDays": "[parameters('backupRetentionDays')]",
+                  "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                  "mode": "Disabled"
+                },
+                "network": {
+                  "delegatedSubnetResourceId": "[parameters('delegatedSubnetId')]",
+                  "privateDnsZoneResourceId": "[parameters('privateDnsZoneId')]",
+                  "publicNetworkAccess": "Disabled"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DBforMySQL/flexibleServers/configurations",
+              "apiVersion": "2023-12-30",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'require_secure_transport')]",
+              "properties": {
+                "value": "ON",
+                "source": "user-override"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforMySQL/flexibleServers/databases",
+              "apiVersion": "2023-12-30",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "properties": {
+                "charset": "utf8mb4",
+                "collation": "utf8mb4_unicode_ci"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('serverName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('serverName'))]"
+            },
+            "fqdn": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('serverName')), '2023-12-30').fullyQualifiedDomainName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'network')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aca-environment",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "infrastructureSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.acaSubnetId.value]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'logs'), '2025-04-01').outputs.id.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "14158327927239936458"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "infrastructureSubnetId": {
+              "type": "string"
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2024-03-01",
+              "name": "[format('{0}-aca-env', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "zoneRedundant": false,
+                "vnetConfiguration": {
+                  "infrastructureSubnetId": "[parameters('infrastructureSubnetId')]",
+                  "internal": false
+                },
+                "workloadProfiles": [
+                  {
+                    "name": "Consumption",
+                    "workloadProfileType": "Consumption"
+                  }
+                ],
+                "appLogsConfiguration": {
+                  "destination": "log-analytics",
+                  "logAnalyticsConfiguration": {
+                    "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', last(split(parameters('logAnalyticsWorkspaceId'), '/'))), '2022-10-01').customerId]",
+                    "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', last(split(parameters('logAnalyticsWorkspaceId'), '/'))), '2022-10-01').primarySharedKey]"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-aca-env', parameters('prefix')))]"
+            },
+            "defaultDomain": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/managedEnvironments', format('{0}-aca-env', parameters('prefix'))), '2024-03-01').defaultDomain]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'logs')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'network')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployApps'), variables('appsGuard'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "mova-web",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "name": {
+            "value": "[format('{0}-web', parameters('prefix'))]"
+          },
+          "environmentId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.id.value]"
+          },
+          "identityId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.id.value]"
+          },
+          "registryServer": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.loginServer.value]"
+          },
+          "image": {
+            "value": "[parameters('containerImage')]"
+          },
+          "command": {
+            "value": []
+          },
+          "args": {
+            "value": []
+          },
+          "externalIngress": {
+            "value": true
+          },
+          "targetPort": {
+            "value": 8080
+          },
+          "healthPath": {
+            "value": "/healthz"
+          },
+          "cpu": {
+            "value": "0.5"
+          },
+          "memory": {
+            "value": "1Gi"
+          },
+          "minReplicas": {
+            "value": 0
+          },
+          "maxReplicas": {
+            "value": 2
+          },
+          "env": {
+            "value": "[union(parameters('appConfig'), createObject('APP_ENV', 'production', 'APP_DEBUG', 'false', 'APP_URL', if(empty(parameters('appUrl')), format('https://{0}-web.{1}', parameters('prefix'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.defaultDomain.value), parameters('appUrl')), 'LOG_CHANNEL', 'stderr', 'DB_CONNECTION', 'mysql', 'DB_HOST', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql'), '2025-04-01').outputs.fqdn.value, 'DB_PORT', '3306', 'DB_DATABASE', parameters('mysqlDatabaseName'), 'DB_USERNAME', parameters('mysqlAppUser'), 'MYSQL_ATTR_SSL_CA', '/etc/ssl/certs/ca-certificates.crt', 'QUEUE_CONNECTION', 'database', 'SESSION_DRIVER', 'database', 'CACHE_DRIVER', 'database', 'FILESYSTEM_DISK', 'local'))]"
+          },
+          "secrets": {
+            "value": "[variables('runtimeSecrets')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17384812700964912399"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "environmentId": {
+              "type": "string"
+            },
+            "identityId": {
+              "type": "string"
+            },
+            "registryServer": {
+              "type": "string"
+            },
+            "image": {
+              "type": "string"
+            },
+            "command": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "args": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "externalIngress": {
+              "type": "bool"
+            },
+            "targetPort": {
+              "type": "int",
+              "defaultValue": 8080
+            },
+            "healthPath": {
+              "type": "string",
+              "defaultValue": "/healthz"
+            },
+            "cpu": {
+              "type": "string",
+              "allowedValues": [
+                "0.25",
+                "0.5",
+                "0.75",
+                "1",
+                "1.25",
+                "1.5",
+                "1.75",
+                "2"
+              ]
+            },
+            "memory": {
+              "type": "string",
+              "allowedValues": [
+                "0.5Gi",
+                "1Gi",
+                "1.5Gi",
+                "2Gi",
+                "2.5Gi",
+                "3Gi",
+                "3.5Gi",
+                "4Gi"
+              ]
+            },
+            "minReplicas": {
+              "type": "int"
+            },
+            "maxReplicas": {
+              "type": "int"
+            },
+            "env": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Variables no sensibles nombre→valor."
+              }
+            },
+            "secrets": {
+              "type": "secureObject",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Secretos nombre→valor. Se exponen como env con el mismo nombre vía secretRef."
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "secretItems",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretItems')].key, '_', '-'))]",
+                  "value": "[items(parameters('secrets'))[copyIndex('secretItems')].value]"
+                }
+              },
+              {
+                "name": "plainEnvVars",
+                "count": "[length(items(parameters('env')))]",
+                "input": {
+                  "name": "[items(parameters('env'))[copyIndex('plainEnvVars')].key]",
+                  "value": "[string(items(parameters('env'))[copyIndex('plainEnvVars')].value)]"
+                }
+              },
+              {
+                "name": "secretEnvVars",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[items(parameters('secrets'))[copyIndex('secretEnvVars')].key]",
+                  "secretRef": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretEnvVars')].key, '_', '-'))]"
+                }
+              }
+            ],
+            "envVars": "[concat(variables('plainEnvVars'), variables('secretEnvVars'))]",
+            "probes": "[if(parameters('externalIngress'), createArray(createObject('type', 'Startup', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'initialDelaySeconds', 5, 'periodSeconds', 5, 'failureThreshold', 12), createObject('type', 'Readiness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 10), createObject('type', 'Liveness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 30, 'failureThreshold', 3)), createArray())]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[parameters('environmentId')]",
+                "workloadProfileName": "Consumption",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": "[if(parameters('externalIngress'), createObject('external', true(), 'targetPort', parameters('targetPort'), 'transport', 'http', 'allowInsecure', false()), null())]",
+                  "registries": [
+                    {
+                      "server": "[parameters('registryServer')]",
+                      "identity": "[parameters('identityId')]"
+                    }
+                  ],
+                  "secrets": "[variables('secretItems')]"
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "[parameters('name')]",
+                      "image": "[parameters('image')]",
+                      "command": "[if(empty(parameters('command')), null(), parameters('command'))]",
+                      "args": "[if(empty(parameters('args')), null(), parameters('args'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('cpu'))]",
+                        "memory": "[parameters('memory')]"
+                      },
+                      "env": "[variables('envVars')]",
+                      "probes": "[variables('probes')]"
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('minReplicas')]",
+                    "maxReplicas": "[parameters('maxReplicas')]"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/containerApps', parameters('name'))]"
+            },
+            "fqdn": {
+              "type": "string",
+              "value": "[if(parameters('externalIngress'), reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2024-03-01').configuration.ingress.fqdn, '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployApps'), variables('appsGuard'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "mova-worker",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "name": {
+            "value": "[format('{0}-worker', parameters('prefix'))]"
+          },
+          "environmentId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.id.value]"
+          },
+          "identityId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.id.value]"
+          },
+          "registryServer": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.loginServer.value]"
+          },
+          "image": {
+            "value": "[parameters('containerImage')]"
+          },
+          "command": {
+            "value": [
+              "mova-entrypoint"
+            ]
+          },
+          "args": {
+            "value": [
+              "sh",
+              "-c",
+              "php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction"
+            ]
+          },
+          "externalIngress": {
+            "value": false
+          },
+          "cpu": {
+            "value": "0.25"
+          },
+          "memory": {
+            "value": "0.5Gi"
+          },
+          "minReplicas": {
+            "value": 1
+          },
+          "maxReplicas": {
+            "value": 1
+          },
+          "env": {
+            "value": "[union(parameters('appConfig'), createObject('APP_ENV', 'production', 'APP_DEBUG', 'false', 'APP_URL', if(empty(parameters('appUrl')), format('https://{0}-web.{1}', parameters('prefix'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.defaultDomain.value), parameters('appUrl')), 'LOG_CHANNEL', 'stderr', 'DB_CONNECTION', 'mysql', 'DB_HOST', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql'), '2025-04-01').outputs.fqdn.value, 'DB_PORT', '3306', 'DB_DATABASE', parameters('mysqlDatabaseName'), 'DB_USERNAME', parameters('mysqlAppUser'), 'MYSQL_ATTR_SSL_CA', '/etc/ssl/certs/ca-certificates.crt', 'QUEUE_CONNECTION', 'database', 'SESSION_DRIVER', 'database', 'CACHE_DRIVER', 'database', 'FILESYSTEM_DISK', 'local'))]"
+          },
+          "secrets": {
+            "value": "[variables('runtimeSecrets')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17384812700964912399"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "environmentId": {
+              "type": "string"
+            },
+            "identityId": {
+              "type": "string"
+            },
+            "registryServer": {
+              "type": "string"
+            },
+            "image": {
+              "type": "string"
+            },
+            "command": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "args": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "externalIngress": {
+              "type": "bool"
+            },
+            "targetPort": {
+              "type": "int",
+              "defaultValue": 8080
+            },
+            "healthPath": {
+              "type": "string",
+              "defaultValue": "/healthz"
+            },
+            "cpu": {
+              "type": "string",
+              "allowedValues": [
+                "0.25",
+                "0.5",
+                "0.75",
+                "1",
+                "1.25",
+                "1.5",
+                "1.75",
+                "2"
+              ]
+            },
+            "memory": {
+              "type": "string",
+              "allowedValues": [
+                "0.5Gi",
+                "1Gi",
+                "1.5Gi",
+                "2Gi",
+                "2.5Gi",
+                "3Gi",
+                "3.5Gi",
+                "4Gi"
+              ]
+            },
+            "minReplicas": {
+              "type": "int"
+            },
+            "maxReplicas": {
+              "type": "int"
+            },
+            "env": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Variables no sensibles nombre→valor."
+              }
+            },
+            "secrets": {
+              "type": "secureObject",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Secretos nombre→valor. Se exponen como env con el mismo nombre vía secretRef."
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "secretItems",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretItems')].key, '_', '-'))]",
+                  "value": "[items(parameters('secrets'))[copyIndex('secretItems')].value]"
+                }
+              },
+              {
+                "name": "plainEnvVars",
+                "count": "[length(items(parameters('env')))]",
+                "input": {
+                  "name": "[items(parameters('env'))[copyIndex('plainEnvVars')].key]",
+                  "value": "[string(items(parameters('env'))[copyIndex('plainEnvVars')].value)]"
+                }
+              },
+              {
+                "name": "secretEnvVars",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[items(parameters('secrets'))[copyIndex('secretEnvVars')].key]",
+                  "secretRef": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretEnvVars')].key, '_', '-'))]"
+                }
+              }
+            ],
+            "envVars": "[concat(variables('plainEnvVars'), variables('secretEnvVars'))]",
+            "probes": "[if(parameters('externalIngress'), createArray(createObject('type', 'Startup', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'initialDelaySeconds', 5, 'periodSeconds', 5, 'failureThreshold', 12), createObject('type', 'Readiness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 10), createObject('type', 'Liveness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 30, 'failureThreshold', 3)), createArray())]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[parameters('environmentId')]",
+                "workloadProfileName": "Consumption",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": "[if(parameters('externalIngress'), createObject('external', true(), 'targetPort', parameters('targetPort'), 'transport', 'http', 'allowInsecure', false()), null())]",
+                  "registries": [
+                    {
+                      "server": "[parameters('registryServer')]",
+                      "identity": "[parameters('identityId')]"
+                    }
+                  ],
+                  "secrets": "[variables('secretItems')]"
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "[parameters('name')]",
+                      "image": "[parameters('image')]",
+                      "command": "[if(empty(parameters('command')), null(), parameters('command'))]",
+                      "args": "[if(empty(parameters('args')), null(), parameters('args'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('cpu'))]",
+                        "memory": "[parameters('memory')]"
+                      },
+                      "env": "[variables('envVars')]",
+                      "probes": "[variables('probes')]"
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('minReplicas')]",
+                    "maxReplicas": "[parameters('maxReplicas')]"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/containerApps', parameters('name'))]"
+            },
+            "fqdn": {
+              "type": "string",
+              "value": "[if(parameters('externalIngress'), reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2024-03-01').configuration.ingress.fqdn, '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployApps'), variables('appsGuard'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "mova-scheduler",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "name": {
+            "value": "[format('{0}-scheduler', parameters('prefix'))]"
+          },
+          "environmentId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.id.value]"
+          },
+          "identityId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.id.value]"
+          },
+          "registryServer": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.loginServer.value]"
+          },
+          "image": {
+            "value": "[parameters('containerImage')]"
+          },
+          "command": {
+            "value": [
+              "mova-entrypoint"
+            ]
+          },
+          "args": {
+            "value": [
+              "sh",
+              "-c",
+              "php artisan config:clear && php artisan schedule:work -v"
+            ]
+          },
+          "externalIngress": {
+            "value": false
+          },
+          "cpu": {
+            "value": "0.25"
+          },
+          "memory": {
+            "value": "0.5Gi"
+          },
+          "minReplicas": {
+            "value": 1
+          },
+          "maxReplicas": {
+            "value": 1
+          },
+          "env": {
+            "value": "[union(parameters('appConfig'), createObject('APP_ENV', 'production', 'APP_DEBUG', 'false', 'APP_URL', if(empty(parameters('appUrl')), format('https://{0}-web.{1}', parameters('prefix'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.defaultDomain.value), parameters('appUrl')), 'LOG_CHANNEL', 'stderr', 'DB_CONNECTION', 'mysql', 'DB_HOST', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql'), '2025-04-01').outputs.fqdn.value, 'DB_PORT', '3306', 'DB_DATABASE', parameters('mysqlDatabaseName'), 'DB_USERNAME', parameters('mysqlAppUser'), 'MYSQL_ATTR_SSL_CA', '/etc/ssl/certs/ca-certificates.crt', 'QUEUE_CONNECTION', 'database', 'SESSION_DRIVER', 'database', 'CACHE_DRIVER', 'database', 'FILESYSTEM_DISK', 'local'))]"
+          },
+          "secrets": {
+            "value": "[variables('runtimeSecrets')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17384812700964912399"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "environmentId": {
+              "type": "string"
+            },
+            "identityId": {
+              "type": "string"
+            },
+            "registryServer": {
+              "type": "string"
+            },
+            "image": {
+              "type": "string"
+            },
+            "command": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "args": {
+              "type": "array",
+              "defaultValue": []
+            },
+            "externalIngress": {
+              "type": "bool"
+            },
+            "targetPort": {
+              "type": "int",
+              "defaultValue": 8080
+            },
+            "healthPath": {
+              "type": "string",
+              "defaultValue": "/healthz"
+            },
+            "cpu": {
+              "type": "string",
+              "allowedValues": [
+                "0.25",
+                "0.5",
+                "0.75",
+                "1",
+                "1.25",
+                "1.5",
+                "1.75",
+                "2"
+              ]
+            },
+            "memory": {
+              "type": "string",
+              "allowedValues": [
+                "0.5Gi",
+                "1Gi",
+                "1.5Gi",
+                "2Gi",
+                "2.5Gi",
+                "3Gi",
+                "3.5Gi",
+                "4Gi"
+              ]
+            },
+            "minReplicas": {
+              "type": "int"
+            },
+            "maxReplicas": {
+              "type": "int"
+            },
+            "env": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Variables no sensibles nombre→valor."
+              }
+            },
+            "secrets": {
+              "type": "secureObject",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Secretos nombre→valor. Se exponen como env con el mismo nombre vía secretRef."
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "secretItems",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretItems')].key, '_', '-'))]",
+                  "value": "[items(parameters('secrets'))[copyIndex('secretItems')].value]"
+                }
+              },
+              {
+                "name": "plainEnvVars",
+                "count": "[length(items(parameters('env')))]",
+                "input": {
+                  "name": "[items(parameters('env'))[copyIndex('plainEnvVars')].key]",
+                  "value": "[string(items(parameters('env'))[copyIndex('plainEnvVars')].value)]"
+                }
+              },
+              {
+                "name": "secretEnvVars",
+                "count": "[length(items(parameters('secrets')))]",
+                "input": {
+                  "name": "[items(parameters('secrets'))[copyIndex('secretEnvVars')].key]",
+                  "secretRef": "[toLower(replace(items(parameters('secrets'))[copyIndex('secretEnvVars')].key, '_', '-'))]"
+                }
+              }
+            ],
+            "envVars": "[concat(variables('plainEnvVars'), variables('secretEnvVars'))]",
+            "probes": "[if(parameters('externalIngress'), createArray(createObject('type', 'Startup', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'initialDelaySeconds', 5, 'periodSeconds', 5, 'failureThreshold', 12), createObject('type', 'Readiness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 10), createObject('type', 'Liveness', 'httpGet', createObject('path', parameters('healthPath'), 'port', parameters('targetPort')), 'periodSeconds', 30, 'failureThreshold', 3)), createArray())]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[parameters('environmentId')]",
+                "workloadProfileName": "Consumption",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": "[if(parameters('externalIngress'), createObject('external', true(), 'targetPort', parameters('targetPort'), 'transport', 'http', 'allowInsecure', false()), null())]",
+                  "registries": [
+                    {
+                      "server": "[parameters('registryServer')]",
+                      "identity": "[parameters('identityId')]"
+                    }
+                  ],
+                  "secrets": "[variables('secretItems')]"
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "[parameters('name')]",
+                      "image": "[parameters('image')]",
+                      "command": "[if(empty(parameters('command')), null(), parameters('command'))]",
+                      "args": "[if(empty(parameters('args')), null(), parameters('args'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('cpu'))]",
+                        "memory": "[parameters('memory')]"
+                      },
+                      "env": "[variables('envVars')]",
+                      "probes": "[variables('probes')]"
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('minReplicas')]",
+                    "maxReplicas": "[parameters('maxReplicas')]"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/containerApps', parameters('name'))]"
+            },
+            "fqdn": {
+              "type": "string",
+              "value": "[if(parameters('externalIngress'), reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2024-03-01').configuration.ingress.fqdn, '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroup": {
+      "type": "string",
+      "value": "[parameters('resourceGroupName')]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.loginServer.value]"
+    },
+    "mysqlFqdn": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mysql'), '2025-04-01').outputs.fqdn.value]"
+    },
+    "webFqdn": {
+      "type": "string",
+      "value": "[coalesce(tryGet(tryGet(tryGet(if(and(parameters('deployApps'), variables('appsGuard')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'mova-web'), '2025-04-01'), null()), 'outputs'), 'fqdn'), 'value'), '')]"
+    },
+    "appUrl": {
+      "type": "string",
+      "value": "[if(parameters('deployApps'), if(empty(parameters('appUrl')), format('https://{0}-web.{1}', parameters('prefix'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'aca-environment'), '2025-04-01').outputs.defaultDomain.value), parameters('appUrl')), '')]"
+    },
+    "identityPrincipalId": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'identity'), '2025-04-01').outputs.principalId.value]"
+    }
+  }
+}

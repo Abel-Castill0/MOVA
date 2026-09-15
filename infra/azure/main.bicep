@@ -88,13 +88,17 @@ param mysqlDatabaseName string = 'mova'
 param appConfig object = {}
 
 @secure()
-@description('APP SECRETS (APP_KEY, DB_PASSWORD, CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores.')
+@description('APP_KEY actual de Railway, migrado EXACTAMENTE (nunca key:generate). Obligatorio con deployApps=true.')
+param appKey string = ''
+
+@secure()
+@description('Otros APP SECRETS (CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores.')
 param appSecrets object = {}
 
-// Fail-closed: con deployApps=true no se admite imagen vacía ni contraseña de app vacía.
-var appsGuard = !deployApps || (!empty(containerImage) && length(mysqlAppPassword) >= 16)
+// Fail-closed: con deployApps=true no se admite imagen, APP_KEY ni contraseña de app vacías.
+var appsGuard = !deployApps || (!empty(containerImage) && length(mysqlAppPassword) >= 16 && !empty(appKey))
   ? true
-  : fail('deployApps=true requires containerImage (ACR MOVA image) and mysqlAppPassword (>= 16 chars).')
+  : fail('deployApps=true requires containerImage (ACR MOVA image), mysqlAppPassword (>= 16 chars) and appKey (current APP_KEY).')
 
 // ---------------------------------------------------------------------------
 
@@ -179,8 +183,11 @@ module env 'modules/aca-environment.bicep' = {
 // Env compartido por los tres roles. DB_HOST apunta al FQDN privado del
 // servidor MySQL; la app usa el usuario de aplicación (nunca el admin).
 // APP_URL: FQDN de Container Apps = <app>.<defaultDomain del environment>.
+// union(): el último argumento gana → los invariantes de IaC van al final y
+// appConfig NUNCA puede sobrescribirlos.
 var effectiveAppUrl = empty(appUrl) ? 'https://${prefix}-web.${env.outputs.defaultDomain}' : appUrl
 var sharedEnv = union(
+  appConfig,
   {
     APP_ENV: 'production'
     APP_DEBUG: 'false'
@@ -200,12 +207,15 @@ var sharedEnv = union(
     SESSION_DRIVER: 'database'
     CACHE_DRIVER: 'database'
     FILESYSTEM_DISK: 'local'
-  },
-  appConfig
+  }
 )
 
-// Secretos runtime: DB_PASSWORD es SIEMPRE la del usuario de aplicación.
-var runtimeSecrets = union(appSecrets, { DB_PASSWORD: mysqlAppPassword })
+// Secretos runtime: APP_KEY y DB_PASSWORD son SIEMPRE los parámetros explícitos
+// (último argumento gana; appSecrets no puede sobrescribirlos).
+var runtimeSecrets = union(appSecrets, {
+  APP_KEY: appKey
+  DB_PASSWORD: mysqlAppPassword
+})
 
 module web 'modules/container-app.bicep' = if (deployApps && appsGuard) {
   scope: rg

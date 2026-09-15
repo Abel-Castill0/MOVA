@@ -27,9 +27,9 @@ Railway sigue siendo producción/rollback hasta que AZ-3/AZ-4 lo reemplacen.
 | 2. Build + push | — | `docker build` → `<acr>.azurecr.io/mova@sha256:<digest>` | AcrPush del operador/pipeline |
 | 3. Bootstrap DB | — | Job manual (ver abajo): `CREATE USER mova_app` + `GRANT` solo sobre `mova.*` | admin DB (solo en el Job) |
 | 4. Migrations | — | mismo Job: `php artisan migrate --force` (una vez por deploy) | `mova_app` o admin, dentro de la VNet |
-| 5. Apps | `true` | `mova-web`, `mova-worker`, `mova-scheduler` | `MOVA_CONTAINER_IMAGE` (imagen MOVA real del ACR), `MOVA_MYSQL_APP_PASSWORD`, `MOVA_APP_KEY` (el actual, **no regenerar**) |
+| 5. Apps | `true` | `mova-web`, `mova-worker`, `mova-scheduler` | `MOVA_CONTAINER_IMAGE` (imagen MOVA real del ACR), `MOVA_MYSQL_APP_PASSWORD`, `MOVA_APP_KEY` (el actual, **no regenerar**; obligatorio, fail-closed) |
 
-Contrato de `containerImage`: **no hay fallback**. Vacío en foundation; con `deployApps=true` `main.bicep` falla (`fail()`) si está vacío o si `mysqlAppPassword` tiene menos de 16 caracteres. `main.bicepparam` falla si falta `MOVA_MYSQL_ADMIN_PASSWORD` (sin default).
+Contrato de `containerImage`: **no hay fallback**. Vacío en foundation. Con `MOVA_DEPLOY_APPS=true`, `main.bicepparam` **falla en compilación** (`fail()` → BCP338, antes de cualquier deployment) si faltan `MOVA_CONTAINER_IMAGE`, `MOVA_MYSQL_APP_PASSWORD` (≥ 16) o `MOVA_APP_KEY`; `main.bicep` repite el guard como segunda capa. `appConfig` nunca puede sobrescribir los invariantes de `sharedEnv` (van al final del `union`; el último argumento gana). `main.bicepparam` falla si falta `MOVA_MYSQL_ADMIN_PASSWORD` (sin default).
 
 `APP_URL`: vacío ⇒ `https://mova-web.<defaultDomain del ACA environment>` (primer staging). El dominio final se fija en el cutover vía `MOVA_APP_URL`.
 
@@ -90,4 +90,4 @@ az deployment sub what-if --location brazilsouth --template-file infra/azure/mai
 # apps (MOVA_DEPLOY_APPS=true + MOVA_CONTAINER_IMAGE + MOVA_MYSQL_APP_PASSWORD)
 ```
 
-AZ-2.2: foundation what-if = 12 `Create` sin ninguna app; apps what-if = mismos 12 + `mova-web/worker/scheduler` en `potentialChanges` (dependen de outputs runtime). What-if es solo preview. **No ejecutar `az deployment sub create` hasta AZ-3.**
+AZ-2.3: foundation what-if = 12 `Create` sin ninguna app; apps what-if = mismos 12 + `mova-web/worker/scheduler` en `potentialChanges` (dependen de outputs runtime); sin `MOVA_APP_KEY` o sin `MOVA_MYSQL_APP_PASSWORD` la compilación del param file falla (BCP338). What-if es solo preview. **No ejecutar `az deployment sub create` hasta AZ-3.**
