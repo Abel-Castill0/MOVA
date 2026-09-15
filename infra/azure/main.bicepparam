@@ -27,7 +27,7 @@ param appUrl = readEnvironmentVariable('MOVA_APP_URL', '')
 param acrSku = 'Basic'
 param mysqlSkuName = 'Standard_B1ms'
 param mysqlSkuTier = 'Burstable'
-param mysqlVersion = '8.0.21'
+param mysqlVersion = '8.4'
 param mysqlStorageGb = 32
 
 // INFRA SECRET — obligatorio siempre (sin default → error si falta).

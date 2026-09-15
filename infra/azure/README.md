@@ -65,12 +65,12 @@ Sin privilegios server-wide.
 
 ## Pendientes marcados para AZ-3
 
-- `B1MS_AVAILABILITY_PENDING_AZ3`: `az mysql flexible-server list-skus -l brazilsouth` devolvió 500 en AZ-1 y AZ-2. Reverificar antes de provisionar; `mysqlSkuName/Tier` son parámetros.
-- `mysqlVersion`: confirmar la versión real de Railway (no combinar migración cloud con upgrade mayor). Default provisional `8.0.21`. `RAILWAY_DB_VERSION_UNVERIFIED` en AZ-2.1 (el proxy TCP público cerró el handshake; no se insistió contra producción).
+- `B1MS_AVAILABILITY_PENDING_AZ3B`: `az mysql flexible-server list-skus -l brazilsouth` sigue devolviendo 500 en AZ-3A (tercera vez consecutiva, AZ-1/AZ-2/AZ-3A; probado también vía `az rest` directo contra varias `api-version` y contra `eastus` como control — falla igual, así que es un problema de esta suscripción/API, no de la región). La disponibilidad real de `Standard_B1ms`/`8.4` en `brazilsouth` se confirma en AZ-3A por la vía que sí funciona: el resultado del `what-if`/deployment real de Bicep contra la suscripción, no por este endpoint de capacidades.
+- `mysqlVersion`: confirmado `8.4` (AZ-2: dump real 9.4→8.4 con paridad de esquema/datos exacta y `migrate --force` 91/91 desde cero sobre el snapshot rescatado de Railway). Ya no es provisional.
 - Evidencia AZ-2.1: la imagen de producción (`mova:az2`, **sin** `doctrine/dbal`) ejecutó `migrate --force` desde cero sobre MySQL 8.0.46 efímero: 91 migraciones aplicadas, 0 pendientes; los `->change()` usan ALTER nativo. `doctrine/dbal` NO es dependencia de producción.
-- `acrSku`: Standard solo si el beneficio Student se confirma; Basic es técnicamente suficiente para MOVA.
+- `acrSku`: `Basic` — el beneficio Standard de 12 meses no se pudo confirmar para esta suscripción (mismo problema de API que el punto anterior), así que se mantiene el valor conservador.
 - `containerImage`: suministrar `<acr>.azurecr.io/mova@sha256:<digest>` vía `MOVA_CONTAINER_IMAGE` en la fase apps (sin placeholder).
-- Registrar providers `Microsoft.App`, `Microsoft.ContainerRegistry`, `Microsoft.OperationalInsights`, `Microsoft.ManagedIdentity` (hoy NotRegistered; `Microsoft.DBforMySQL` ya Registered).
+- Providers `Microsoft.App`, `Microsoft.ContainerRegistry`, `Microsoft.OperationalInsights`, `Microsoft.ManagedIdentity`, `Microsoft.Network` registrados en AZ-3A (junto con `Microsoft.DBforMySQL`, ya Registered desde antes).
 - GitHub Actions + OIDC (fase posterior; no se inventan permisos aquí).
 
 ## Clasificación de configuración
