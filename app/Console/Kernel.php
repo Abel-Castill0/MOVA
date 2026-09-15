@@ -132,10 +132,18 @@ class Kernel extends ConsoleKernel
         // MercadoPagoPaymentReconciliationService) sigue yendo al canal de
         // log configurado (LOG_CHANNEL=stderr en producción vía Railpack),
         // exactamente igual que antes.
-        $schedule->command('mercadopago:reconcile')
-            ->everyFiveMinutes()
-            ->withoutOverlapping(900)
-            ->runInBackground();
+        // AZ-3E — agendarlo incondicionalmente no tenía sentido con
+        // payments.enabled=false o un provider distinto de mercadopago: no
+        // hay nada que reconciliar y el barrido HTTP quedaba corriendo cada
+        // 5 minutos contra un proveedor apagado. No basta con confiar en que
+        // payment_orders/payment_webhooks estén vacías -- eso es un efecto
+        // observado, no la causa; el guard debe leer la config real.
+        if (config('payments.enabled') === true && config('payments.provider') === 'mercadopago') {
+            $schedule->command('mercadopago:reconcile')
+                ->everyFiveMinutes()
+                ->withoutOverlapping(900)
+                ->runInBackground();
+        }
 
         // H-03 — El health-check ya existía, era completo y NADIE lo ejecutaba.
         //

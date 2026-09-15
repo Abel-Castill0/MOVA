@@ -105,6 +105,8 @@ class SchedulerConfigurationTest extends TestCase
 
     public function test_the_expected_commands_are_actually_scheduled(): void
     {
+        config(['payments.enabled' => true, 'payments.provider' => 'mercadopago']);
+
         $commands = implode(' | ', $this->scheduledCommands());
 
         $this->assertStringContainsString('classmate:send-reminders', $commands);
@@ -112,14 +114,50 @@ class SchedulerConfigurationTest extends TestCase
         $this->assertStringContainsString('mercadopago:reconcile', $commands);
     }
 
+    // AZ-3E — agendarlo incondicionalmente no tenía sentido con pagos
+    // apagados o un provider distinto: nada que reconciliar, y un barrido
+    // HTTP cada 5 minutos contra un proveedor apagado. El guard lee
+    // config('payments.enabled')/config('payments.provider'), no el estado
+    // (vacío o no) de payment_orders/payment_webhooks -- esas tablas vacías
+    // son un efecto observado, no la causa real que el guard debe mirar.
+    public function test_mercadopago_reconcile_is_not_scheduled_when_payments_are_disabled(): void
+    {
+        config(['payments.enabled' => false, 'payments.provider' => 'mercadopago']);
+
+        $commands = implode(' | ', $this->scheduledCommands());
+
+        $this->assertStringNotContainsString('mercadopago:reconcile', $commands);
+    }
+
+    public function test_mercadopago_reconcile_is_not_scheduled_when_the_provider_is_not_mercadopago(): void
+    {
+        config(['payments.enabled' => true, 'payments.provider' => 'fake']);
+
+        $commands = implode(' | ', $this->scheduledCommands());
+
+        $this->assertStringNotContainsString('mercadopago:reconcile', $commands);
+    }
+
+    public function test_mercadopago_reconcile_is_scheduled_when_payments_are_enabled_with_mercadopago(): void
+    {
+        config(['payments.enabled' => true, 'payments.provider' => 'mercadopago']);
+
+        $commands = implode(' | ', $this->scheduledCommands());
+
+        $this->assertStringContainsString('mercadopago:reconcile', $commands);
+    }
+
     // PRODUCTION ENABLEMENT (readiness pass) — mercadopago:reconcile era un
     // PRODUCTION BLOCKER explícito (ver docblock de
     // App\Console\Commands\MercadoPagoReconcile) mientras no estuviera
     // agendado: la recuperación de webhooks/pagos atascados solo corría si
-    // alguien la ejecutaba a mano. Este test fija que quede agendado y
-    // protegido, igual que los otros dos comandos de arriba.
+    // alguien la ejecutaba a mano. Este test fija que, con pagos habilitados
+    // en mercadopago, quede agendado y protegido, igual que los otros dos
+    // comandos de arriba.
     public function test_mercadopago_reconcile_is_scheduled_and_protected_against_overlapping(): void
     {
+        config(['payments.enabled' => true, 'payments.provider' => 'mercadopago']);
+
         $this->assertTrue(
             $this->findScheduled('mercadopago:reconcile')->withoutOverlapping,
             'mercadopago:reconcile debe usar withoutOverlapping().'
@@ -134,6 +172,8 @@ class SchedulerConfigurationTest extends TestCase
     // schedule:run (ver comentario en app/Console/Kernel.php).
     public function test_mercadopago_reconcile_runs_every_five_minutes_in_background_with_the_corrected_expiry(): void
     {
+        config(['payments.enabled' => true, 'payments.provider' => 'mercadopago']);
+
         $event = $this->findScheduled('mercadopago:reconcile');
 
         $this->assertSame('*/5 * * * *', $event->expression, 'debe correr cada 5 minutos.');
