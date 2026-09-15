@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
+use App\Services\ClassRequestNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -229,11 +230,13 @@ class ClassRequestController extends Controller
         ]);
     }
 
-    public function approve(ClassRequest $classRequest)
+    public function approve(ClassRequest $classRequest, ClassRequestNotifier $notifier)
     {
         $this->authorize('view', $classRequest);
 
-        DB::transaction(function () use ($classRequest) {
+        $approvedRequest = null;
+
+        DB::transaction(function () use ($classRequest, &$approvedRequest) {
             $classRequest = ClassRequest::whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -246,7 +249,16 @@ class ClassRequestController extends Controller
             );
 
             $classRequest->update(['status' => 'open']);
+            $approvedRequest = $classRequest;
         });
+
+        // Fuera de la transacción, solo si de verdad se aprobó (nunca en el
+        // camino que aborta por estado): avisar en base a un estado que
+        // todavía pudiera revertirse por rollback sería notificar sobre algo
+        // que nunca ocurrió.
+        if ($approvedRequest) {
+            $notifier->notifyEligibleTeachers($approvedRequest);
+        }
 
         return back()->with('success', 'Solicitud aprobada.');
     }
