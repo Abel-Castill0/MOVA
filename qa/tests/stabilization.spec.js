@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { runPhp } from '../lib/run-php.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 
 /**
@@ -26,8 +26,7 @@ const root = path.resolve(import.meta.dirname, '../..');
  */
 const SENTINEL = '__MOVA_TINKER_OK__';
 const php = (code) => {
-  const out = execFileSync(
-    'php',
+  const out = runPhp(
     ['artisan', 'tinker', `--execute=${code} echo '${SENTINEL}';`],
     { cwd: root, encoding: 'utf8' },
   );

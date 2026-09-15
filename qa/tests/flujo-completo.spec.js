@@ -29,8 +29,8 @@
 // corridas.
 
 import { test, expect } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { runPhp } from '../lib/run-php.mjs';
 // Import intencional del util real de la app (no un residuo de copy-paste):
 // los pasos 7 y 10 necesitan reproducir el orden exacto en que
 // ParentIndex.vue agrupa/invierte "Esta semana" para ubicar el botón/card
@@ -49,7 +49,7 @@ const MARKER = `E2E-PLAYWRIGHT-${Date.now()}`;
 
 /** Ejecuta un comando artisan en la raíz del proyecto Laravel y devuelve stdout. */
 function artisan(cmd) {
-  return execFileSync('php', ['artisan', ...cmd.split(' ')], { cwd: PROJECT_ROOT, encoding: 'utf-8' }).trim();
+  return runPhp(['artisan', ...cmd.split(' ')], { cwd: PROJECT_ROOT, encoding: 'utf-8' }).trim();
 }
 
 /**
@@ -74,8 +74,7 @@ function artisan(cmd) {
  */
 const TINKER_SENTINEL = '__MOVA_TINKER_OK__';
 function tinker(code) {
-  const out = execFileSync(
-    'php',
+  const out = runPhp(
     ['artisan', 'tinker', `--execute=${code} echo '${TINKER_SENTINEL}';`],
     { cwd: PROJECT_ROOT, encoding: 'utf-8' },
   );

@@ -199,13 +199,13 @@ test.describe('cierre extremo a extremo', () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
   test('crear, cerrar con motivo válido y verlo reflejado', async ({ page }) => {
-    const { execFileSync } = await import('node:child_process');
+    const { runPhp } = await import('../lib/run-php.mjs');
     const path = await import('node:path');
     const root = path.resolve(import.meta.dirname, '../..');
     const id = Math.floor(Math.random() * 900000) + 100000;
 
     const SENTINEL = '__MOVA_TINKER_OK__';
-    const out = execFileSync('php', ['artisan', 'tinker',
+    const out = runPhp(['artisan', 'tinker',
       `--execute=App\\Models\\OperationalAlert::create(['alert_key'=>'payment_webhook:${id}:failed','type'=>'reconciliation_failure','severity'=>'critical','title'=>'Incidencia E2E ${id}','message'=>'Creada por el gate de Operaciones.','context'=>['PaymentWebhook'=>${id}],'first_detected_at'=>now(),'last_detected_at'=>now(),'occurrences'=>1]); echo '${SENTINEL}';`,
     ], { cwd: root, encoding: 'utf8' });
     if (!out.includes(SENTINEL)) throw new Error(`No se pudo crear el fixture:\n${out}`);

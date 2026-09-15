@@ -1,0 +1,83 @@
+# MOVA QA GATE — stack efímero SOLO para AZ-3G0-A. No se usa en despliegue
+# (ver Dockerfile de producción en la raíz). Dos propósitos separados:
+#   - php_qa + mysql_qa: PHPUnit contra MySQL 8.4 real. Base destructiva
+#     permitida únicamente: mova_qa (ver App\Support\QaDatabaseGuard).
+#   - e2e_qa: Playwright + PHP 8.3 + SQLite QA sintética (phase2b-e2e.sqlite).
+#     Un solo container ejecuta PHP/Node/Playwright como procesos locales —
+#     sin `docker compose exec` anidado por cada `tinker` (ver AZ-3G0-A: ese
+#     patrón colgó Docker Desktop en el intento anterior).
+#
+# Uso MySQL:
+#   docker compose -f docker-compose.qa.yml up -d mysql_qa php_qa
+#   docker compose -f docker-compose.qa.yml exec php_qa composer install
+#   docker compose -f docker-compose.qa.yml exec php_qa php artisan mova:qa-mysql-fresh-migrate
+#   docker compose -f docker-compose.qa.yml exec php_qa vendor/bin/phpunit -c phpunit.mysql.xml
+#
+# Uso E2E (entrypoint único; ver qa/run-stabilization-docker.ps1):
+#   docker compose -f docker-compose.qa.yml run --rm e2e_qa
+#   docker compose -f docker-compose.qa.yml run --rm e2e_qa tests/flujo-completo.spec.js
+#
+#   docker compose -f docker-compose.qa.yml down -v
+services:
+  mysql_qa:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: mova_qa_root
+      MYSQL_DATABASE: mova_qa
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pmova_qa_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    tmpfs:
+      - /var/lib/mysql
+
+  php_qa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.qa
+    depends_on:
+      mysql_qa:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql_qa
+      DB_PORT: "3306"
+      DB_USERNAME: root
+      DB_PASSWORD: mova_qa_root
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports:
+      - "8012:8012"
+    command: ["sleep", "infinity"]
+
+  e2e_qa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.qa
+    volumes:
+      - .:/app
+      # Volumen nombrado (no anónimo): sobrevive entre corridas `run --rm`
+      # sucesivas para no reinstalar node_modules/Playwright cada vez, y
+      # evita que el bind mount de arriba lo tape con lo que exista (o no)
+      # en el host — .dockerignore excluye qa/ del build de la imagen (ver
+      # Dockerfile de producción), así que se instala en el primer arranque
+      # (docker/qa-e2e-serve.sh), no en el build.
+      - e2e_qa_node_modules:/app/qa/node_modules
+      # Los browsers de Playwright se descargan fuera de node_modules (cache
+      # HOME del container); sin volumen propio, `docker compose run` los
+      # perdía en cada corrida porque cada `run` es un container nuevo.
+      - e2e_qa_playwright_cache:/root/.cache/ms-playwright
+    working_dir: /app
+    environment:
+      QA_PHP_BIN: php
+    # bash explícito (no ./docker/qa-e2e-serve.sh): el bit ejecutable de un
+    # archivo creado en Windows no sobrevive de forma fiable git -> checkout
+    # -> bind mount.
+    entrypoint: ["bash", "docker/qa-e2e-serve.sh"]
+
+volumes:
+  e2e_qa_node_modules:
+  e2e_qa_playwright_cache:
