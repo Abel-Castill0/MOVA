@@ -54,7 +54,13 @@ class SitemapTest extends TestCase
         $response = $this->get('/robots.txt');
 
         $response->assertOk();
-        $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
+        // Laravel 11 trae symfony/http-foundation 7, que cambió el charset
+        // por defecto de Response::prepare() a minúsculas ('utf-8' en vez de
+        // 'UTF-8', vendor/symfony/http-foundation/Response.php) — nuestra
+        // ruta nunca fija el charset explícitamente, solo 'text/plain'.
+        // Mismo valor semántico (el nombre de charset no distingue
+        // mayúsculas en HTTP/MIME), no un cambio de comportamiento real.
+        $response->assertHeader('Content-Type', 'text/plain; charset=utf-8');
         $response->assertSeeText('Sitemap: '.route('sitemap'), false);
         $response->assertSeeText('Disallow:', false);
     }

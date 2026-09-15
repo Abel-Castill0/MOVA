@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,13 +13,16 @@ use Illuminate\Support\Facades\Schema;
 // RechargeApprovalService::reverse()). No toca los 4 valores existentes ni
 // ninguna fila actual.
 //
-// No se usa Blueprint::change() aquí: Doctrine DBAL (que Laravel usa para
-// alterar columnas de forma portable) no sabe introspectar un tipo "enum"
-// en SQLite ("Unknown column type \"enum\" requested"), y este proyecto
-// corre los tests sobre sqlite :memory: (ver phpunit.xml). Por eso, en
-// SQLite se widening el CHECK constraint reconstruyendo la columna a mano
-// (columna temporal + backfill + drop + rename), evitando Doctrine por
-// completo; en MySQL se sigue el mismo patrón de ALTER MODIFY ya usado en
+// No se usa Blueprint::change() aquí: se escribió originalmente porque
+// Doctrine DBAL (que Laravel 10 usaba para alterar columnas de forma
+// portable) no sabía introspectar un tipo "enum" en SQLite ("Unknown column
+// type \"enum\" requested"), y este proyecto corre los tests sobre sqlite
+// :memory: (ver phpunit.xml). Laravel 11 quitó Doctrine DBAL por completo
+// (Schema::useNativeSchemaOperationsIfPossible() ya no existe, ni hace
+// falta: las operaciones nativas son ahora el único camino), pero se
+// mantiene el mismo widening manual del CHECK constraint (columna temporal +
+// backfill + drop + rename) para no tocar una migration financiera ya
+// probada; en MySQL se sigue el mismo patrón de ALTER MODIFY ya usado en
 // 2026_07_10_000001_harden_monetization_records.php.
 return new class extends Migration
 {
@@ -64,11 +66,6 @@ return new class extends Migration
      */
     private function rebuildTypeColumn(array $allowedTypes): void
     {
-        // dropColumn()/renameColumn() en SQLite delegan en Doctrine DBAL a
-        // menos que se fuerce el camino nativo — y Doctrine es justo lo que
-        // no sabe leer un tipo "enum" al introspeccionar esta tabla.
-        SchemaBuilder::useNativeSchemaOperationsIfPossible();
-
         Schema::table('credit_transactions', function (Blueprint $table) {
             $table->dropIndex(['teacher_profile_id', 'type']);
         });
