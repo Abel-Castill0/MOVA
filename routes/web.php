@@ -37,8 +37,17 @@ Route::get('/healthz', fn () => response('OK', 200));
 // sitemap (que tampoco existía). Ambos ahora se generan a partir de APP_URL
 // en runtime — si el dominio cambia (dominio propio en vez del subdominio de
 // Railway), ninguno de los dos queda desactualizado.
+//
+// AZ-3F: con seo.indexing_enabled=false (default fuera del cutover a dominio
+// final) robots.txt bloquea todo el sitio y no anuncia el sitemap del
+// hostname temporal — sea cual sea ese hostname, sin hardcodearlo aquí.
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/robots.txt', function () {
+    if (! config('seo.indexing_enabled')) {
+        return response("User-agent: *\nDisallow: /\n")
+            ->header('Content-Type', 'text/plain');
+    }
+
     return response("User-agent: *\nDisallow:\n\nSitemap: ".route('sitemap')."\n")
         ->header('Content-Type', 'text/plain');
 })->name('robots');

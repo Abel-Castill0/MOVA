@@ -47,13 +47,61 @@ class SitemapTest extends TestCase
         $response->assertDontSeeText(route('teachers.show', $unverified), false);
     }
 
-    public function test_robots_txt_references_the_sitemap(): void
+    public function test_robots_txt_references_the_sitemap_when_indexing_is_enabled(): void
     {
+        config(['seo.indexing_enabled' => true]);
+
         $response = $this->get('/robots.txt');
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
         $response->assertSeeText('Sitemap: '.route('sitemap'), false);
         $response->assertSeeText('Disallow:', false);
+    }
+
+    // ── AZ-3F: bloqueo de indexación fuera del cutover a dominio final ────
+
+    public function test_robots_txt_disallows_everything_by_default(): void
+    {
+        // seo.indexing_enabled=false es el default (config/seo.php) — no hace
+        // falta fijarlo aquí a propósito, para que este test detecte si
+        // alguna vez cambiara el default sin que fuera una decisión deliberada.
+        $response = $this->get('/robots.txt');
+
+        $response->assertOk();
+        $response->assertSeeText('Disallow: /', false);
+        $response->assertDontSeeText('Sitemap:', false);
+    }
+
+    public function test_robots_txt_allows_everything_when_indexing_is_enabled(): void
+    {
+        config(['seo.indexing_enabled' => true]);
+
+        $response = $this->get('/robots.txt');
+
+        $response->assertDontSeeText('Disallow: /', false);
+    }
+
+    public function test_x_robots_tag_header_is_present_when_indexing_is_disabled(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+
+    public function test_x_robots_tag_header_is_absent_when_indexing_is_enabled(): void
+    {
+        config(['seo.indexing_enabled' => true]);
+
+        $response = $this->get('/');
+
+        $response->assertHeaderMissing('X-Robots-Tag');
+    }
+
+    public function test_x_robots_tag_applies_to_every_route_not_only_robots_and_sitemap(): void
+    {
+        $response = $this->get('/marketplace');
+
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 }
