@@ -7,7 +7,7 @@
 //   MOVA_CONTAINER_IMAGE=<acr>.azurecr.io/mova@sha256:<digest>
 //   MOVA_MYSQL_APP_PASSWORD  (usuario mova_app, >= 16 chars)
 //   MOVA_APP_KEY             (el actual de Railway, NUNCA regenerar)
-//   MOVA_CLOUDINARY_URL      (opcional)
+//   MOVA_CLOUDINARY_URL      (opcional; se omite el secret si no está)
 using './apps.bicep'
 
 param prefix = 'mova'
@@ -15,6 +15,13 @@ param location = 'mexicocentral'
 
 var image = readEnvironmentVariable('MOVA_CONTAINER_IMAGE', '')
 param containerImage = empty(image) ? fail('MOVA_CONTAINER_IMAGE requerido: <acr>.azurecr.io/mova@sha256:<digest>') : image
+
+// AZ-3D: staging web-only. worker/scheduler ejecutan side effects (emails,
+// notificaciones, settlement/recovery schedules) y quedan para AZ-3E, tras
+// revisar la configuración de integraciones externas.
+param deployWeb = true
+param deployWorker = false
+param deployScheduler = false
 
 param mysqlDatabaseName = 'mova'
 param mysqlAppUser = 'mova_app'
@@ -25,14 +32,30 @@ param mysqlAppPassword = length(appPw) < 16 ? fail('MOVA_MYSQL_APP_PASSWORD requ
 // Vacío = https://mova-web.<defaultDomain del ACA environment> (primer staging).
 param appUrl = readEnvironmentVariable('MOVA_APP_URL', '')
 
-param appConfig = {}
+// AZ-3D: staging deliberadamente sin side effects externos. No se inyectan
+// credenciales de Gmail/Meta/MercadoPago/JaaS/Pusher/OpenAI/Gemini/Sentry en
+// esta fase — solo flags que apagan cada integración o la ponen en modo fake.
+param appConfig = {
+  MAIL_MAILER: 'log'
+  BROADCAST_DRIVER: 'null'
+  WHATSAPP_ENABLED: 'false'
+  WHATSAPP_PROVIDER: 'fake'
+  WHATSAPP_MODE: 'sandbox'
+  GOOGLE_LOGIN_ENABLED: 'false'
+  RECHARGES_ENABLED: 'false'
+  PAYMENTS_ENABLED: 'false'
+  PAYMENT_PROVIDER: 'fake'
+  MERCADOPAGO_WEBHOOKS_ENABLED: 'false'
+  DIAGNOSTIC_AI_ENABLED: 'false'
+}
 
 var key = readEnvironmentVariable('MOVA_APP_KEY', '')
 param appKey = empty(key) ? fail('MOVA_APP_KEY requerido (el actual de Railway, nunca key:generate)') : key
 
-// Otros secretos, solo NOMBRES; los valores vienen del entorno del pipeline / Key Vault.
-// CLOUDINARY_URL no es obligatorio: la app falla de forma controlada solo al
-// subir un avatar en producción sin él; se verifica en el cutover.
-param appSecrets = {
-  CLOUDINARY_URL: readEnvironmentVariable('MOVA_CLOUDINARY_URL', '')
+// Otros secretos: se OMITEN por completo cuando no hay valor, en vez de crear
+// un Container Apps secret vacío. CLOUDINARY_URL no es obligatorio para este
+// staging: la app falla de forma controlada solo al subir un avatar sin él.
+var cloudinaryUrl = readEnvironmentVariable('MOVA_CLOUDINARY_URL', '')
+param appSecrets = empty(cloudinaryUrl) ? {} : {
+  CLOUDINARY_URL: cloudinaryUrl
 }

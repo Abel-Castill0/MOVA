@@ -23,6 +23,11 @@ param location string = 'mexicocentral'
 @minLength(1)
 param containerImage string
 
+@description('Deploy staggered por rol, AZ-3D: activar web primero, worker/scheduler solo tras revisión de integraciones externas (AZ-3E) porque ejecutan side effects — emails, notificaciones, settlement.')
+param deployWeb bool = true
+param deployWorker bool = false
+param deployScheduler bool = false
+
 @description('Nombre de la base de datos de la aplicación (debe coincidir con la foundation).')
 param mysqlDatabaseName string = 'mova'
 
@@ -109,7 +114,7 @@ var runtimeSecrets = union(appSecrets, {
   DB_PASSWORD: mysqlAppPassword
 })
 
-module web 'modules/container-app.bicep' = {
+module web 'modules/container-app.bicep' = if (deployWeb) {
   name: 'mova-web'
   params: {
     location: location
@@ -134,7 +139,7 @@ module web 'modules/container-app.bicep' = {
   }
 }
 
-module worker 'modules/container-app.bicep' = {
+module worker 'modules/container-app.bicep' = if (deployWorker) {
   name: 'mova-worker'
   params: {
     location: location
@@ -163,7 +168,7 @@ module worker 'modules/container-app.bicep' = {
 // INVARIANTE: exactamente 1 réplica. withoutOverlapping() protege por lock en
 // cache=database, pero dos schedule:work duplicarían despachos de recordatorios
 // y reconciliaciones. NO subir maxReplicas.
-module scheduler 'modules/container-app.bicep' = {
+module scheduler 'modules/container-app.bicep' = if (deployScheduler) {
   name: 'mova-scheduler'
   params: {
     location: location
@@ -184,5 +189,5 @@ module scheduler 'modules/container-app.bicep' = {
   }
 }
 
-output webFqdn string = web.outputs.fqdn
+output webFqdn string = web.?outputs.?fqdn ?? ''
 output appUrl string = effectiveAppUrl
