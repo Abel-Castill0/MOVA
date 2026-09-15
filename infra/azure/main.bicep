@@ -30,8 +30,16 @@ param resourceGroupName string = 'mova-prod-rg'
 @maxLength(10)
 param prefix string = 'mova'
 
-@description('Imagen completa (registry/repo@sha256:... o :tag). Misma para web/worker/scheduler.')
-param containerImage string
+@description('''Despliegue en dos pasos. false = solo foundation (RG, red, DNS, logs, ACR,
+identity, MySQL, ACA environment). true = además mova-web/worker/scheduler; exige
+containerImage (imagen MOVA real en el ACR) y mysqlAppPassword.''')
+param deployApps bool = false
+
+@description('Imagen MOVA en el ACR (<acr>.azurecr.io/mova@sha256:<digest>). Misma para web/worker/scheduler. Solo se usa con deployApps=true; sin fallback público.')
+param containerImage string = ''
+
+@description('APP_URL de la aplicación. Vacío = se deriva del FQDN de mova-web en el ACA environment (primer staging). El dominio final lo fija el cutover.')
+param appUrl string = ''
 
 @description('Nombre del ACR (solo alfanumérico, global). Se calcula si no se indica.')
 param acrName string = ''
@@ -58,11 +66,20 @@ param mysqlStorageGb int = 32
 @maxValue(35)
 param mysqlBackupRetentionDays int = 7
 
+@description('Usuario administrador del servidor. SOLO infraestructura/bootstrap (Job manual); nunca llega a web/worker/scheduler.')
 param mysqlAdminUser string = 'mova_admin'
 
 @secure()
-@description('INFRA SECRET — nunca versionar. Inyectar vía variable de entorno/Key Vault en AZ-3.')
+@minLength(16)
+@description('INFRA SECRET — nunca versionar. Solo se usa al crear el servidor y en el Job de bootstrap.')
 param mysqlAdminPassword string
+
+@description('Usuario de aplicación con privilegios únicamente sobre la base `mova`. Lo crea el bootstrap de AZ-3.')
+param mysqlAppUser string = 'mova_app'
+
+@secure()
+@description('APP SECRET — contraseña runtime de web/worker/scheduler. Obligatoria con deployApps=true.')
+param mysqlAppPassword string = ''
 
 @description('Nombre de la base de datos de la aplicación.')
 param mysqlDatabaseName string = 'mova'
@@ -73,6 +90,11 @@ param appConfig object = {}
 @secure()
 @description('APP SECRETS (APP_KEY, DB_PASSWORD, CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores.')
 param appSecrets object = {}
+
+// Fail-closed: con deployApps=true no se admite imagen vacía ni contraseña de app vacía.
+var appsGuard = !deployApps || (!empty(containerImage) && length(mysqlAppPassword) >= 16)
+  ? true
+  : fail('deployApps=true requires containerImage (ACR MOVA image) and mysqlAppPassword (>= 16 chars).')
 
 // ---------------------------------------------------------------------------
 
@@ -155,17 +177,23 @@ module env 'modules/aca-environment.bicep' = {
 }
 
 // Env compartido por los tres roles. DB_HOST apunta al FQDN privado del
-// servidor MySQL; los secretos llegan por `appSecrets`.
+// servidor MySQL; la app usa el usuario de aplicación (nunca el admin).
+// APP_URL: FQDN de Container Apps = <app>.<defaultDomain del environment>.
+var effectiveAppUrl = empty(appUrl) ? 'https://${prefix}-web.${env.outputs.defaultDomain}' : appUrl
 var sharedEnv = union(
   {
     APP_ENV: 'production'
     APP_DEBUG: 'false'
+    APP_URL: effectiveAppUrl
     LOG_CHANNEL: 'stderr'
     DB_CONNECTION: 'mysql'
     DB_HOST: mysql.outputs.fqdn
     DB_PORT: '3306'
     DB_DATABASE: mysqlDatabaseName
-    DB_USERNAME: mysqlAdminUser
+    DB_USERNAME: mysqlAppUser
+    // require_secure_transport=ON en el servidor: el cliente verifica contra
+    // el trust store del sistema (root CAs, tolera rotaciones de intermedias).
+    MYSQL_ATTR_SSL_CA: '/etc/ssl/certs/ca-certificates.crt'
     // Contenedor efímero: sesiones, caché y locks de withoutOverlapping()
     // viven en MySQL (migraciones cache/sessions/jobs ya existen).
     QUEUE_CONNECTION: 'database'
@@ -176,7 +204,10 @@ var sharedEnv = union(
   appConfig
 )
 
-module web 'modules/container-app.bicep' = {
+// Secretos runtime: DB_PASSWORD es SIEMPRE la del usuario de aplicación.
+var runtimeSecrets = union(appSecrets, { DB_PASSWORD: mysqlAppPassword })
+
+module web 'modules/container-app.bicep' = if (deployApps && appsGuard) {
   scope: rg
   name: 'mova-web'
   params: {
@@ -198,11 +229,11 @@ module web 'modules/container-app.bicep' = {
     minReplicas: 0
     maxReplicas: 2
     env: sharedEnv
-    secrets: appSecrets
+    secrets: runtimeSecrets
   }
 }
 
-module worker 'modules/container-app.bicep' = {
+module worker 'modules/container-app.bicep' = if (deployApps && appsGuard) {
   scope: rg
   name: 'mova-worker'
   params: {
@@ -225,14 +256,14 @@ module worker 'modules/container-app.bicep' = {
     minReplicas: 1
     maxReplicas: 1
     env: sharedEnv
-    secrets: appSecrets
+    secrets: runtimeSecrets
   }
 }
 
 // INVARIANTE: exactamente 1 réplica. withoutOverlapping() protege por lock en
 // cache=database, pero dos schedule:work duplicarían despachos de recordatorios
 // y reconciliaciones. NO subir maxReplicas.
-module scheduler 'modules/container-app.bicep' = {
+module scheduler 'modules/container-app.bicep' = if (deployApps && appsGuard) {
   scope: rg
   name: 'mova-scheduler'
   params: {
@@ -250,12 +281,13 @@ module scheduler 'modules/container-app.bicep' = {
     minReplicas: 1
     maxReplicas: 1
     env: sharedEnv
-    secrets: appSecrets
+    secrets: runtimeSecrets
   }
 }
 
 output resourceGroup string = rg.name
 output acrLoginServer string = acr.outputs.loginServer
 output mysqlFqdn string = mysql.outputs.fqdn
-output webFqdn string = web.outputs.fqdn
+output webFqdn string = web.?outputs.?fqdn ?? ''
+output appUrl string = deployApps ? effectiveAppUrl : ''
 output identityPrincipalId string = identity.outputs.principalId
