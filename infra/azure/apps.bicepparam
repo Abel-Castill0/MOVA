@@ -41,6 +41,14 @@ param appUrl = readEnvironmentVariable('MOVA_APP_URL', '')
 // SEARCH_INDEXING_ENABLED=false: el FQDN temporal de ACA no debe indexarse
 // (ver config/seo.php).
 param appConfig = {
+  // AZ-3F: settle-lessons --dry-run --json contra la BD real de Azure dio
+  // would_consume=0, would_escalate_missing_report=0, would_review=0,
+  // invalid=[], safe_to_enable=true -- 0 candidatas post-ledger tras excluir
+  // la única legacy (fix de este mismo commit). El scheduler sigue apagado
+  // (mova-scheduler=0), así que esto NO ejecuta liquidación todavía; solo
+  // dejar de esconder deliberadamente el comportamiento real cuando el
+  // scheduler se active en una fase posterior.
+  LESSON_SETTLEMENT_MODE: 'live'
   MAIL_MAILER: 'array'
   BROADCAST_DRIVER: 'null'
   WHATSAPP_ENABLED: 'false'
