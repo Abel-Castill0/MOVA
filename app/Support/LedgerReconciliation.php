@@ -27,6 +27,8 @@ class LedgerReconciliation
 
     public const NO_LEDGER = 'NO_LEDGER';
 
+    public const LEGACY_PRE_LEDGER = 'LEGACY_PRE_LEDGER';
+
     public const INVALID = 'INVALID';
 
     /**
@@ -39,8 +41,25 @@ class LedgerReconciliation
      * NO_LEDGER es por tanto siempre sospechoso — pero se clasifica aparte de
      * INVALID en vez de fundirse con él, porque su causa y su remediación son
      * distintas: falta el asiento entero, no hay una combinación imposible.
+     *
+     * Esto NO cubre el caso histórico de LEGACY_PRE_LEDGER (ver más abajo),
+     * que se resuelve por fecha, no por status — a propósito, para no abrir
+     * un boquete amplio por el que cualquier estado futuro pueda colarse sin
+     * ledger.
      */
     public const STATES_ALLOWED_WITHOUT_LEDGER = [];
+
+    /**
+     * Corte histórico: `credit_transactions` no existía antes de esta fecha
+     * (migración `2026_07_08_000003_create_credit_transactions_table.php`).
+     * Una lección creada antes de este instante nunca pudo tener un asiento
+     * porque la tabla ni siquiera existía — no es la misma anomalía que un
+     * NO_LEDGER posterior, donde `LessonController::store()` sí debía haber
+     * creado la reserva. Confirmado auditando el rescate de Railway (AZ-2.11/
+     * AZ-2.12): las únicas lecciones NO_LEDGER de ese snapshot son de
+     * 2026-06-24/25, semanas antes de que la tabla existiera.
+     */
+    public const LEDGER_EPOCH = '2026-07-08 00:00:00';
 
     /** @return array<string,mixed> */
     public function run(): array
@@ -53,6 +72,7 @@ class LedgerReconciliation
             self::HEALTHY_REFUNDED => 0,
             self::OPEN_RESERVATION => 0,
             self::NO_LEDGER => 0,
+            self::LEGACY_PRE_LEDGER => 0,
             self::INVALID => 0,
         ];
 
@@ -99,6 +119,8 @@ class LedgerReconciliation
                 $reservationCount === 1 && $consumptionCount === 1 && $refundCount === 0 => self::HEALTHY_CONSUMED,
                 $reservationCount === 1 && $consumptionCount === 0 && $refundCount === 1 => self::HEALTHY_REFUNDED,
                 $reservationCount === 1 && $consumptionCount === 0 && $refundCount === 0 => self::OPEN_RESERVATION,
+                $reservationCount === 0 && $consumptionCount === 0 && $refundCount === 0
+                    && $lesson->created_at !== null && $lesson->created_at < self::LEDGER_EPOCH => self::LEGACY_PRE_LEDGER,
                 $reservationCount === 0 && $consumptionCount === 0 && $refundCount === 0 => self::NO_LEDGER,
                 default => self::INVALID,
             };
@@ -190,6 +212,7 @@ class LedgerReconciliation
             self::NO_LEDGER => in_array($status, self::STATES_ALLOWED_WITHOUT_LEDGER, true)
                 ? "Sin ledger, legítimo para el estado '{$status}'."
                 : "Sin ningún asiento. Toda clase debería tener reserva (creada en store()); revisar el origen de esta lección en estado '{$status}'.",
+            self::LEGACY_PRE_LEDGER => 'Lección anterior a la existencia de credit_transactions ('.self::LEDGER_EPOCH.'); legítimamente sin asiento, no es la misma anomalía que un NO_LEDGER posterior al ledger.',
             default => "Combinación imposible: {$reservations} reserva(s), {$consumptions} consumo(s), {$refunds} devolución(es).",
         };
     }
