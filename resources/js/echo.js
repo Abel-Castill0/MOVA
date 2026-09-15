@@ -1,25 +1,40 @@
 /**
- * Echo exposes an expressive API for subscribing to channels and listening
- * for events that are broadcast by Laravel. Loaded lazily (see AppLayout.vue)
- * so guest pages never download the Pusher/Echo chunk.
+ * Echo expone una API para suscribirse a canales y escuchar eventos
+ * broadcast de Laravel. Cargado lazy (ver AppLayout.vue) para que las
+ * páginas de invitado nunca descarguen el chunk de Pusher/Echo.
+ *
+ * AZ-3G: la config viene de props de Inertia (HandleInertiaRequests::share(),
+ * clave `realtime`), NUNCA de import.meta.env.VITE_PUSHER_* -- el build de
+ * Docker de producción no inyecta esas variables porque son server-runtime,
+ * no build-time. Sin esto, `new Echo()` recibía `key: undefined` en
+ * producción y el usuario autenticado veía un error de consola en cada
+ * carga de AppLayout.
  */
 
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
-export function initEcho() {
+/**
+ * @param {{enabled?: boolean, key?: string|null, cluster?: string|null, host?: string|null, port?: number|null, scheme?: string|null}} [config]
+ * @returns {import('laravel-echo').default|null} null si realtime está deshabilitado o falta la key pública -- nunca lanza.
+ */
+export function initEcho(config) {
     if (window.Echo) return window.Echo;
+
+    if (!config || !config.enabled || !config.key) {
+        return null;
+    }
 
     window.Pusher = Pusher;
 
     window.Echo = new Echo({
         broadcaster: 'pusher',
-        key: import.meta.env.VITE_PUSHER_APP_KEY,
-        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
-        wsHost: import.meta.env.VITE_PUSHER_HOST ? import.meta.env.VITE_PUSHER_HOST : `ws-${import.meta.env.VITE_PUSHER_APP_CLUSTER}.pusher.com`,
-        wsPort: import.meta.env.VITE_PUSHER_PORT ?? 80,
-        wssPort: import.meta.env.VITE_PUSHER_PORT ?? 443,
-        forceTLS: (import.meta.env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
+        key: config.key,
+        cluster: config.cluster ?? 'mt1',
+        wsHost: config.host ? config.host : `ws-${config.cluster}.pusher.com`,
+        wsPort: config.port ?? 80,
+        wssPort: config.port ?? 443,
+        forceTLS: (config.scheme ?? 'https') === 'https',
         enabledTransports: ['ws', 'wss'],
     });
 
