@@ -1,7 +1,12 @@
-// MOVA — infraestructura Azure (AZ-2: modelado y validado; AZ-3: provisión).
+// MOVA — infraestructura Azure, FOUNDATION únicamente (AZ-3A/AZ-3C).
 //
 // Scope: suscripción. Crea el Resource Group y delega todo lo demás a módulos.
-// NO se despliega en AZ-2 — solo `az bicep build` y `what-if`.
+// NUNCA despliega mova-web/worker/scheduler — eso vive en apps.bicep
+// (AZ-3D), que se despliega scoped al resource group aquí creado, referencia
+// estos recursos como `existing`, y NUNCA requiere mysqlAdminPassword. La
+// separación existe para que el ciclo de deploy normal de apps (imagen nueva,
+// rollback, escalado) no dependa del secreto de administración de MySQL, que
+// solo hace falta para bootstrap/mantenimiento puntual (ver AZ-3C).
 //
 // Topología:
 //   mova-prod-rg (mexicocentral — brazilsouth rechazada por la suscripción
@@ -15,10 +20,7 @@
 //   ├─ ACR (admin deshabilitado; pull por Managed Identity + AcrPull)
 //   ├─ User-assigned Managed Identity compartida por las 3 apps
 //   ├─ MySQL Flexible Server (SKU parametrizable, sin HA, sin geo-redundancia)
-//   └─ Container Apps Environment (Consumption profile)
-//       ├─ mova-web        ingress HTTPS externo → :8080, /healthz, 0..2 réplicas
-//       ├─ mova-worker     sin ingress, queue:work, 1..1 réplica
-//       └─ mova-scheduler  sin ingress, schedule:work, 1..1 réplica  (INVARIANTE)
+//   └─ Container Apps Environment (Consumption profile) — apps: ver apps.bicep
 targetScope = 'subscription'
 
 @description('''Región primaria. mexicocentral: la más cercana a Perú entre las
@@ -36,17 +38,6 @@ param resourceGroupName string = 'mova-prod-rg'
 @maxLength(10)
 param prefix string = 'mova'
 
-@description('''Despliegue en dos pasos. false = solo foundation (RG, red, DNS, logs, ACR,
-identity, MySQL, ACA environment). true = además mova-web/worker/scheduler; exige
-containerImage (imagen MOVA real en el ACR) y mysqlAppPassword.''')
-param deployApps bool = false
-
-@description('Imagen MOVA en el ACR (<acr>.azurecr.io/mova@sha256:<digest>). Misma para web/worker/scheduler. Solo se usa con deployApps=true; sin fallback público.')
-param containerImage string = ''
-
-@description('APP_URL de la aplicación. Vacío = se deriva del FQDN de mova-web en el ACA environment (primer staging). El dominio final lo fija el cutover.')
-param appUrl string = ''
-
 @description('Nombre del ACR (solo alfanumérico, global). Se calcula si no se indica.')
 param acrName string = ''
 
@@ -60,7 +51,7 @@ param mysqlSkuName string = 'Standard_B1ms'
 @allowed(['Burstable', 'GeneralPurpose', 'MemoryOptimized'])
 param mysqlSkuTier string = 'Burstable'
 
-@description('Versión MySQL. PENDIENTE: confirmar versión real de Railway antes de AZ-3 — no combinar migración cloud con upgrade mayor.')
+@description('Versión MySQL. Confirmada 8.4 en AZ-2 (dump real 9.4→8.4 con paridad exacta y 91/91 migraciones).')
 @allowed(['5.7', '8.0.21', '8.4'])
 param mysqlVersion string = '8.0.21'
 
@@ -80,31 +71,8 @@ param mysqlAdminUser string = 'mova_admin'
 @description('INFRA SECRET — nunca versionar. Solo se usa al crear el servidor y en el Job de bootstrap.')
 param mysqlAdminPassword string
 
-@description('Usuario de aplicación con privilegios únicamente sobre la base `mova`. Lo crea el bootstrap de AZ-3.')
-param mysqlAppUser string = 'mova_app'
-
-@secure()
-@description('APP SECRET — contraseña runtime de web/worker/scheduler. Obligatoria con deployApps=true.')
-param mysqlAppPassword string = ''
-
-@description('Nombre de la base de datos de la aplicación.')
+@description('Nombre de la base de datos de la aplicación. apps.bicep lo reutiliza como referencia, no como parámetro compartido.')
 param mysqlDatabaseName string = 'mova'
-
-@description('APP CONFIG no sensible que las tres apps comparten (APP_URL, drivers, etc.). Ver README.')
-param appConfig object = {}
-
-@secure()
-@description('APP_KEY actual de Railway, migrado EXACTAMENTE (nunca key:generate). Obligatorio con deployApps=true.')
-param appKey string = ''
-
-@secure()
-@description('Otros APP SECRETS (CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores.')
-param appSecrets object = {}
-
-// Fail-closed: con deployApps=true no se admite imagen, APP_KEY ni contraseña de app vacías.
-var appsGuard = !deployApps || (!empty(containerImage) && length(mysqlAppPassword) >= 16 && !empty(appKey))
-  ? true
-  : fail('deployApps=true requires containerImage (ACR MOVA image), mysqlAppPassword (>= 16 chars) and appKey (current APP_KEY).')
 
 // ---------------------------------------------------------------------------
 
@@ -186,124 +154,9 @@ module env 'modules/aca-environment.bicep' = {
   }
 }
 
-// Env compartido por los tres roles. DB_HOST apunta al FQDN privado del
-// servidor MySQL; la app usa el usuario de aplicación (nunca el admin).
-// APP_URL: FQDN de Container Apps = <app>.<defaultDomain del environment>.
-// union(): el último argumento gana → los invariantes de IaC van al final y
-// appConfig NUNCA puede sobrescribirlos.
-var effectiveAppUrl = empty(appUrl) ? 'https://${prefix}-web.${env.outputs.defaultDomain}' : appUrl
-var sharedEnv = union(
-  appConfig,
-  {
-    APP_ENV: 'production'
-    APP_DEBUG: 'false'
-    APP_URL: effectiveAppUrl
-    LOG_CHANNEL: 'stderr'
-    DB_CONNECTION: 'mysql'
-    DB_HOST: mysql.outputs.fqdn
-    DB_PORT: '3306'
-    DB_DATABASE: mysqlDatabaseName
-    DB_USERNAME: mysqlAppUser
-    // require_secure_transport=ON en el servidor: el cliente verifica contra
-    // el trust store del sistema (root CAs, tolera rotaciones de intermedias).
-    MYSQL_ATTR_SSL_CA: '/etc/ssl/certs/ca-certificates.crt'
-    // Contenedor efímero: sesiones, caché y locks de withoutOverlapping()
-    // viven en MySQL (migraciones cache/sessions/jobs ya existen).
-    QUEUE_CONNECTION: 'database'
-    SESSION_DRIVER: 'database'
-    CACHE_DRIVER: 'database'
-    FILESYSTEM_DISK: 'local'
-  }
-)
-
-// Secretos runtime: APP_KEY y DB_PASSWORD son SIEMPRE los parámetros explícitos
-// (último argumento gana; appSecrets no puede sobrescribirlos).
-var runtimeSecrets = union(appSecrets, {
-  APP_KEY: appKey
-  DB_PASSWORD: mysqlAppPassword
-})
-
-module web 'modules/container-app.bicep' = if (deployApps && appsGuard) {
-  scope: rg
-  name: 'mova-web'
-  params: {
-    location: location
-    name: '${prefix}-web'
-    environmentId: env.outputs.id
-    identityId: identity.outputs.id
-    registryServer: acr.outputs.loginServer
-    image: containerImage
-    // Comando por defecto de la imagen: entrypoint + frankenphp.
-    command: []
-    args: []
-    externalIngress: true
-    targetPort: 8080
-    healthPath: '/healthz'
-    cpu: '0.5'
-    memory: '1Gi'
-    // 0 para staging/costo; producción final se decidirá por cold-start observado.
-    minReplicas: 0
-    maxReplicas: 2
-    env: sharedEnv
-    secrets: runtimeSecrets
-  }
-}
-
-module worker 'modules/container-app.bicep' = if (deployApps && appsGuard) {
-  scope: rg
-  name: 'mova-worker'
-  params: {
-    location: location
-    name: '${prefix}-worker'
-    environmentId: env.outputs.id
-    identityId: identity.outputs.id
-    registryServer: acr.outputs.loginServer
-    image: containerImage
-    // Contrato Railway intacto: timeout 60 < retry_after 90 (config/queue.php).
-    command: ['mova-entrypoint']
-    args: [
-      'sh'
-      '-c'
-      'php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction'
-    ]
-    externalIngress: false
-    cpu: '0.25'
-    memory: '0.5Gi'
-    minReplicas: 1
-    maxReplicas: 1
-    env: sharedEnv
-    secrets: runtimeSecrets
-  }
-}
-
-// INVARIANTE: exactamente 1 réplica. withoutOverlapping() protege por lock en
-// cache=database, pero dos schedule:work duplicarían despachos de recordatorios
-// y reconciliaciones. NO subir maxReplicas.
-module scheduler 'modules/container-app.bicep' = if (deployApps && appsGuard) {
-  scope: rg
-  name: 'mova-scheduler'
-  params: {
-    location: location
-    name: '${prefix}-scheduler'
-    environmentId: env.outputs.id
-    identityId: identity.outputs.id
-    registryServer: acr.outputs.loginServer
-    image: containerImage
-    command: ['mova-entrypoint']
-    args: ['sh', '-c', 'php artisan config:clear && php artisan schedule:work -v']
-    externalIngress: false
-    cpu: '0.25'
-    memory: '0.5Gi'
-    minReplicas: 1
-    maxReplicas: 1
-    env: sharedEnv
-    secrets: runtimeSecrets
-  }
-}
-
 output resourceGroup string = rg.name
 output acrLoginServer string = acr.outputs.loginServer
 output mysqlFqdn string = mysql.outputs.fqdn
-output webFqdn string = web.?outputs.?fqdn ?? ''
-output appUrl string = deployApps ? effectiveAppUrl : ''
+output mysqlDatabaseName string = mysqlDatabaseName
 output identityPrincipalId string = identity.outputs.principalId
+output acaEnvironmentDefaultDomain string = env.outputs.defaultDomain
