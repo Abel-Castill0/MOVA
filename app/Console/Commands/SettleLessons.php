@@ -8,6 +8,7 @@ use App\Models\Lesson;
 use App\Models\OperationalAlert;
 use App\Services\LessonSettlementService;
 use App\Services\OperationalAlertService;
+use App\Support\LedgerReconciliation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Console\Command;
 
@@ -93,8 +94,16 @@ class SettleLessons extends Command
 
         // Solo IDs: cada lección se vuelve a leer (y bloquear) individualmente
         // dentro de LessonSettlementService::consume(), nunca desde esta lista.
+        //
+        // AZ-3F: excluye lecciones anteriores a LedgerReconciliation::LEDGER_EPOCH.
+        // Una lección LEGACY_PRE_LEDGER nunca tuvo (ni pudo tener) un asiento de
+        // reserva -- credit_transactions no existía todavía -- así que
+        // liquidarla o escalarla fabricaría un movimiento financiero sobre una
+        // clase que el propio ledger ya sabe tratar aparte. Se queda preservada
+        // como histórica, sin tocar su status.
         $ids = Lesson::whereIn('status', ['paid', 'pending_parent_confirmation'])
             ->whereNull('credits_settled_at')
+            ->where('created_at', '>=', LedgerReconciliation::LEDGER_EPOCH)
             ->endedBefore($cutoff)
             ->orderBy('id')
             ->pluck('id');
@@ -259,7 +268,12 @@ class SettleLessons extends Command
         $unconfirmedDays = (int) config('credits.unconfirmed_days', 7);
         $cutoff = now()->subDays($unconfirmedDays);
 
+        // AZ-3F: mismo corte que settleGraceExpired() -- una lección legacy
+        // 'scheduled' sin confirmar tampoco puede escalarse a needs_admin_review
+        // (créditos reservados que nunca existieron); sigue siendo
+        // LEGACY_PRE_LEDGER para el reconciler, sin cambiar su status.
         $ids = Lesson::where('status', 'scheduled')
+            ->where('created_at', '>=', LedgerReconciliation::LEDGER_EPOCH)
             ->endedBefore($cutoff)
             ->orderBy('id')
             ->pluck('id');
