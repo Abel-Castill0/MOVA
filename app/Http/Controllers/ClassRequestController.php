@@ -284,6 +284,15 @@ class ClassRequestController extends Controller
             ->with(['student', 'subject', 'classOffer'])
             ->latest()->get();
 
+        // Solicitudes que ESTE profesor ya contraofreció y están esperando
+        // respuesta del padre. Solo se muestran las propias del profesor
+        // logueado (counteroffer_teacher_profile_id === $profile->id).
+        $counteroffered = ClassRequest::where('status', 'counteroffered')
+            ->where('counteroffer_teacher_profile_id', $profile->id)
+            ->with(['student', 'subject'])
+            ->latest()
+            ->get();
+
         $rejected = ClassRequest::where('status', 'teacher_rejected')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
             ->with(['student', 'subject'])
@@ -292,8 +301,9 @@ class ClassRequestController extends Controller
             ->get();
 
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'         => $open,
-            'rejectedRequests' => $rejected,
+            'requests'             => $open,
+            'counterofdRequests'   => $counteroffered,
+            'rejectedRequests'     => $rejected,
         ]);
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CounterofferWebhookController;
 use App\Http\Controllers\MercadoPagoWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Http\Request;
@@ -52,3 +53,11 @@ Route::prefix('webhooks/mercadopago')->middleware('throttle:120,1')->group(funct
         ->name('webhooks.mercadopago.handle')
         ->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class.':api');
 });
+
+// Webhook simulado de respuesta a contraoferta — el padre responde SI/NO.
+// En producción este endpoint recibiría el mensaje de Meta (o cualquier BSP);
+// en dev sirve para probar el ciclo completo desde Postman/curl sin WhatsApp.
+// throttle:20,1: máximo 20 llamadas por minuto por IP.
+Route::post('webhooks/counteroffer-response', [CounterofferWebhookController::class, 'handle'])
+    ->middleware('throttle:20,1')
+    ->name('webhooks.counteroffer-response');

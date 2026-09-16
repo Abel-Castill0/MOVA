@@ -21,6 +21,9 @@ class ClassRequest extends Model
         'is_mentorship', 'help_needed', 'preferred_times', 'status',
         'request_reminder_sent_at', 'student_diagnostic_id',
         'teacher_rejected_at', 'teacher_rejection_reason',
+        // Campos de contraoferta — asignados solo desde CounterofferController
+        // y CounterofferWebhookController, nunca desde requests de usuario.
+        'counteroffer_time', 'counteroffer_teacher_profile_id', 'meeting_link',
     ];
 
     protected $casts = [
@@ -28,6 +31,7 @@ class ClassRequest extends Model
         'is_mentorship'              => 'boolean',
         'request_reminder_sent_at'   => 'datetime',
         'teacher_rejected_at'        => 'datetime',
+        'counteroffer_time'          => 'datetime',
     ];
 
     public function isTeacherRejected(): bool
@@ -138,5 +142,16 @@ class ClassRequest extends Model
     public function lesson()
     {
         return $this->hasOne(Lesson::class);
+    }
+
+    /**
+     * El profesor que hizo la contraoferta de horario. Distinto de
+     * teacherProfile() (el profesor al que va dirigida la solicitud por
+     * código de referido) — un profesor sin código de referido también
+     * puede hacer una contraoferta sobre una solicitud abierta.
+     */
+    public function counterofferTeacherProfile()
+    {
+        return $this->belongsTo(TeacherProfile::class, 'counteroffer_teacher_profile_id');
     }
 }

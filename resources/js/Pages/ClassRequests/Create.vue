@@ -1,20 +1,38 @@
 <template>
   <AppLayout title="Solicitar clase">
     <div class="max-w-2xl space-y-6">
+
+      <!-- ── Cabecera con barra de progreso ──────────────────────────────── -->
       <div>
-        <h2 class="text-2xl font-black text-ink">Solicitar una clase</h2>
-        <p class="text-sm text-ink-muted mt-1">
-          Cuéntanos qué necesita tu hijo/a. Un profesor revisará tu solicitud y te
-          contactará para coordinar el horario y confirmar los detalles.
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-2xl font-black text-ink">Solicitar una clase</h2>
+          <span class="text-sm font-semibold text-ink-muted">{{ currentStep }} / {{ TOTAL_STEPS }}</span>
+        </div>
+        <p class="text-sm text-ink-muted mb-4">
+          Cuéntanos qué necesita tu hijo/a — el proceso toma menos de un minuto.
         </p>
+
+        <!-- Barra de progreso brand-600 (#1F5AA6) -->
+        <div class="w-full h-1.5 bg-canvas rounded-full overflow-hidden">
+          <div
+            class="h-full bg-brand-600 rounded-full transition-all duration-300 ease-out"
+            :style="{ width: ((currentStep / TOTAL_STEPS) * 100) + '%' }"
+          />
+        </div>
+
+        <!-- Indicadores de paso numéricos -->
+        <div class="flex justify-between mt-2">
+          <span v-for="n in TOTAL_STEPS" :key="n"
+            :class="['text-xs font-semibold transition-colors duration-150',
+              n < currentStep  ? 'text-brand-600' :
+              n === currentStep ? 'text-brand-700 font-bold' :
+              'text-ink-subtle']">
+            {{ STEP_LABELS[n - 1] }}
+          </span>
+        </div>
       </div>
 
-      <!-- Contexto del profesor: solo cuando se llegó con una oferta concreta
-           (?offer_id=). La tarifa es una REFERENCIA por hora, nunca "el precio
-           de esta clase" — la duración todavía no existe en este punto del
-           flujo (se decide recién cuando el profesor acepta y agenda), así
-           que no hay forma honesta de mostrar un total. Ver el mapa de
-           existencia/finalidad de datos en docs/MOVA_DESIGN_AUDIT_FINAL.md. -->
+      <!-- ── Contexto del profesor (solo si se llegó con offer) ──────────── -->
       <div v-if="offer" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-5 flex items-start gap-4">
         <div class="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-control flex items-center justify-center text-white font-black text-base flex-shrink-0">
           {{ offer.teacher_profile?.user?.name?.charAt(0)?.toUpperCase() ?? '?' }}
@@ -29,141 +47,234 @@
         </div>
       </div>
 
-      <form @submit.prevent="submit" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-6">
-        <!-- Alumno -->
-        <div>
-          <InputLabel value="Hijo/a" />
-          <select v-model="form.student_id" required
-            class="mt-1.5 w-full bg-surface text-ink border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none">
-            <option value="">Seleccionar...</option>
-            <option v-for="s in students" :key="s.id" :value="s.id">{{ s.full_name }}</option>
-          </select>
-          <InputError :message="form.errors.student_id" class="mt-1" />
-        </div>
+      <!-- ── Pasos con transición ─────────────────────────────────────────── -->
+      <div class="relative overflow-hidden">
+        <Transition :name="transitionName">
 
-        <!-- Materia (heredada de la oferta si ya hay una) -->
-        <div v-if="!offer">
-          <InputLabel value="Materia" />
-          <select v-model="form.subject_id" required
-            class="mt-1.5 w-full bg-surface text-ink border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none">
-            <option value="">Seleccionar...</option>
-            <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
-          <InputError :message="form.errors.subject_id" class="mt-1" />
-        </div>
+          <!-- PASO 1: Hijo y Materia ─────────────────────────────────────── -->
+          <div v-if="currentStep === 1" key="step1" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-5">
+            <div>
+              <h3 class="text-base font-bold text-ink mb-1">¿Para quién es la clase?</h3>
+              <p class="text-xs text-ink-muted">Elige el alumno y la materia.</p>
+            </div>
 
-        <!-- Código de profesor -->
-        <div v-if="!offer">
-          <InputLabel value="Código del profesor (opcional)" />
-          <p class="text-xs text-ink-subtle mb-1.5 mt-0.5">
-            Si un profesor te dio su código, pégalo aquí y la solicitud le llegará
-            directo a él, sin pasar por otros profesores.
-          </p>
-          <input v-model="referralCodeInput" type="text" maxlength="6" placeholder="Ej: WW5VRD"
-            class="w-full bg-surface text-ink placeholder:text-ink-subtle border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm uppercase tracking-widest font-mono transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none" />
-          <p v-if="codeLookup.status === 'checking'" class="text-xs text-ink-subtle mt-1.5">Buscando...</p>
-          <p v-else-if="codeLookup.status === 'found'" class="text-xs text-success-text font-medium mt-1.5 flex items-center gap-1">
-            <Icon name="check" :size="14" /> Se enviará a: {{ codeLookup.name }}
-          </p>
-          <p v-else-if="codeLookup.status === 'not-found'" class="text-xs text-danger-text mt-1.5">
-            Código de profesor no encontrado.
-          </p>
-          <InputError :message="form.errors.teacher_referral_code" class="mt-1" />
+            <!-- Hijo/a -->
+            <div>
+              <InputLabel value="Hijo/a" />
+              <div class="mt-1.5 grid sm:grid-cols-2 gap-2.5">
+                <button
+                  v-for="s in students" :key="s.id"
+                  type="button"
+                  @click="form.student_id = s.id"
+                  :aria-pressed="form.student_id === s.id"
+                  :class="['text-left rounded-control border p-3.5 transition-colors duration-micro',
+                    form.student_id === s.id
+                      ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
+                      : 'border-line-strong bg-surface hover:border-brand-300']">
+                  <p class="font-semibold text-sm text-ink">{{ s.full_name }}</p>
+                </button>
+              </div>
+              <InputError :message="form.errors.student_id" class="mt-1" />
+            </div>
 
-          <p v-if="codeLookup.status === 'idle' && !referralCodeInput" class="text-xs text-ink-muted mt-2 bg-canvas rounded-control px-3 py-2 flex items-start gap-2">
-            <Icon name="info" :size="14" class="text-ink-subtle flex-shrink-0 mt-0.5" />
-            <span>Sin código: tu solicitud quedará visible para todos los profesores de{{ subjectName ? ' ' + subjectName : ' la materia elegida' }}. El primero disponible la aceptará.</span>
-          </p>
-        </div>
+            <!-- Materia (si no hay offer) -->
+            <div v-if="!offer">
+              <InputLabel value="Materia" />
+              <div class="mt-1.5 grid sm:grid-cols-2 gap-2">
+                <button
+                  v-for="s in subjects" :key="s.id"
+                  type="button"
+                  @click="form.subject_id = s.id"
+                  :aria-pressed="form.subject_id === s.id"
+                  :class="['text-left rounded-control border p-3 transition-colors duration-micro text-sm',
+                    form.subject_id === s.id
+                      ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500 font-semibold text-brand-700'
+                      : 'border-line-strong bg-surface hover:border-brand-300 text-ink']">
+                  {{ s.name }}
+                </button>
+              </div>
+              <InputError :message="form.errors.subject_id" class="mt-1" />
+            </div>
 
-        <!-- Modalidad: dos experiencias de negocio distintas (elegibilidad de
-             profesor y cupos, no solo un checkbox decorativo), presentadas
-             como una elección real, no un extra opcional escondido. -->
-        <div v-if="!offer">
-          <InputLabel value="Modalidad" />
-          <div class="mt-1.5 grid sm:grid-cols-2 gap-2.5">
-            <button type="button" @click="form.is_mentorship = false"
-              :aria-pressed="!form.is_mentorship"
-              :class="['text-left rounded-control border p-3.5 transition-colors duration-micro',
-                !form.is_mentorship ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-line-strong bg-surface hover:border-brand-300']">
-              <p class="text-sm font-semibold text-ink">Clase puntual</p>
-              <p class="text-xs text-ink-muted mt-0.5">Una clase para resolver algo concreto ahora.</p>
-            </button>
-            <button type="button" @click="form.is_mentorship = true"
-              :aria-pressed="form.is_mentorship"
-              :class="['text-left rounded-control border p-3.5 transition-colors duration-micro',
-                form.is_mentorship ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-line-strong bg-surface hover:border-brand-300']">
-              <p class="text-sm font-semibold text-ink">Acompañamiento continuo</p>
-              <p class="text-xs text-ink-muted mt-0.5">Seguimiento regular con el mismo profesor, no solo una clase suelta.</p>
-            </button>
+            <div class="flex justify-end pt-1">
+              <button type="button" @click="goNext"
+                :disabled="!step1Valid"
+                class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-control hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro">
+                Siguiente →
+              </button>
+            </div>
           </div>
-          <p v-if="form.is_mentorship" class="text-xs text-ink-subtle mt-2">
-            No todos los profesores ofrecen acompañamiento continuo — solo quienes tengan cupo disponible podrán aceptar tu solicitud.
-          </p>
-          <InputError :message="form.errors.is_mentorship" class="mt-1" />
-        </div>
 
-        <!-- Qué necesita -->
-        <div>
-          <InputLabel value="¿En qué necesita ayuda?" />
-          <textarea v-model="form.help_needed" rows="4" required
-            class="mt-1.5 w-full bg-surface text-ink placeholder:text-ink-subtle border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none"
-            placeholder="Ej: Necesita repasar fracciones antes de su examen del jueves."></textarea>
-          <InputError :message="form.errors.help_needed" class="mt-1" />
-        </div>
+          <!-- PASO 2: Código de profesor ───────────────────────────────────── -->
+          <div v-else-if="currentStep === 2" key="step2" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-5">
+            <div>
+              <h3 class="text-base font-bold text-ink mb-1">¿Tienes el código de un profesor?</h3>
+              <p class="text-xs text-ink-muted">Si un profesor te dio su código, tu solicitud le llegará directo a él.</p>
+            </div>
 
-        <!-- Preferencia horaria: deliberadamente NO se llama "horario" — es
-             una preferencia orientativa (mañana/tarde/noche/flexible), no un
-             slot reservado. El horario real se coordina después, con el
-             profesor. -->
-        <div>
-          <InputLabel value="¿Cuándo sueles estar disponible?" />
-          <p class="text-xs text-ink-subtle mb-2 mt-0.5">
-            Es una preferencia orientativa — el horario exacto se coordina con el profesor después de que acepte tu solicitud.
-          </p>
-          <TimeSlotPicker v-model="form.preferred_times" />
-        </div>
+            <div>
+              <InputLabel value="Código del profesor (opcional)" />
+              <input v-model="referralCodeInput" type="text" maxlength="6" placeholder="Ej: WW5VRD"
+                class="mt-1.5 w-full bg-surface text-ink placeholder:text-ink-subtle border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm uppercase tracking-widest font-mono transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none" />
+              <p v-if="codeLookup.status === 'checking'" class="text-xs text-ink-subtle mt-1.5">Buscando...</p>
+              <p v-else-if="codeLookup.status === 'found'" class="text-xs text-success-text font-medium mt-1.5 flex items-center gap-1">
+                <Icon name="check" :size="14" /> Se enviará a: {{ codeLookup.name }}
+              </p>
+              <p v-else-if="codeLookup.status === 'not-found'" class="text-xs text-danger-text mt-1.5">
+                Código de profesor no encontrado.
+              </p>
+              <InputError :message="form.errors.teacher_referral_code" class="mt-1" />
 
-        <!-- Resumen antes de enviar: deliberadamente SIN precio, créditos ni
-             duración — ninguno de esos datos existe todavía en este punto
-             del flujo (créditos, en particular, es un concepto exclusivo del
-             profesor, nunca del padre). Ver el mapa de datos en
-             docs/MOVA_DESIGN_AUDIT_FINAL.md antes de agregar cualquier campo
-             aquí. -->
-        <div class="bg-canvas rounded-control border border-line p-4 space-y-2">
-          <p class="text-xs font-semibold text-ink uppercase tracking-wide">Antes de enviar</p>
-          <dl class="text-sm space-y-1.5">
-            <div class="flex justify-between gap-3">
-              <dt class="text-ink-muted">Alumno</dt>
-              <dd class="text-ink font-medium text-right">{{ selectedStudentName ?? '—' }}</dd>
+              <p v-if="codeLookup.status === 'idle' && !referralCodeInput" class="text-xs text-ink-muted mt-3 bg-canvas rounded-control px-3 py-2 flex items-start gap-2">
+                <Icon name="info" :size="14" class="text-ink-subtle flex-shrink-0 mt-0.5" />
+                <span>Sin código: tu solicitud quedará visible para todos los profesores de{{ subjectName ? ' ' + subjectName : ' la materia elegida' }}.</span>
+              </p>
             </div>
-            <div class="flex justify-between gap-3">
-              <dt class="text-ink-muted">Para</dt>
-              <dd class="text-ink font-medium text-right">{{ recipientSummary }}</dd>
-            </div>
-            <div class="flex justify-between gap-3">
-              <dt class="text-ink-muted">Modalidad</dt>
-              <dd class="text-ink font-medium text-right">{{ form.is_mentorship ? 'Acompañamiento continuo' : 'Clase puntual' }}</dd>
-            </div>
-            <div v-if="form.preferred_times.length" class="flex justify-between gap-3">
-              <dt class="text-ink-muted">Disponibilidad</dt>
-              <dd class="text-ink font-medium text-right">{{ preferredTimesSummary }}</dd>
-            </div>
-          </dl>
-        </div>
 
-        <div class="flex flex-col sm:flex-row gap-3">
-          <PrimaryButton type="submit" :loading="form.processing" :disabled="!canSubmit" class="sm:min-w-[200px]">
-            <Icon v-if="!form.processing" name="send" :size="16" />
-            {{ form.processing ? 'Enviando...' : 'Enviar solicitud' }}
-          </PrimaryButton>
-          <Link :href="route('marketplace')" class="px-5 py-2.5 text-sm font-semibold text-ink-muted hover:text-ink transition-colors duration-micro text-center">Cancelar</Link>
-        </div>
-        <p class="text-xs text-ink-subtle flex items-start gap-1.5">
-          <Icon name="info" :size="14" class="flex-shrink-0 mt-0.5" />
-          <span>Después de enviar, tu solicitud queda abierta a espera de que un profesor la acepte — no se confirma ninguna clase ni se cobra nada todavía.</span>
-        </p>
-      </form>
+            <div class="flex items-center justify-between pt-1">
+              <button type="button" @click="goPrev" class="text-sm text-ink-muted hover:text-ink transition-colors duration-micro">
+                ← Volver
+              </button>
+              <div class="flex gap-2">
+                <button type="button" @click="skipCode"
+                  class="px-4 py-2.5 text-sm text-ink-muted border border-line rounded-control hover:border-line-strong transition-colors duration-micro">
+                  Omitir
+                </button>
+                <button type="button" @click="goNext"
+                  :disabled="codeLookup.status === 'checking'"
+                  class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-control hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro">
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PASO 3: Modalidad ─────────────────────────────────────────────── -->
+          <div v-else-if="currentStep === 3" key="step3" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-5">
+            <div>
+              <h3 class="text-base font-bold text-ink mb-1">¿Qué tipo de apoyo necesita?</h3>
+              <p class="text-xs text-ink-muted">Elige una opción para continuar automáticamente.</p>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-3">
+              <button type="button" @click="selectModality(false)"
+                :aria-pressed="!form.is_mentorship"
+                :class="['text-left rounded-control border p-4 transition-colors duration-micro',
+                  !form.is_mentorship ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-line-strong bg-surface hover:border-brand-300']">
+                <p class="font-semibold text-ink">Clase puntual</p>
+                <p class="text-xs text-ink-muted mt-1">Una clase para resolver algo concreto ahora.</p>
+              </button>
+              <button type="button" @click="selectModality(true)"
+                :aria-pressed="form.is_mentorship"
+                :class="['text-left rounded-control border p-4 transition-colors duration-micro',
+                  form.is_mentorship ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-line-strong bg-surface hover:border-brand-300']">
+                <p class="font-semibold text-ink">Acompañamiento continuo</p>
+                <p class="text-xs text-ink-muted mt-1">Seguimiento regular con el mismo profesor.</p>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <button type="button" @click="goPrev" class="text-sm text-ink-muted hover:text-ink transition-colors duration-micro">
+                ← Volver
+              </button>
+            </div>
+          </div>
+
+          <!-- PASO 4: Descripción y disponibilidad ─────────────────────────── -->
+          <div v-else-if="currentStep === 4" key="step4" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-5">
+            <div>
+              <h3 class="text-base font-bold text-ink mb-1">Cuéntanos un poco más</h3>
+              <p class="text-xs text-ink-muted">Describe la situación y cuándo suele estar disponible.</p>
+            </div>
+
+            <!-- Qué necesita -->
+            <div>
+              <InputLabel value="¿En qué necesita ayuda?" />
+              <textarea v-model="form.help_needed" rows="4" required
+                class="mt-1.5 w-full bg-surface text-ink placeholder:text-ink-subtle border border-line-strong rounded-control shadow-elevation-1 px-3 py-2.5 text-sm transition-colors duration-micro focus:border-focus-ring focus:ring-2 focus:ring-focus-ring/40 focus:ring-offset-0 focus:outline-none"
+                placeholder="Ej: Necesita repasar fracciones antes de su examen del jueves."></textarea>
+              <InputError :message="form.errors.help_needed" class="mt-1" />
+            </div>
+
+            <!-- Preferencia horaria -->
+            <div>
+              <InputLabel value="¿Cuándo suele estar disponible?" />
+              <p class="text-xs text-ink-subtle mb-2 mt-0.5">
+                Preferencia orientativa — el horario exacto se coordina después con el profesor.
+              </p>
+              <TimeSlotPicker v-model="form.preferred_times" />
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <button type="button" @click="goPrev" class="text-sm text-ink-muted hover:text-ink transition-colors duration-micro">
+                ← Volver
+              </button>
+              <button type="button" @click="goNext"
+                :disabled="!step4Valid"
+                class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-control hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro">
+                Ver resumen →
+              </button>
+            </div>
+          </div>
+
+          <!-- PASO 5: Resumen + enviar ────────────────────────────────────── -->
+          <div v-else-if="currentStep === 5" key="step5" class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-6 space-y-5">
+            <div>
+              <h3 class="text-base font-bold text-ink mb-1">Revisa y envía</h3>
+              <p class="text-xs text-ink-muted">Confirma que todo esté correcto antes de enviar.</p>
+            </div>
+
+            <!-- Resumen — sin precio, créditos ni duración (no existen aún) -->
+            <dl class="divide-y divide-line text-sm">
+              <div class="flex justify-between gap-3 py-2.5">
+                <dt class="text-ink-muted">Alumno</dt>
+                <dd class="text-ink font-semibold text-right">{{ selectedStudentName ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-3 py-2.5">
+                <dt class="text-ink-muted">Materia</dt>
+                <dd class="text-ink font-semibold text-right">{{ offer?.subject?.name ?? subjectName ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-3 py-2.5">
+                <dt class="text-ink-muted">Profesor</dt>
+                <dd class="text-ink font-semibold text-right">{{ recipientSummary }}</dd>
+              </div>
+              <div class="flex justify-between gap-3 py-2.5">
+                <dt class="text-ink-muted">Modalidad</dt>
+                <dd class="text-ink font-semibold text-right">{{ form.is_mentorship ? 'Acompañamiento continuo' : 'Clase puntual' }}</dd>
+              </div>
+              <div v-if="form.preferred_times.length" class="flex justify-between gap-3 py-2.5">
+                <dt class="text-ink-muted">Disponibilidad</dt>
+                <dd class="text-ink font-semibold text-right max-w-[60%]">{{ preferredTimesSummary }}</dd>
+              </div>
+              <div class="py-2.5">
+                <dt class="text-ink-muted mb-1">Descripción</dt>
+                <dd class="text-ink text-sm line-clamp-3">{{ form.help_needed }}</dd>
+              </div>
+            </dl>
+
+            <p class="text-xs text-ink-subtle flex items-start gap-1.5 bg-canvas rounded-control px-3 py-2">
+              <Icon name="info" :size="14" class="flex-shrink-0 mt-0.5" />
+              <span>Al enviar, la solicitud queda abierta. No se confirma ninguna clase ni se cobra nada todavía.</span>
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-1">
+              <!-- Botón naranja (#F59E0B = accent-500) para la acción principal final -->
+              <button type="button" @click="submit"
+                :disabled="form.processing"
+                class="flex items-center justify-center gap-2 px-6 py-3 bg-accent-500 text-white text-sm font-bold rounded-control hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-micro shadow-elevation-1 sm:min-w-[200px]">
+                <Icon v-if="!form.processing" name="send" :size="16" />
+                {{ form.processing ? 'Enviando...' : 'Enviar solicitud' }}
+              </button>
+              <button type="button" @click="goPrev"
+                class="px-5 py-2.5 text-sm font-semibold text-ink-muted hover:text-ink transition-colors duration-micro text-center">
+                ← Volver
+              </button>
+            </div>
+          </div>
+
+        </Transition>
+      </div>
+
     </div>
   </AppLayout>
 </template>
@@ -177,30 +288,81 @@ import TimeSlotPicker from '@/Components/TimeSlotPicker.vue'
 import Icon from '@/Components/Icon.vue'
 import InputLabel from '@/Components/InputLabel.vue'
 import InputError from '@/Components/InputError.vue'
-import PrimaryButton from '@/Components/PrimaryButton.vue'
 import { timeSlotLabel } from '@/utils/timeSlots'
 
+// ── Props ───────────────────────────────────────────────────────────────────
 const props = defineProps({
-  subjects: Array,
-  students: Array,
-  offer: Object,
-  isMentorship: Boolean,
+  subjects:          Array,
+  students:          Array,
+  offer:             Object,
+  isMentorship:      Boolean,
   prefillReferralCode: { type: String, default: null },
-  prefillSubjectId: { type: Number, default: null },
+  prefillSubjectId:    { type: Number, default: null },
 })
 
+// ── Wizard ─────────────────────────────────────────────────────────────────
+const TOTAL_STEPS = 5
+const STEP_LABELS = ['Alumno', 'Profesor', 'Modalidad', 'Detalles', 'Resumen']
+const currentStep = ref(1)
+// 'forward' = animación hacia la izquierda, 'back' = hacia la derecha
+const direction   = ref('forward')
+
+const transitionName = computed(() =>
+  direction.value === 'forward' ? 'slide-step' : 'slide-step-back'
+)
+
+function goNext() {
+  if (currentStep.value < TOTAL_STEPS) {
+    direction.value = 'forward'
+    currentStep.value++
+  }
+}
+
+function goPrev() {
+  if (currentStep.value > 1) {
+    direction.value = 'back'
+    currentStep.value--
+  }
+}
+
+// Paso 3: seleccionar modalidad avanza automáticamente
+function selectModality(isMentorship) {
+  form.is_mentorship = isMentorship
+  direction.value = 'forward'
+  currentStep.value = 4
+}
+
+// Paso 2: omitir el código limpia el campo y avanza
+function skipCode() {
+  referralCodeInput.value = ''
+  form.teacher_referral_code = ''
+  codeLookup.value = { status: 'idle', name: null }
+  goNext()
+}
+
+// ── Validaciones por paso ──────────────────────────────────────────────────
+const step1Valid = computed(() => {
+  if (!form.student_id) return false
+  if (!props.offer && !form.subject_id) return false
+  return true
+})
+
+const step4Valid = computed(() => form.help_needed.trim().length >= 10)
+
+// ── Form (mismo useForm que antes — el backend no cambia) ─────────────────
 const form = useForm({
-  student_id: '',
-  subject_id: props.offer?.subject_id ?? props.prefillSubjectId ?? '',
-  class_offer_id: props.offer?.id ?? null,
+  student_id:          '',
+  subject_id:          props.offer?.subject_id ?? props.prefillSubjectId ?? '',
+  class_offer_id:      props.offer?.id ?? null,
   teacher_referral_code: '',
-  is_mentorship: props.isMentorship ?? false,
-  help_needed: '',
-  preferred_times: [],
+  is_mentorship:       props.isMentorship ?? false,
+  help_needed:         '',
+  preferred_times:     [],
 })
 
-const referenceRate = computed(() => parseFloat(props.offer?.specific_rate ?? props.offer?.teacher_profile?.hourly_rate ?? 0).toFixed(0))
-const subjectName = computed(() => props.subjects?.find(s => String(s.id) === String(form.subject_id))?.name ?? null)
+// ── Computed ───────────────────────────────────────────────────────────────
+const referenceRate      = computed(() => parseFloat(props.offer?.specific_rate ?? props.offer?.teacher_profile?.hourly_rate ?? 0).toFixed(0))
+const subjectName        = computed(() => props.subjects?.find(s => String(s.id) === String(form.subject_id))?.name ?? null)
 const selectedStudentName = computed(() => props.students?.find(s => String(s.id) === String(form.student_id))?.full_name ?? null)
 
 const recipientSummary = computed(() => {
@@ -211,33 +373,17 @@ const recipientSummary = computed(() => {
 
 const preferredTimesSummary = computed(() => form.preferred_times.map(timeSlotLabel).join(', '))
 
-// El envío se deshabilita mientras falten los datos mínimos — evita un
-// primer intento fallido por campos vacíos que el propio formulario ya
-// sabe que van a fallar. No sustituye la validación real del backend,
-// solo evita fricción innecesaria.
-const canSubmit = computed(() => {
-  if (form.processing) return false
-  if (!form.student_id || !form.help_needed.trim()) return false
-  if (!props.offer && !form.subject_id) return false
-
-  return true
-})
-
+// ── Lookup de código (igual que antes) ────────────────────────────────────
 const referralCodeInput = ref(props.prefillReferralCode ?? '')
-// status: 'idle' | 'checking' | 'found' | 'not-found'
-const codeLookup = ref({ status: 'idle', name: null })
-let lookupTimer = null
+const codeLookup        = ref({ status: 'idle', name: null })
+let lookupTimer         = null
 
-// Búsqueda en vivo, debounced — solo feedback (Fase UX), la resolución real
-// vuelve a ocurrir en el backend dentro de store(), nunca confía en esto.
 async function lookupCode(code) {
   clearTimeout(lookupTimer)
-
   if (code.length !== 6) {
     codeLookup.value = { status: 'idle', name: null }
     return
   }
-
   codeLookup.value = { status: 'checking', name: null }
   lookupTimer = setTimeout(async () => {
     try {
@@ -257,15 +403,40 @@ watch(referralCodeInput, (value) => {
 })
 
 onMounted(() => {
-  // ?code= desde "Solicitar clase" en el marketplace — dispara la búsqueda
-  // de una vez, sin esperar a que el padre toque el input.
   if (referralCodeInput.value) {
     form.teacher_referral_code = referralCodeInput.value
     lookupCode(referralCodeInput.value)
   }
 })
 
+// ── Submit (igual que antes) ───────────────────────────────────────────────
 function submit() {
   form.post(route('class-requests.store'))
 }
 </script>
+
+<style scoped>
+/* Transición hacia adelante: nuevo panel entra desde la derecha */
+.slide-step-enter-active,
+.slide-step-leave-active {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  width: 100%;
+}
+.slide-step-enter-from { opacity: 0; transform: translateX(40px); }
+.slide-step-enter-to   { opacity: 1; transform: translateX(0); }
+.slide-step-leave-from { opacity: 1; transform: translateX(0); }
+.slide-step-leave-to   { opacity: 0; transform: translateX(-40px); }
+
+/* Transición hacia atrás: nuevo panel entra desde la izquierda */
+.slide-step-back-enter-active,
+.slide-step-back-leave-active {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  width: 100%;
+}
+.slide-step-back-enter-from { opacity: 0; transform: translateX(-40px); }
+.slide-step-back-enter-to   { opacity: 1; transform: translateX(0); }
+.slide-step-back-leave-from { opacity: 1; transform: translateX(0); }
+.slide-step-back-leave-to   { opacity: 0; transform: translateX(40px); }
+</style>

@@ -36,35 +36,40 @@
       </div>
 
       <!-- Nav -->
-      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto" aria-label="Navegación principal">
         <Link v-for="item in navItems" :key="item.href"
           :href="item.href"
           @click="sidebarOpen = false"
-          :class="['flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+          :aria-current="isActive(item.href) ? 'page' : undefined"
+          :class="['flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150',
             isActive(item.href)
-              ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-brand-700']">
-          <Icon :name="item.icon" :size="20" class="flex-shrink-0" />
-          {{ item.label }}
+              ? activeNavClass
+              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800']">
+          <Icon :name="item.icon" :size="18" class="flex-shrink-0" />
+          <span class="truncate">{{ item.label }}</span>
+          <span v-if="item.badge" class="ml-auto min-w-[20px] h-5 px-1 bg-white/25 rounded-full text-[11px] font-bold flex items-center justify-center">
+            {{ item.badge }}
+          </span>
         </Link>
       </nav>
 
-      <!-- User -->
-      <div class="px-3 py-4 border-t border-gray-100">
-        <div class="flex items-center gap-3 px-2 mb-2">
+      <!-- User footer -->
+      <div class="px-3 pb-4 pt-3 border-t border-gray-100 space-y-1">
+        <div class="flex items-center gap-3 px-2 py-2 rounded-xl">
           <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
-            class="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow" width="36" height="36" />
-          <div v-else class="w-9 h-9 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow">
+            class="w-9 h-9 rounded-xl object-cover flex-shrink-0 ring-2 ring-gray-100" width="36" height="36" />
+          <div v-else :class="['w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0', avatarClass]">
             {{ user?.name?.charAt(0)?.toUpperCase() }}
           </div>
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold text-slate-900 truncate">{{ user?.name }}</p>
-            <p class="text-xs text-slate-400 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
+            <p class="text-sm font-bold text-slate-900 truncate leading-tight">{{ user?.name }}</p>
+            <p class="text-xs text-slate-400 truncate mt-0.5">{{ roleLabel(user?.roles?.[0]) }}</p>
           </div>
           <NotificationBell class="flex-shrink-0" />
         </div>
         <Link :href="route('logout')" method="post" as="button"
-          class="w-full flex items-center min-h-[44px] text-left px-3 py-2 text-sm text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 active:bg-red-100 transition-colors mt-1">
+          class="w-full flex items-center gap-2.5 min-h-[40px] text-left px-3 py-2 text-sm text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors font-medium">
+          <Icon name="logout" :size="16" class="flex-shrink-0" />
           Cerrar sesión
         </Link>
       </div>
@@ -191,6 +196,22 @@ onUnmounted(() => {
     window.Echo.leave(`App.Models.User.${userId}`)
   }
 })
+
+const isTeacher = computed(() => (user.value?.roles ?? []).includes('teacher'))
+
+// Sidebar active item color: naranja para profesores, azul MOVA para el resto
+const activeNavClass = computed(() =>
+  isTeacher.value
+    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
+    : 'bg-brand-600 text-white shadow-sm shadow-brand-600/30'
+)
+
+// Avatar color por rol
+const avatarClass = computed(() =>
+  isTeacher.value
+    ? 'bg-gradient-to-br from-orange-400 to-orange-600'
+    : 'bg-gradient-to-br from-brand-500 to-brand-700'
+)
 
 function isActive(href) {
   return page.url.startsWith(href) && href !== '/'

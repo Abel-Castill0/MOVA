@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
+use App\Http\Controllers\CounterofferController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
@@ -149,6 +150,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/teacher/requests', [ClassRequestController::class, 'teacherIndex'])->name('teacher.requests');
         Route::get('/teacher/requests/{classRequest}/accept', [ClassRequestController::class, 'accept'])->name('teacher.requests.accept');
         Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->middleware('throttle:20,1')->name('teacher.requests.reject');
+        // Contraoferta de horario: el profesor propone una hora alternativa y
+        // el padre acepta/rechaza por WhatsApp (CounterofferWebhookController).
+        Route::post('/class-requests/{classRequest}/counteroffer', [CounterofferController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.requests.counteroffer');
         Route::post('/lessons', [LessonController::class, 'store'])->middleware('throttle:10,1')->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');
