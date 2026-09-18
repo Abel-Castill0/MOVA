@@ -21,14 +21,18 @@
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
+# Sin --ignore-platform-reqs: composer.json fija config.platform.php en
+# 8.3.99 (AZ-3G0-B.3), así que composer resuelve/valida contra el PHP real
+# de producción (dunglas/frankenphp:1-php8.3, stage 3) en vez del PHP 8.5
+# que trae esta imagen `composer:2` — evita instalar silenciosamente algo
+# que el runtime real no puede correr.
 RUN composer install \
     --no-dev \
     --prefer-dist \
     --no-interaction \
     --no-progress \
     --no-scripts \
-    --optimize-autoloader \
-    --ignore-platform-reqs
+    --optimize-autoloader
 
 # ---------------------------------------------------------------------------
 # 2) Frontend: Vite build → public/build
@@ -72,6 +76,14 @@ COPY --from=assets /app/public/build ./public/build
 # ejecuta package:discover (el post-autoload-dump que se omitió en 2).
 RUN --mount=from=vendor,source=/usr/bin/composer,target=/usr/bin/composer \
     composer dump-autoload --optimize --no-dev
+
+# Fail-closed real: a diferencia del stage 1 (que valida contra
+# config.platform.php, un PHP declarado), esto verifica el PHP y las
+# extensiones REALES de este runtime contra lo que composer.lock exige. Si
+# el build llega hasta acá con algo que este container no puede correr en
+# la práctica, se detiene aquí — no en producción.
+RUN --mount=from=vendor,source=/usr/bin/composer,target=/usr/bin/composer \
+    composer check-platform-reqs --no-dev
 
 # El disco del contenedor es efímero: storage/ y bootstrap/cache solo
 # guardan caché de framework, vistas compiladas y logs temporales.

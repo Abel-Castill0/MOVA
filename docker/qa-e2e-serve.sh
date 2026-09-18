@@ -89,13 +89,7 @@ if [ "$APP_ENV" != "local" ] || [ "$DB_CONNECTION" != "sqlite" ] || [ "$DB_DATAB
 fi
 
 if [ ! -f vendor/autoload.php ]; then
-    # symfony/clock v8.1.0 (dependencia de nesbot/carbon 3.14.0, ya fijada en
-    # composer.lock) declara "php": ">=8.4.1" en su propio composer.json,
-    # pero el código que MOVA usa de él corre igual bajo 8.3 (ver AZ-3G0-B.1:
-    # el mismo lock funciona en el gate MySQL 8.4/PHP 8.3). --ignore-platform-req
-    # solo se salta esa comprobación de entorno; sigue instalando EXACTAMENTE
-    # lo que el lock fija, no resuelve versiones nuevas.
-    composer install --no-interaction --prefer-dist --ignore-platform-req=php
+    composer install --no-interaction --prefer-dist
 fi
 
 # qa/node_modules y el cache de browsers de Playwright viven en volúmenes
