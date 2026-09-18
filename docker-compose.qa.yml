@@ -58,13 +58,20 @@ services:
       context: .
       dockerfile: docker/Dockerfile.qa
     volumes:
-      - .:/app
-      # Volumen nombrado (no anónimo): sobrevive entre corridas `run --rm`
-      # sucesivas para no reinstalar node_modules/Playwright cada vez, y
-      # evita que el bind mount de arriba lo tape con lo que exista (o no)
-      # en el host — .dockerignore excluye qa/ del build de la imagen (ver
-      # Dockerfile de producción), así que se instala en el primer arranque
-      # (docker/qa-e2e-serve.sh), no en el build.
+      # AZ-3G0-B.2: /workspace es SOLO el snapshot de entrada, read-only. La
+      # app corre desde /app (volumen Docker-nativo) — ver docker/qa-e2e-serve.sh,
+      # que copia /workspace -> /app una vez por corrida. En este equipo el
+      # working tree vive en un bind mount Windows/OneDrive: montarlo
+      # directamente como /app y correr PHP/Playwright contra él le costaba a
+      # cada request estático ~7-20s (I/O real del bind mount, no bytecode —
+      # opcache no lo arregla), y la suite llegó a superar 1h.
+      - .:/workspace:ro
+      - e2e_qa_app:/app
+      # vendor/ y qa/node_modules/ son volúmenes nombrados aparte (no el
+      # mismo que /app) para sobrevivir el `rm -rf` de limpieza que
+      # qa-e2e-serve.sh hace al principio de cada corrida sobre el resto de
+      # /app, y para no reinstalar composer/npm en cada `run --rm`.
+      - e2e_qa_vendor:/app/vendor
       - e2e_qa_node_modules:/app/qa/node_modules
       # Los browsers de Playwright se descargan fuera de node_modules (cache
       # HOME del container); sin volumen propio, `docker compose run` los
@@ -76,8 +83,10 @@ services:
     # bash explícito (no ./docker/qa-e2e-serve.sh): el bit ejecutable de un
     # archivo creado en Windows no sobrevive de forma fiable git -> checkout
     # -> bind mount.
-    entrypoint: ["bash", "docker/qa-e2e-serve.sh"]
+    entrypoint: ["bash", "/workspace/docker/qa-e2e-serve.sh"]
 
 volumes:
+  e2e_qa_app:
+  e2e_qa_vendor:
   e2e_qa_node_modules:
   e2e_qa_playwright_cache:

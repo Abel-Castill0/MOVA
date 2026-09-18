@@ -13,14 +13,50 @@
 # esa lógica de fail-closed no se toca aquí, solo se le añade un sentinel
 # previo para abortar antes de tocar cualquier dato si el workspace QA no es
 # el esperado.
+#
+# AZ-3G0-B.2 — /workspace (host, bind mount de OneDrive/Windows, read-only)
+# ya NO es donde corre la app: en este equipo ese bind mount le cuesta a PHP
+# ~7-20s por request (assets estáticos incluidos — opcache no lo evita,
+# porque el costo real es la lectura de archivo por el bind mount, no
+# recompilar bytecode). /app es un volumen Docker-nativo; copiamos el
+# snapshot del working tree (con los cambios sin commitear del upgrade a
+# Laravel 12 incluidos) UNA vez por corrida y todo — PHP, SQLite, Playwright —
+# corre desde ahí. vendor/ y qa/node_modules/ son volúmenes nombrados aparte
+# (ver docker-compose.qa.yml) que sobreviven entre corridas `run --rm`
+# sucesivas, así que se excluyen de la copia y no se reinstalan si ya están.
 set -euo pipefail
-cd /app
 
 php_version="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 if [ "$php_version" != "8.3" ]; then
     echo "ABORT: e2e_qa requiere PHP 8.3, detectado $php_version." >&2
     exit 1
 fi
+
+# Limpia /app de la corrida anterior, preservando vendor/ y qa/node_modules/
+# (volúmenes nombrados propios, montados dentro de /app — ver compose) para
+# no perder esos installs entre corridas.
+find /app -mindepth 1 -maxdepth 1 \
+    ! -name vendor \
+    ! -name qa \
+    -exec rm -rf {} +
+if [ -d /app/qa ]; then
+    find /app/qa -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf {} +
+fi
+
+# Copia única del snapshot host -> volumen Docker-nativo. tar en vez de cp
+# recursivo: un solo proceso para miles de archivos en vez de un fork por
+# archivo. bootstrap/cache se excluye a propósito: un config:cache dejado por
+# una corrida anterior de php_qa (bind mount compartido) congela env() y
+# contamina este gate con valores de otra conexión/DB (ver AZ-3G0-B.1).
+tar -C /workspace \
+    --exclude=.git \
+    --exclude=node_modules \
+    --exclude=qa/node_modules \
+    --exclude=vendor \
+    --exclude=bootstrap/cache \
+    -cf - . | tar -C /app -xf -
+mkdir -p /app/bootstrap/cache
+cd /app
 
 export APP_ENV=local
 export DB_CONNECTION=sqlite
@@ -34,6 +70,16 @@ export SESSION_SECURE_COOKIE=false
 export BROADCAST_DRIVER=log
 export GOOGLE_LOGIN_ENABLED=false
 export RECHARGES_ENABLED=true
+# `php -S` arranca un proceso PHP nuevo por request, así que un cache driver
+# en memoria ('array') parte vacío en cada uno — igual que el arranque de
+# aplicación por-test de PHPUnit (mismo CACHE_DRIVER=array que
+# phpunit.mysql.xml, misma razón). Sin esto, RateLimiter usa el store por
+# defecto (persistente entre requests) y el throttle:5,1 de routes/auth.php
+# — invisible antes porque el I/O del bind mount espaciaba los logins más de
+# un minuto — corta esta spec real: son ~22 logins secuenciales y ahora cada
+# uno tarda <1s. No es debilitar el throttle de producción, solo elegir un
+# backend de cache apto para un server QA de un-proceso-por-request.
+export CACHE_DRIVER=array
 export QA_PHP_BIN="${QA_PHP_BIN:-php}"
 
 expected_db="/app/storage/logs/phase2b-e2e.sqlite"
@@ -43,7 +89,13 @@ if [ "$APP_ENV" != "local" ] || [ "$DB_CONNECTION" != "sqlite" ] || [ "$DB_DATAB
 fi
 
 if [ ! -f vendor/autoload.php ]; then
-    composer install --no-interaction --prefer-dist
+    # symfony/clock v8.1.0 (dependencia de nesbot/carbon 3.14.0, ya fijada en
+    # composer.lock) declara "php": ">=8.4.1" en su propio composer.json,
+    # pero el código que MOVA usa de él corre igual bajo 8.3 (ver AZ-3G0-B.1:
+    # el mismo lock funciona en el gate MySQL 8.4/PHP 8.3). --ignore-platform-req
+    # solo se salta esa comprobación de entorno; sigue instalando EXACTAMENTE
+    # lo que el lock fija, no resuelve versiones nuevas.
+    composer install --no-interaction --prefer-dist --ignore-platform-req=php
 fi
 
 # qa/node_modules y el cache de browsers de Playwright viven en volúmenes
@@ -63,7 +115,21 @@ php artisan migrate --no-interaction
 php artisan db:seed --class=LocalTestDataSeeder --no-interaction
 php qa/stabilization-server.php
 
-php -S 0.0.0.0:8012 -t public qa/stabilization-server.php &
+# bootstrap/cache quedó excluido de la copia, pero config:clear/route:clear/
+# view:clear igual antes de servir: por si acaso un composer install con
+# scripts (ver composer.json) recreó algo ahí, no queremos servir nada
+# cacheado que no sea el de esta corrida.
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+# opcache.enable_cli=0 (docker/php.ini) es correcto para PHPUnit (evita bytecode
+# rancio entre corridas de test), pero mata el rendimiento de este server:
+# `php -S` es SAPI cli, así que sin opcache recompila todo Laravel en cada
+# request. validate_timestamps=0 es seguro aquí (y no solo rápido): /app es
+# el snapshot Docker-nativo de esta corrida, nadie lo edita mientras el
+# server está arriba.
+php -d opcache.enable_cli=1 -d opcache.validate_timestamps=0 -S 0.0.0.0:8012 -t public qa/stabilization-server.php &
 server_pid=$!
 cleanup() { kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; }
 trap cleanup EXIT
