@@ -219,3 +219,30 @@ Verificar: `GET /healthz` debe devolver 200.
 - **No** dejar activado el modo mantenimiento si el sitio ya está funcionando.
 - **No** eliminar backups sin tener al menos otro válido de la misma semana.
 - **No** asumir que Railway hace backups automáticos sin verificarlo en el panel.
+
+---
+
+## 9. Azure (MySQL Flexible Server) — runbook corto
+
+Backups automáticos: diarios, retención 7 días, PITR (verificado: `earliestRestoreDate` disponible). Sin geo-backup.
+
+**Restore de prueba (nunca sobre el origen):**
+```bash
+az mysql flexible-server restore -g mova-prod-rg --name mova-mysql-restoretest \
+  --source-server mova-mysql-splisbj6ldoqw --restore-time <UTC ISO> --no-wait
+az mysql flexible-server show -g mova-prod-rg -n mova-mysql-restoretest --query state   # Ready
+```
+El servidor restaurado hereda red privada (snet-mysql + Private DNS) y el usuario admin del origen. Verificación de datos: solo desde dentro de la VNet (Container Apps Job con la misma imagen y `DB_HOST=mova-mysql-restoretest.mysql.database.azure.com`), ejecutando `php artisan migrate:status` y `php artisan mova:reconcile-ledger` (solo lectura) y comparando conteos de `users`, `students`, `classes`, `credit_transactions`, `recharge_requests`, `payment_orders` con el origen.
+
+**Borrar el servidor temporal al terminar** (contiene copia de datos personales):
+```bash
+az mysql flexible-server delete -g mova-prod-rg -n mova-mysql-restoretest --yes
+```
+
+**Restore real (último recurso):** restaurar a servidor NUEVO por PITR, validar como arriba, y cambiar `DB_HOST` de web/worker/scheduler a la nueva instancia (nueva revisión); el servidor original se conserva hasta confirmar.
+
+**Paridad de esquema** (mismo query en origen y copia; hash idéntico = OK):
+```sql
+SELECT COUNT(*), MD5(GROUP_CONCAT(CONCAT_WS(':',table_name,column_name,column_type,is_nullable,column_key)
+  ORDER BY table_name,column_name)) FROM information_schema.columns WHERE table_schema='mova';
+```
