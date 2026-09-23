@@ -5,7 +5,7 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "cloudinary/cloudinary_php": "^3.1",
         "firebase/php-jwt": "^7.1",
         "guzzlehttp/guzzle": "^7.2",
