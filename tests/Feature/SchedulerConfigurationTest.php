@@ -335,6 +335,7 @@ class SchedulerConfigurationTest extends TestCase
             'legal.provider.business_name' => 'X', 'legal.provider.ruc' => '1', 'legal.provider.address' => 'X',
         ]);
         \App\Support\Heartbeat::beat(\App\Support\Heartbeat::WORKER);
+        \App\Support\Heartbeat::beat(\App\Support\Heartbeat::SCHEDULER);
 
         $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput();
         $outputStyle = new \Illuminate\Console\OutputStyle(

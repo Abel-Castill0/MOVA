@@ -210,14 +210,17 @@ class OperationsController extends Controller
                 Log::warning('[Operations] No se pudo leer system_heartbeats.', ['error' => $e->getMessage()]);
                 [$age, $status] = [null, 'unknown'];
             }
+            // En producción "nunca latió" = el proceso no corre: atención, no
+            // un gris neutro. Fuera de producción es normal no tener worker.
+            $neverInProduction = $status === 'unknown' && app()->environment('production');
             $capabilities[] = [
                 'key' => $name,
                 'label' => $label,
-                'status' => $status === 'stale' ? 'attention' : $status,
+                'status' => ($status === 'stale' || $neverInProduction) ? 'attention' : $status,
                 'detail' => match ($status) {
                     'healthy' => "Último latido hace {$age} s",
                     'stale' => 'Sin latido hace '.intdiv((int) $age, 60).' min',
-                    default => 'Nunca ha registrado latido',
+                    default => $neverInProduction ? 'Nunca ha registrado latido: el proceso no está corriendo' : 'Nunca ha registrado latido',
                 },
             ];
         }

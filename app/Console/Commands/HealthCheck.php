@@ -258,22 +258,29 @@ class HealthCheck extends Command
             }
         }
 
-        // ── P0-J: latido del worker ──────────────────────────────────────
-        // Este comando corre DENTRO del scheduler, así que no puede detectar
-        // un scheduler caído (eso lo ve el Centro de Operaciones); sí detecta
-        // un worker que no consume la cola. Solo en producción: en local es
-        // normal no tener worker.
+        // ── P0-J / P1-03: latidos de worker y scheduler ──────────────────
+        // /readyz no los mira a propósito (su caída no debe sacar al web del
+        // balanceador); la señal operativa es ESTA. Worker: la detecta la
+        // corrida horaria agendada. Scheduler: dentro del propio scheduler
+        // siempre está fresco, así que la señal real es una ejecución externa
+        // (monitor, deploy, operador) y el Centro de Operaciones. "Nunca
+        // latió" cuenta igual que "latido viejo". Solo producción.
         if ($environment === 'production') {
-            try {
-                if (Heartbeat::status(Heartbeat::WORKER) !== 'healthy') {
-                    $warnings[] = [
-                        'code' => 'WORKER_HEARTBEAT_STALE',
-                        'message' => 'El worker de cola no ha procesado el latido en los últimos '
-                            .intdiv(Heartbeat::STALE_AFTER_SECONDS, 60).' min: los jobs (correos, webhooks) no se están ejecutando.',
-                    ];
+            $heartbeats = [
+                Heartbeat::WORKER => ['WORKER_HEARTBEAT_STALE', 'El worker de cola no procesa el latido: los jobs (correos, webhooks) no se están ejecutando.'],
+                Heartbeat::SCHEDULER => ['SCHEDULER_HEARTBEAT_STALE', 'El scheduler no late: recordatorios, liquidaciones y reconciliaciones no corren.'],
+            ];
+            foreach ($heartbeats as $name => [$code, $message]) {
+                try {
+                    $status = Heartbeat::status($name);
+                    $checks["{$name}_heartbeat"] = $status;
+                    if ($status !== 'healthy') {
+                        $warnings[] = ['code' => $code, 'message' => $message.' (estado: '.$status.', umbral '.intdiv(Heartbeat::STALE_AFTER_SECONDS, 60).' min)'];
+                    }
+                } catch (\Throwable $e) {
+                    $checks["{$name}_heartbeat"] = 'no disponible';
+                    $warnings[] = ['code' => $code, 'message' => $message.' (no se pudo leer system_heartbeats)'];
                 }
-            } catch (\Throwable $e) {
-                $checks['worker_heartbeat'] = 'no disponible';
             }
         }
 
