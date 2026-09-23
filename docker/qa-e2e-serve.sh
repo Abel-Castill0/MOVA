@@ -88,9 +88,10 @@ if [ "$APP_ENV" != "local" ] || [ "$DB_CONNECTION" != "sqlite" ] || [ "$DB_DATAB
     exit 1
 fi
 
-if [ ! -f vendor/autoload.php ]; then
-    composer install --no-interaction --prefer-dist
-fi
+# Siempre: el volumen vendor sobrevive entre corridas y quedaba desfasado
+# cuando composer.lock cambiaba (p. ej. al añadir pragmarx/google2fa). Con
+# vendor al día es un no-op de segundos.
+composer install --no-interaction --prefer-dist
 
 # qa/node_modules y el cache de browsers de Playwright viven en volúmenes
 # nombrados propios (ver docker-compose.qa.yml): .dockerignore excluye qa/

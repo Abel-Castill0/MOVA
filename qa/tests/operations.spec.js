@@ -1,3 +1,4 @@
+import { passAdminMfaIfPrompted } from '../lib/totp.mjs';
 import { test, expect } from '@playwright/test';
 
 /**
@@ -19,7 +20,7 @@ async function login(page, email = 'admin-phase2b@mova.test') {
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill('password123');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await page.waitForURL(/\/dashboard/);
+  await passAdminMfaIfPrompted(page);
 }
 
 async function noHorizontalScroll(page) {
