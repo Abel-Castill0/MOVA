@@ -1,6 +1,6 @@
 # MOVA 1.0 — Release state
 
-HEAD: ver `git log -1` (gates corridos sobre c8af121; commits posteriores solo docs)
+HEAD: ver `git log -1` (gates locales sobre c8af121; GitHub CI verde sobre 015a9f4)
 BRANCH: hardening/az3g0-release-baseline
 
 ## DONE
@@ -16,7 +16,7 @@ BRANCH: hardening/az3g0-release-baseline
 - P0-K: aceptación legal versionada (append-only); Libro de Reclamaciones público + admin; LEGAL_* por config; health-check LEGAL_PROVIDER_DATA_MISSING.
 - Seguridad: cabeceras nosniff, X-Frame-Options, Referrer-Policy, CSP base (base-uri/object-src/frame-ancestors), HSTS en prod https.
 - UX/a11y: Libro de Reclamaciones verificado a 390 px (sin scroll horizontal, labels, foco al primer error, mensajes legibles). E2E cubre viewports móvil/tablet/desktop de journeys existentes. Dark mode: sin selector en UI → un solo tema claro (sin cambios).
-- CI: .github/workflows/ci.yml.
+- CI: .github/workflows/ci.yml verde en GitHub (PR #1 draft, 015a9f4): composer validate/platform/audit, npm ci/audit/build, SQLite 1116, MySQL 1116, E2E 60/60. El CI detectó y se corrigieron: Ziggy en build, tests que heredaban BROADCAST_DRIVER=pusher, E2E dependiente de .env local.
 
 ## BLOCKED_EXTERNAL
 - Azure restore: servidor `mova-mysql-restoretest` creado por PITR (Ready, red privada heredada), pero la verificación de datos dentro de la VNet requiere materializar secretos de runtime (denegado por política). Acción humana: autorizar el Job de verificación o verificar manualmente (runbook §9) y luego `az mysql flexible-server delete -g mova-prod-rg -n mova-mysql-restoretest --yes` (contiene copia de datos personales; coste mientras exista).
@@ -28,14 +28,14 @@ BRANCH: hardening/az3g0-release-baseline
 - Consentimiento parental específico por menor: requiere texto/diseño legal aprobado.
 - Mercado Pago sandbox real: requiere credenciales de prueba en el entorno.
 - Dominio definitivo: SEARCH_INDEXING_ENABLED sigue false hasta el cutover.
-- Branch protection de master: activar tras CI verde en GitHub.
+- Branch protection de master: checks ya existen y pasan; activarla es decisión del dueño (bloquearía pushes directos a master que hoy pueda usar Railway).
 
 ## ROLLBACK
 - Azure: `az containerapp revision list` + `revision activate <anterior>` (web/worker); imagen previa 8e07734.
 - DB: migraciones nuevas son aditivas con down(); rollback de código no requiere revertir esquema.
 - Railway sigue como producción y rollback hasta el cutover.
 
-## TESTS (sobre c8af121)
+## TESTS (local sobre c8af121; CI sobre 015a9f4 con los mismos resultados)
 - SQLite: 1116 OK. MySQL 8.4: 1116 OK. E2E Playwright: 60/60. build: OK. Concurrencia real: 5/5 GREEN.
 
 ## NOTAS OPERATIVAS
