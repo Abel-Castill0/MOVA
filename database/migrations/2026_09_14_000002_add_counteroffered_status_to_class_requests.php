@@ -68,33 +68,30 @@ return new class extends Migration
         $this->rebuildStatusColumn($statuses);
     }
 
-    private function rebuildStatusColumn(array $statuses): void
+    private function rebuildStatusColumn(array $allowedStatuses): void
     {
-        Schema::table('class_requests', function (Blueprint $table) use ($statuses) {
-            $quoted = implode(', ', array_map(fn ($s) => "'$s'", $statuses));
+        SchemaBuilder::useNativeSchemaOperationsIfPossible();
 
-            // SQLite no tiene ALTER COLUMN real; la única vía portable es
-            // renombrar la columna existente, crear la nueva con el CHECK
-            // actualizado, copiar los datos y eliminar la vieja.
-            $table->string('status_new')->nullable();
+        Schema::table('class_requests', function (Blueprint $table) {
+            $table->dropIndex(['status']);
         });
 
-        DB::statement('UPDATE class_requests SET status_new = status');
+        Schema::table('class_requests', function (Blueprint $table) use ($allowedStatuses) {
+            $table->enum('status_tmp', $allowedStatuses)->default('open')->after('status');
+        });
+
+        DB::statement('UPDATE class_requests SET status_tmp = status');
 
         Schema::table('class_requests', function (Blueprint $table) {
             $table->dropColumn('status');
         });
 
-        Schema::table('class_requests', function (Blueprint $table) use ($statuses) {
-            $quoted = implode("','", $statuses);
-            $table->string('status')->default('open')->after('student_diagnostic_id');
-            // Simular el CHECK que SQLite usaría (Blueprint::enum no existe en SQLite)
+        Schema::table('class_requests', function (Blueprint $table) {
+            $table->renameColumn('status_tmp', 'status');
         });
 
-        DB::statement("UPDATE class_requests SET status = status_new");
-
         Schema::table('class_requests', function (Blueprint $table) {
-            $table->dropColumn('status_new');
+            $table->index('status');
         });
     }
 };

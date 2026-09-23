@@ -6,6 +6,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import CookieConsent from './Components/CookieConsent.vue';
+import MarkerCursor from './Components/MarkerCursor.vue';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -17,7 +18,7 @@ createInertiaApp({
         // página: Welcome.vue no usa layout, AppLayout y GuestLayout son
         // distintos — este es el único punto que garantiza montarse en
         // cualquier ruta, autenticada o no.
-        return createApp({ render: () => h('div', [h(App, props), h(CookieConsent)]) })
+        return createApp({ render: () => h('div', [h(App, props), h(CookieConsent), h(MarkerCursor)]) })
             .use(plugin)
             .use(ZiggyVue)
             .mount(el);

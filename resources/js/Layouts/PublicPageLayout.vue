@@ -28,44 +28,14 @@
 -->
 <template>
   <Head :title="title" />
-  <div class="min-h-screen bg-slate-50 flex flex-col">
-    <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-      <Link href="/" class="flex items-center">
-        <MovaLogo class="h-8 w-auto" />
-      </Link>
-      <div class="flex items-center gap-3">
-        <template v-if="user">
-          <div class="flex items-center gap-2">
-            <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.name"
-              class="w-8 h-8 rounded-lg object-cover flex-shrink-0" width="32" height="32" />
-            <div v-else class="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center text-white font-black text-xs flex-shrink-0">
-              {{ user.name?.charAt(0)?.toUpperCase() }}
-            </div>
-            <div class="min-w-0 leading-tight hidden sm:block">
-              <p class="text-sm font-semibold text-slate-900 truncate max-w-[8rem]">{{ user.name }}</p>
-              <p class="text-xs text-slate-400">{{ roleLabelText }}</p>
-            </div>
-          </div>
-          <Link :href="route('dashboard')" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20 whitespace-nowrap">
-            Mi dashboard
-          </Link>
-        </template>
-        <template v-else>
-          <Link :href="route('login')" class="text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors">
-            Iniciar sesión
-          </Link>
-          <Link :href="route('register')" class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20">
-            Registrarse
-          </Link>
-        </template>
-      </div>
-    </header>
+  <div class="min-h-screen bg-[#E5EEFB] flex flex-col">
+    <LandingNavbar :solid="true" />
 
-    <main class="flex-1 px-4 sm:px-6 lg:px-8 py-6 max-w-6xl w-full mx-auto">
+    <main class="flex-1 px-4 sm:px-6 lg:px-8 pt-24 pb-12 max-w-6xl w-full mx-auto">
       <slot />
     </main>
 
-    <footer class="px-4 sm:px-8 py-6 flex flex-wrap gap-4 justify-center text-xs text-gray-400 border-t border-gray-100 bg-white">
+    <footer class="px-4 sm:px-8 py-6 flex flex-wrap gap-4 justify-center text-xs text-gray-500 border-t border-gray-200/60 bg-white/70 backdrop-blur-sm">
       <Link :href="route('legal.terms')" class="hover:text-brand-600 transition-colors">Términos y Condiciones</Link>
       <Link :href="route('legal.privacy')" class="hover:text-brand-600 transition-colors">Política de Privacidad</Link>
       <a href="mailto:m0v4class@gmail.com" class="hover:text-brand-600 transition-colors">Soporte</a>
@@ -84,13 +54,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Head, Link, usePage } from '@inertiajs/vue3'
-import MovaLogo from '@/Components/MovaLogo.vue'
-import { roleLabel } from '@/utils/roleLabels'
+import { Head, Link } from '@inertiajs/vue3'
+import LandingNavbar from '@/Components/LandingNavbar.vue'
 
 defineProps({ title: String })
 const year = new Date().getFullYear()
-const user = computed(() => usePage().props.auth?.user)
-const roleLabelText = computed(() => roleLabel(user.value?.roles?.[0]))
 </script>

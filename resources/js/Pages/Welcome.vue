@@ -11,105 +11,112 @@
     <LandingNavbar />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
-    <section class="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700">
-      <!-- Animated background shapes -->
+    <section class="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-[#051329] via-[#092550] to-[#0D346D]">
+      <!-- Background Glowing Hexagonal Grid & Ambient Light Blobs -->
       <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <div class="shape shape-1"></div>
-        <div class="shape shape-2"></div>
-        <div class="shape shape-3"></div>
-        <div class="shape shape-4"></div>
-        <!-- Grid overlay -->
-        <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px"></div>
+        <!-- Ambient radial glow blooms -->
+        <div class="absolute -top-32 -left-32 w-96 h-96 bg-brand-500/20 rounded-full blur-[100px]"></div>
+        <div class="absolute top-1/3 -right-24 w-[30rem] h-[30rem] bg-brand-400/15 rounded-full blur-[120px]"></div>
+        <div class="absolute -bottom-20 left-1/3 w-80 h-80 bg-accent-500/10 rounded-full blur-[90px]"></div>
+
+        <!-- Subtle Orbital Rings from Mockup -->
+        <div class="absolute -left-48 top-8 w-[38rem] h-[38rem] rounded-full border border-sky-400/20 shadow-[0_0_30px_rgba(56,189,248,0.1)] pointer-events-none"></div>
+        <div class="absolute -right-48 -top-8 w-[42rem] h-[42rem] rounded-full border border-sky-400/20 shadow-[0_0_30px_rgba(56,189,248,0.1)] pointer-events-none"></div>
+
+        <!-- Glowing Star Sparkles -->
+        <div class="absolute top-[18%] left-[13%] w-1.5 h-1.5 bg-sky-300 rounded-full shadow-[0_0_10px_#38bdf8]"></div>
+        <div class="absolute top-[32%] right-[16%] w-1.5 h-1.5 bg-sky-300 rounded-full shadow-[0_0_10px_#38bdf8]"></div>
+        <div class="absolute bottom-[24%] right-[7%] w-2 h-2 bg-sky-300 rounded-full shadow-[0_0_12px_#38bdf8]"></div>
+
+        <!-- Glowing Hexagonal Grid SVG Pattern -->
+        <svg class="absolute inset-0 w-full h-full opacity-25" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="hex-grid" width="56" height="96" patternUnits="userSpaceOnUse">
+              <path d="M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z M28 64 L56 80 L56 112 L28 128 L0 112 L0 80 Z" 
+                    fill="none" stroke="rgba(56, 189, 248, 0.35)" stroke-width="1.1" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#hex-grid)" />
+        </svg>
+
+        <!-- Math Symbols Anti-Gravity Floating Field (parallax on mouse move) -->
+        <span class="math-sym math-sym-1" data-depth="0.04" aria-hidden="true">+</span>
+        <span class="math-sym math-sym-2" data-depth="0.07" aria-hidden="true">−</span>
+        <span class="math-sym math-sym-3" data-depth="0.05" aria-hidden="true">÷</span>
+        <span class="math-sym math-sym-4" data-depth="0.09" aria-hidden="true">×</span>
+        <span class="math-sym math-sym-5" data-depth="0.03" aria-hidden="true">√</span>
+        <span class="math-sym math-sym-6" data-depth="0.06" aria-hidden="true">∑</span>
+        <span class="math-sym math-sym-7" data-depth="0.08" aria-hidden="true">π</span>
+        <span class="math-sym math-sym-8" data-depth="0.05" aria-hidden="true">∞</span>
+        <span class="math-sym math-sym-9" data-depth="0.10" aria-hidden="true">∫</span>
+        <span class="math-sym math-sym-10" data-depth="0.04" aria-hidden="true">Δ</span>
+        <span class="math-sym math-sym-11" data-depth="0.06" aria-hidden="true">%</span>
       </div>
 
-      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
-        <div class="grid lg:grid-cols-2 gap-16 items-center">
-          <div class="text-white">
-            <div class="hero-reveal inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur rounded-full text-sm font-medium mb-6 border border-white/20">
-              <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              Plataforma educativa en vivo
-            </div>
-            <!-- El énfasis usa el ámbar del propio logo MOVA (accent-500 =
-                 #F59E0B), no un degradado: ata el titular a la marca y
-                 mantiene 7.4:1 de contraste sobre el azul del hero. -->
-            <h1 class="hero-reveal text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.95] tracking-tight text-balance mb-6">
-              <span class="block">Aprende con</span>
-              <span class="block text-accent-400">los mejores</span>
-              <span class="block">profesores</span>
-            </h1>
-            <p class="hero-reveal text-xl text-white/80 leading-relaxed mb-10 max-w-lg">
-              Conectamos estudiantes con profesores particulares expertos para clases en vivo por videollamada. Personalizado, flexible y efectivo.
-            </p>
-            <div class="hero-reveal flex flex-wrap gap-4">
-              <Link :href="user ? route('dashboard') : route('marketplace')"
-                class="px-8 py-4 bg-white text-brand-800 font-bold rounded-xl hover:bg-brand-50 transition-all shadow-xl shadow-black/20 hover:scale-105 active:scale-95">
-                {{ user ? 'Ir a mi dashboard' : 'Buscar clases' }}
-              </Link>
-              <Link :href="user ? route('dashboard') : '/register?role=teacher'"
-                class="px-8 py-4 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-all border border-white/30 backdrop-blur hover:scale-105 active:scale-95">
-                {{ user ? 'Ver mis clases' : 'Soy profesor' }}
-              </Link>
-            </div>
+      <div class="relative z-[1] max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 sm:pt-20 sm:pb-28 text-center flex flex-col items-center">
+        <!-- Plataforma educativa en vivo Badge with Soft Pulsating Radial Glow -->
+        <div class="hero-reveal relative z-10 inline-flex items-center gap-2.5 px-4 py-1.5 bg-sky-500/10 backdrop-blur-md rounded-full text-xs sm:text-sm font-medium mb-6 border border-sky-400/30 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-80"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400 shadow-[0_0_10px_#4ade80]"></span>
+          </span>
+          <span class="text-white">Plataforma educativa en vivo</span>
+        </div>
 
-            <!-- Evidencia, no panel de métricas. La cifra existe para bajarle
-                 la incertidumbre al padre ("¿esto es serio?"), así que se lee
-                 como un dato en prosa y no como el bloque de números gigantes
-                 típico de SaaS. -->
-            <div class="hero-reveal mt-12 pt-8 border-t border-white/10">
-              <p class="text-sm text-white/70 mb-4">Cada profesor pasa por verificación antes de dictar su primera clase.</p>
-              <ul class="flex flex-wrap items-baseline gap-x-6 gap-y-2.5">
-                <li class="flex items-baseline gap-1.5">
-                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.teachers }}</span>
-                  <span class="text-sm text-white/60">profesores</span>
-                </li>
-                <li class="flex items-baseline gap-1.5">
-                  <span class="text-lg font-bold text-white tabular-nums">{{ subjects.length }}</span>
-                  <span class="text-sm text-white/60">materias</span>
-                </li>
-                <li class="flex items-baseline gap-1.5">
-                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.students }}</span>
-                  <span class="text-sm text-white/60">familias</span>
-                </li>
-                <li class="flex items-baseline gap-1.5">
-                  <span class="text-lg font-bold text-white tabular-nums">{{ stats.completed }}</span>
-                  <span class="text-sm text-white/60">clases dictadas</span>
-                </li>
-              </ul>
-            </div>
+        <!-- Titular Principal Centralizado -->
+        <h1 class="hero-reveal text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.04] tracking-tight text-center mb-6">
+          <span class="block text-white">Aprende con</span>
+          <span class="block text-amber-400">los mejores</span>
+          <span class="block text-white">profesores</span>
+        </h1>
+
+        <!-- Subtítulo Centralizado -->
+        <p class="hero-reveal text-base sm:text-lg text-white/80 leading-relaxed mb-8 max-w-xl mx-auto text-center font-normal">
+          Conectamos estudiantes con profesores particulares expertos para clases en vivo por videollamada. Personalizado, flexible y efectivo.
+        </p>
+
+        <!-- Botones de Acción (Pill con flecha) -->
+        <div class="hero-reveal flex flex-wrap items-center justify-center gap-4 mb-10">
+          <Link :href="user ? route('dashboard') : route('marketplace')"
+            class="px-8 py-3.5 bg-white text-slate-900 font-bold rounded-full hover:bg-slate-100 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.25)] hover:scale-105 active:scale-95 flex items-center gap-2.5">
+            <span>{{ user ? 'Ir a mi dashboard' : 'Buscar clases' }}</span>
+            <span class="text-lg leading-none font-bold" aria-hidden="true">→</span>
+          </Link>
+          <Link :href="user ? route('dashboard') : '/register?role=teacher'"
+            class="px-8 py-3.5 bg-white/5 hover:bg-white/15 text-white font-semibold rounded-full border border-white/25 backdrop-blur-sm transition-all hover:scale-105 active:scale-95">
+            {{ user ? 'Ver mis clases' : 'Soy profesor' }}
+          </Link>
+        </div>
+
+        <!-- Evidencia de plataforma con líneas divisorias laterales -->
+        <div class="hero-reveal flex items-center justify-center gap-4 w-full max-w-lg mx-auto mb-8">
+          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-white/20 to-white/30"></div>
+          <p class="text-xs sm:text-sm text-white/70 whitespace-nowrap">
+            Cada profesor pasa por verificación antes de dictar su primera clase.
+          </p>
+          <div class="h-px flex-1 bg-gradient-to-l from-transparent via-white/20 to-white/30"></div>
+        </div>
+
+        <!-- Estadísticas en columnas verticales separadas por divisores -->
+        <div class="hero-reveal flex items-center justify-center gap-6 sm:gap-10">
+          <div class="flex flex-col items-center">
+            <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ stats.teachers }}</span>
+            <span class="text-xs sm:text-sm text-white/60 mt-1">profesores</span>
           </div>
-
-          <!-- 3D Card visual -->
-          <div class="hero-reveal hidden lg:flex justify-center items-center perspective-1000">
-            <div class="relative w-80 h-96 transform rotate-y-6 hover:rotate-y-0 transition-transform duration-700" style="transform-style: preserve-3d; transform: perspective(1000px) rotateY(-8deg) rotateX(4deg);">
-              <div class="absolute inset-0 bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 bg-gradient-to-br from-brand-400 to-brand-600 rounded-full flex items-center justify-center text-white font-bold text-lg">A</div>
-                  <div>
-                    <p class="text-white font-semibold">Ana García</p>
-                    <p class="text-white/60 text-sm">Profesora de Matemáticas</p>
-                  </div>
-                  <div class="ml-auto">
-                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-400/20 text-green-300 text-xs rounded-full font-medium whitespace-nowrap">
-                      <span>Verificada</span>
-                      <span>✓</span>
-                    </span>
-                  </div>
-                </div>
-                <div class="flex gap-1">
-                  <span v-for="i in 5" :key="i" class="text-accent-400 text-lg">★</span>
-                </div>
-                <p class="text-white/70 text-sm leading-relaxed">"Las clases con MOVA son increíbles. Mejoro mi nivel cada semana con mi profesor personalizado."</p>
-                <div class="mt-auto bg-white/10 rounded-xl p-4">
-                  <p class="text-white/60 text-xs mb-1">Próxima clase</p>
-                  <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
-                      <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/><path d="M14 6a2 2 0 012-2h2a2 2 0 012 2v8a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
-                    </div>
-                    <p class="text-white text-sm font-medium">Álgebra – Hoy 18:00h</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div class="h-8 w-px bg-white/20"></div>
+          <div class="flex flex-col items-center">
+            <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ subjects.length }}</span>
+            <span class="text-xs sm:text-sm text-white/60 mt-1">materias</span>
+          </div>
+          <div class="h-8 w-px bg-white/20"></div>
+          <div class="flex flex-col items-center">
+            <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ stats.students }}</span>
+            <span class="text-xs sm:text-sm text-white/60 mt-1">familias</span>
+          </div>
+          <div class="h-8 w-px bg-white/20"></div>
+          <div class="flex flex-col items-center">
+            <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ stats.completed }}</span>
+            <span class="text-xs sm:text-sm text-white/60 mt-1">clases dictadas</span>
           </div>
         </div>
       </div>
@@ -120,13 +127,13 @@
            detalle completo). -->
       <div class="absolute -bottom-1 left-0 right-0 leading-none scale-y-[1.02] origin-top">
         <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full block">
-          <path d="M0 80L60 72C120 64 240 48 360 44C480 40 600 48 720 52C840 56 960 56 1080 50C1200 44 1320 32 1380 26L1440 20V80H0Z" fill="white"/>
+          <path d="M0 80L60 72C120 64 240 48 360 44C480 40 600 48 720 52C840 56 960 56 1080 50C1200 44 1320 32 1380 26L1440 20V80H0Z" fill="#E5EEFB"/>
         </svg>
       </div>
     </section>
 
     <!-- ── Cómo funciona ───────────────────────────────────────────────── -->
-    <section id="como-funciona" class="py-24 bg-white reveal-group">
+    <section id="como-funciona" class="py-24 bg-[#E5EEFB] reveal-group">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item text-center mb-16">
           <h2 class="text-4xl font-black text-brand-900 text-balance">¿Cómo funciona MOVA?</h2>
@@ -149,7 +156,7 @@
     </section>
 
     <!-- ── Materias ────────────────────────────────────────────────────── -->
-    <section id="materias" class="py-24 bg-slate-50 reveal-group">
+    <section id="materias" class="py-24 bg-[#E5EEFB] reveal-group">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item text-center mb-16">
           <h2 class="text-4xl font-black text-brand-900 text-balance">Materias disponibles</h2>
@@ -174,7 +181,7 @@
     </section>
 
     <!-- ── Profesores destacados ───────────────────────────────────────── -->
-    <section id="profesores" class="py-24 bg-white reveal-group">
+    <section id="profesores" class="py-24 bg-[#E5EEFB] reveal-group">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="reveal-item flex flex-wrap items-end justify-between gap-6 mb-16">
           <div>
@@ -182,10 +189,10 @@
             <p class="text-slate-600 mt-3 text-pretty">Todos verificados y con experiencia comprobada</p>
           </div>
           <div v-if="featuredTeachers.length" class="hidden sm:flex items-center gap-2">
-            <button class="teachers-prev w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
+            <button class="teachers-prev w-11 h-11 rounded-full bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
-            <button class="teachers-next w-11 h-11 rounded-full border border-gray-200 flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
+            <button class="teachers-next w-11 h-11 rounded-full bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
           </div>
@@ -274,9 +281,9 @@
     </section>
 
     <!-- ── CTA Final ──────────────────────────────────────────────────── -->
-    <section class="py-24 bg-slate-50 reveal-group">
+    <section class="py-24 bg-[#E5EEFB] reveal-group">
       <div class="max-w-4xl mx-auto px-4">
-        <div class="reveal-item relative overflow-hidden bg-white rounded-3xl border border-gray-100 shadow-xl shadow-brand-900/5 px-8 py-16 text-center">
+        <div class="reveal-item relative overflow-hidden bg-white rounded-3xl border border-white/80 shadow-xl shadow-brand-900/5 px-8 py-16 text-center">
           <div class="absolute -top-24 -right-24 w-64 h-64 bg-brand-100 rounded-full opacity-40 blur-3xl"></div>
           <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-accent-100 rounded-full opacity-40 blur-3xl"></div>
           <div class="relative">
@@ -302,7 +309,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onBeforeUnmount } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Pagination, Navigation, A11y } from 'swiper/modules'
@@ -367,11 +374,6 @@ onMounted(() => {
       duration: 0.6,
       ease: 'power3.out',
       stagger: { amount: Math.min(items.length * 0.08, 0.6) },
-      // Sin `immediateRender: false`, GSAP aplica opacity:0 al montar y no
-      // cuando dispara el trigger. Si el trigger no llega a dispararse nunca
-      // (posiciones recalculadas tarde, render headless, JS lento en gama
-      // baja) la sección se queda en blanco de forma permanente. La animación
-      // debe realzar contenido ya visible, no ser la condición para verlo.
       immediateRender: false,
       scrollTrigger: {
         trigger: group,
@@ -385,60 +387,92 @@ onMounted(() => {
   // calculó los puntos de disparo; sin este refresh los triggers quedan
   // corridos respecto de dónde terminó realmente cada sección.
   document.fonts?.ready.then(() => ScrollTrigger.refresh())
+
+  // ── Parallax de símbolos matemáticos al mover el mouse ──────────────────
+  const mathSymbols = document.querySelectorAll('.math-sym')
+  let rafId = null
+  let targetX = 0, targetY = 0
+  let currentX = 0, currentY = 0
+
+  function onMouseMove(e) {
+    targetX = (e.clientX / window.innerWidth  - 0.5)
+    targetY = (e.clientY / window.innerHeight - 0.5)
+  }
+
+  function animateSymbols() {
+    currentX += (targetX - currentX) * 0.06
+    currentY += (targetY - currentY) * 0.06
+    mathSymbols.forEach((el) => {
+      const depth = parseFloat(el.dataset.depth ?? 0.05)
+      el.style.setProperty('--mx', `${currentX * depth * 220}px`)
+      el.style.setProperty('--my', `${currentY * depth * 160}px`)
+    })
+    rafId = requestAnimationFrame(animateSymbols)
+  }
+
+  window.addEventListener('mousemove', onMouseMove, { passive: true })
+  rafId = requestAnimationFrame(animateSymbols)
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('mousemove', onMouseMove)
+    cancelAnimationFrame(rafId)
+  })
 })
 </script>
 
 <style scoped>
-/* Formas decorativas del hero.
-   Cada forma declara su propia rotación en `--rot` y el keyframe la reutiliza.
-   Antes el keyframe leía `var(--rot, 20deg)` con la variable sin definir en
-   ningún lado: las cuatro caían al fallback de 20deg y pisaban el `transform`
-   individual, así que la variación de ángulos no se veía nunca.
-
-   Los colores usan la rampa `brand` real (antes eran azules genéricos de
-   Tailwind, que quedaron fuera de marca tras el rebrand). La forma 3 usa el
-   ámbar del logo como eco de marca. */
-.shape {
+/* ── Símbolos Matemáticos Flotantes (Campo Anti-Gravedad) ─────────────────── */
+/*  El JS aplica translate() inline vía rAF para el parallax de mouse.         */
+/*  Las animaciones CSS suman un float vertical independiente.                 */
+.math-sym {
   position: absolute;
-  border-radius: 12px;
-  opacity: 0.15;
-  transform: rotate(var(--rot));
-  animation: floatShape 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+  --mx: 0px;   /* Parallax X del cursor — actualizado por JS */
+  --my: 0px;   /* Parallax Y del cursor — actualizado por JS */
+  /* Texto con glow semitransparente en tono azul-cian */
+  color: rgba(147, 210, 255, 0.55);
+  text-shadow:
+    0 0 18px rgba(56, 189, 248, 0.6),
+    0 0 40px rgba(56, 189, 248, 0.25);
 }
-.shape-1 {
-  --rot: 20deg;
-  width: 120px; height: 120px;
-  background: linear-gradient(135deg, theme('colors.brand.400'), theme('colors.brand.600'));
-  top: 15%; right: 15%;
-  animation-delay: 0s;
+
+/* Posiciones y tamaños individuales de cada símbolo (según Mockup) */
+.math-sym-1  { top: 9%;   left: 3%;    font-size: 4.2rem; animation: mathFloat1  8s ease-in-out infinite 0s;   }
+.math-sym-2  { top: 38%;  left: 2%;    font-size: 3.2rem; animation: mathFloat2 10s ease-in-out infinite 1.2s; }
+.math-sym-3  { top: 24%;  left: 20%;   font-size: 3.4rem; animation: mathFloat3  9s ease-in-out infinite 0.5s; }
+.math-sym-4  { top: 55%;  left: 9%;    font-size: 4rem;   animation: mathFloat1 11s ease-in-out infinite 2s;   }
+.math-sym-5  { top: 11%;  right: 9%;   font-size: 3.8rem; animation: mathFloat2  7s ease-in-out infinite 0.8s; }
+.math-sym-6  { top: 28%;  right: 4%;   font-size: 3.5rem; animation: mathFloat3 12s ease-in-out infinite 1.5s; }
+.math-sym-7  { top: 68%;  right: 13%;  font-size: 3.4rem; animation: mathFloat1  9s ease-in-out infinite 3s;   }
+.math-sym-8  { top: 83%;  right: 17%;  font-size: 3.6rem; animation: mathFloat2 13s ease-in-out infinite 0.3s; }
+.math-sym-9  { top: 48%;  right: 7%;   font-size: 4.8rem; animation: mathFloat3  8s ease-in-out infinite 1.8s; }
+.math-sym-10 { top: 76%;  left: 2.5%;  font-size: 3.4rem; animation: mathFloat1 10s ease-in-out infinite 0.6s; }
+.math-sym-11 { top: 64%;  left: 19%;   font-size: 3.2rem; animation: mathFloat2 11s ease-in-out infinite 2.4s; }
+
+/* Tres variantes de flotado para riqueza visual */
+/* Las animaciones incorporan var(--mx) / var(--my) para componer             */
+/* el parallax del mouse con el float vertical sin conflictos.                */
+@keyframes mathFloat1 {
+  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   rotate(0deg);  }
+  33%       { transform: translate(var(--mx), calc(var(--my) - 22px)) rotate(4deg);  }
+  66%       { transform: translate(var(--mx), calc(var(--my) - 10px)) rotate(-3deg); }
 }
-.shape-2 {
-  --rot: 45deg;
-  width: 80px; height: 80px;
-  background: linear-gradient(135deg, theme('colors.brand.300'), theme('colors.brand.400'));
-  top: 60%; right: 8%;
-  animation-delay: 2s;
-  border-radius: 50%;
+@keyframes mathFloat2 {
+  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   rotate(0deg);  }
+  40%       { transform: translate(var(--mx), calc(var(--my) - 18px)) rotate(-5deg); }
+  70%       { transform: translate(var(--mx), calc(var(--my) - 28px)) rotate(3deg);  }
 }
-.shape-3 {
-  --rot: 15deg;
-  width: 60px; height: 60px;
-  background: linear-gradient(135deg, theme('colors.accent.300'), theme('colors.accent.500'));
-  top: 30%; left: 5%;
-  animation-delay: 4s;
+@keyframes mathFloat3 {
+  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   scale(1);      }
+  50%       { transform: translate(var(--mx), calc(var(--my) - 24px)) scale(1.06);   }
 }
-.shape-4 {
-  --rot: -30deg;
-  width: 150px; height: 150px;
-  background: linear-gradient(135deg, theme('colors.brand.700'), theme('colors.brand.500'));
-  bottom: 20%; left: 10%;
-  animation-delay: 1s;
-  border-radius: 30px;
-}
-@keyframes floatShape {
-  0%, 100% { transform: translateY(0) rotate(var(--rot)); }
-  50%      { transform: translateY(-25px) rotate(calc(var(--rot) + 10deg)); }
-}
+
 
 /* Swiper — paginación sutil acorde a la paleta de marca */
 .teachers-swiper {
@@ -448,7 +482,7 @@ onMounted(() => {
 .teachers-pagination :deep(.swiper-pagination-bullet) {
   width: 6px;
   height: 6px;
-  background: theme('colors.brand.100');
+  background: theme('colors.brand.300');
   opacity: 1;
   margin: 0 3px !important;
   transition: width 0.25s ease, background-color 0.25s ease;
