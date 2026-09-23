@@ -8,7 +8,6 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -66,17 +65,44 @@ class AdminMfaService
     {
         $secret = $request->session()->get('admin_mfa_pending_secret');
 
-        if (! is_string($secret) || ! $this->verifyTotp($user, $secret, $code)) {
+        if (! is_string($secret) || $secret === '' || ! preg_match('/^\d{6}$/', $code)) {
             return null;
         }
 
+        // bcrypt fuera del lock: no alargar la sección crítica.
         $codes = $this->newRecoveryCodes();
+        $hashes = array_map(fn ($c) => Hash::make($c), $codes);
 
-        $user->forceFill([
-            'two_factor_secret'         => $secret,
-            'two_factor_recovery_codes' => array_map(fn ($c) => Hash::make($c), $codes),
-            'two_factor_confirmed_at'   => now(),
-        ])->save();
+        // Misma serialización que verify(): dos confirms concurrentes no
+        // pueden enrolar dos veces (el segundo vería el primero ya
+        // confirmado y el timestep ya consumido) ni pisar los recovery codes
+        // que el primero ya mostró.
+        $enrolled = DB::transaction(function () use ($user, $secret, $code, $hashes) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            if ($this->isEnrolled($locked)) {
+                return false;
+            }
+
+            $timestep = $this->acceptedTimestep($locked, $secret, $code);
+            if ($timestep === null) {
+                return false;
+            }
+
+            $locked->forceFill([
+                'two_factor_secret'             => $secret,
+                'two_factor_recovery_codes'     => $hashes,
+                'two_factor_confirmed_at'       => now(),
+                'two_factor_last_used_timestep' => $timestep,
+            ])->save();
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
+        });
+
+        if (! $enrolled) {
+            return null;
+        }
 
         $request->session()->forget('admin_mfa_pending_secret');
         $this->markVerified($request, $user);
@@ -90,7 +116,7 @@ class AdminMfaService
         $code = trim($code);
 
         if (preg_match('/^\d{6}$/', $code)) {
-            return $this->verifyTotp($user, (string) $user->two_factor_secret, $code);
+            return $this->verifyTotp($user, $code);
         }
 
         return $this->consumeRecoveryCode($user, $code);
@@ -132,26 +158,40 @@ class AdminMfaService
         return max(0, now()->getTimestamp() - $state['at']);
     }
 
-    private function verifyTotp(User $user, string $secret, string $code): bool
+    /**
+     * P0-01 — anti-replay TOTP atómico entre workers: el secret y el último
+     * timestep aceptado se leen de la fila BLOQUEADA (SELECT … FOR UPDATE) y
+     * el nuevo timestep se persiste en la misma transacción. Dos requests con
+     * el mismo código serializan sobre la fila; la segunda ve el timestep ya
+     * consumido y verifyKeyNewer la rechaza. Sin cache ni estado de proceso.
+     */
+    private function verifyTotp(User $user, string $code): bool
+    {
+        return DB::transaction(function () use ($user, $code) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $timestep = $this->acceptedTimestep($locked, (string) $locked->two_factor_secret, $code);
+
+            if ($timestep === null) {
+                return false;
+            }
+
+            $locked->forceFill(['two_factor_last_used_timestep' => $timestep])->save();
+            $user->setRawAttributes($locked->getAttributes(), true);
+
+            return true;
+        });
+    }
+
+    /** Timestep del código si es válido y POSTERIOR al último usado; null si no. Llamar con la fila bloqueada. */
+    private function acceptedTimestep(User $locked, string $secret, string $code): ?int
     {
         if ($secret === '' || ! preg_match('/^\d{6}$/', $code)) {
-            return false;
+            return null;
         }
 
-        // Anti-replay: un código aceptado no vuelve a servir en su ventana
-        // (verifyKeyNewer compara contra el último timestamp usado).
-        $cacheKey = "admin_mfa_last_ts:{$user->id}";
-        $lastTs = Cache::get($cacheKey);
+        $timestep = $this->google2fa->verifyKeyNewer($secret, $code, (int) ($locked->two_factor_last_used_timestep ?? 0), 1);
 
-        $ts = $this->google2fa->verifyKeyNewer($secret, $code, (int) ($lastTs ?? 0), 1);
-
-        if ($ts === false) {
-            return false;
-        }
-
-        Cache::put($cacheKey, (int) $ts, now()->addMinutes(5));
-
-        return true;
+        return $timestep === false ? null : (int) $timestep;
     }
 
     private function consumeRecoveryCode(User $user, string $code): bool

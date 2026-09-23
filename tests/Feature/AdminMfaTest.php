@@ -95,6 +95,42 @@ class AdminMfaTest extends TestCase
         $this->actingAs($admin)->post(route('admin.mfa.verify'), ['code' => $code])->assertSessionHasErrors('code');
     }
 
+    // P0-01: el anti-replay vive en la fila del usuario, no en cache/proceso.
+    public function test_replay_guard_is_persisted_and_survives_cache_loss(): void
+    {
+        $admin = $this->admin();
+        $secret = $this->enroll($admin);
+        $code = (new Google2FA())->getCurrentOtp($secret);
+        $service = app(AdminMfaService::class);
+
+        $this->assertTrue($service->verify($admin, $code));
+        $this->assertNotNull($admin->fresh()->two_factor_last_used_timestep);
+
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->assertFalse($service->verify(User::find($admin->id), $code), 'Otro worker (instancia fresca, sin cache) no puede reutilizar el código.');
+    }
+
+    public function test_concurrent_second_confirm_cannot_reenroll_or_replace_recovery_codes(): void
+    {
+        $admin = $this->admin();
+        $this->actingAs($admin)->get(route('admin.mfa.setup'))->assertOk();
+        $secret = session('admin_mfa_pending_secret');
+        $code = (new Google2FA())->getCurrentOtp($secret);
+
+        $request = request();
+        $request->setLaravelSession(app('session.store'));
+        $service = app(AdminMfaService::class);
+
+        $first = $service->confirm($admin, $request, $code);
+        $this->assertCount(8, $first);
+        $hashes = $admin->fresh()->two_factor_recovery_codes;
+
+        // Segunda confirmación "concurrente" con el mismo secret pendiente y código.
+        $request->session()->put('admin_mfa_pending_secret', $secret);
+        $this->assertNull($service->confirm(User::find($admin->id), $request, $code));
+        $this->assertSame($hashes, $admin->fresh()->two_factor_recovery_codes, 'Los recovery codes mostrados no pueden ser reemplazados.');
+    }
+
     public function test_recovery_code_is_single_use(): void
     {
         $admin = $this->admin();
