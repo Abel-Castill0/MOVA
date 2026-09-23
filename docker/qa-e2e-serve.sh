@@ -48,14 +48,28 @@ fi
 # archivo. bootstrap/cache se excluye a propósito: un config:cache dejado por
 # una corrida anterior de php_qa (bind mount compartido) congela env() y
 # contamina este gate con valores de otra conexión/DB (ver AZ-3G0-B.1).
+#
+# vendor/: SOLO el raíz (volumen nombrado). `--exclude=vendor` sin anclar
+# también descartaba resources/views/vendor/mail (plantillas de correo
+# publicadas) y el QA divergía del checkout real. --anchored + "./vendor"
+# excluye únicamente ./vendor; el resto de patrones sigue sin anclar.
 tar -C /workspace \
     --exclude=.git \
     --exclude=node_modules \
     --exclude=qa/node_modules \
-    --exclude=vendor \
     --exclude=bootstrap/cache \
+    --anchored --exclude=./vendor --no-anchored \
     -cf - . | tar -C /app -xf -
 mkdir -p /app/bootstrap/cache
+
+# Fidelidad de la copia: todo directorio "vendor" anidado del snapshot debe
+# existir también en /app.
+while IFS= read -r nested; do
+    if [ ! -d "/app/${nested#/workspace/}" ]; then
+        echo "ABORT: la copia QA perdió ${nested#/workspace/}." >&2
+        exit 1
+    fi
+done < <(find /workspace -path /workspace/vendor -prune -o -path '*/node_modules' -prune -o -type d -name vendor -print)
 cd /app
 
 export APP_ENV=local
