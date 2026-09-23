@@ -120,6 +120,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Sesión invalidada por cambio de contraseña => al login, no un 401 crudo.
+        \Illuminate\Session\Middleware\AuthenticateSession::redirectUsing(fn () => route('login'));
+
         if (app()->environment('production')) {
             URL::forceScheme('https');
         }

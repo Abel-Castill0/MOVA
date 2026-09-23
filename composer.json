@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "bacon/bacon-qr-code": "^3.0",
         "cloudinary/cloudinary_php": "^3.1",
         "firebase/php-jwt": "^7.1",
         "guzzlehttp/guzzle": "^7.2",
@@ -15,6 +16,7 @@
         "laravel/socialite": "^5.29",
         "laravel/tinker": "^3.0",
         "nesbot/carbon": "^3.8.4",
+        "pragmarx/google2fa": "^9.0",
         "pusher/pusher-php-server": "^7.2",
         "sentry/sentry-laravel": "^4.26",
         "spatie/laravel-permission": "^6.25",

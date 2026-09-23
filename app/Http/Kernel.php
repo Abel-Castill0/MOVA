@@ -34,6 +34,9 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
+            // P0-D: invalida las demás sesiones cuando cambia la contraseña
+            // (rotación de credencial comprometida => sesiones previas fuera).
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
@@ -71,5 +74,6 @@ class Kernel extends HttpKernel
         'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         'not.suspended' => \App\Http\Middleware\EnsureNotSuspended::class,
+        'admin.mfa' => \App\Http\Middleware\EnsureAdminMfa::class,
     ];
 }

@@ -19,6 +19,7 @@ use App\Http\Controllers\TeacherInvitationController;
 use App\Http\Controllers\TeacherProfileController;
 use App\Http\Controllers\LessonReportController;
 use App\Http\Controllers\AiUsageController;
+use App\Http\Controllers\Admin\MfaController as AdminMfaController;
 use App\Http\Controllers\Admin\OperationsController;
 use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\SitemapController;
@@ -68,7 +69,18 @@ Route::get('/teachers/{teacherProfile}', [TeacherPublicController::class, 'show'
 Route::middleware('auth')->get('/suspended', fn () => \Inertia\Inertia::render('Suspended'))->name('suspended');
 
 // ── Authenticated routes ─────────────────────────────────────────────────────
-Route::middleware(['auth', 'verified'])->group(function () {
+// P0-C — MFA admin: enrolamiento y challenge quedan FUERA de admin.mfa
+// (son el camino para satisfacerlo); todo lo demás autenticado pasa por él.
+Route::middleware(['auth', 'role:admin'])->prefix('admin/mfa')->name('admin.mfa.')->group(function () {
+    Route::get('/setup', [AdminMfaController::class, 'setup'])->name('setup');
+    Route::post('/setup', [AdminMfaController::class, 'confirm'])->middleware('throttle:10,1')->name('confirm');
+    Route::get('/challenge', [AdminMfaController::class, 'challenge'])->name('challenge');
+    Route::post('/challenge', [AdminMfaController::class, 'verify'])->middleware('throttle:10,1')->name('verify');
+    Route::get('/recovery-codes', [AdminMfaController::class, 'recoveryCodes'])->middleware('admin.mfa')->name('recovery-codes');
+    Route::post('/recovery-codes', [AdminMfaController::class, 'regenerateRecoveryCodes'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('recovery-codes.regenerate');
+});
+
+Route::middleware(['auth', 'verified', 'admin.mfa'])->group(function () {
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
@@ -194,15 +206,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
         Route::get('/pending-teachers', [AdminController::class, 'pendingTeachers'])->name('admin.teachers.pending');
-        Route::post('/teachers/{teacher}/verify', [AdminController::class, 'verifyTeacher'])->middleware('throttle:20,1')->name('admin.teachers.verify');
-        Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->middleware('throttle:20,1')->name('admin.teachers.reject');
-        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->middleware('throttle:20,1')->name('admin.users.suspend');
-        Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->middleware('throttle:20,1')->name('admin.users.unsuspend');
+        Route::post('/teachers/{teacher}/verify', [AdminController::class, 'verifyTeacher'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.verify');
+        Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.reject');
+        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.suspend');
+        Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.unsuspend');
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
-        Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware('throttle:10,1')->name('admin.lessons.cancel');
-        Route::post('/lessons/{lesson}/force-complete', [AdminController::class, 'forceCompleteLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-complete');
-        Route::post('/lessons/{lesson}/force-refund', [AdminController::class, 'forceRefundLesson'])->middleware('throttle:10,1')->name('admin.lessons.force-refund');
+        Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.lessons.cancel');
+        Route::post('/lessons/{lesson}/force-complete', [AdminController::class, 'forceCompleteLesson'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.lessons.force-complete');
+        Route::post('/lessons/{lesson}/force-refund', [AdminController::class, 'forceRefundLesson'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.lessons.force-refund');
         // Fase 3A — Centro de Operaciones. Solo lectura + cierre manual de la
         // INCIDENCIA (no del recurso); ninguna acción financiera vive aquí
         // (ver el docblock de OperationsController).
@@ -212,12 +224,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.operations.close');
 
         Route::get('/recharges', [RechargeController::class, 'index'])->name('admin.recharges.index');
-        Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware('throttle:10,1')->name('admin.recharges.approve');
-        Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware('throttle:20,1')->name('admin.recharges.reject');
+        Route::post('/recharges/{recharge}/approve', [RechargeController::class, 'approve'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.recharges.approve');
+        Route::post('/recharges/{recharge}/reject', [RechargeController::class, 'reject'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.recharges.reject');
         // H-02: la reversión existía como servicio probado pero sin ninguna ruta
         // que la alcanzara. throttle:10,1 igual que approve — es una operación
         // financiera, no una consulta.
-        Route::post('/recharges/{recharge}/reverse', [RechargeController::class, 'reverse'])->middleware('throttle:10,1')->name('admin.recharges.reverse');
+        Route::post('/recharges/{recharge}/reverse', [RechargeController::class, 'reverse'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.recharges.reverse');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->middleware('throttle:20,1')->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->middleware('throttle:20,1')->name('admin.reviews.show');
