@@ -177,4 +177,40 @@ class CloudinaryServiceTest extends TestCase
         $this->expectException(AvatarStorageUnavailable::class);
         $service->uploadAvatar($file, 1);
     }
+
+    // P0-F — el destroy usa SOLO el public_id derivado del id del usuario.
+    public function test_delete_avatar_destroys_server_derived_public_id_only(): void
+    {
+        config(['services.cloudinary.cloud_url' => 'cloudinary://key:secret@cloud']);
+
+        $mockUploadApi = Mockery::mock(UploadApi::class);
+        $mockUploadApi->shouldReceive('destroy')->once()
+            ->with('mova/avatars/user-7', ['invalidate' => true]);
+
+        (new CloudinaryService($mockUploadApi))->deleteAvatar(7);
+        $this->addToAssertionCount(Mockery::getContainer()->mockery_getExpectationCount());
+    }
+
+    public function test_delete_avatar_remote_failure_is_reported_not_thrown(): void
+    {
+        config(['services.cloudinary.cloud_url' => 'cloudinary://key:secret@cloud']);
+
+        $mockUploadApi = Mockery::mock(UploadApi::class);
+        $mockUploadApi->shouldReceive('destroy')->once()->andThrow(new \RuntimeException('network'));
+
+        (new CloudinaryService($mockUploadApi))->deleteAvatar(7);
+        $this->assertTrue(true);
+    }
+
+    public function test_delete_avatar_removes_only_that_users_local_fallback_file(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/user-7.jpg', 'x');
+        Storage::disk('public')->put('avatars/user-70.jpg', 'x');
+
+        (new CloudinaryService())->deleteAvatar(7);
+
+        Storage::disk('public')->assertMissing('avatars/user-7.jpg');
+        Storage::disk('public')->assertExists('avatars/user-70.jpg');
+    }
 }

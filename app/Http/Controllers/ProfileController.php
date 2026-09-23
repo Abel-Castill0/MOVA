@@ -60,20 +60,12 @@ class ProfileController extends Controller
         return back();
     }
 
-    // Vuelve a las iniciales — no borra el archivo en Cloudinary (fuera de
-    // alcance de esta ronda; el registro seguiría existiendo ahí, solo deja
-    // de estar referenciado desde MOVA). Simétrico a updateAvatar(): mismo
-    // patrón simple, sin lógica financiera de por medio.
-    //
-    // TODO: cuando haya credenciales reales de Cloudinary en producción,
-    // borrar también el asset remoto aquí (CloudinaryService ya tiene el
-    // public_id determinístico "avatars/user-{id}" — ver uploadAvatar() —
-    // así que un cloudinary()->destroy() no necesitaría guardar el ID por
-    // separado). Sin esto, cada "quitar foto" deja un archivo huérfano en
-    // la cuenta de Cloudinary indefinidamente.
-    public function removeAvatar(Request $request): RedirectResponse
+    // Vuelve a las iniciales y borra el asset (P0-F). El public_id sale del
+    // id del usuario autenticado, nunca del request.
+    public function removeAvatar(Request $request, CloudinaryService $cloudinary): RedirectResponse
     {
         $request->user()->update(['avatar_url' => null]);
+        $cloudinary->deleteAvatar($request->user()->id);
 
         return back();
     }
@@ -160,7 +152,7 @@ class ProfileController extends Controller
     /**
      * Delete the user's account.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, CloudinaryService $cloudinary): RedirectResponse
     {
         $request->validate([
             'password' => ['required', 'current_password'],
@@ -187,6 +179,7 @@ class ProfileController extends Controller
 
                 $user->forceFill([
                     'name' => 'Cuenta eliminada',
+                    'avatar_url' => null,
                     'email' => "deleted-{$user->id}@mova.invalid",
                     'email_verified_at' => null,
                     'phone' => null,
@@ -219,6 +212,11 @@ class ProfileController extends Controller
                 $user->delete();
             }
         });
+
+        // P0-F: la foto es dato personal; se borra en ambos caminos
+        // (anonimización y borrado físico), fuera de la transacción porque
+        // es una llamada de red best-effort.
+        $cloudinary->deleteAvatar($user->id);
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

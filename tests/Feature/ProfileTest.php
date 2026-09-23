@@ -194,9 +194,8 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNull($user->fresh()->avatar_url);
-        // removeAvatar() no borra el archivo (ver TODO en ProfileController)
-        // — la sola desvinculación del avatar_url es lo que este test prueba.
-        Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+        // P0-F: quitar la foto también borra el archivo (no quedan huérfanos).
+        Storage::disk('public')->assertMissing("avatars/user-{$user->id}.jpg");
     }
 
     public function test_removing_the_avatar_clears_avatar_url_and_redirects_back(): void

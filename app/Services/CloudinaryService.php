@@ -78,4 +78,37 @@ class CloudinaryService
 
         return Storage::disk('public')->url($path);
     }
+
+    /**
+     * P0-F — borra el avatar del usuario (Cloudinary y/o fallback local).
+     *
+     * El public_id se DERIVA del id del usuario en el servidor — el mismo
+     * que fija uploadAvatar() — y nunca se acepta del cliente: no existe
+     * forma de pedir el borrado de un asset arbitrario. Best-effort: un
+     * fallo remoto se reporta pero no bloquea la acción del usuario (el
+     * avatar ya deja de estar referenciado desde MOVA).
+     */
+    public function deleteAvatar(int $userId): void
+    {
+        if ($this->isConfigured()) {
+            try {
+                ($this->uploadApi ?? new UploadApi(config('services.cloudinary.cloud_url')))
+                    ->destroy(self::avatarPublicId($userId), ['invalidate' => true]);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        $disk = Storage::disk('public');
+        foreach ($disk->files('avatars') as $path) {
+            if (preg_match('#^avatars/user-'.$userId.'\.[a-z0-9]+$#i', $path)) {
+                $disk->delete($path);
+            }
+        }
+    }
+
+    public static function avatarPublicId(int $userId): string
+    {
+        return "mova/avatars/user-{$userId}";
+    }
 }
