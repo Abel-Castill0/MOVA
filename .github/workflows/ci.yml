@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  # Frontend una sola vez: el build (manifest de Vite) lo consumen los
+  # jobs de PHPUnit, que renderizan páginas Inertia.
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: npm audit (runtime deps, high+)
+        run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vite-build
+          path: public/build
+          retention-days: 1
+
+  composer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: pdo_mysql, pdo_sqlite, bcmath, intl, gd
+          coverage: none
+      - run: composer validate --strict
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: composer check-platform-reqs
+      - run: composer audit --locked
+
+  sqlite:
+    needs: [frontend, composer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: pdo_sqlite, bcmath, intl, gd
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: vite-build
+          path: public/build
+      - run: cp .env.example .env && php artisan key:generate
+      - run: vendor/bin/phpunit --no-progress
+
+  mysql:
+    needs: [frontend, composer]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: mova_qa_root
+          MYSQL_DATABASE: mova_qa
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pmova_qa_root"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USERNAME: root
+      DB_PASSWORD: mova_qa_root
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: pdo_mysql, bcmath, intl, gd
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: vite-build
+          path: public/build
+      - run: cp .env.example .env && php artisan key:generate
+      # QaDatabaseGuard: migrate:fresh solo contra mysql_qa/mova_qa.
+      - run: php artisan mova:qa-mysql-fresh-migrate --env=testing
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql_qa
+      - run: vendor/bin/phpunit -c phpunit.mysql.xml --no-progress
+
+  e2e:
+    needs: [sqlite]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Critical E2E (Playwright, QA SQLite sintética)
+        run: docker compose -f docker-compose.qa.yml run --rm e2e_qa tests/flujo-completo.spec.js
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: qa/reports
+          retention-days: 7
