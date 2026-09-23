@@ -142,9 +142,13 @@ class QaSecurityRace extends Command
 
         $response = app(ComplaintController::class)->store($request);
 
-        return $response->getStatusCode() === 302
-            ? 'accepted code='.$request->session()->get('complaint_code')
-            : 'status='.$response->getStatusCode();
+        if ($response->getStatusCode() !== 302) {
+            return 'status='.$response->getStatusCode();
+        }
+
+        $code = Complaint::where('consumer_name', 'QA Race worker '.$this->option('worker'))->latest('id')->value('code');
+
+        return 'accepted code='.$code;
     }
 
     private function complaintData(string $tag): array

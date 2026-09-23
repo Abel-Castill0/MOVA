@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Complaint;
 use App\Notifications\ComplaintFiledNotification;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -61,12 +62,23 @@ class ComplaintController extends Controller
         ]);
 
         unset($data['accepted']);
-        $complaint = Complaint::file([
-            ...$data,
-            'is_minor' => (bool) ($data['is_minor'] ?? false),
-            'user_id'  => $request->user()?->id,
-            'ip'       => $request->ip(),
-        ]);
+        try {
+            $complaint = Complaint::file([
+                ...$data,
+                'is_minor' => (bool) ($data['is_minor'] ?? false),
+                'user_id'  => $request->user()?->id,
+                'ip'       => $request->ip(),
+            ]);
+        } catch (QueryException $e) {
+            // Contención extrema tras los reintentos de Complaint::file(): la
+            // transacción se revirtió entera (no hay hoja a medias). El
+            // consumidor conserva lo escrito y puede reenviar; nunca un 500.
+            report($e);
+
+            return back()->withInput()->withErrors([
+                'detail' => 'No pudimos registrar tu hoja en este momento. Inténtalo de nuevo en unos segundos.',
+            ]);
+        }
 
         Log::info('complaint.filed', ['complaint_id' => $complaint->id, 'code' => $complaint->code]);
 

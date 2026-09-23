@@ -83,6 +83,36 @@ class LegalComplianceTest extends TestCase
         Notification::assertSentOnDemand(ComplaintFiledNotification::class, fn ($n, $channels, $notifiable) => $notifiable->routes['mail'] === 'maria@example.com');
     }
 
+    // P1-01: el correlativo sale de complaint_sequences (una fila por año).
+    public function test_sequence_row_drives_numbering_and_continues_existing_year(): void
+    {
+        $data = collect($this->validComplaint())->except('accepted')->all();
+        $year = now()->year;
+
+        $first = Complaint::file($data);
+        $this->assertSame("MOVA-{$year}-000001", $first->code);
+        $this->assertSame(1, (int) \DB::table('complaint_sequences')->where('year', $year)->value('last_number'));
+
+        // Año ya poblado (p. ej. secuencia migrada desde hojas previas).
+        \DB::table('complaint_sequences')->where('year', $year)->update(['last_number' => 41]);
+        $this->assertSame("MOVA-{$year}-000042", Complaint::file($data)->code);
+    }
+
+    public function test_database_failure_while_filing_is_not_a_500(): void
+    {
+        Notification::fake();
+        // Simula un 40001 persistente (sin DDL: no alterar el esquema compartido de la suite MySQL).
+        Complaint::creating(fn () => throw new \Illuminate\Database\QueryException(
+            'mysql', 'insert into complaints', [], new \PDOException('SQLSTATE[40001]: Serialization failure')
+        ));
+
+        $this->from(route('complaints.create'))
+            ->post(route('complaints.store'), $this->validComplaint())
+            ->assertRedirect(route('complaints.create'))
+            ->assertSessionHasErrors('detail');
+        $this->assertSame(0, Complaint::count());
+    }
+
     public function test_minor_requires_guardian_and_client_cannot_set_internal_fields(): void
     {
         Notification::fake();
