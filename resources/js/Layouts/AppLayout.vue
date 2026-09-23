@@ -212,6 +212,7 @@ const navItems = computed(() => {
       { href: '/admin/recharges',         icon: 'credits',          label: 'Recargas' },
       { href: '/admin/reviews',           icon: 'reviews',          label: 'Reseñas' },
       { href: '/admin/ai-usage',          icon: 'ai-usage',         label: 'Uso de IA' },
+      { href: '/admin/complaints',        icon: 'reviews',          label: 'Reclamaciones' },
     ]
   }
   if (roles.includes('teacher')) {

@@ -243,6 +243,21 @@ class HealthCheck extends Command
             $checks['queue_backlog'] = 'no disponible';
         }
 
+        // ── P0-K: datos del proveedor del Libro de Reclamaciones ────────
+        // No se inventan: si faltan, el formulario muestra "pendiente" y
+        // aquí queda una incidencia hasta que el titular los configure.
+        if ($environment === 'production') {
+            $missing = collect(['LEGAL_BUSINESS_NAME' => 'business_name', 'LEGAL_RUC' => 'ruc', 'LEGAL_ADDRESS' => 'address'])
+                ->filter(fn ($key) => blank(config("legal.provider.{$key}")))
+                ->keys();
+            if ($missing->isNotEmpty()) {
+                $warnings[] = [
+                    'code' => 'LEGAL_PROVIDER_DATA_MISSING',
+                    'message' => 'El Libro de Reclamaciones no muestra los datos del proveedor: faltan '.$missing->implode(', ').'.',
+                ];
+            }
+        }
+
         // ── P0-J: latido del worker ──────────────────────────────────────
         // Este comando corre DENTRO del scheduler, así que no puede detectar
         // un scheduler caído (eso lo ve el Centro de Operaciones); sí detecta

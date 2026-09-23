@@ -6,6 +6,7 @@ use App\Http\Controllers\NotificationPreferencesController;
 use App\Http\Controllers\DiagnosticsController;
 use App\Http\Controllers\ClassOfferController;
 use App\Http\Controllers\ClassRequestController;
+use App\Http\Controllers\ComplaintController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LessonController;
@@ -70,6 +71,9 @@ Route::get('/robots.txt', function () {
 // ── Legal pages (public, no auth required) ───────────────────────────────────
 Route::get('/terminos', [LegalController::class, 'terms'])->name('legal.terms');
 Route::get('/privacidad', [LegalController::class, 'privacy'])->name('legal.privacy');
+// P0-K — Libro de Reclamaciones virtual (público; con o sin sesión).
+Route::get('/libro-de-reclamaciones', [ComplaintController::class, 'create'])->name('complaints.create');
+Route::post('/libro-de-reclamaciones', [ComplaintController::class, 'store'])->middleware('throttle:5,1')->name('complaints.store');
 
 // ── Public pages ────────────────────────────────────────────────────────────
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
@@ -248,6 +252,8 @@ Route::middleware(['auth', 'verified', 'admin.mfa'])->group(function () {
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->middleware('throttle:20,1')->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->middleware('throttle:20,1')->name('admin.reviews.show');
         Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('admin.ai-usage');
+        Route::get('/complaints', [ComplaintController::class, 'adminIndex'])->name('admin.complaints');
+        Route::post('/complaints/{complaint}/respond', [ComplaintController::class, 'respond'])->middleware('throttle:20,1')->name('admin.complaints.respond');
     });
 });
 

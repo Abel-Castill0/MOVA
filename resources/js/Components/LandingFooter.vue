@@ -60,6 +60,7 @@
         <div class="flex items-center gap-4">
           <a href="/privacidad" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Política de Privacidad</a>
           <a href="/terminos" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Términos y Condiciones</a>
+          <a href="/libro-de-reclamaciones" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Libro de Reclamaciones</a>
           <span class="text-slate-700">·</span>
           <a href="https://portafolio-henna-mu.vercel.app/" target="_blank" rel="noopener noreferrer"
             class="text-xs text-slate-500 hover:text-white transition-colors">
