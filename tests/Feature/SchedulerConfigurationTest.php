@@ -331,7 +331,10 @@ class SchedulerConfigurationTest extends TestCase
         config([
             'cache.default' => 'array',
             'credits.settlement_mode' => SettlementMode::LIVE,
+            // Aislar también de los avisos de producción P0-J/P0-K.
+            'legal.provider.business_name' => 'X', 'legal.provider.ruc' => '1', 'legal.provider.address' => 'X',
         ]);
+        \App\Support\Heartbeat::beat(\App\Support\Heartbeat::WORKER);
 
         $bufferedOutput = new \Symfony\Component\Console\Output\BufferedOutput();
         $outputStyle = new \Illuminate\Console\OutputStyle(

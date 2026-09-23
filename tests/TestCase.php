@@ -21,6 +21,16 @@ abstract class TestCase extends BaseTestCase
     {
         parent::actingAs($user, $guard);
 
+        // Un login real parte de una sesión nueva (logout la invalida); en los
+        // tests la sesión persiste entre requests, así que al cambiar de
+        // usuario se descarta el hash de contraseña que AuthenticateSession
+        // guardó para el anterior.
+        // Se borra también del handler: al arrancar, la sesión mezcla lo que
+        // el handler guardó en la request anterior y lo repondría.
+        $store = $this->app['session.store'];
+        $store->forget('password_hash_'.($guard ?? $this->app['auth']->getDefaultDriver()));
+        $store->getHandler()->destroy($store->getId());
+
         if ($this->bypassAdminMfa && method_exists($user, 'hasRole') && $user->hasRole('admin')) {
             if ($user->two_factor_confirmed_at === null) {
                 $user->forceFill([
