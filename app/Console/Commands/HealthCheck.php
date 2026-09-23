@@ -298,6 +298,15 @@ class HealthCheck extends Command
         $info['jaas_configured'] = (config('jaas.app_id') && config('jaas.private_key') && config('jaas.key_id'))
             ? 'credenciales presentes' : 'sin configurar';
 
+        // Las clases ocurren por JaaS: sin credenciales en producción el flujo
+        // principal (entrar a la clase) falla. No es informativo.
+        if ($environment === 'production' && $info['jaas_configured'] === 'sin configurar') {
+            $warnings[] = [
+                'code' => 'JAAS_NOT_CONFIGURED',
+                'message' => 'Faltan JAAS_APP_ID / JAAS_KEY_ID / JAAS_PRIVATE_KEY: nadie podrá entrar a una clase.',
+            ];
+        }
+
         $info['culqi_configured'] = (config('payments.culqi.public_key') && config('payments.culqi.private_key'))
             ? 'credenciales presentes' : 'sin configurar';
 

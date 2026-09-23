@@ -48,6 +48,14 @@ class HealthAndHeartbeatTest extends TestCase
         Queue::assertPushed(WorkerHeartbeatJob::class);
     }
 
+    public function test_health_check_flags_missing_jaas_in_production(): void
+    {
+        config(['jaas.app_id' => null]);
+        $this->app['env'] = 'production';
+
+        $this->artisan('mova:health-check')->expectsOutputToContain('JAAS_NOT_CONFIGURED');
+    }
+
     public function test_worker_heartbeat_job_and_staleness(): void
     {
         $this->assertSame('unknown', Heartbeat::status(Heartbeat::WORKER));
