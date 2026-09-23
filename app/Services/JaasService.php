@@ -42,10 +42,12 @@ class JaasService
         $now = time();
         $exp = $expiresAt ? $expiresAt->getTimestamp() : $now + (24 * 60 * 60);
 
-        // Nunca emitir un token ya vencido ni de duración ridícula: si la
-        // ventana calculada quedó en el pasado por desfase de reloj, se
-        // concede un mínimo operativo en lugar de un token inservible.
-        $exp = max($exp, $now + 300);
+        // P1-02: sin "mínimo operativo". Antes max($exp, now+300) podía
+        // extender el token hasta 5 min más allá del cierre que autorizó el
+        // backend. Una ventana ya cerrada es un error del llamador.
+        if ($exp <= $now) {
+            throw new \InvalidArgumentException('La expiración del token JaaS debe estar en el futuro.');
+        }
 
         $payload = [
             'aud' => 'jitsi',
