@@ -11,6 +11,8 @@ param args array = []
 param externalIngress bool
 param targetPort int = 8080
 param healthPath string = '/healthz'
+@description('Readiness (DB + esquema runtime). Liveness sigue en healthPath.')
+param readinessPath string = '/readyz'
 @allowed(['0.25', '0.5', '0.75', '1', '1.25', '1.5', '1.75', '2'])
 param cpu string
 @allowed(['0.5Gi', '1Gi', '1.5Gi', '2Gi', '2.5Gi', '3Gi', '3.5Gi', '4Gi'])
@@ -43,7 +45,7 @@ var probes = externalIngress ? [
   }
   {
     type: 'Readiness'
-    httpGet: { path: healthPath, port: targetPort }
+    httpGet: { path: readinessPath, port: targetPort }
     periodSeconds: 10
   }
   {
