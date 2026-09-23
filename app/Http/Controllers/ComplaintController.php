@@ -52,6 +52,12 @@ class ComplaintController extends Controller
         ], [
             'guardian_name.required_if' => 'Indica el nombre del padre, madre o apoderado.',
             'accepted.accepted'         => 'Debes declarar que la información es verídica.',
+        ], [
+            'type' => 'tipo de hoja', 'consumer_name' => 'nombre completo', 'document_type' => 'tipo de documento',
+            'document_number' => 'número de documento', 'address' => 'domicilio', 'phone' => 'teléfono',
+            'email' => 'correo electrónico', 'guardian_name' => 'apoderado', 'good_type' => 'tipo de bien',
+            'amount' => 'monto', 'good_description' => 'descripción', 'detail' => 'detalle',
+            'consumer_request' => 'pedido',
         ]);
 
         unset($data['accepted']);

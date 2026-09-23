@@ -162,6 +162,11 @@ function submit() {
     .post(route('complaints.store'), {
       preserveScroll: true,
       onSuccess: () => { form.defaults(blank()); form.reset() },
+      // a11y: llevar el foco al primer campo con error.
+      onError: (errors) => {
+        const first = Object.keys(errors)[0]
+        document.getElementById(first)?.focus()
+      },
     })
 }
 </script>
