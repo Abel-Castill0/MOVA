@@ -28,10 +28,24 @@ use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
+use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
 
-// ── Health check (no session, no auth) ──────────────────────────────────────
-Route::get('/healthz', fn () => response('OK', 200));
+// ── Health checks (sin sesión, sin auth, sin cookies) ───────────────────────
+// P0-J: /healthz liveness, /readyz readiness. Fuera de sesión para que cada
+// sonda no cree una fila en `sessions` (SESSION_DRIVER=database en Azure).
+Route::withoutMiddleware([
+    \App\Http\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \Illuminate\Session\Middleware\AuthenticateSession::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \App\Http\Middleware\VerifyCsrfToken::class,
+    \App\Http\Middleware\HandleInertiaRequests::class,
+])->group(function () {
+    Route::get('/healthz', [HealthController::class, 'live'])->name('healthz');
+    Route::get('/readyz', [HealthController::class, 'ready'])->name('readyz');
+});
 
 // ── SEO: sitemap + robots dinámicos ──────────────────────────────────────────
 // robots.txt vivía como archivo estático en public/ sin referenciar ningún

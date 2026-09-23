@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\OperationalAlert;
 use App\Services\OperationalAlertService;
+use App\Support\Heartbeat;
 use App\Support\ProviderGuard;
 use App\Support\SettlementMode;
 use Illuminate\Console\Command;
@@ -240,6 +241,25 @@ class HealthCheck extends Command
             }
         } catch (\Throwable $e) {
             $checks['queue_backlog'] = 'no disponible';
+        }
+
+        // ── P0-J: latido del worker ──────────────────────────────────────
+        // Este comando corre DENTRO del scheduler, así que no puede detectar
+        // un scheduler caído (eso lo ve el Centro de Operaciones); sí detecta
+        // un worker que no consume la cola. Solo en producción: en local es
+        // normal no tener worker.
+        if ($environment === 'production') {
+            try {
+                if (Heartbeat::status(Heartbeat::WORKER) !== 'healthy') {
+                    $warnings[] = [
+                        'code' => 'WORKER_HEARTBEAT_STALE',
+                        'message' => 'El worker de cola no ha procesado el latido en los últimos '
+                            .intdiv(Heartbeat::STALE_AFTER_SECONDS, 60).' min: los jobs (correos, webhooks) no se están ejecutando.',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $checks['worker_heartbeat'] = 'no disponible';
+            }
         }
 
         // ── APP_DEBUG en producción: fuga de información real ────────────

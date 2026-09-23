@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\OperationalAlert;
 use App\Services\OperationalAlertService;
+use App\Support\Heartbeat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -197,6 +198,27 @@ class OperationsController extends Controller
                 'label' => 'Cola de trabajos',
                 'status' => 'unknown',
                 'detail' => 'No se pudo consultar failed_jobs',
+            ];
+        }
+
+        // P0-J — scheduler y worker tienen ahora señal POSITIVA (latido).
+        foreach ([Heartbeat::SCHEDULER => 'Scheduler', Heartbeat::WORKER => 'Worker de cola'] as $name => $label) {
+            try {
+                $age = Heartbeat::age($name);
+                $status = Heartbeat::status($name);
+            } catch (\Throwable $e) {
+                Log::warning('[Operations] No se pudo leer system_heartbeats.', ['error' => $e->getMessage()]);
+                [$age, $status] = [null, 'unknown'];
+            }
+            $capabilities[] = [
+                'key' => $name,
+                'label' => $label,
+                'status' => $status === 'stale' ? 'attention' : $status,
+                'detail' => match ($status) {
+                    'healthy' => "Último latido hace {$age} s",
+                    'stale' => 'Sin latido hace '.intdiv((int) $age, 60).' min',
+                    default => 'Nunca ha registrado latido',
+                },
             ];
         }
 

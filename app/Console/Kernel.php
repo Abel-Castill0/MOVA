@@ -2,6 +2,8 @@
 
 namespace App\Console;
 
+use App\Jobs\WorkerHeartbeatJob;
+use App\Support\Heartbeat;
 use App\Support\SettlementMode;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -167,6 +169,14 @@ class Kernel extends ConsoleKernel
         $schedule->command('mova:health-check --alert')
             ->hourly()
             ->withoutOverlapping();
+
+        // P0-J — latidos. El del scheduler prueba que schedule:work vive; el
+        // job encolado prueba scheduler -> cola -> worker de punta a punta.
+        // Ver App\Support\Heartbeat y el Centro de Operaciones.
+        $schedule->call(function () {
+            Heartbeat::beat(Heartbeat::SCHEDULER);
+            WorkerHeartbeatJob::dispatch();
+        })->everyMinute()->name('mova:heartbeat');
 
         // El reconciliador del ledger tampoco estaba agendado, así que un
         // descuadre entre credit_transactions y los saldos almacenados solo se
