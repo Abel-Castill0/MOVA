@@ -13,13 +13,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use PragmaRX\Google2FA\Google2FA;
+use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Throwable;
 
 /**
  * QA — carreras de seguridad con procesos reales (auditoría Codex P0-01/P1-01).
- * Hermano de mova:concurrency-probe: mismo guard (solo local/testing y, con
- * --connection, solo la base mova_qa). scripts/qa-security-race.sh lanza N
+ * Hermano de mova:concurrency-probe, pero SIEMPRE exige --connection=mysql_qa
+ * resuelta a la base mova_qa (sin fallback). scripts/qa-security-race.sh lanza N
  * procesos que esperan una barrera común (--at) y cuenta los aceptados.
  *
  *   totp               mismo admin + mismo código TOTP     → aceptados <= 1
@@ -37,20 +38,30 @@ class QaSecurityRace extends Command
         {--code= : código a presentar}
         {--at= : epoch (float) en que todos los procesos disparan a la vez}
         {--worker=0}
-        {--connection= : solo se acepta si resuelve a mova_qa}';
+        {--connection= : OBLIGATORIO, exactamente mysql_qa (y debe resolver a la base mova_qa)}';
 
     protected $description = 'QA: carrera real multi-proceso sobre MFA admin y Libro de Reclamaciones';
 
     private const EMAIL_PREFIX = 'qa-race-';
 
+    private const QA_CONNECTION = 'mysql_qa';
+
     public function handle(): int
     {
+        // Fail closed ANTES de cualquier rama (setup/cleanup/worker): este
+        // comando borra y crea filas, así que solo corre con la conexión QA
+        // explícita y verificada. Sin --connection, o con otra conexión, no
+        // hay fallback a la conexión por defecto.
         QaDatabaseGuard::assertSafeEnvironment();
 
-        if ($connection = $this->option('connection')) {
-            config(['database.default' => $connection]);
-            QaDatabaseGuard::assertDatabase($connection, 'mova_qa');
+        if ($this->option('connection') !== self::QA_CONNECTION) {
+            throw new RuntimeException(
+                'MOVA QA GUARD: mova:qa-security-race exige --connection='.self::QA_CONNECTION.'. Abortado sin tocar datos.'
+            );
         }
+
+        QaDatabaseGuard::assertDatabase(self::QA_CONNECTION, 'mova_qa');
+        config(['database.default' => self::QA_CONNECTION]);
 
         $operation = $this->argument('operation');
 
