@@ -396,10 +396,10 @@ class ClassRequestController extends Controller
         // serializaba la fila completa al cliente igual que el hallazgo ya
         // corregido en ClassRequestController::create() (?offer_id=), mismo
         // patrón de proyección implícita, encontrado ahora en un endpoint
-        // distinto. `parent_user_id` se mantiene (es solo un id numérico,
-        // sin nombre/contacto, y no carga la relación `parent`).
+        // distinto. `parent_user_id` tampoco se envía (auditoría Codex P0-02):
+        // el profesor no necesita ningún identificador del padre.
         $classRequest->load([
-            'student:id,parent_user_id,first_name,last_name,grade_level',
+            'student:id,first_name,last_name,grade_level',
             'subject:id,name',
         ]);
 

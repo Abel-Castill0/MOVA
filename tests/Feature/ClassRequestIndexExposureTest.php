@@ -130,4 +130,43 @@ class ClassRequestIndexExposureTest extends TestCase
             $this->assertStringNotContainsString($needle, $parentJson);
         }
     }
+
+    // P0-02 (auditoría Codex): ningún payload docente lleva identificadores ni
+    // datos del padre, ni datos sensibles del menor.
+    public function test_teacher_lessons_and_accept_payloads_exclude_parent_and_minor_data(): void
+    {
+        [$teacher] = $this->scenario();
+        $requestId = ClassRequest::where('status', 'open')->value('id');
+
+        $payloads = [
+            'teacher.lessons' => $this->actingAs($teacher)->get(route('teacher.lessons'))->assertOk()->inertiaPage()['props']['lessons'],
+            'teacher.requests.accept' => $this->actingAs($teacher)->get(route('teacher.requests.accept', $requestId))->assertOk()->inertiaPage()['props']['classRequest'],
+        ];
+
+        foreach ($payloads as $name => $payload) {
+            $this->assertNotEmpty($payload, $name);
+            $keys = $this->allKeys($payload);
+            foreach (['parent_user_id', 'birth_date', 'school', 'parent'] as $forbidden) {
+                $this->assertNotContains($forbidden, $keys, "{$name} no debe exponer '{$forbidden}'.");
+            }
+            $json = json_encode($payload);
+            foreach (['parent@mova.pe', '911222333', 'Colegio Secreto', '2014-05-01'] as $needle) {
+                $this->assertStringNotContainsString($needle, $json, "{$name} filtra '{$needle}'.");
+            }
+            $this->assertStringContainsString('Ana', $json, "{$name} debe seguir mostrando el nombre del alumno.");
+        }
+    }
+
+    private function allKeys(array $data): array
+    {
+        $keys = [];
+        foreach ($data as $k => $v) {
+            $keys[] = (string) $k;
+            if (is_array($v)) {
+                $keys = [...$keys, ...$this->allKeys($v)];
+            }
+        }
+
+        return $keys;
+    }
 }

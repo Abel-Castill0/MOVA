@@ -265,7 +265,7 @@ class LessonController extends Controller
         return Inertia::render('Lessons/TeacherIndex', [
             'lessons' => Lesson::where('teacher_profile_id', $profile->id)
                 ->with([
-                    'student:id,parent_user_id,first_name,last_name,grade_level',
+                    'student:id,first_name,last_name,grade_level',
                     'classRequest.subject:id,name',
                     'lessonReport',
                 ])
