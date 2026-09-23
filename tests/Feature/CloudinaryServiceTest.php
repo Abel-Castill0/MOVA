@@ -139,4 +139,42 @@ class CloudinaryServiceTest extends TestCase
 
         $this->assertSame($expectedUrl, $result);
     }
+
+    // Un string no vacío NO es sinónimo de configurado: si CLOUDINARY_URL
+    // no es una cloudinary URL válida (typo, secret rotado a mano, valor
+    // placeholder), isConfigured() debe decir false para que el fallo en
+    // producción sea el controlado (AvatarStorageUnavailable) y no una
+    // excepción del SDK a mitad de la request.
+    public function test_malformed_cloudinary_url_counts_as_not_configured(): void
+    {
+        config(['services.cloudinary.cloud_url' => 'no-es-una-url-cloudinary']);
+
+        $service = new CloudinaryService();
+
+        $this->assertFalse($service->isConfigured());
+    }
+
+    // Mismo criterio para credenciales INCOMPLETAS: sin api key/secret la
+    // subida firmada no puede funcionar (el SDK lanzaría
+    // InvalidArgumentException al llamar), así que no es "configurado".
+    public function test_cloudinary_url_without_credentials_counts_as_not_configured(): void
+    {
+        config(['services.cloudinary.cloud_url' => 'cloudinary://demo']);
+
+        $service = new CloudinaryService();
+
+        $this->assertFalse($service->isConfigured());
+    }
+
+    public function test_production_with_malformed_url_fails_closed(): void
+    {
+        config(['services.cloudinary.cloud_url' => 'no-es-una-url-cloudinary']);
+        $this->app['env'] = 'production';
+
+        $service = new CloudinaryService();
+        $file = UploadedFile::fake()->create('avatar.jpg', 100, 'image/jpeg');
+
+        $this->expectException(AvatarStorageUnavailable::class);
+        $service->uploadAvatar($file, 1);
+    }
 }

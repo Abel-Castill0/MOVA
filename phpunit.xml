@@ -55,6 +55,12 @@
         <env name="GMAIL_CLIENT_ID" value="" force="true"/>
         <env name="GMAIL_CLIENT_SECRET" value="" force="true"/>
         <env name="GMAIL_REFRESH_TOKEN" value="" force="true"/>
+        <!-- CLOUDINARY_URL fijada a vacío, no ausente: si la dejamos libre,
+             config/services.php la leería del .env del desarrollador
+             (env() no cacheado en testing) y los tests de avatar tocando la
+             rama "configurada" de CloudinaryService harían llamadas de red
+             reales. Mismo criterio que GMAIL/SENTRY arriba. -->
+        <env name="CLOUDINARY_URL" value="" force="true"/>
         <env name="OPENAI_API_KEY" value="" force="true"/>
         <env name="GEMINI_API_KEY" value="" force="true"/>
         <env name="SENTRY_LARAVEL_DSN" value="" force="true"/>

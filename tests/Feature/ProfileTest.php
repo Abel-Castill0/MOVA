@@ -104,7 +104,7 @@ class ProfileTest extends TestCase
     {
         // El entorno de test nunca tiene CLOUDINARY_URL real configurada —
         // exactamente el escenario que el fallback debe cubrir.
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
@@ -125,7 +125,7 @@ class ProfileTest extends TestCase
     // sin persistir nada y sin tumbar la request con un 500.
     public function test_avatar_upload_fails_closed_in_production_without_cloudinary(): void
     {
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
         // Fuera de 'testing' VerifyCsrfToken vuelve a exigir token (419);
         // el CSRF no es lo que se prueba aquí.
@@ -151,7 +151,7 @@ class ProfileTest extends TestCase
     // su edición.
     public function test_avatar_upload_redirects_back_to_the_page_it_was_submitted_from(): void
     {
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
@@ -176,7 +176,7 @@ class ProfileTest extends TestCase
     // para probar el mismo camino — no es un test más débil.
     public function test_avatar_can_be_uploaded_then_removed_end_to_end(): void
     {
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
