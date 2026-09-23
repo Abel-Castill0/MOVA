@@ -30,7 +30,21 @@ export function totp(secret = QA_ADMIN_TOTP_SECRET, now = Date.now()) {
 export async function passAdminMfaIfPrompted(page) {
   await page.waitForURL(/\/dashboard|\/admin\/mfa\/challenge/);
   if (!/\/admin\/mfa\/challenge/.test(page.url())) return;
-  await page.locator('#code').fill(totp());
-  await page.getByRole('button', { name: 'Verificar' }).click();
-  await page.waitForURL(/\/dashboard/);
+
+  // El servidor rechaza reutilizar un código ya aceptado (anti-replay
+  // persistente, P0-01). Varios logins del mismo admin QA dentro de la misma
+  // ventana de 30 s necesitan el código del SIGUIENTE timestep: se espera al
+  // cambio de ventana y se reintenta, igual que haría una persona.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.locator('#code').fill(totp());
+    await page.getByRole('button', { name: 'Verificar' }).click();
+    try {
+      await page.waitForURL(/\/dashboard/, { timeout: 8000 });
+      return;
+    } catch {
+      const msToNextStep = 30000 - (Date.now() % 30000) + 1000;
+      await page.waitForTimeout(msToNextStep);
+    }
+  }
+  throw new Error('MFA challenge QA no aceptado tras 3 ventanas TOTP.');
 }
