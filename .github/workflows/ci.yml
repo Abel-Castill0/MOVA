@@ -136,8 +136,20 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: vite-build
+          path: public/build
+      # El gate E2E lee .env del snapshot; en CI se crea uno efímero con una
+      # APP_KEY desechable (sin secretos reales, sin broadcasting).
+      - name: Ephemeral .env
+        run: |
+          cp .env.example .env
+          sed -i 's/^APP_KEY=.*/APP_KEY=base64:'"$(openssl rand -base64 32 | sed 's/[\/&]/\\&/g')"'/' .env
+          sed -i 's/^BROADCAST_DRIVER=.*/BROADCAST_DRIVER=null/' .env
+          grep -q '^APP_KEY=base64:' .env
       - name: Critical E2E (Playwright, QA SQLite sintética)
-        run: docker compose -f docker-compose.qa.yml run --rm e2e_qa tests/flujo-completo.spec.js
+        run: docker compose -f docker-compose.qa.yml run --rm e2e_qa
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
