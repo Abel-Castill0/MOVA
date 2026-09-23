@@ -225,8 +225,15 @@ class ClassRequestController extends Controller
         $studentIds = auth()->user()->students()->pluck('id');
         return Inertia::render('ClassRequests/Index', [
             'requests' => ClassRequest::whereIn('student_id', $studentIds)
-                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'teacherProfile.user'])
-                ->latest()->get(),
+                ->with(['student', 'subject', 'classOffer.teacherProfile.user'])
+                ->latest()->get()
+                ->map(fn (ClassRequest $r) => [
+                    ...$this->requestSummary($r),
+                    'class_offer' => $r->classOffer ? [
+                        'id'              => $r->classOffer->id,
+                        'teacher_profile' => ['user' => ['name' => $r->classOffer->teacherProfile?->user?->name]],
+                    ] : null,
+                ]),
         ]);
     }
 
@@ -293,7 +300,7 @@ class ClassRequestController extends Controller
 
         $open = ClassRequest::where('status', 'open')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
-            ->with(['student', 'subject', 'classOffer'])
+            ->with(['student', 'subject'])
             ->latest()->get();
 
         $rejected = ClassRequest::where('status', 'teacher_rejected')
@@ -303,10 +310,33 @@ class ClassRequestController extends Controller
             ->take(10)
             ->get();
 
+        // P0-B: el profesor solo ve lo necesario para decidir. Nunca
+        // birth_date, school ni parent_user_id del menor.
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'         => $open,
-            'rejectedRequests' => $rejected,
+            'requests'         => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'rejectedRequests' => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
         ]);
+    }
+
+    /** Allowlist compartida por Index/TeacherIndex (contrato en ClassRequestIndexExposureTest). */
+    private function requestSummary(ClassRequest $r): array
+    {
+        return [
+            'id'                       => $r->id,
+            'status'                   => $r->status,
+            'is_mentorship'            => $r->is_mentorship,
+            'help_needed'              => $r->help_needed,
+            'preferred_times'          => $r->preferred_times,
+            'teacher_rejected_at'      => $r->teacher_rejected_at,
+            'teacher_rejection_reason' => $r->teacher_rejection_reason,
+            'created_at'               => $r->created_at,
+            'student'                  => $r->student ? [
+                'first_name'  => $r->student->first_name,
+                'last_name'   => $r->student->last_name,
+                'grade_level' => $r->student->grade_level,
+            ] : null,
+            'subject'                  => $r->subject ? ['id' => $r->subject->id, 'name' => $r->subject->name] : null,
+        ];
     }
 
     public function teacherReject(ClassRequest $classRequest)
