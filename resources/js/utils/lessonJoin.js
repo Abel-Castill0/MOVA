@@ -28,9 +28,8 @@ export function canJoinJitsi(lesson) {
   // 'paid': la clase ya ocurrió y el pago está confirmado; el acceso para
   // repasar o cerrar temas es comportamiento esperado del producto, igual
   // que en el backend.
-  if (lesson.status === 'paid') return true
-
-  if (!['scheduled', 'pending_parent_confirmation'].includes(lesson.status)) return false
+  // Misma ventana absoluta que LessonController::join() para todos los estados (P1-02).
+  if (!['scheduled', 'paid', 'pending_parent_confirmation'].includes(lesson.status)) return false
 
   const now = Date.now()
   const start = new Date(lesson.start_time).getTime()

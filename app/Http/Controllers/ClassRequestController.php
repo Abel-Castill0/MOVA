@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
+use App\Services\ClassRequestNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -224,16 +225,25 @@ class ClassRequestController extends Controller
         $studentIds = auth()->user()->students()->pluck('id');
         return Inertia::render('ClassRequests/Index', [
             'requests' => ClassRequest::whereIn('student_id', $studentIds)
-                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'teacherProfile.user'])
-                ->latest()->get(),
+                ->with(['student', 'subject', 'classOffer.teacherProfile.user'])
+                ->latest()->get()
+                ->map(fn (ClassRequest $r) => [
+                    ...$this->requestSummary($r),
+                    'class_offer' => $r->classOffer ? [
+                        'id'              => $r->classOffer->id,
+                        'teacher_profile' => ['user' => ['name' => $r->classOffer->teacherProfile?->user?->name]],
+                    ] : null,
+                ]),
         ]);
     }
 
-    public function approve(ClassRequest $classRequest)
+    public function approve(ClassRequest $classRequest, ClassRequestNotifier $notifier)
     {
         $this->authorize('view', $classRequest);
 
-        DB::transaction(function () use ($classRequest) {
+        $approvedRequest = null;
+
+        DB::transaction(function () use ($classRequest, &$approvedRequest) {
             $classRequest = ClassRequest::whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -246,7 +256,16 @@ class ClassRequestController extends Controller
             );
 
             $classRequest->update(['status' => 'open']);
+            $approvedRequest = $classRequest;
         });
+
+        // Fuera de la transacción, solo si de verdad se aprobó (nunca en el
+        // camino que aborta por estado): avisar en base a un estado que
+        // todavía pudiera revertirse por rollback sería notificar sobre algo
+        // que nunca ocurrió.
+        if ($approvedRequest) {
+            $notifier->notifyEligibleTeachers($approvedRequest);
+        }
 
         return back()->with('success', 'Solicitud aprobada.');
     }
@@ -281,7 +300,7 @@ class ClassRequestController extends Controller
 
         $open = ClassRequest::where('status', 'open')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
-            ->with(['student', 'subject', 'classOffer'])
+            ->with(['student', 'subject'])
             ->latest()->get();
 
         $rejected = ClassRequest::where('status', 'teacher_rejected')
@@ -291,10 +310,33 @@ class ClassRequestController extends Controller
             ->take(10)
             ->get();
 
+        // P0-B: el profesor solo ve lo necesario para decidir. Nunca
+        // birth_date, school ni parent_user_id del menor.
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'         => $open,
-            'rejectedRequests' => $rejected,
+            'requests'         => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'rejectedRequests' => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
         ]);
+    }
+
+    /** Allowlist compartida por Index/TeacherIndex (contrato en ClassRequestIndexExposureTest). */
+    private function requestSummary(ClassRequest $r): array
+    {
+        return [
+            'id'                       => $r->id,
+            'status'                   => $r->status,
+            'is_mentorship'            => $r->is_mentorship,
+            'help_needed'              => $r->help_needed,
+            'preferred_times'          => $r->preferred_times,
+            'teacher_rejected_at'      => $r->teacher_rejected_at,
+            'teacher_rejection_reason' => $r->teacher_rejection_reason,
+            'created_at'               => $r->created_at,
+            'student'                  => $r->student ? [
+                'first_name'  => $r->student->first_name,
+                'last_name'   => $r->student->last_name,
+                'grade_level' => $r->student->grade_level,
+            ] : null,
+            'subject'                  => $r->subject ? ['id' => $r->subject->id, 'name' => $r->subject->name] : null,
+        ];
     }
 
     public function teacherReject(ClassRequest $classRequest)
@@ -354,10 +396,10 @@ class ClassRequestController extends Controller
         // serializaba la fila completa al cliente igual que el hallazgo ya
         // corregido en ClassRequestController::create() (?offer_id=), mismo
         // patrón de proyección implícita, encontrado ahora en un endpoint
-        // distinto. `parent_user_id` se mantiene (es solo un id numérico,
-        // sin nombre/contacto, y no carga la relación `parent`).
+        // distinto. `parent_user_id` tampoco se envía (auditoría Codex P0-02):
+        // el profesor no necesita ningún identificador del padre.
         $classRequest->load([
-            'student:id,parent_user_id,first_name,last_name,grade_level',
+            'student:id,first_name,last_name,grade_level',
             'subject:id,name',
         ]);
 

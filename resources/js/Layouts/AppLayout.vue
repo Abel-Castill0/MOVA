@@ -174,7 +174,10 @@ onMounted(async () => {
   if (!userId) return
 
   const { initEcho } = await import('@/echo.js')
-  const echo = initEcho()
+  const echo = initEcho(page.props.realtime)
+  // realtime deshabilitado (o sin key pública) es un estado normal, no un
+  // error: la UI autenticada sigue funcionando sin notificaciones en vivo.
+  if (!echo) return
 
   channel = echo.private(`App.Models.User.${userId}`)
   channel.notification((notification) => {
@@ -209,6 +212,7 @@ const navItems = computed(() => {
       { href: '/admin/recharges',         icon: 'credits',          label: 'Recargas' },
       { href: '/admin/reviews',           icon: 'reviews',          label: 'Reseñas' },
       { href: '/admin/ai-usage',          icon: 'ai-usage',         label: 'Uso de IA' },
+      { href: '/admin/complaints',        icon: 'reviews',          label: 'Reclamaciones' },
     ]
   }
   if (roles.includes('teacher')) {

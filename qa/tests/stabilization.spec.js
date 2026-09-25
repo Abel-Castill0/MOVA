@@ -1,6 +1,7 @@
+import { passAdminMfaIfPrompted } from '../lib/totp.mjs';
 import { test, expect } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { runPhp } from '../lib/run-php.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 
 /**
@@ -26,8 +27,7 @@ const root = path.resolve(import.meta.dirname, '../..');
  */
 const SENTINEL = '__MOVA_TINKER_OK__';
 const php = (code) => {
-  const out = execFileSync(
-    'php',
+  const out = runPhp(
     ['artisan', 'tinker', `--execute=${code} echo '${SENTINEL}';`],
     { cwd: root, encoding: 'utf8' },
   );
@@ -47,7 +47,7 @@ async function login(page, email='padre@mova.test') {
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña',{exact:true}).fill('password123');
   await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
-  await page.waitForURL(/\/dashboard/);
+  await passAdminMfaIfPrompted(page);
 }
 async function shot(page, info, name) {
   await expect(page.locator('body')).toBeVisible();

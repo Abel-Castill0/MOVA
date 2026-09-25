@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\OperationalAlert;
 use App\Services\OperationalAlertService;
+use App\Support\Heartbeat;
 use App\Support\ProviderGuard;
 use App\Support\SettlementMode;
 use Illuminate\Console\Command;
@@ -242,6 +243,47 @@ class HealthCheck extends Command
             $checks['queue_backlog'] = 'no disponible';
         }
 
+        // ── P0-K: datos del proveedor del Libro de Reclamaciones ────────
+        // No se inventan: si faltan, el formulario muestra "pendiente" y
+        // aquí queda una incidencia hasta que el titular los configure.
+        if ($environment === 'production') {
+            $missing = collect(['LEGAL_BUSINESS_NAME' => 'business_name', 'LEGAL_RUC' => 'ruc', 'LEGAL_ADDRESS' => 'address'])
+                ->filter(fn ($key) => blank(config("legal.provider.{$key}")))
+                ->keys();
+            if ($missing->isNotEmpty()) {
+                $warnings[] = [
+                    'code' => 'LEGAL_PROVIDER_DATA_MISSING',
+                    'message' => 'El Libro de Reclamaciones no muestra los datos del proveedor: faltan '.$missing->implode(', ').'.',
+                ];
+            }
+        }
+
+        // ── P0-J / P1-03: latidos de worker y scheduler ──────────────────
+        // /readyz no los mira a propósito (su caída no debe sacar al web del
+        // balanceador); la señal operativa es ESTA. Worker: la detecta la
+        // corrida horaria agendada. Scheduler: dentro del propio scheduler
+        // siempre está fresco, así que la señal real es una ejecución externa
+        // (monitor, deploy, operador) y el Centro de Operaciones. "Nunca
+        // latió" cuenta igual que "latido viejo". Solo producción.
+        if ($environment === 'production') {
+            $heartbeats = [
+                Heartbeat::WORKER => ['WORKER_HEARTBEAT_STALE', 'El worker de cola no procesa el latido: los jobs (correos, webhooks) no se están ejecutando.'],
+                Heartbeat::SCHEDULER => ['SCHEDULER_HEARTBEAT_STALE', 'El scheduler no late: recordatorios, liquidaciones y reconciliaciones no corren.'],
+            ];
+            foreach ($heartbeats as $name => [$code, $message]) {
+                try {
+                    $status = Heartbeat::status($name);
+                    $checks["{$name}_heartbeat"] = $status;
+                    if ($status !== 'healthy') {
+                        $warnings[] = ['code' => $code, 'message' => $message.' (estado: '.$status.', umbral '.intdiv(Heartbeat::STALE_AFTER_SECONDS, 60).' min)'];
+                    }
+                } catch (\Throwable $e) {
+                    $checks["{$name}_heartbeat"] = 'no disponible';
+                    $warnings[] = ['code' => $code, 'message' => $message.' (no se pudo leer system_heartbeats)'];
+                }
+            }
+        }
+
         // ── APP_DEBUG en producción: fuga de información real ────────────
         // Con APP_DEBUG=true, un 500 muestra stack trace, rutas del
         // servidor y variables de entorno a cualquier visitante. En una
@@ -262,6 +304,15 @@ class HealthCheck extends Command
 
         $info['jaas_configured'] = (config('jaas.app_id') && config('jaas.private_key') && config('jaas.key_id'))
             ? 'credenciales presentes' : 'sin configurar';
+
+        // Las clases ocurren por JaaS: sin credenciales en producción el flujo
+        // principal (entrar a la clase) falla. No es informativo.
+        if ($environment === 'production' && $info['jaas_configured'] === 'sin configurar') {
+            $warnings[] = [
+                'code' => 'JAAS_NOT_CONFIGURED',
+                'message' => 'Faltan JAAS_APP_ID / JAAS_KEY_ID / JAAS_PRIVATE_KEY: nadie podrá entrar a una clase.',
+            ];
+        }
 
         $info['culqi_configured'] = (config('payments.culqi.public_key') && config('payments.culqi.private_key'))
             ? 'credenciales presentes' : 'sin configurar';

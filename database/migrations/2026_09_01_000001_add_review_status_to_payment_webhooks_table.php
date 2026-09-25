@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -62,8 +61,6 @@ return new class extends Migration
      */
     private function rebuildStatusColumn(array $allowedStatuses): void
     {
-        SchemaBuilder::useNativeSchemaOperationsIfPossible();
-
         Schema::table('payment_webhooks', function (Blueprint $table) {
             $table->dropIndex(['status']);
         });

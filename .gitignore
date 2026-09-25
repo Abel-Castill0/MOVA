@@ -38,3 +38,6 @@ qa/auth/
 /Logos-*/
 /Tipografía-*/
 /MOVA MINI MANUAL DE MARCA.pdf
+
+# Output compilado de `az bicep build` (infra/azure) — nunca versionar
+/infra/azure/main.json

@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -130,8 +129,6 @@ return new class extends Migration
 
     private function dropStatusIndexes(): void
     {
-        SchemaBuilder::useNativeSchemaOperationsIfPossible();
-
         Schema::table('classes', function (Blueprint $table) {
             $table->dropIndex('classes_status_index');
             $table->dropIndex('classes_status_settled_index');

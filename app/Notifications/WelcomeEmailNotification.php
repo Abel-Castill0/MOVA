@@ -34,7 +34,7 @@ class WelcomeEmailNotification extends Notification implements ShouldQueue
             $mail->line('**Próximos pasos:**')
                  ->line('1. Complete su perfil con biografía y tarifa.')
                  ->line('2. Espere la verificación del equipo MOVA.')
-                 ->line('3. Cree sus ofertas de clase y responda solicitudes.')
+                 ->line('3. Revise y responda las solicitudes de clase disponibles.')
                  ->action('Completar perfil', $this->appRoute('teacher.setup'));
         } else {
             $mail->line('**Próximos pasos:**')

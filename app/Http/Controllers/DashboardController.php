@@ -90,7 +90,7 @@ class DashboardController extends Controller
                             $scheduled->where('status', 'scheduled')->where('start_time', '>=', now());
                         })->orWhere('status', 'paid');
                     })
-                    ->with(['student', 'classRequest.subject'])
+                    ->with(['student:id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                     ->orderBy('start_time')
                     ->take(5)->get() : [],
                 'pending_requests' => $profile ? (function () use ($profile) {
@@ -134,18 +134,18 @@ class DashboardController extends Controller
             // del dashboard pueda ofrecer la acción contextual correcta en cada caso.
             'upcoming' => Lesson::whereIn('student_id', $studentIds)
                 ->whereIn('status', ['scheduled', 'paid', 'pending_parent_confirmation'])
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                 ->orderBy('start_time')
                 ->take(5)->get(),
             'next_lesson' => Lesson::whereIn('student_id', $studentIds)
                 ->whereIn('status', ['scheduled', 'paid'])
                 ->where('start_time', '>=', now())
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                 ->orderBy('start_time')
                 ->first(),
             'recent_history' => Lesson::whereIn('student_id', $studentIds)
                 ->where('status', 'completed')
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject', 'teacherReview'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name', 'teacherReview'])
                 ->orderByDesc('start_time')
                 ->take(5)->get(),
             'stats' => [

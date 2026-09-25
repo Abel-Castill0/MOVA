@@ -265,7 +265,7 @@ class LessonController extends Controller
         return Inertia::render('Lessons/TeacherIndex', [
             'lessons' => Lesson::where('teacher_profile_id', $profile->id)
                 ->with([
-                    'student:id,parent_user_id,first_name,last_name,grade_level',
+                    'student:id,first_name,last_name,grade_level',
                     'classRequest.subject:id,name',
                     'lessonReport',
                 ])
@@ -302,32 +302,27 @@ class LessonController extends Controller
         // de la clase. La UI comunicaba una restricción que el backend no
         // aplicaba — divergencia de autorización, no solo de UX.
         //
-        // 'paid' se exceptúa a propósito: es el estado en que la clase ya
-        // ocurrió y se confirmó el pago; el acceso posterior a la sala para
-        // repasar/cerrar temas ya era el comportamiento esperado (ver
-        // lessonJoin.js:13) y restringirlo aquí sería un cambio de producto,
-        // no una corrección de seguridad.
-        if ($lesson->status !== 'paid') {
-            $opensAt  = $lesson->start_time->copy()->subMinutes((int) config('jaas.join_window_before_minutes', 15));
-            $closesAt = $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+        // P1-02 (auditoría Codex): 'paid' ya NO se exceptúa — una clase de
+        // hace un año seguía obteniendo JWT nuevos. Decisión de producto:
+        // ningún estado tiene acceso ilimitado; todos usan la misma ventana
+        // absoluta anclada al horario REAL de la clase (start/end_time),
+        // nunca al momento en que se pide el token.
+        $opensAt  = $lesson->start_time->copy()->subMinutes((int) config('jaas.join_window_before_minutes', 15));
+        $closesAt = $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
 
-            abort_if(
-                now()->lt($opensAt),
-                403,
-                'La sala se abre '.config('jaas.join_window_before_minutes', 15).' minutos antes del inicio de la clase.'
-            );
-            abort_if(now()->gt($closesAt), 403, 'La sala de esta clase ya se cerró.');
-        }
+        abort_if(
+            now()->lt($opensAt),
+            403,
+            'La sala se abre '.config('jaas.join_window_before_minutes', 15).' minutos antes del inicio de la clase.'
+        );
+        abort_if(now()->gt($closesAt), 403, 'La sala de esta clase ya se cerró.');
 
         $user = auth()->user();
         $isModerator = $lesson->teacherProfile?->user_id === $user->id;
 
         // El token no sobrevive a la ventana en que este mismo endpoint lo
-        // habría concedido. Para 'paid' se mantiene una ventana corta desde
-        // ahora, en lugar de las 24h fijas de antes.
-        $tokenExpiresAt = $lesson->status === 'paid'
-            ? now()->addMinutes((int) config('jaas.join_grace_after_minutes', 120))
-            : $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+        // habría concedido: exp == cierre autorizado, para todos los estados.
+        $tokenExpiresAt = $closesAt;
 
         return response()->json([
             'jitsi_room' => $lesson->jitsi_room,

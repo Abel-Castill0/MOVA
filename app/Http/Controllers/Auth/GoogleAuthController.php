@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\LegalAcceptance;
 use App\Models\TeacherProfile;
 use App\Models\User;
 use App\Notifications\WelcomeParentNotification;
@@ -150,7 +151,7 @@ class GoogleAuthController extends Controller
             ]);
         }
 
-        $user = DB::transaction(function () use ($pending, $data) {
+        $user = DB::transaction(function () use ($pending, $data, $request) {
             $user = User::create([
                 'name' => $pending['name'],
                 'email' => $pending['email'],
@@ -171,6 +172,9 @@ class GoogleAuthController extends Controller
                 // pantalla de onboarding que ya existía.
                 TeacherProfile::create(['user_id' => $user->id, 'hourly_rate' => 20]);
             }
+
+            // P0-K: versión + timestamp de lo aceptado, en la misma transacción.
+            LegalAcceptance::recordCurrent($user, $request);
 
             return $user;
         });
