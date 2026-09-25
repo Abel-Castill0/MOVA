@@ -25,12 +25,24 @@ use Symfony\Component\HttpFoundation\Response;
  * Nunca hay loop: tras el redirect el Host de la siguiente request ya no
  * es "www.<apex>", así que el guard no vuelve a dispararse. Solo
  * GET/HEAD — un POST (incluidos webhooks de Mercado Pago) nunca coincide,
- * así que API/webhooks quedan intactos sin necesitar excluirlos por ruta.
+ * así que la mayoría de webhooks quedan intactos sin necesitar excluirlos
+ * por ruta.
+ *
+ * API GUARD (hallazgo de revisión externa): el filtro GET/HEAD NO basta —
+ * MOVA expone `GET /api/webhooks/whatsapp` (verificación de webhook de
+ * Meta, real, ver routes/api.php), que SÍ es GET. La canonicalización
+ * www→apex es para páginas de navegador, nunca para la API: cualquier
+ * request bajo `/api` o `/api/*` pasa de largo sin evaluar el Host,
+ * incondicionalmente, antes de cualquier otra comprobación.
  */
 class RedirectWwwToApex
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->is('api') || $request->is('api/*')) {
+            return $next($request);
+        }
+
         if (! $request->isMethod('GET') && ! $request->isMethod('HEAD')) {
             return $next($request);
         }

@@ -14,6 +14,10 @@ use Tests\TestCase;
  * profesores no crean ofertas en el flujo vigente (responden solicitudes
  * que ya existen). Confirma el texto real y evita que la frase vieja
  * vuelva a colarse.
+ *
+ * El reemplazo inicial ("Revisa y responde...") tuteaba, mientras el
+ * resto del mismo correo usa "usted" ("Complete...", "Espere..."). Ahora
+ * es "Revise y responda..." — consistente con el trato formal del correo.
  */
 class WelcomeEmailNotificationTest extends TestCase
 {
@@ -36,7 +40,8 @@ class WelcomeEmailNotificationTest extends TestCase
         $lines = implode(' ', $mail->introLines);
 
         $this->assertStringNotContainsString('Cree sus ofertas', $lines);
-        $this->assertStringContainsString('Revisa y responde las solicitudes de clase disponibles.', $lines);
+        $this->assertStringNotContainsString('Revisa y responde', $lines, 'la forma tuteante no debe volver — el resto del correo usa "usted".');
+        $this->assertStringContainsString('Revise y responda las solicitudes de clase disponibles.', $lines);
     }
 
     public function test_parent_welcome_email_is_unaffected(): void

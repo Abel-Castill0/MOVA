@@ -11,6 +11,15 @@ use Tests\TestCase;
  * completa: solo www.<host(APP_URL)> redirige, path/query se preservan,
  * staging y el FQDN de Azure quedan intactos, y solo GET/HEAD (nunca
  * webhooks POST).
+ *
+ * API GUARD (hallazgo de revisión externa): el filtro GET/HEAD no bastaba
+ * — MOVA expone `GET /api/webhooks/whatsapp` (verificación de webhook de
+ * Meta, real), que es GET y por tanto SÍ coincidía con el guard original.
+ * Los tests de este bloque golpean la ruta API real (no una reimplementada
+ * aparte) para demostrar el contrato con el HTTP real de MOVA, salvo
+ * cuando el controller introduciría una dependencia frágil — no es el
+ * caso aquí: WhatsAppWebhookController::verify() sin configurar responde
+ * 403 de forma determinista, nunca 500 ni redirect.
  */
 class RedirectWwwToApexTest extends TestCase
 {
@@ -86,5 +95,58 @@ class RedirectWwwToApexTest extends TestCase
 
         $second = $this->get($first->headers->get('Location'));
         $second->assertStatus(200);
+    }
+
+    /**
+     * (A) GET a la ruta API real de verificación de webhook de WhatsApp
+     * sobre www.<apex> — nunca debe ser un 301. Sin token configurado el
+     * controller responde 403 de forma determinista (nunca 500); lo único
+     * que este test necesita demostrar es que el middleware nunca lo
+     * convirtió antes en un redirect.
+     */
+    public function test_get_api_whatsapp_webhook_on_www_is_never_redirected(): void
+    {
+        config(['app.url' => 'https://movaeduca.me']);
+
+        $response = $this->get('http://www.movaeduca.me/api/webhooks/whatsapp?hub_mode=subscribe&hub_challenge=abc123&hub_verify_token=x');
+
+        $response->assertStatus(403);
+    }
+
+    /**
+     * (B) Cualquier GET bajo /api sobre www.<apex> nunca se canonicaliza,
+     * exista o no la ruta — el guard pasa de largo por path, no por si el
+     * router termina resolviéndola.
+     */
+    public function test_any_get_under_api_on_www_is_never_canonicalized(): void
+    {
+        config(['app.url' => 'https://movaeduca.me']);
+
+        $response = $this->get('http://www.movaeduca.me/api/this-route-does-not-exist');
+
+        $response->assertStatus(404);
+    }
+
+    public function test_get_api_root_on_www_is_never_canonicalized(): void
+    {
+        config(['app.url' => 'https://movaeduca.me']);
+
+        $response = $this->get('http://www.movaeduca.me/api');
+
+        $response->assertStatus(404);
+    }
+
+    /**
+     * (C) El redirect web normal (no-API) sigue funcionando exactamente
+     * igual después de añadir el guard de /api.
+     */
+    public function test_web_redirect_still_works_after_the_api_guard(): void
+    {
+        config(['app.url' => 'https://movaeduca.me']);
+
+        $response = $this->get('http://www.movaeduca.me/marketplace?subject=fisica&page=3');
+
+        $response->assertStatus(301);
+        $response->assertRedirect('https://movaeduca.me/marketplace?subject=fisica&page=3');
     }
 }
