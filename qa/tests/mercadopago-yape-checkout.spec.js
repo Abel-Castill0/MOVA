@@ -25,22 +25,28 @@
 //     jamás llega a intentar `createPaymentAttempt()` contra Mercado Pago,
 //     sin importar qué proveedor esté configurado.
 //
-// Requiere PAYMENTS_ENABLED=true + PAYMENT_PROVIDER=mercadopago en el
-// entorno de ESTA corrida únicamente (mercadoPagoCheckoutEnabled() en
-// CreditCheckoutController exige provider==='mercadopago', nunca 'fake', para
-// exponer el formulario Yape) — ver qa/README o el comando documentado más
-// abajo. No se toca `.env` del repo ni ningún entorno real.
+// No depende de PAYMENTS_ENABLED/PAYMENT_PROVIDER/credenciales MP reales en
+// el entorno — ni locales ni en CI, que corre `docker compose run --rm
+// e2e_qa` a secas, sin flags extra (ver .github/workflows/ci.yml, job `e2e`)
+// contra un `.env` efímero sin ningún secreto de Mercado Pago. Poner
+// PAYMENTS_ENABLED=true/PAYMENT_PROVIDER=mercadopago a nivel de todo el
+// proceso arriesgaría además cambiar el comportamiento de los otros ~60
+// tests que ya corren en la misma suite (mercadoPagoCheckoutEnabled()
+// pasaría a 'true' en cualquier página que lo consulte). En vez de eso, la
+// respuesta HTML inicial de ESTA request (`GET .../checkout/{id}`) se
+// intercepta y se le reescribe SOLO el atributo `data-page` que Inertia
+// embebe (ver `@inertia` en resources/views/app.blade.php) — forzando
+// `checkoutEnabled`/`mercadoPagoPublicKey` únicamente para este test, sin
+// tocar config ni backend. Todo lo demás de la respuesta (HTML, assets,
+// Vue compilado) es el real.
 //
 // Corrida sin Docker (requiere PHP 8.3 en PATH — ver flujo-completo.spec.js
 // para MySQL local; este spec usa la misma DB/seeder):
-//   cd qa
-//   PAYMENTS_ENABLED=true PAYMENT_PROVIDER=mercadopago \
-//     npx playwright test --config=playwright.local.config.js tests/mercadopago-yape-checkout.spec.js
+//   cd qa && npx playwright test --config=playwright.local.config.js tests/mercadopago-yape-checkout.spec.js
 //
-// Corrida en el container e2e_qa (PHP 8.3 garantizado, SQLite efímera):
-//   docker compose -f docker-compose.qa.yml run --rm \
-//     -e PAYMENTS_ENABLED=true -e PAYMENT_PROVIDER=mercadopago \
-//     e2e_qa tests/mercadopago-yape-checkout.spec.js
+// Corrida en el container e2e_qa (PHP 8.3 garantizado, SQLite efímera —
+// mismo comando que usa CI, sin flags extra):
+//   docker compose -f docker-compose.qa.yml run --rm e2e_qa tests/mercadopago-yape-checkout.spec.js
 
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
@@ -133,6 +139,44 @@ test.describe.serial('Checkout Yape — contrato real payment_method (local)', (
     await page.route('**://sdk.mercadopago.com/**', (route) => route.abort());
     await page.route('**://api.mercadopago.com/**', (route) => route.abort());
     await page.route('**://*.mercadolibre.com/**', (route) => route.abort());
+
+    // Fuerza checkoutEnabled/mercadoPagoPublicKey SOLO para esta respuesta,
+    // sin tocar PAYMENTS_ENABLED/PAYMENT_PROVIDER a nivel de proceso (ver
+    // docblock del archivo — esto es lo que evita depender de config externa
+    // y de riesgo de colisión con el resto de la suite). Se deja pasar la
+    // respuesta real (HTML/Vue compilado reales) y solo se reescribe el JSON
+    // que `@inertia` embebe en `data-page` (htmlspecialchars con
+    // ENT_QUOTES — ver resources/views/app.blade.php).
+    const decodeHtmlAttr = (s) => s
+      .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const encodeHtmlAttr = (s) => s
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    await page.route(`**/teacher/credits/checkout/${rechargeId}`, async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.continue();
+        return;
+      }
+
+      const response = await route.fetch();
+      const body = await response.text();
+      const match = body.match(/data-page="([^"]*)"/);
+      if (!match) {
+        // La respuesta no trae el shell Inertia esperado (p. ej. una
+        // redirección) — se deja pasar tal cual para no enmascarar un fallo
+        // real distinto del que este test verifica.
+        await route.fulfill({ response, body });
+        return;
+      }
+
+      const inertiaPage = JSON.parse(decodeHtmlAttr(match[1]));
+      inertiaPage.props.checkoutEnabled = true;
+      inertiaPage.props.mercadoPagoPublicKey = 'TEST-e2e-stub-public-key';
+      const patched = body.replace(match[0], `data-page="${encodeHtmlAttr(JSON.stringify(inertiaPage))}"`);
+      await route.fulfill({ response, body: patched });
+    });
 
     /** @type {Record<string, unknown> | null} */
     let capturedPayBody = null;
