@@ -13,7 +13,9 @@ use App\Support\ProviderGuard;
 use App\WhatsApp\Contracts\WhatsAppProviderContract;
 use App\WhatsApp\FakeWhatsAppProvider;
 use App\WhatsApp\MetaCloudApiProvider;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Channels\MailChannel;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -128,6 +130,32 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->registerGmailApiMailer();
+        $this->customizeVerifyEmailNotification();
+    }
+
+    /**
+     * Copy en español para el correo de verificación (antes el default de
+     * Laravel en inglés — confirmado en vivo en el gate Gmail: subject
+     * "Verify your email address"). Mecanismo OFICIAL de Laravel
+     * (VerifyEmail::toMailUsing()) — no una notification propia registrada
+     * en su lugar: MustVerifyEmail, el evento Verified y la ruta firmada de
+     * verificación no cambian, esto solo reemplaza cómo se construye el
+     * MailMessage. `$url` ya viene resuelto por
+     * VerifyEmail::verificationUrl() con la misma expiración/firma de
+     * siempre (config('auth.verification.expire')) — nunca se reconstruye
+     * aquí.
+     */
+    private function customizeVerifyEmailNotification(): void
+    {
+        VerifyEmail::toMailUsing(function ($notifiable, string $url) {
+            return (new MailMessage)
+                ->subject('MOVA — Verifica tu correo electrónico')
+                ->greeting('Hola, ' . $notifiable->name . '.')
+                ->line('Confirma tu correo electrónico para continuar usando MOVA.')
+                ->action('Verificar correo electrónico', $url)
+                ->line('Si no creaste esta cuenta, puedes ignorar este mensaje.')
+                ->salutation('El equipo de MOVA');
+        });
     }
 
     /**

@@ -5,6 +5,7 @@
         "dev": "vite",
         "build": "vite build",
         "qa:build": "vite build",
+        "check:title": "node scripts/check-app-title-fallback.mjs",
         "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
         "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1"
     },

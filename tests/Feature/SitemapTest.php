@@ -110,4 +110,69 @@ class SitemapTest extends TestCase
 
         $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
+
+    /**
+     * NON-CANONICAL HOST GUARD (App\Http\Middleware\PreventIndexingWhenDisabled):
+     * el FQDN generado de Azure (*.azurecontainerapps.io) sigue accesible
+     * aparte del dominio propio — TrustHosts sigue desactivado a propósito
+     * (no arriesgar health checks/sondas operacionales de Azure). Con
+     * indexing habilitado, SOLO el host de APP_URL puede quedar indexable;
+     * cualquier otro host recibe noindex igual, sin que la request se
+     * bloquee (sigue 200).
+     */
+    public function test_x_robots_tag_is_absent_on_the_canonical_host_when_indexing_is_enabled(): void
+    {
+        config(['seo.indexing_enabled' => true, 'app.url' => 'http://localhost']);
+
+        $response = $this->get('http://localhost/');
+
+        $response->assertOk();
+        $response->assertHeaderMissing('X-Robots-Tag');
+    }
+
+    public function test_x_robots_tag_is_present_on_a_noncanonical_host_even_when_indexing_is_enabled(): void
+    {
+        config(['seo.indexing_enabled' => true, 'app.url' => 'https://staging.movaeduca.me']);
+
+        $response = $this->get('http://mova-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io/');
+
+        $response->assertOk();
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+
+    public function test_x_robots_tag_is_present_on_a_noncanonical_host_when_indexing_is_disabled(): void
+    {
+        config(['seo.indexing_enabled' => false, 'app.url' => 'https://staging.movaeduca.me']);
+
+        $response = $this->get('http://mova-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io/');
+
+        $response->assertOk();
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+
+    public function test_x_robots_tag_is_present_on_the_canonical_host_when_indexing_is_disabled(): void
+    {
+        config(['seo.indexing_enabled' => false, 'app.url' => 'https://staging.movaeduca.me']);
+
+        $response = $this->get('https://staging.movaeduca.me/');
+
+        $response->assertOk();
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+
+    /**
+     * /healthz nunca debe verse afectado por este guard más allá del
+     * header — su status/body de liveness siguen intactos incluso desde un
+     * host no canónico (las sondas de Azure pegan al FQDN generado, no al
+     * dominio propio).
+     */
+    public function test_healthz_still_responds_ok_from_a_noncanonical_host(): void
+    {
+        config(['seo.indexing_enabled' => true, 'app.url' => 'https://staging.movaeduca.me']);
+
+        $response = $this->get('http://mova-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io/healthz');
+
+        $response->assertOk();
+        $response->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
 }

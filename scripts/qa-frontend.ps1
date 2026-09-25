@@ -15,6 +15,9 @@ function Invoke-NativeCommand {
 Write-Host "== Frontend build =="
 Invoke-NativeCommand { npm run build }
 
+Write-Host "== Title fallback regression (no Laravel default) =="
+Invoke-NativeCommand { npm run check:title }
+
 if ($env:PLAYWRIGHT_BASE_URL) {
     Write-Host "== Playwright local =="
     Push-Location qa

@@ -42,6 +42,10 @@ jobs:
       - name: npm audit (runtime deps, high+)
         run: npm audit --omit=dev --audit-level=high
       - run: npm run build
+      # Reproduce exactamente el build de la imagen Docker (sin VITE_APP_NAME
+      # definido) — confirma que el fallback del título es 'MOVA', nunca el
+      # 'Laravel' del scaffold.
+      - run: npm run check:title
       - uses: actions/upload-artifact@v4
         with:
           name: vite-build
