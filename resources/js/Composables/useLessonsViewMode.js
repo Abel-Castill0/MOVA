@@ -15,7 +15,7 @@ const STORAGE_KEY = 'mova_lessons_view'
  */
 export function useLessonsViewMode() {
   const stored = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
-  const viewMode = ref(stored === 'calendar' ? 'calendar' : 'list')
+  const viewMode = ref(stored === 'list' ? 'list' : 'calendar')
 
   watch(viewMode, (value) => {
     window.localStorage.setItem(STORAGE_KEY, value)

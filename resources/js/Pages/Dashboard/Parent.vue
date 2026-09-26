@@ -1,11 +1,11 @@
 <template>
   <AppLayout title="Mi panel">
-    <div class="space-y-6">
+    <div class="space-y-4 sm:space-y-4.5">
 
       <!-- ══════════════════════════════════════════════
-           HERO — identidad azul MOVA
+           HERO — identidad azul MOVA (intacto)
            ══════════════════════════════════════════════ -->
-      <section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#17469E] via-[#1F5AA6] to-[#2563EB] text-white shadow-lg shadow-brand-800/15 px-6 py-6 sm:px-8 sm:py-7">
+      <section class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#17469E] via-[#1F5AA6] to-[#2563EB] text-white shadow-lg shadow-brand-800/15 px-6 py-6 sm:px-8 sm:py-7">
         <!-- Decoración de fondo azul (asset oficial) -->
         <img src="/images/brand/parent-hero-decoration.png" alt="" aria-hidden="true"
           class="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none opacity-35 mix-blend-screen" />
@@ -33,7 +33,7 @@
       <!-- ══════════════════════════════════════════════
            BANNER POST-CLASE (lógica sin cambios)
            ══════════════════════════════════════════════ -->
-      <div v-if="postClassLessonId && postClassEnded" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div v-if="postClassLessonId && postClassEnded" class="bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
           <Icon name="flash-success" :size="20" />
         </div>
@@ -52,7 +52,7 @@
           </button>
         </div>
       </div>
-      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
           <Icon name="in-progress" :size="20" />
         </div>
@@ -69,7 +69,7 @@
       <!-- ══════════════════════════════════════════════
            EMPTY STATE: sin hijos registrados
            ══════════════════════════════════════════════ -->
-      <div v-if="!students.length" class="bg-white rounded-2xl border border-gray-100 px-6 py-16 sm:py-20 text-center max-w-xl mx-auto">
+      <div v-if="!students.length" class="bg-white rounded-3xl border border-gray-100 px-6 py-12 sm:py-16 text-center max-w-xl mx-auto shadow-sm">
         <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 mx-auto mb-5">
           <Icon name="my-students" :size="32" :stroke-width="1.5" />
         </div>
@@ -87,384 +87,309 @@
       <template v-else>
 
         <!-- ALERT aprobación pendiente -->
-        <div v-if="pending_approval > 0" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
-            <Icon name="warning" :size="20" />
+        <div v-if="pending_approval > 0" class="bg-orange-50 border border-orange-200 rounded-2xl sm:rounded-3xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
+            <Icon name="warning" :size="18" />
           </div>
           <div class="flex-1">
-            <p class="font-semibold text-orange-900">{{ pending_approval }} solicitud(es) esperan tu aprobación</p>
-            <p class="text-sm text-orange-600 mt-0.5">Revisa y aprueba las clases de tus hijos</p>
+            <p class="font-semibold text-orange-900 text-sm">{{ pending_approval }} solicitud(es) esperan tu aprobación</p>
+            <p class="text-xs text-orange-600 mt-0.5">Revisa y aprueba las clases de tus hijos</p>
           </div>
           <Link :href="route('class-requests.index')"
-            class="flex-shrink-0 px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-xl hover:bg-orange-600 transition-colors self-start sm:self-auto">
+            class="flex-shrink-0 px-3.5 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-colors self-start sm:self-auto">
             Revisar
           </Link>
         </div>
 
         <!-- ══════════════════════════════════════════════
-             KPI CARDS — 4 métricas
+             KPI CARDS — Slim UI (4 métricas compactas)
              ══════════════════════════════════════════════ -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" role="list" aria-label="Métricas del panel">
           <!-- Clases solicitadas -->
-          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-brand-600 group-hover:bg-blue-100 transition-colors flex-shrink-0">
-                <Icon name="requests" :size="20" />
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 py-3 px-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-blue-50 rounded-lg flex items-center justify-center text-brand-600 group-hover:bg-blue-100 transition-colors flex-shrink-0">
+                <Icon name="requests" :size="16" />
               </div>
               <Link :href="route('class-requests.index')" aria-label="Ver solicitudes"
-                class="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-brand-600 group-hover:bg-blue-50 transition-colors">
-                <Icon name="arrow-right" :size="13" />
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-brand-600 group-hover:bg-blue-50 transition-colors">
+                <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
-            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.class_requests_total }}</p>
+            <p class="text-xl sm:text-2xl font-black text-slate-900 tabular-nums leading-tight">{{ stats.class_requests_total }}</p>
             <p class="text-xs sm:text-sm font-semibold text-slate-700 mt-0.5">Clases solicitadas</p>
-            <p class="text-xs text-slate-400 mt-1 leading-snug hidden sm:block">Sigue el estado de tus solicitudes</p>
           </div>
 
           <!-- Clases completadas -->
-          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors flex-shrink-0">
-                <Icon name="flash-success" :size="20" />
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 py-3 px-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors flex-shrink-0">
+                <Icon name="flash-success" :size="16" />
               </div>
               <Link :href="route('parent.lessons')" aria-label="Ver clases completadas"
-                class="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition-colors">
-                <Icon name="arrow-right" :size="13" />
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition-colors">
+                <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
-            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.classes_completed }}</p>
+            <p class="text-xl sm:text-2xl font-black text-slate-900 tabular-nums leading-tight">{{ stats.classes_completed }}</p>
             <p class="text-xs sm:text-sm font-semibold text-slate-700 mt-0.5">Clases completadas</p>
-            <p class="text-xs text-slate-400 mt-1 leading-snug hidden sm:block">Celebra cada logro de tus hijos</p>
           </div>
 
           <!-- Próxima clase -->
-          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <div class="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-600 group-hover:bg-sky-100 transition-colors flex-shrink-0">
-                <Icon name="classes" :size="20" />
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 py-3 px-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-sky-50 rounded-lg flex items-center justify-center text-sky-600 group-hover:bg-sky-100 transition-colors flex-shrink-0">
+                <Icon name="classes" :size="16" />
               </div>
               <Link :href="route('parent.lessons')" aria-label="Ver próximas clases"
-                class="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-sky-600 group-hover:bg-sky-50 transition-colors">
-                <Icon name="arrow-right" :size="13" />
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-sky-600 group-hover:bg-sky-50 transition-colors">
+                <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
             <template v-if="next_lesson">
-              <p class="text-sm font-black text-slate-900 leading-snug line-clamp-1">{{ next_lesson.class_request?.subject?.name ?? 'Clase' }}</p>
-              <p class="text-xs text-slate-500 mt-0.5">{{ fmtDateShort(next_lesson.start_time) }}</p>
+              <p class="text-sm font-black text-slate-900 leading-tight line-clamp-1">{{ next_lesson.class_request?.subject?.name ?? 'Clase' }}</p>
+              <p class="text-xs text-slate-500 mt-0.5 truncate">{{ fmtDateShort(next_lesson.start_time) }}</p>
             </template>
             <template v-else>
-              <p class="text-2xl sm:text-3xl font-black text-slate-300">—</p>
+              <p class="text-xl sm:text-2xl font-black text-slate-300 leading-tight">—</p>
               <p class="text-xs sm:text-sm font-semibold text-slate-700 mt-0.5">Próxima clase</p>
-              <p class="text-xs text-slate-400 mt-1 leading-snug hidden sm:block">Aún no hay clases programadas</p>
             </template>
           </div>
 
           <!-- Calificación promedio -->
-          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-            <div class="flex items-start justify-between gap-2 mb-3">
-              <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500 group-hover:bg-amber-100 transition-colors flex-shrink-0">
-                <Icon name="reviews" :size="20" />
+          <div class="reveal-item group bg-white rounded-2xl border border-gray-100 py-3 px-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500 group-hover:bg-amber-100 transition-colors flex-shrink-0">
+                <Icon name="reviews" :size="16" />
               </div>
               <Link :href="route('parent.reports')" aria-label="Ver calificaciones"
-                class="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
-                <Icon name="arrow-right" :size="13" />
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
+                <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
-            <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ stats.avg_teacher_rating ?? '—' }}</p>
+            <p class="text-xl sm:text-2xl font-black text-slate-900 tabular-nums leading-tight">{{ stats.avg_teacher_rating ?? '—' }}</p>
             <p class="text-xs sm:text-sm font-semibold text-slate-700 mt-0.5">Calificación promedio</p>
-            <p class="text-xs text-slate-400 mt-1 leading-snug hidden sm:block">Las opiniones de los profesores</p>
           </div>
         </div>
 
         <!-- ══════════════════════════════════════════════
-             DIAGNÓSTICO CTA — con ilustración oficial
+             MAIN CONTENT GRID — 3 Columnas
              ══════════════════════════════════════════════ -->
-        <div class="reveal-item bg-[#F0F5FF] border border-blue-100/90 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative overflow-hidden">
-          <div class="flex items-center gap-3.5 min-w-0 z-10">
-            <div class="w-12 h-12 bg-blue-100/80 rounded-2xl flex items-center justify-center text-brand-600 flex-shrink-0">
-              <Icon name="target" :size="24" />
-            </div>
-            <div class="min-w-0">
-              <p class="font-bold text-slate-900 text-base sm:text-lg">¿No sabes qué profesor elegir?</p>
-              <p class="text-xs sm:text-sm text-slate-600 mt-0.5 leading-relaxed max-w-xl">Responde 5 preguntas y MOVA te recomienda los profesores ideales para cada uno de tus hijos.</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-4 flex-shrink-0 z-10 self-start sm:self-auto">
-            <Link :href="route('diagnostics.create')"
-              class="inline-flex items-center gap-2 px-6 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-              Hacer diagnóstico
-              <Icon name="arrow-right" :size="14" />
-            </Link>
-            <img src="/images/brand/parent-diagnostic-checklist.png" alt="Diagnóstico ilustrado"
-              class="h-16 sm:h-20 md:h-24 w-auto object-contain select-none pointer-events-none drop-shadow-sm flex-shrink-0" />
-          </div>
-        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 items-stretch">
 
-        <!-- ══════════════════════════════════════════════
-             GRID 2 COLUMNAS DESKTOP: Clases + Hijos
-             ══════════════════════════════════════════════ -->
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
-
-          <!-- Próximas clases — 3/5 -->
-          <section class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden" aria-labelledby="parent-upcoming-title">
-            <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <Icon name="classes" :size="18" class="text-brand-600" />
-                <h3 id="parent-upcoming-title" class="font-bold text-slate-900">Próximas clases</h3>
-              </div>
-              <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
-                Ver todas <Icon name="arrow-right" :size="14" />
-              </Link>
-            </div>
-
-            <template v-if="upcoming.length">
-              <!-- Esta semana -->
-              <div v-if="upcomingThisWeek.length" class="px-5 sm:px-6 pt-4 pb-1">
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icon name="classes" :size="12" /> Esta semana
-                </p>
-              </div>
-              <ol v-if="upcomingThisWeek.length" class="divide-y divide-gray-50">
-                <li v-for="(l, i) in upcomingThisWeek" :key="l.id"
-                  class="reveal-item px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
-                  <div class="flex items-center gap-3 min-w-0">
-                    <!-- Status indicator -->
-                    <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5 ring-2 ring-white ring-offset-1"
-                      :class="dotColor(l.status)"></span>
-                    <div class="min-w-0">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <p class="font-semibold text-slate-900 text-sm truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                        <StatusBadge :status="l.status" />
-                      </div>
-                      <p class="text-xs text-slate-500 mt-0.5">
-                        {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
-                      </p>
-                      <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                        <Icon name="classes" :size="11" /> {{ fmtDate(l.start_time) }}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="flex-shrink-0 self-start sm:self-auto">
-                    <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
-                      :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
-                    <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
-                      class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
-                      <Icon name="join-room" :size="14" /> Unirse a la sala
-                    </button>
-                    <p v-else-if="l.status === 'paid'" class="text-xs text-slate-400 text-right max-w-[10rem]">La sala ya no está disponible.</p>
-                    <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
-                      class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white text-xs font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
-                      <Icon name="reviews" :size="14" /> Calificar
-                    </Link>
-                  </div>
-                </li>
-              </ol>
-              <p v-else class="px-5 sm:px-6 py-3 text-sm text-slate-400">No tienes clases esta semana.</p>
-
-              <!-- Pasadas -->
-              <template v-if="upcomingPast.length">
-                <div class="px-5 sm:px-6 pt-4 pb-1 border-t border-gray-50">
-                  <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Icon name="topic" :size="12" /> Pasadas
-                  </p>
+          <!-- ── COLUMNA 1: Próximas clases ───────────────────────────── -->
+          <section class="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-5 shadow-sm flex flex-col justify-between" aria-labelledby="parent-upcoming-title">
+            <div>
+              <div class="flex items-center justify-between pb-3.5 mb-3.5 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                  <Icon name="classes" :size="18" class="text-brand-600" />
+                  <h3 id="parent-upcoming-title" class="font-bold text-slate-900 text-sm sm:text-base">Próximas clases</h3>
                 </div>
+                <Link :href="route('parent.lessons')" class="text-xs text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
+                  Ver todas <Icon name="arrow-right" :size="12" />
+                </Link>
+              </div>
+
+              <!-- Lista compacta de máximo 2 clases -->
+              <template v-if="upcoming.length">
                 <ol class="divide-y divide-gray-50">
-                  <li v-for="l in upcomingPast" :key="l.id"
-                    class="reveal-item px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5 ring-2 ring-white ring-offset-1"
-                        :class="dotColor(l.status)"></span>
-                      <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <p class="font-semibold text-slate-700 text-sm truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                          <StatusBadge :status="l.status" />
+                  <li v-for="l in upcoming.slice(0, 2)" :key="l.id"
+                    class="reveal-item py-3 first:pt-0 last:pb-0 flex flex-col gap-2">
+                    <div class="flex items-start justify-between gap-2 min-w-0">
+                      <div class="flex items-start gap-2.5 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ring-2 ring-white ring-offset-1"
+                          :class="dotColor(l.status)"></span>
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <p class="font-bold text-slate-900 text-sm truncate">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
+                            <StatusBadge :status="l.status" />
+                          </div>
+                          <p class="text-xs text-slate-500 mt-0.5 truncate">
+                            {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
+                          </p>
+                          <p class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <Icon name="classes" :size="11" /> {{ fmtDate(l.start_time) }}
+                          </p>
                         </div>
-                        <p class="text-xs text-slate-500 mt-0.5">
-                          {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
-                        </p>
-                        <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                          <Icon name="classes" :size="11" /> {{ fmtDate(l.start_time) }}
-                        </p>
                       </div>
-                    </div>
-                    <div class="flex-shrink-0 self-start sm:self-auto">
-                      <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
-                        :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
-                      <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/25">
-                        <Icon name="join-room" :size="14" /> Unirse a la sala
-                      </button>
-                      <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
-                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white text-xs font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
-                        <Icon name="reviews" :size="14" /> Calificar
-                      </Link>
+
+                      <!-- Acciones compactas y sutiles -->
+                      <div class="flex-shrink-0">
+                        <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
+                          :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
+                        <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
+                          class="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 active:scale-95 transition-all shadow-xs">
+                          <Icon name="join-room" :size="12" /> Unirse
+                        </button>
+                        <p v-else-if="l.status === 'paid'" class="text-[11px] text-slate-400 text-right">Sala cerrada</p>
+                        <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
+                          class="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white text-xs font-bold rounded-lg hover:bg-yellow-600 active:scale-95 transition-all shadow-xs">
+                          <Icon name="reviews" :size="12" /> Calificar
+                        </Link>
+                      </div>
                     </div>
                   </li>
                 </ol>
               </template>
-            </template>
 
-            <!-- Empty state diseñado según mockup -->
-            <div v-else class="relative overflow-hidden px-6 py-12 sm:py-16 text-center">
-              <!-- Trayectoria punteada de vuelo decorativa de fondo -->
-              <img src="/images/brand/parent-flight-path.png" alt="" aria-hidden="true"
-                class="absolute inset-0 w-full h-full object-contain pointer-events-none select-none opacity-25 z-0" />
-              
-              <!-- Avión de papel en vuelo en el cuadrante derecho -->
-              <img src="/images/brand/parent-paper-plane.png" alt="" aria-hidden="true"
-                class="absolute right-4 sm:right-10 lg:right-14 top-6 sm:top-8 w-16 sm:w-24 md:w-28 object-contain pointer-events-none select-none drop-shadow-sm z-0" />
-
-              <!-- Contenido central -->
-              <div class="relative z-10">
-                <img src="/images/brand/dashboard-empty-calendar.png" alt="Calendario"
-                  class="w-20 h-20 sm:w-24 sm:h-24 object-contain mx-auto mb-3 drop-shadow-sm select-none" />
-                <h4 class="font-bold text-slate-900 text-base sm:text-lg">No hay clases próximas</h4>
-                <p class="text-xs sm:text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto leading-relaxed">Cuando tengas clases agendadas, las verás aquí.</p>
+              <!-- Empty state compacto -->
+              <div v-else class="py-6 text-center">
+                <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto mb-2">
+                  <Icon name="classes" :size="22" />
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">No hay clases próximas</h4>
+                <p class="text-xs text-slate-500 mt-0.5 mb-3.5 max-w-xs mx-auto">Cuando tengas clases agendadas, las verás aquí.</p>
                 <Link :href="route('marketplace')"
-                  class="inline-flex items-center gap-2 px-6 py-2.5 bg-brand-600 text-white font-bold text-sm rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-                  Buscar un profesor <Icon name="arrow-right" :size="14" />
+                  class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white font-bold text-xs rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-xs">
+                  Buscar un profesor <Icon name="arrow-right" :size="12" />
                 </Link>
               </div>
             </div>
           </section>
 
-          <!-- Columna derecha: Mis hijos + Acciones -->
-          <div class="lg:col-span-2 space-y-5">
-
-            <!-- Mis hijos -->
-            <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden" aria-labelledby="students-title">
-              <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <!-- ── COLUMNA 2: Último reporte de aprendizaje ─────────────── -->
+          <section class="border-t-4 border-[#1f5aa6] bg-white rounded-2xl sm:rounded-3xl border-x border-b border-gray-100 p-5 shadow-sm flex flex-col justify-between" aria-labelledby="last-report-title">
+            <div>
+              <div class="flex items-center justify-between pb-3.5 mb-3.5 border-b border-gray-100">
                 <div class="flex items-center gap-2">
-                  <Icon name="my-students" :size="18" class="text-brand-600" />
-                  <h3 id="students-title" class="font-bold text-slate-900">Mis hijos</h3>
+                  <Icon name="my-reports" :size="18" class="text-brand-600" />
+                  <h3 id="last-report-title" class="font-bold text-slate-900 text-sm sm:text-base">Último reporte</h3>
                 </div>
-                <Link :href="route('students.index')" class="text-sm text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
-                  Ver todos <Icon name="arrow-right" :size="14" />
+                <Link :href="route('parent.reports')" class="text-xs text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
+                  Ver todos <Icon name="arrow-right" :size="12" />
                 </Link>
               </div>
+
+              <template v-if="last_report">
+                <div class="space-y-3">
+                  <!-- Header del reporte: Chip de materia e info de estudiante/profesor -->
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ last_report.subject }}</span>
+                    <span class="text-xs text-slate-500 font-medium truncate">{{ last_report.student_name }} · Prof. {{ last_report.teacher_name }}</span>
+                  </div>
+
+                  <!-- Bloque Tema -->
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100/80">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Icon name="topic" :size="12" /> Tema
+                    </p>
+                    <p class="text-sm text-slate-800 line-clamp-2 leading-snug">{{ last_report.topic_covered }}</p>
+                  </div>
+
+                  <!-- Bloque Desempeño -->
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100/80">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Icon name="reviews" :size="12" /> Desempeño
+                    </p>
+                    <p class="text-sm text-slate-800 line-clamp-2 leading-snug">{{ last_report.student_performance }}</p>
+                  </div>
+
+                  <!-- Bloque Próximo paso (Resaltado con fondo suave) -->
+                  <div v-if="last_report.next_step" class="bg-green-50 text-green-700 rounded-xl p-3 border border-green-100">
+                    <p class="text-[11px] font-bold text-green-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Icon name="target" :size="12" /> Próximo paso
+                    </p>
+                    <p class="text-sm text-green-900 leading-snug">{{ last_report.next_step }}</p>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Empty state si no hay reportes -->
+              <div v-else class="py-6 text-center">
+                <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto mb-2">
+                  <Icon name="my-reports" :size="22" />
+                </div>
+                <h4 class="font-bold text-slate-900 text-sm">Sin reportes aún</h4>
+                <p class="text-xs text-slate-500 mt-0.5 max-w-xs mx-auto">Cuando tus hijos completen clases, aquí verás el reporte de su aprendizaje.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── COLUMNA 3: Mis hijos + Acciones Rápidas ──────────────── -->
+          <div class="flex flex-col gap-4 sm:gap-5 justify-between">
+
+            <!-- Arriba: Mis Hijos -->
+            <section class="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm" aria-labelledby="students-title">
+              <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                  <Icon name="my-students" :size="18" class="text-brand-600" />
+                  <h3 id="students-title" class="font-bold text-slate-900 text-sm sm:text-base">Mis hijos</h3>
+                </div>
+                <Link :href="route('students.index')" class="text-xs text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
+                  Ver todos <Icon name="arrow-right" :size="12" />
+                </Link>
+              </div>
+
+              <!-- Lista muy comprimida -->
               <ul class="divide-y divide-gray-50">
-                <li v-for="s in students" :key="s.id"
-                  class="reveal-item px-5 sm:px-6 py-3.5 flex items-center gap-3 hover:bg-slate-50/60 transition-colors">
-                  <!-- Avatar inicial con color verde uniforme -->
-                  <div class="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    {{ s.first_name?.charAt(0)?.toUpperCase() }}
+                <li v-for="s in students.slice(0, 2)" :key="s.id"
+                  class="reveal-item py-2 first:pt-1 last:pb-1 flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <!-- Avatar redondo inicial -->
+                    <div class="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                      {{ s.first_name?.charAt(0)?.toUpperCase() }}
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">{{ s.first_name }} {{ s.last_name }}</p>
+                      <p class="text-[11px] text-slate-400 capitalize truncate">{{ s.grade_level ?? 'Sin nivel' }}</p>
+                    </div>
                   </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-semibold text-slate-900 truncate">{{ s.first_name }} {{ s.last_name }}</p>
-                    <p class="text-xs text-slate-400 capitalize">{{ s.grade_level ?? 'Sin nivel asignado' }}</p>
-                  </div>
+                  <!-- Botón Ver detalle minimalista -->
                   <Link :href="route('students.index')"
-                    class="flex-shrink-0 px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg hover:bg-brand-100 transition-colors border border-brand-100 flex items-center gap-1">
-                    Ver detalle <Icon name="arrow-right" :size="12" />
+                    class="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-0.5 whitespace-nowrap transition-colors">
+                    Ver detalle <Icon name="arrow-right" :size="11" />
                   </Link>
                 </li>
               </ul>
             </section>
 
-            <!-- Acciones rápidas -->
-            <section aria-labelledby="parent-actions-title">
-              <h3 id="parent-actions-title" class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 px-0.5">Acciones rápidas</h3>
+            <!-- Abajo: Acciones Rápidas -->
+            <section class="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm" aria-labelledby="parent-actions-title">
+              <h3 id="parent-actions-title" class="font-bold text-slate-900 text-sm mb-3">Acciones rápidas</h3>
               <div class="space-y-2.5">
-                <Link :href="route('class-requests.create')"
-                  class="reveal-item flex items-center gap-3.5 bg-brand-600 rounded-2xl px-4 py-3.5 hover:bg-brand-700 transition-all shadow-md shadow-brand-600/20">
-                  <div class="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Icon name="new-request" :size="18" class="text-white" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="font-bold text-white text-sm">Solicitar una clase</p>
-                    <p class="text-xs text-brand-200 mt-0.5">Te contactará el primer profesor disponible</p>
-                  </div>
-                  <Icon name="arrow-right" :size="16" class="text-white/50 flex-shrink-0" />
-                </Link>
+                <!-- Botón verde magnético con animación ultra fluida en reposo y hover -->
+                <div class="relative group block w-full select-none">
+                  <!-- Capa 1: Resplandor ambiental verde en reposo y hover (difuso y suave) -->
+                  <div class="cta-glow-ambient absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-green-400 to-teal-500 opacity-60 blur-md transition-all duration-700 ease-out group-hover:opacity-100 group-hover:blur-lg group-hover:-inset-1"></div>
 
+                  <!-- Capa 2: Botón principal -->
+                  <Link :href="route('class-requests.create')"
+                    class="cta-main-btn relative overflow-hidden w-full bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 text-white font-extrabold text-sm rounded-xl py-3 px-4 flex items-center justify-between border border-emerald-300/40 shadow-md shadow-emerald-900/10">
+
+                    <!-- Capa 3: Overlay de gradiente brillante en hover que se desvanece suavemente con opacity (sin saltos bruscos) -->
+                    <div class="absolute inset-0 bg-gradient-to-r from-emerald-500 via-green-400 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity duration-700 ease-out pointer-events-none"></div>
+
+                    <!-- Capa 4: Shimmer ray continuo -->
+                    <div class="cta-shimmer-sweep pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+
+                    <!-- Contenido interactivo -->
+                    <div class="relative z-10 flex items-center gap-2.5">
+                      <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs text-white shadow-2xs transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-6">
+                        <Icon name="new-request" :size="16" class="text-white drop-shadow-xs" />
+                      </span>
+                      <span class="tracking-wide font-black text-sm drop-shadow-xs">Solicitar una clase</span>
+                    </div>
+
+                    <!-- Flecha animada suavemente al hacer hover -->
+                    <div class="relative z-10 flex items-center justify-center w-6 h-6 rounded-full bg-emerald-800/30 text-white transition-all duration-500 ease-out group-hover:bg-white/25 group-hover:translate-x-1.5">
+                      <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </div>
+                  </Link>
+                </div>
+
+                <!-- Botón gris secundario -->
                 <Link :href="route('students.index')"
-                  class="reveal-item group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-brand-200 hover:shadow-sm transition-all duration-150">
-                  <div class="w-9 h-9 bg-slate-50 group-hover:bg-brand-50 rounded-xl flex items-center justify-center text-slate-500 group-hover:text-brand-600 flex-shrink-0 transition-colors">
-                    <Icon name="my-students" :size="18" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="font-semibold text-slate-900 text-sm">Gestionar hijos</p>
-                    <p class="text-xs text-slate-400">Añade o edita sus datos</p>
-                  </div>
-                  <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
-                </Link>
-
-                <Link :href="route('parent.reports')"
-                  class="reveal-item group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-brand-200 hover:shadow-sm transition-all duration-150">
-                  <div class="w-9 h-9 bg-slate-50 group-hover:bg-brand-50 rounded-xl flex items-center justify-center text-slate-500 group-hover:text-brand-600 flex-shrink-0 transition-colors">
-                    <Icon name="my-reports" :size="18" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="font-semibold text-slate-900 text-sm">Reportes</p>
-                    <p class="text-xs text-slate-400">Historial de aprendizaje</p>
-                  </div>
-                  <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
+                  class="w-full bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-semibold text-sm rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 active:scale-[0.99] transition-all">
+                  <Icon name="my-students" :size="16" class="text-slate-500" />
+                  <span>Reportes / Gestionar hijos</span>
                 </Link>
               </div>
             </section>
 
           </div>
         </div><!-- /grid -->
-
-        <!-- ══════════════════════════════════════════════
-             HISTORIAL RECIENTE (si existe)
-             ══════════════════════════════════════════════ -->
-        <div v-if="recent_history.length">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-bold text-slate-900">Historial reciente</h3>
-            <Link :href="route('parent.lessons')" class="text-sm text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
-              Ver todo <Icon name="arrow-right" :size="14" />
-            </Link>
-          </div>
-          <div class="reveal-group grid gap-3 sm:grid-cols-2">
-            <div v-for="l in recent_history" :key="l.id"
-              class="reveal-item bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="font-semibold text-slate-900 truncate text-sm">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                  <p class="text-xs text-slate-400 mt-0.5">{{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}</p>
-                  <p class="text-xs text-slate-400">{{ fmtDateShort(l.start_time) }}</p>
-                </div>
-                <div v-if="l.teacher_review" class="flex-shrink-0 flex items-center gap-0.5">
-                  <Icon v-for="n in 5" :key="n" name="reviews" :size="13"
-                    :class="n <= l.teacher_review.rating ? 'text-amber-400' : 'text-gray-200'"
-                    :fill="n <= l.teacher_review.rating ? 'currentColor' : 'none'" />
-                </div>
-                <p v-else class="flex-shrink-0 text-xs text-slate-300 italic">Sin calificar</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Último reporte de aprendizaje -->
-        <div v-if="last_report" class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-bold text-slate-900">Último reporte de aprendizaje</h3>
-            <Link :href="route('parent.reports')" class="text-sm text-brand-600 font-semibold hover:text-brand-700 transition-colors flex items-center gap-1">
-              Ver todos <Icon name="arrow-right" :size="14" />
-            </Link>
-          </div>
-          <div class="p-5 sm:p-6 space-y-3">
-            <div class="flex flex-wrap items-center gap-2 mb-1">
-              <span class="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ last_report.subject }}</span>
-              <span class="text-xs text-slate-400">{{ last_report.student_name }} · Prof. {{ last_report.teacher_name }}</span>
-            </div>
-            <div class="grid sm:grid-cols-2 gap-3">
-              <div class="bg-slate-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="topic" :size="12" /> Tema</p>
-                <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.topic_covered }}</p>
-              </div>
-              <div class="bg-slate-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="reviews" :size="12" /> Desempeño</p>
-                <p class="text-sm text-slate-800 line-clamp-2">{{ last_report.student_performance }}</p>
-              </div>
-              <div v-if="last_report.next_step" class="sm:col-span-2 bg-green-50 rounded-xl p-3">
-                <p class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1 flex items-center gap-1"><Icon name="target" :size="12" /> Próximo paso</p>
-                <p class="text-sm text-slate-800">{{ last_report.next_step }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
 
       </template><!-- /v-else students -->
     </div>
@@ -578,3 +503,58 @@ onMounted(() => {
   })
 })
 </script>
+
+<style scoped>
+/* Respiración sutil y fluida del resplandor ambiental en reposo */
+@keyframes ambient-glow-breathe {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.99);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.cta-glow-ambient {
+  animation: ambient-glow-breathe 3.5s ease-in-out infinite;
+}
+
+/* Transición ultra-fluida al interactuar con el botón principal */
+.cta-main-btn {
+  transform: translateY(0) scale(1);
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.group:hover .cta-main-btn {
+  transform: translateY(-2.5px) scale(1.015);
+  box-shadow: 0 12px 28px -4px rgba(16, 185, 129, 0.55), 0 0 0 1px rgba(167, 243, 208, 0.4);
+  border-color: rgba(167, 243, 208, 0.7);
+}
+
+.group:active .cta-main-btn {
+  transform: translateY(0) scale(0.98);
+  transition: transform 0.15s ease-out;
+}
+
+/* Destello continuo suave que cruza el botón */
+@keyframes shimmer-sweep-anim {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  35%, 100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.cta-shimmer-sweep {
+  animation: shimmer-sweep-anim 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.group:hover .cta-shimmer-sweep {
+  animation: shimmer-sweep-anim 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+</style>

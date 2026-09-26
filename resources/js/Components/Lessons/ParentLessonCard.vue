@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-2xl border border-gray-100 hover:border-brand-200 transition-all hover:shadow-md overflow-hidden">
+  <div class="bg-white rounded-3xl border border-gray-100 hover:border-brand-200 transition-all hover:shadow-md overflow-hidden">
     <div :class="['h-1', statusStyle(lesson.status).stripe]"></div>
 
     <div class="p-5">

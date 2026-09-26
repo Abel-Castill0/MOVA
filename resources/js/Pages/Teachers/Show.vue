@@ -2,7 +2,7 @@
   <Head>
     <meta name="description" :content="`Clases particulares con ${teacher.name} en MOVA` + (teacher.subjects?.length ? `: ${teacher.subjects.map(s => s.name).join(', ')}.` : '.') + ' Profesor verificado, clases en vivo por videollamada.'" />
   </Head>
-  <PublicPageLayout :title="teacher.name + ' — MOVA'">
+  <component :is="layoutComponent" :title="pageTitle">
     <div class="max-w-3xl mx-auto space-y-6">
 
       <!-- Back -->
@@ -91,13 +91,34 @@
                este profesor — el padre elige materia, no profesor. -->
           <div class="mt-5">
             <Link v-if="authUser && isParent" :href="route('class-requests.create')"
-              class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-card shadow-elevation-1 hover:bg-brand-700 active:scale-[0.97] transition-[transform,background-color] duration-micro ease-out-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 whitespace-nowrap">
-              Solicitar una clase
-              <Icon name="arrow-right" :size="16" />
+              class="btn-motion-green group shadow-[0_4px_20px_rgba(16,185,129,0.35)]">
+              <span class="btn-pulse-dot" aria-hidden="true"></span>
+              <span>Solicitar una clase</span>
+              <span class="btn-arrow-icon" aria-hidden="true">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+            </Link>
+            <Link v-else-if="authUser && isTeacher" :href="route('teacher.requests')"
+              class="btn-motion-orange group shadow-[0_4px_20px_rgba(234,88,12,0.35)]">
+              <span class="btn-pulse-dot-orange" aria-hidden="true"></span>
+              <span>Ver solicitudes disponibles</span>
+              <span class="btn-arrow-icon" aria-hidden="true">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
             </Link>
             <Link v-else-if="!authUser" :href="route('login')"
-              class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-card shadow-elevation-1 hover:bg-brand-700 active:scale-[0.97] transition-[transform,background-color] duration-micro ease-out-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 whitespace-nowrap">
-              Iniciar sesión para solicitar
+              class="btn-motion-green group shadow-[0_8px_30px_rgba(16,185,129,0.5)]">
+              <span class="btn-pulse-dot" aria-hidden="true"></span>
+              <span>Inicia sesión para solicitar</span>
+              <span class="btn-arrow-icon" aria-hidden="true">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
             </Link>
           </div>
         </div>
@@ -175,23 +196,34 @@
       </div>
 
     </div>
-  </PublicPageLayout>
+  </component>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
 import PublicPageLayout from '@/Layouts/PublicPageLayout.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import Icon from '@/Components/Icon.vue'
 
-defineProps({ teacher: Object })
+const props = defineProps({ teacher: Object })
 
-const authUser = computed(() => usePage().props.auth?.user ?? null)
+const page = usePage()
+const authUser = computed(() => page.props.auth?.user ?? null)
+const layoutComponent = computed(() => authUser.value ? AppLayout : PublicPageLayout)
+const pageTitle = computed(() => authUser.value ? props.teacher.name : props.teacher.name + ' — MOVA')
+
 const isParent = computed(() => {
-  const roles = usePage().props.auth?.user?.roles
+  const roles = page.props.auth?.user?.roles
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
+})
+
+const isTeacher = computed(() => {
+  const roles = page.props.auth?.user?.roles
+  if (!roles) return false
+  return Array.isArray(roles) ? roles.includes('teacher') : Object.values(roles).includes('teacher')
 })
 
 // Igual que en Marketplace/Index.vue: un avatar_url presente no garantiza

@@ -28,6 +28,7 @@ use App\Http\Controllers\CounterofferController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
+use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
 
 // ── Health check (no session, no auth) ──────────────────────────────────────
@@ -55,6 +56,11 @@ Route::get('/invitacion/profesor', [TeacherInvitationController::class, 'index']
 Route::get('/invitacion/alumno', [StudentInvitationController::class, 'index'])->name('landing.student');
 Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');
 Route::get('/teachers/{teacherProfile}', [TeacherPublicController::class, 'show'])->name('teachers.show');
+
+// ── Chatbot Movi (Asistente IA con Gemini) ───────────────────────────────────
+Route::post('/chatbot/message', [ChatbotController::class, 'message'])
+    ->middleware(['throttle:30,1'])
+    ->name('chatbot.message');
 
 // ── Suspended account page (auth only, no suspension check) ──────────────────
 Route::middleware('auth')->get('/suspended', fn () => \Inertia\Inertia::render('Suspended'))->name('suspended');

@@ -1,11 +1,11 @@
 <template>
-  <AppLayout title="Mi panel de profesor">
-    <div class="space-y-6">
+  <AppLayout title="Mi panel de profesor" :compact="true">
+    <div class="space-y-4 sm:space-y-4.5">
 
       <!-- ══════════════════════════════════════════════
            HERO — identidad naranja MOVA
            ══════════════════════════════════════════════ -->
-      <section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#B43403] via-[#EA580C] to-[#F97316] text-white shadow-lg shadow-orange-900/15 px-6 py-6 sm:px-8 sm:py-7">
+      <section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#B43403] via-[#EA580C] to-[#F97316] text-white shadow-lg shadow-orange-900/15 px-6 py-5 sm:px-8 sm:py-6">
         <!-- Decoración de fondo naranja (asset oficial) -->
         <img src="/images/brand/teacher-hero-decoration.png" alt="" aria-hidden="true"
           class="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none opacity-30 mix-blend-screen" />
@@ -15,9 +15,9 @@
             <p class="text-orange-100 text-sm font-medium mb-1 flex items-center gap-1.5">
               ¡Hola, {{ firstName }}! <span class="inline-block text-base">👋</span>
             </p>
-            <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">Tu panel de clases</h2>
+            <h2 class="text-2xl sm:text-3xl lg:text-3xl font-black tracking-tight leading-tight">Tu panel de clases</h2>
             <p class="text-orange-100/90 text-sm mt-1.5 capitalize">{{ today }}</p>
-            <p class="text-white/80 text-sm mt-2 max-w-sm leading-relaxed hidden sm:block">Sigamos creando oportunidades a través de la educación.</p>
+            <p class="text-white/80 text-sm mt-1.5 max-w-sm leading-relaxed hidden sm:block">Sigamos creando oportunidades a través de la educación.</p>
           </div>
 
           <!-- Lado derecho: Composición educativa con ilustración oficial -->
@@ -26,12 +26,12 @@
               <span class="text-sm font-medium italic tracking-wide font-serif leading-tight">Grandes profesores,</span>
               <span class="text-sm font-medium italic tracking-wide font-serif leading-tight">mejores futuros</span>
               <!-- Flecha curva hacia la ilustración -->
-              <svg class="w-12 h-6 text-white/80 mt-1 mr-2" viewBox="0 0 50 25" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg class="w-10 h-5 text-white/80 mt-1 mr-2" viewBox="0 0 50 25" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M 5 5 Q 30 5 38 18 M 32 18 L 38 18 L 38 12" />
               </svg>
             </div>
             <img src="/images/brand/teacher-hero-education.png" alt="Libros y herramientas educativas"
-              class="h-28 sm:h-32 md:h-36 lg:h-40 max-h-full w-auto object-contain select-none pointer-events-none drop-shadow-md self-end" />
+              class="h-24 sm:h-28 md:h-32 max-h-full w-auto object-contain select-none pointer-events-none drop-shadow-md self-end" />
           </div>
         </div>
       </section>
@@ -39,7 +39,7 @@
       <!-- ══════════════════════════════════════════════
            BANNER POST-CLASE (lógica sin cambios)
            ══════════════════════════════════════════════ -->
-      <div v-if="postClassLessonId && postClassEnded" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div v-if="postClassLessonId && postClassEnded" class="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
           <Icon name="my-reports" :size="20" />
         </div>
@@ -58,7 +58,7 @@
           </button>
         </div>
       </div>
-      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div v-else-if="postClassLessonId" class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
           <Icon name="in-progress" :size="20" />
         </div>
@@ -75,21 +75,21 @@
       <!-- ══════════════════════════════════════════════
            KPI CARDS — 3 métricas clave
            ══════════════════════════════════════════════ -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" role="list" aria-label="Métricas del panel">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4" role="list" aria-label="Métricas del panel">
         <!-- Clases próximas -->
-        <div class="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-          <div class="flex items-start justify-between gap-3 mb-3">
-            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+        <div class="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-4.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+          <div class="flex items-start justify-between gap-3 mb-2.5">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
               <Icon name="classes" :size="20" />
             </div>
             <Link :href="route('teacher.lessons')" aria-label="Ver todas mis clases"
-              class="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
-              <Icon name="arrow-right" :size="14" />
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
+              <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
-          <p class="text-3xl font-black text-slate-900 tabular-nums">{{ upcoming.length }}</p>
+          <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ upcoming.length }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Clases próximas</p>
-          <p class="text-xs text-slate-400 mt-1 leading-snug">
+          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
             <template v-if="upcoming.length === 0">Tienes 0 clases programadas</template>
             <template v-else-if="upcoming.length === 1">Tienes 1 clase agendada</template>
             <template v-else>Tienes {{ upcoming.length }} clases agendadas</template>
@@ -97,19 +97,19 @@
         </div>
 
         <!-- Solicitudes abiertas -->
-        <div class="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-          <div class="flex items-start justify-between gap-3 mb-3">
-            <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
+        <div class="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-4.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+          <div class="flex items-start justify-between gap-3 mb-2.5">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
               <Icon name="requests" :size="20" />
             </div>
             <Link :href="route('teacher.requests')" aria-label="Ver solicitudes"
-              class="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-orange-600 group-hover:bg-orange-50 transition-colors">
-              <Icon name="arrow-right" :size="14" />
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-orange-600 group-hover:bg-orange-50 transition-colors">
+              <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
-          <p class="text-3xl font-black text-orange-600 tabular-nums">{{ pending_requests }}</p>
+          <p class="text-2xl sm:text-3xl font-black text-orange-600 tabular-nums">{{ pending_requests }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Solicitudes abiertas</p>
-          <p class="text-xs text-slate-400 mt-1 leading-snug">
+          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
             <template v-if="pending_requests === 0">Tienes 0 solicitudes pendientes</template>
             <template v-else-if="pending_requests === 1">Tienes 1 solicitud pendiente</template>
             <template v-else>Tienes {{ pending_requests }} solicitudes pendientes</template>
@@ -117,20 +117,20 @@
         </div>
 
         <!-- Reportes pendientes -->
-        <div class="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
-          <div class="flex items-start justify-between gap-3 mb-3">
-            <div :class="['w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+        <div class="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-4.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
+          <div class="flex items-start justify-between gap-3 mb-2.5">
+            <div :class="['w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0',
               pending_reports > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600']">
               <Icon name="my-reports" :size="20" />
             </div>
             <Link :href="route('teacher.lessons')" aria-label="Ver reportes"
-              class="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-green-50 transition-colors">
-              <Icon name="arrow-right" :size="14" />
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-green-50 transition-colors">
+              <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
-          <p class="text-3xl font-black tabular-nums" :class="pending_reports > 0 ? 'text-red-500' : 'text-slate-900'">{{ pending_reports }}</p>
+          <p class="text-2xl sm:text-3xl font-black tabular-nums" :class="pending_reports > 0 ? 'text-red-500' : 'text-slate-900'">{{ pending_reports }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Reportes pendientes</p>
-          <p class="text-xs text-slate-400 mt-1 leading-snug">
+          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
             <template v-if="pending_reports === 0">No tienes reportes pendientes</template>
             <template v-else-if="pending_reports === 1">Tienes 1 reporte por completar</template>
             <template v-else>Tienes {{ pending_reports }} reportes por completar</template>
@@ -141,19 +141,19 @@
       <!-- ══════════════════════════════════════════════
            ALERT — Verificación de celular (naranja MOVA)
            ══════════════════════════════════════════════ -->
-      <div v-if="!user?.phone_verified && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-3.5 min-w-0">
-          <div class="w-11 h-11 bg-orange-500 rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-sm shadow-orange-500/20">
-            <Icon name="incentive" :size="22" />
+      <div v-if="!user?.phone_verified && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm shadow-orange-500/20">
+            <Icon name="incentive" :size="20" />
           </div>
           <div class="min-w-0">
             <p class="font-bold text-slate-900 text-sm sm:text-base">¡Verifica tu número de celular!</p>
-            <p class="text-xs sm:text-sm text-slate-600 mt-0.5 leading-relaxed">Desbloquea tus 5 créditos gratis y empieza a aceptar solicitudes de clases.</p>
+            <p class="text-xs text-slate-600 mt-0.5 leading-relaxed truncate">Desbloquea tus 5 créditos gratis y empieza a aceptar solicitudes de clases.</p>
           </div>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
           <Link :href="route('phone.verification.notice')"
-            class="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-bold rounded-xl hover:bg-orange-700 active:scale-95 transition-all shadow-sm shadow-orange-600/20">
+            class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-xl hover:bg-orange-700 active:scale-95 transition-all shadow-sm shadow-orange-600/20">
             Verificar celular
             <Icon name="arrow-right" :size="14" />
           </Link>
@@ -167,31 +167,58 @@
       <!-- ══════════════════════════════════════════════
            ALERT — Reportes atrasados
            ══════════════════════════════════════════════ -->
-      <div v-if="pending_reports > 0" class="bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center text-red-600 flex-shrink-0">
-          <Icon name="report-due" :size="20" />
+      <div v-if="pending_reports > 0" class="bg-red-50 border border-red-200 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center text-red-600 flex-shrink-0">
+          <Icon name="report-due" :size="18" />
         </div>
-        <div class="flex-1">
-          <p class="font-semibold text-red-900">{{ pending_reports }} clase(s) completada(s) sin reporte</p>
-          <p class="text-sm text-red-600 mt-0.5">Los padres esperan el reporte de aprendizaje de sus hijos.</p>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-red-900 text-sm">{{ pending_reports }} clase(s) completada(s) sin reporte</p>
+          <p class="text-xs text-red-600 mt-0.5 truncate">Los padres esperan el reporte de aprendizaje de sus hijos.</p>
         </div>
         <Link :href="route('teacher.lessons')"
-          class="flex-shrink-0 px-4 py-2 bg-red-500 text-white text-sm font-bold rounded-xl hover:bg-red-600 transition-colors self-start sm:self-auto">
+          class="flex-shrink-0 px-4 py-2 bg-red-500 text-white text-xs sm:text-sm font-bold rounded-xl hover:bg-red-600 transition-colors self-start sm:self-auto">
           Completar reportes
         </Link>
       </div>
 
       <!-- ══════════════════════════════════════════════
-           GRID 2 COLUMNAS DESKTOP: Clases + Perfil
+           ALERT — Progreso del perfil (si < 100)
            ══════════════════════════════════════════════ -->
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+      <div v-if="profile_score < 100" class="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+            <Icon name="profile" :size="18" />
+          </div>
+          <div class="min-w-0">
+            <p class="font-bold text-slate-900 text-sm">Tu perfil está {{ profile_score }}% completo</p>
+            <p class="text-xs text-slate-600 mt-0.5 truncate">Completa tu perfil para ganar más visibilidad y recibir más solicitudes.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <div class="w-28 h-2 bg-blue-200/60 rounded-full overflow-hidden hidden sm:block">
+            <div class="h-full rounded-full transition-all duration-700"
+              :style="{ width: profile_score + '%' }"
+              :class="profile_score >= 70 ? 'bg-emerald-500' : profile_score >= 40 ? 'bg-amber-400' : 'bg-red-400'">
+            </div>
+          </div>
+          <Link :href="route('teacher.profile')"
+            class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-colors">
+            Completar perfil <Icon name="arrow-right" :size="12" />
+          </Link>
+        </div>
+      </div>
 
-        <!-- Próximas clases — col 3/5 -->
-        <section class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 overflow-hidden" aria-labelledby="upcoming-title">
-          <div class="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <!-- ══════════════════════════════════════════════
+           GRID REORGANIZADO 50/50: Clases + Acciones 2x2
+           ══════════════════════════════════════════════ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch">
+
+        <!-- Próximas clases — col 1 (50%) -->
+        <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col shadow-2xs" aria-labelledby="upcoming-title">
+          <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <Icon name="classes" :size="18" class="text-orange-500" />
-              <h3 id="upcoming-title" class="font-bold text-slate-900">Próximas clases</h3>
+              <h3 id="upcoming-title" class="font-bold text-slate-900 text-sm sm:text-base">Próximas clases</h3>
             </div>
             <Link :href="route('teacher.lessons')" class="text-sm text-blue-600 font-semibold hover:text-blue-700 transition-colors flex items-center gap-1">
               Ver todas <Icon name="arrow-right" :size="14" />
@@ -200,49 +227,46 @@
 
           <!-- Con clases -->
           <template v-if="upcoming.length">
-            <!-- Esta semana -->
-            <div v-if="upcomingThisWeek.length" class="px-5 sm:px-6 pt-4 pb-1">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Icon name="classes" :size="12" /> Esta semana
-              </p>
-            </div>
-            <div v-if="upcomingThisWeek.length" class="divide-y divide-gray-50">
+            <div class="max-h-[190px] overflow-y-auto divide-y divide-gray-50 flex-1">
+              <!-- Esta semana -->
+              <div v-if="upcomingThisWeek.length" class="px-5 pt-3 pb-1 bg-slate-50/40">
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icon name="classes" :size="12" /> Esta semana
+                </p>
+              </div>
               <div v-for="l in upcomingThisWeek" :key="l.id"
-                class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
+                class="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="w-9 h-9 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0 text-orange-700 font-bold text-sm">
                     {{ l.student?.first_name?.charAt(0) ?? '?' }}
                   </div>
                   <div class="min-w-0">
                     <p class="font-semibold text-slate-900 truncate text-sm">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                    <p class="text-xs text-slate-400 mt-0.5">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
                   </div>
                 </div>
                 <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
-                  class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-colors shadow-sm self-start sm:self-auto">
+                  class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-colors shadow-2xs self-start sm:self-auto">
                   <Icon name="my-reports" :size="13" /> Escribir reporte
                 </Link>
               </div>
-            </div>
-            <p v-else class="px-5 sm:px-6 py-3 text-sm text-slate-400">No tienes clases esta semana.</p>
 
-            <!-- Pasadas -->
-            <template v-if="upcomingPast.length">
-              <div class="px-5 sm:px-6 pt-4 pb-1 border-t border-gray-50">
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icon name="topic" :size="12" /> Pasadas
-                </p>
-              </div>
-              <div class="divide-y divide-gray-50">
+              <!-- Pasadas -->
+              <template v-if="upcomingPast.length">
+                <div class="px-5 pt-3 pb-1 bg-slate-50/40 border-t border-gray-50">
+                  <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Icon name="topic" :size="12" /> Pasadas
+                  </p>
+                </div>
                 <div v-for="l in upcomingPast" :key="l.id"
-                  class="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
+                  class="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
                   <div class="flex items-center gap-3 min-w-0">
                     <div class="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 text-slate-500 font-bold text-sm">
                       {{ l.student?.first_name?.charAt(0) ?? '?' }}
                     </div>
                     <div class="min-w-0">
                       <p class="font-semibold text-slate-700 truncate text-sm">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                      <p class="text-xs text-slate-400 mt-0.5">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                      <p class="text-xs text-slate-400 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
                     </div>
                   </div>
                   <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
@@ -250,122 +274,90 @@
                     <Icon name="my-reports" :size="13" /> Escribir reporte
                   </Link>
                 </div>
-              </div>
-            </template>
+              </template>
+            </div>
           </template>
 
           <!-- Empty state -->
-          <div v-else class="px-6 py-12 text-center">
+          <div v-else class="px-6 py-8 text-center flex-1 flex flex-col items-center justify-center">
             <img src="/images/brand/dashboard-empty-calendar.png" alt="Calendario"
-              class="w-24 h-24 sm:w-28 sm:h-28 object-contain mx-auto mb-3 drop-shadow-sm select-none" />
-            <p class="font-bold text-slate-900 text-sm sm:text-base">No tienes clases próximas</p>
-            <p class="text-xs sm:text-sm text-slate-400 mt-1 mb-5 leading-relaxed">Cuando tengas clases agendadas, aparecerán aquí.</p>
+              class="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto mb-2 drop-shadow-sm select-none" />
+            <p class="font-bold text-slate-900 text-sm">No tienes clases próximas</p>
+            <p class="text-xs text-slate-400 mt-0.5 mb-3 leading-relaxed">Cuando tengas clases agendadas, aparecerán aquí.</p>
             <Link :href="route('teacher.requests')"
-              class="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-orange-600 text-sm font-bold rounded-xl hover:bg-orange-50/80 transition-colors border border-orange-200 shadow-sm">
-              <Icon name="requests" :size="15" /> Explorar solicitudes
+              class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-orange-600 text-xs sm:text-sm font-bold rounded-xl hover:bg-orange-50/80 transition-colors border border-orange-200 shadow-2xs">
+              <Icon name="requests" :size="14" /> Explorar solicitudes
             </Link>
           </div>
         </section>
 
-        <!-- Columna derecha: Perfil + Acciones rápidas -->
-        <div class="lg:col-span-2 space-y-5">
-
-          <!-- Progreso del perfil -->
-          <section v-if="profile_score < 100" class="bg-white rounded-2xl border border-gray-100 overflow-hidden" aria-labelledby="profile-title">
-            <div class="px-5 py-4 border-b border-gray-100">
-              <div class="flex items-center gap-2.5 mb-1">
-                <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-                  <Icon name="profile" :size="18" />
-                </div>
-                <h3 id="profile-title" class="font-bold text-slate-900 text-sm sm:text-base">Tu perfil está {{ profile_score }}% completo</h3>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Completa tu perfil para ganar más visibilidad y recibir más solicitudes.</p>
-              <!-- Progress bar con porcentaje al lado -->
-              <div class="mt-3.5 flex items-center gap-3">
-                <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden" role="progressbar" :aria-valuenow="profile_score" aria-valuemin="0" aria-valuemax="100">
-                  <div class="h-full rounded-full transition-all duration-700"
-                    :style="{ width: profile_score + '%' }"
-                    :class="profile_score >= 70 ? 'bg-emerald-500' : profile_score >= 40 ? 'bg-amber-400' : 'bg-red-400'">
-                  </div>
-                </div>
-                <span class="text-xs font-bold text-emerald-600 flex-shrink-0">{{ profile_score }}%</span>
-              </div>
-            </div>
-            <!-- Checklist en 2 columnas -->
-            <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div v-for="(done, key) in profile_checklist" :key="key" class="flex items-center gap-2">
-                <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                  :class="done ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'">
-                  <Icon v-if="done" name="check" :size="10" :stroke-width="3" />
-                  <span v-else class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                </div>
-                <span class="text-xs" :class="done ? 'text-slate-700' : 'text-slate-400'">{{ checklistLabel(key) }}</span>
-              </div>
-            </div>
-            <div class="p-3 border-t border-gray-50">
-              <Link :href="route('teacher.profile')"
-                class="w-full py-2.5 px-4 bg-orange-50/80 hover:bg-orange-100 text-orange-700 font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition-colors">
-                Completar perfil <Icon name="arrow-right" :size="14" />
-              </Link>
-            </div>
-          </section>
-
-          <!-- Acciones rápidas -->
-          <section aria-labelledby="actions-title">
-            <h3 id="actions-title" class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 px-0.5">Acciones rápidas</h3>
-            <div class="space-y-2.5">
-              <Link :href="route('teacher.requests')"
-                class="group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-orange-200 hover:shadow-sm transition-all duration-150">
+        <!-- Acciones rápidas — col 2 (50%) organizadas en 2x2 para que TODO entre en pantalla -->
+        <section aria-labelledby="actions-title" class="flex flex-col">
+          <h3 id="actions-title" class="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-0.5">Acciones rápidas</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+            <!-- 1. Solicitudes -->
+            <Link :href="route('teacher.requests')"
+              class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-orange-200 hover:shadow-sm transition-all duration-150">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-9 h-9 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0 transition-colors">
                   <Icon name="requests" :size="18" />
                 </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-semibold text-slate-900 text-sm">Solicitudes</p>
-                  <p class="text-xs text-slate-400">{{ pending_requests }} abiertas</p>
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 text-sm truncate">Solicitudes</p>
+                  <p class="text-xs text-slate-400 truncate">{{ pending_requests }} abiertas</p>
                 </div>
-                <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-orange-500 flex-shrink-0 transition-colors" />
-              </Link>
+              </div>
+              <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-orange-500 flex-shrink-0 transition-colors" />
+            </Link>
 
-              <Link v-if="hasOffers" :href="route('class-offers.index')"
-                class="group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-brand-200 hover:shadow-sm transition-all duration-150">
+            <!-- 2. Mis ofertas anteriores -->
+            <Link v-if="hasOffers" :href="route('class-offers.index')"
+              class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-brand-200 hover:shadow-sm transition-all duration-150">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-9 h-9 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-brand-600 flex-shrink-0 transition-colors">
                   <Icon name="past-offers" :size="18" />
                 </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-semibold text-slate-900 text-sm">Mis ofertas anteriores</p>
-                  <p class="text-xs text-slate-400">Gestiona tarifa y cupos</p>
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 text-sm truncate">Mis ofertas</p>
+                  <p class="text-xs text-slate-400 truncate">Tarifa y cupos</p>
                 </div>
-                <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
-              </Link>
+              </div>
+              <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
+            </Link>
 
-              <Link :href="route('teacher.credits.index')"
-                class="group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-emerald-200 hover:shadow-sm transition-all duration-150">
+            <!-- 3. Recargar créditos -->
+            <Link :href="route('teacher.credits.index')"
+              class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-emerald-200 hover:shadow-sm transition-all duration-150">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-9 h-9 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0 transition-colors">
                   <Icon name="credits" :size="18" />
                 </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-semibold text-slate-900 text-sm">Recargar créditos</p>
-                  <p class="text-xs text-slate-400">Yape / Plin</p>
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 text-sm truncate">Recargar créditos</p>
+                  <p class="text-xs text-slate-400 truncate">Yape / Plin</p>
                 </div>
-                <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
-              </Link>
+              </div>
+              <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
+            </Link>
 
-              <Link :href="route('teacher.profile')"
-                class="group flex items-center gap-3.5 bg-white border border-gray-100 rounded-2xl px-4 py-3.5 hover:border-purple-200 hover:shadow-sm transition-all duration-150">
+            <!-- 4. Mi perfil (Ahora en la 2da fila junto a Recargar créditos, 100% visible sin scroll) -->
+            <Link :href="route('teacher.profile')"
+              class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-purple-200 hover:shadow-sm transition-all duration-150">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-9 h-9 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 flex-shrink-0 transition-colors">
                   <Icon name="profile" :size="18" />
                 </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-semibold text-slate-900 text-sm">Mi perfil</p>
-                  <p class="text-xs text-slate-400">Actualiza tu información</p>
+                <div class="min-w-0">
+                  <p class="font-semibold text-slate-900 text-sm truncate">Mi perfil</p>
+                  <p class="text-xs text-slate-400 truncate">Tu información</p>
                 </div>
-                <Icon name="arrow-right" :size="16" class="text-slate-300 group-hover:text-purple-500 flex-shrink-0 transition-colors" />
-              </Link>
-            </div>
-          </section>
+              </div>
+              <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-purple-500 flex-shrink-0 transition-colors" />
+            </Link>
+          </div>
+        </section>
 
-        </div><!-- /col derecha -->
-      </div><!-- /grid 2 columnas -->
+      </div><!-- /grid 50/50 -->
 
     </div>
   </AppLayout>

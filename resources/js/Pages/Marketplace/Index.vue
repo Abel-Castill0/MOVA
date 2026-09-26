@@ -2,7 +2,7 @@
   <Head>
     <meta name="description" content="Conoce a los profesores particulares verificados por MOVA: sus materias, calificación y experiencia. Envía tu solicitud y el primer profesor disponible te contactará." />
   </Head>
-  <PublicPageLayout title="Nuestros profesores">
+  <component :is="layoutComponent" :title="pageTitle">
     <div class="space-y-6">
 
       <!-- Header -->
@@ -15,14 +15,40 @@
             su código para volver a elegirlo directamente la próxima vez.
           </p>
         </div>
+        <!-- Botón para padre: Solicitar una clase -->
         <Link v-if="authUser && isParent" :href="route('class-requests.create')"
-          class="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-card shadow-elevation-1 hover:bg-brand-700 active:scale-[0.97] transition-[transform,background-color] duration-micro ease-out-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 whitespace-nowrap">
-          Solicitar una clase
-          <Icon name="arrow-right" :size="16" />
+          class="btn-motion-green group shadow-[0_4px_20px_rgba(16,185,129,0.35)]">
+          <span class="btn-pulse-dot" aria-hidden="true"></span>
+          <span>Solicitar una clase</span>
+          <span class="btn-arrow-icon" aria-hidden="true">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </span>
         </Link>
+
+        <!-- Botón para profesor: Ver solicitudes disponibles -->
+        <Link v-else-if="authUser && isTeacher" :href="route('teacher.requests')"
+          class="btn-motion-orange group shadow-[0_4px_20px_rgba(234,88,12,0.35)]">
+          <span class="btn-pulse-dot-orange" aria-hidden="true"></span>
+          <span>Ver solicitudes disponibles</span>
+          <span class="btn-arrow-icon" aria-hidden="true">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </span>
+        </Link>
+
+        <!-- Botón para invitados: Inicia sesión para solicitar (Ultra llamativo, verde vibrante con resplandor) -->
         <Link v-else-if="!authUser" :href="route('login')"
-          class="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-card shadow-elevation-1 hover:bg-brand-700 active:scale-[0.97] transition-[transform,background-color] duration-micro ease-out-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 whitespace-nowrap">
-          Iniciar sesión para solicitar
+          class="btn-motion-green group shadow-[0_8px_30px_rgba(16,185,129,0.5)]">
+          <span class="btn-pulse-dot" aria-hidden="true"></span>
+          <span>Inicia sesión para solicitar</span>
+          <span class="btn-arrow-icon" aria-hidden="true">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </span>
         </Link>
       </div>
 
@@ -31,15 +57,6 @@
       <div class="flex flex-wrap gap-x-8 gap-y-2 text-sm">
         <p class="text-ink-muted"><span class="font-black text-ink">{{ stats.teachers }}</span> profesor{{ stats.teachers === 1 ? '' : 'es' }} verificado{{ stats.teachers === 1 ? '' : 's' }}</p>
         <p class="text-ink-muted"><span class="font-black text-ink">{{ stats.completed }}</span> clase{{ stats.completed === 1 ? '' : 's' }} impartida{{ stats.completed === 1 ? '' : 's' }}</p>
-      </div>
-
-      <!-- Diagnostic banner: recomendación por IA, no búsqueda manual — se mantiene aparte. -->
-      <div class="bg-surface rounded-elevated border border-line shadow-elevation-1 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-        <p class="text-sm text-ink-muted flex-1">💡 <strong>¿No sabes qué necesitas?</strong> Responde 5 preguntas y te orientamos.</p>
-        <Link v-if="authUser" :href="route('diagnostics.create')"
-          class="inline-block px-4 py-2 bg-brand-50 text-brand-700 font-bold rounded-card text-xs hover:bg-brand-100 transition-colors duration-micro whitespace-nowrap">
-          Diagnóstico rápido →
-        </Link>
       </div>
 
       <!-- Empty state -->
@@ -123,23 +140,34 @@
       </div>
 
     </div>
-  </PublicPageLayout>
+  </component>
 </template>
 
 <script setup>
 import { computed, reactive } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
 import PublicPageLayout from '@/Layouts/PublicPageLayout.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import Icon from '@/Components/Icon.vue'
 
 defineProps({ teachers: Object, stats: Object })
 
-const authUser = computed(() => usePage().props.auth?.user ?? null)
+const page = usePage()
+const authUser = computed(() => page.props.auth?.user ?? null)
+const layoutComponent = computed(() => authUser.value ? AppLayout : PublicPageLayout)
+const pageTitle = computed(() => authUser.value ? 'Profesores' : 'Nuestros profesores')
+
 const isParent = computed(() => {
-  const roles = usePage().props.auth?.user?.roles
+  const roles = page.props.auth?.user?.roles
   if (!roles) return false
   return Array.isArray(roles) ? roles.includes('parent') : Object.values(roles).includes('parent')
+})
+
+const isTeacher = computed(() => {
+  const roles = page.props.auth?.user?.roles
+  if (!roles) return false
+  return Array.isArray(roles) ? roles.includes('teacher') : Object.values(roles).includes('teacher')
 })
 
 // Un avatar_url presente no garantiza que la imagen cargue (URL vencida,

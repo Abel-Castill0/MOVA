@@ -41,14 +41,6 @@
       <a href="mailto:m0v4class@gmail.com" class="hover:text-brand-600 transition-colors">Soporte</a>
       <span class="text-gray-300">·</span>
       <span>© {{ year }} MOVA. Todos los derechos reservados.</span>
-      <span class="text-gray-300">·</span>
-      <!-- Mismo enlace que LandingFooter.vue — la firma del desarrollador
-           faltaba aquí, la única inconsistencia real entre este footer y el
-           de la landing (el resto — logo, quick links, contacto — es copy
-           de marketing que no pertenece a una página de contenido). -->
-      <a href="https://portafolio-henna-mu.vercel.app/" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 transition-colors">
-        Desarrollado con <span class="text-red-400">❤</span> por Abel Castillo
-      </a>
     </footer>
   </div>
 </template>
