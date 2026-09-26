@@ -82,6 +82,7 @@ defineProps({
 const statuses = [
   { value: null, label: 'Todas' },
   { value: 'open', label: 'Abiertas' },
+  { value: 'counteroffered', label: 'Con propuesta' },
   { value: 'accepted', label: 'Aceptadas' },
   { value: 'teacher_rejected', label: 'Rechazadas' },
   { value: 'pending_parent_approval', label: 'Pend. aprobación' },

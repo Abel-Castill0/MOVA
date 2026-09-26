@@ -106,6 +106,14 @@ async function login(page, email, password) {
   await page.waitForURL(/\/dashboard/, { timeout: 30000 });
 }
 
+// Mis clases abre en Calendario por defecto desde el rediseño integrado
+// (useLessonsViewMode); los pasos que operan sobre las cards piden la Lista.
+async function showListView(page) {
+  const listTab = page.getByRole('tab', { name: 'Lista' });
+  await listTab.click();
+  await expect(listTab).toHaveAttribute('aria-selected', 'true');
+}
+
 async function logout(page) {
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await page.waitForURL('/', { timeout: 15000 });
@@ -118,19 +126,19 @@ async function logout(page) {
 // apuntando a un nodo demasiado profundo que no incluye el botón hermano
 // que buscamos — de ahí el timeout que se vio en la primera corrida.
 //
-// Las dos vistas ya NO comparten la misma clase de card: la pasada de
-// consistencia visual del padre (rounded-2xl/border-gray-100) solo tocó
-// ClassRequests/Index.vue, no TeacherIndex.vue (fuera de alcance, es una
-// vista del profesor) — de ahí los dos selectores separados.
-const PARENT_REQUEST_CARD = '.bg-white.rounded-2xl.border.border-gray-100';
-const TEACHER_REQUEST_CARD = '.bg-white.rounded-xl.border.border-gray-200.p-5';
+// Tras el rediseño de UI integrado (rama de Elias) las cards del padre son
+// rounded-3xl, y TeacherIndex.vue pasó a una grilla de selección: cada
+// solicitud es una card con role="button" que abre un panel de detalle, y el
+// link "Aceptar solicitud" vive en ese panel (no dentro de la card). Para el
+// profesor se usa el rol accesible en vez de clases de Tailwind.
+const PARENT_REQUEST_CARD = '.bg-white.rounded-3xl.border.border-gray-100';
 
-// Lessons/ParentIndex.vue usa una clase de card distinta a la de las
-// ClassRequest cards (rounded-2xl/border-gray-100 vs rounded-xl/border-gray-200),
+// Lessons/ParentIndex.vue (ParentLessonCard.vue) comparte la clase de card
+// del padre (rounded-3xl/border-gray-100) — se filtra por texto del alumno —
 // y no renderiza el MARKER en ningún campo visible (ni help_needed ni el tema
 // del reporte aparecen en esta vista) — por eso no se puede filtrar por texto
 // aquí como en los pasos 2 y 4.
-const LESSON_CARD = '.bg-white.rounded-2xl.border.border-gray-100';
+const LESSON_CARD = '.bg-white.rounded-3xl.border.border-gray-100';
 
 test.describe.serial('Flujo completo MOVA (local)', () => {
   /** @type {number} */
@@ -190,9 +198,15 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
     await test.step('2. Publicar solicitud de clase', async () => {
       await page.goto('/class-requests/create');
-      await page.locator('select').nth(0).selectOption({ label: 'Mateo Prueba' });
-      await page.locator('select').nth(1).selectOption({ label: 'Matemáticas' });
-      await page.locator('textarea').fill(`${MARKER}: ecuaciones cuadráticas para examen.`);
+      // Wizard de 5 pasos (rediseño integrado): alumno + materia → código de
+      // profesor → modalidad → detalle → resumen. Se maneja por roles/labels.
+      await page.getByRole('group', { name: 'HIJO/A' }).getByRole('button', { name: /Mateo Prueba/ }).click();
+      await page.getByRole('group', { name: 'MATERIA' }).getByRole('button', { name: 'Matemáticas', exact: true }).click();
+      await page.getByRole('button', { name: 'Siguiente', exact: true }).click();
+      await page.getByRole('button', { name: 'Omitir código' }).click();
+      await page.getByRole('button', { name: /Clase puntual/ }).click();
+      await page.getByLabel('¿En qué necesita ayuda?').fill(`${MARKER}: ecuaciones cuadráticas para examen.`);
+      await page.getByRole('button', { name: 'Ver resumen' }).click();
       await page.getByRole('button', { name: 'Enviar solicitud' }).click();
       await page.waitForURL(/\/class-requests$/, { timeout: 15000 });
 
@@ -208,10 +222,16 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
     await test.step('4. Aceptar solicitud y agendar clase', async () => {
       await page.goto('/teacher/requests');
-      const card = page.locator(TEACHER_REQUEST_CARD).filter({ hasText: MARKER }).last();
+      const card = page.getByRole('button').filter({ hasText: MARKER }).last();
       await expect(card).toBeVisible();
+      await card.click();
+      // En escritorio la primera solicitud viene preseleccionada: esperar a que
+      // el panel muestre ESTA card antes de leer el href del link.
+      await expect(card).toHaveAttribute('aria-pressed', 'true');
 
-      const acceptLink = card.getByRole('link', { name: 'Aceptar' });
+      // Panel de detalle de escritorio (el drawer móvil solo existe < 1024 px).
+      const acceptLink = page.getByRole('link', { name: 'Aceptar solicitud' });
+      await expect(acceptLink).toHaveAttribute('href', /\/teacher\/requests\/\d+\/accept/);
       const href = await acceptLink.getAttribute('href');
       classRequestId = Number(href.match(/\/teacher\/requests\/(\d+)\/accept/)[1]);
       expect(classRequestId).toBeGreaterThan(0);
@@ -283,6 +303,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       expect(index).toBeGreaterThanOrEqual(0);
 
       await page.goto('/my-classes');
+      await showListView(page);
 
       // Causa raíz del flake original: se hacía click en .nth(index) justo
       // después de goto(), sin esperar visibilidad — a diferencia de los
@@ -376,6 +397,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       expect(index).toBeGreaterThanOrEqual(0);
 
       await page.goto('/my-classes');
+      await showListView(page);
       const card = page.locator(LESSON_CARD).filter({ hasText: 'Alumno: Mateo Prueba' }).nth(index);
       await expect(card).toBeVisible();
       await expect(card.getByText('Completada').first()).toBeVisible();
@@ -482,9 +504,13 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       ).toBeVisible();
     });
 
-    await test.step('4. Navegar a la semana anterior muestra "Volver a hoy"', async () => {
+    await test.step('4. Navegar a la semana anterior habilita "Hoy"', async () => {
+      // Rediseño integrado: el control "Hoy" siempre está visible y solo se
+      // deshabilita en la semana actual (antes era un link "Volver a hoy").
+      const today = page.getByRole('button', { name: 'Hoy', exact: true });
+      await expect(today).toBeDisabled();
       await page.getByRole('button', { name: 'Semana anterior' }).click();
-      await expect(page.getByText('Volver a hoy')).toBeVisible();
+      await expect(today).toBeEnabled();
 
       // NO se afirma que la semana anterior contenga clases.
       //
@@ -506,9 +532,10 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       ).toBeVisible();
     });
 
-    await test.step('5. "Volver a hoy" regresa a la semana actual', async () => {
-      await page.getByText('Volver a hoy').click();
-      await expect(page.getByText('Volver a hoy')).not.toBeVisible();
+    await test.step('5. "Hoy" regresa a la semana actual', async () => {
+      const today = page.getByRole('button', { name: 'Hoy', exact: true });
+      await today.click();
+      await expect(today).toBeDisabled();
     });
 
     await test.step('6. Volver a la pestaña Lista conserva la vista de tarjetas', async () => {

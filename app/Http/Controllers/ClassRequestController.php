@@ -225,7 +225,7 @@ class ClassRequestController extends Controller
         $studentIds = auth()->user()->students()->pluck('id');
         return Inertia::render('ClassRequests/Index', [
             'requests' => ClassRequest::whereIn('student_id', $studentIds)
-                ->with(['student', 'subject', 'classOffer.teacherProfile.user'])
+                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'counterofferTeacherProfile.user'])
                 ->latest()->get()
                 ->map(fn (ClassRequest $r) => [
                     ...$this->requestSummary($r),
@@ -233,6 +233,15 @@ class ClassRequestController extends Controller
                         'id'              => $r->classOffer->id,
                         'teacher_profile' => ['user' => ['name' => $r->classOffer->teacherProfile?->user?->name]],
                     ] : null,
+                    // Solo el nombre visible del profesor que propone, y solo
+                    // mientras la propuesta está pendiente — nunca teléfono,
+                    // email, ids internos ni datos de pago.
+                    'counteroffer_teacher' => $r->status === 'counteroffered' && $r->counterofferTeacherProfile
+                        ? ['name' => $r->counterofferTeacherProfile->user?->name]
+                        : null,
+                    // Huella opaca (HMAC) de la propuesta mostrada; el padre la
+                    // reenvía al responder — ver CounterofferController.
+                    'counteroffer_ref' => $r->status === 'counteroffered' ? $r->counterofferRef() : null,
                 ]),
         ]);
     }
@@ -303,6 +312,19 @@ class ClassRequestController extends Controller
             ->with(['student', 'subject'])
             ->latest()->get();
 
+        // Solicitudes que ESTE profesor ya contraofreció y están esperando
+        // respuesta del padre. Solo se muestran las propias del profesor
+        // logueado (counteroffer_teacher_profile_id === $profile->id), y solo
+        // mientras siga verificado: si un admin le retira la verificación deja
+        // de ver los datos del menor aunque su propuesta siga pendiente.
+        $counteroffered = $profile->is_verified
+            ? ClassRequest::where('status', 'counteroffered')
+                ->where('counteroffer_teacher_profile_id', $profile->id)
+                ->with(['student', 'subject'])
+                ->latest()
+                ->get()
+            : collect();
+
         $rejected = ClassRequest::where('status', 'teacher_rejected')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
             ->with(['student', 'subject'])
@@ -313,8 +335,9 @@ class ClassRequestController extends Controller
         // P0-B: el profesor solo ve lo necesario para decidir. Nunca
         // birth_date, school ni parent_user_id del menor.
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'         => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
-            'rejectedRequests' => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'requests'               => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
         ]);
     }
 
@@ -329,6 +352,8 @@ class ClassRequestController extends Controller
             'preferred_times'          => $r->preferred_times,
             'teacher_rejected_at'      => $r->teacher_rejected_at,
             'teacher_rejection_reason' => $r->teacher_rejection_reason,
+            'counteroffer_time'             => $r->counteroffer_time,
+            'counteroffer_duration_minutes' => $r->counteroffer_duration_minutes,
             'created_at'               => $r->created_at,
             'student'                  => $r->student ? [
                 'first_name'  => $r->student->first_name,

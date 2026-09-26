@@ -59,4 +59,21 @@ class ClassRequestPolicy
     {
         return $this->accept($user, $classRequest);
     }
+
+    // Teacher proposing an alternative time: exactly the same eligibility as
+    // accepting the request (verified, owns the offer/subject, or is the
+    // referred teacher). The status transition is enforced under lock in
+    // CounterofferController, never here.
+    public function counteroffer(User $user, ClassRequest $classRequest): bool
+    {
+        return $this->accept($user, $classRequest);
+    }
+
+    // Parent answering a counteroffer: must own the student the request is
+    // for. Same ownership rule as view(); status/teacher checks happen under
+    // lock in CounterofferController / LessonSchedulingService.
+    public function respondToCounteroffer(User $user, ClassRequest $classRequest): bool
+    {
+        return $this->view($user, $classRequest);
+    }
 }

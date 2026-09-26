@@ -46,6 +46,8 @@ jobs:
       # definido) — confirma que el fallback del título es 'MOVA', nunca el
       # 'Laravel' del scaffold.
       - run: npm run check:title
+      # Texto hostil del proveedor de IA sale escapado (Movi, v-html).
+      - run: npm run check:chatbot-escape
       - uses: actions/upload-artifact@v4
         with:
           name: vite-build

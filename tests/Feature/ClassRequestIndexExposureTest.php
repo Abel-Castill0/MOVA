@@ -25,6 +25,9 @@ class ClassRequestIndexExposureTest extends TestCase
     private const REQUEST_KEYS = [
         'id', 'status', 'is_mentorship', 'help_needed', 'preferred_times',
         'teacher_rejected_at', 'teacher_rejection_reason', 'created_at', 'student', 'subject',
+        // Contraoferta: solo la propuesta (hora + duración), nunca ids del
+        // profesor ni del padre.
+        'counteroffer_time', 'counteroffer_duration_minutes',
     ];
 
     private function scenario(): array
@@ -104,7 +107,7 @@ class ClassRequestIndexExposureTest extends TestCase
             ->assertOk()->inertiaPage()['props'];
 
         $req = $props['requests'][0];
-        $this->assertEqualsCanonicalizing([...self::REQUEST_KEYS, 'class_offer'], array_keys($req));
+        $this->assertEqualsCanonicalizing([...self::REQUEST_KEYS, 'class_offer', 'counteroffer_teacher', 'counteroffer_ref'], array_keys($req));
         $this->assertSame(['name'], array_keys($req['class_offer']['teacher_profile']['user']));
 
         $json = json_encode($props['requests']);

@@ -26,10 +26,12 @@ use App\Http\Controllers\Admin\RechargeController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
+use App\Http\Controllers\CounterofferController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
 
 // ── Health checks (sin sesión, sin auth, sin cookies) ───────────────────────
@@ -83,6 +85,15 @@ Route::get('/invitacion/alumno', [StudentInvitationController::class, 'index'])-
 Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');
 Route::get('/teachers/{teacherProfile}', [TeacherPublicController::class, 'show'])->name('teachers.show');
 
+// ── Chatbot Movi (Asistente IA con Gemini) ───────────────────────────────────
+// POST web normal: pasa por VerifyCsrfToken (no está en $except) — Axios ya
+// envía X-XSRF-TOKEN. Limitador dedicado 'chatbot' (RouteServiceProvider):
+// por usuario/IP por minuto + techo global diario para no quemar la cuota
+// del proveedor desde un endpoint público anónimo.
+Route::post('/chatbot/message', [ChatbotController::class, 'message'])
+    ->middleware(['throttle:chatbot'])
+    ->name('chatbot.message');
+
 // ── Suspended account page (auth only, no suspension check) ──────────────────
 Route::middleware('auth')->get('/suspended', fn () => \Inertia\Inertia::render('Suspended'))->name('suspended');
 
@@ -132,6 +143,12 @@ Route::middleware(['auth', 'verified', 'admin.mfa'])->group(function () {
         Route::post('/class-requests', [ClassRequestController::class, 'store'])->middleware('throttle:10,1')->name('class-requests.store');
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->middleware('throttle:20,1')->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->middleware('throttle:20,1')->name('class-requests.reject');
+        // Respuesta del padre dueño a una contraoferta (CSRF de la sesión web,
+        // ownership en ClassRequestPolicy::respondToCounteroffer). Aceptar
+        // agenda la clase con LessonSchedulingService, la misma primitiva
+        // que la aceptación normal del profesor.
+        Route::post('/class-requests/{classRequest}/counteroffer/accept', [CounterofferController::class, 'accept'])->middleware('throttle:10,1')->name('class-requests.counteroffer.accept');
+        Route::post('/class-requests/{classRequest}/counteroffer/reject', [CounterofferController::class, 'reject'])->middleware('throttle:10,1')->name('class-requests.counteroffer.reject');
         Route::get('/my-classes', [LessonController::class, 'parentIndex'])->name('parent.lessons');
         Route::post('/lessons/{lesson}/confirm-payment', [LessonController::class, 'confirmPayment'])->middleware('throttle:10,1')->name('lessons.confirm-payment');
         Route::get('/lessons/{lesson}/review/create', [TeacherReviewController::class, 'create'])->name('reviews.create');
@@ -188,6 +205,12 @@ Route::middleware(['auth', 'verified', 'admin.mfa'])->group(function () {
         Route::get('/teacher/requests', [ClassRequestController::class, 'teacherIndex'])->name('teacher.requests');
         Route::get('/teacher/requests/{classRequest}/accept', [ClassRequestController::class, 'accept'])->name('teacher.requests.accept');
         Route::post('/teacher/requests/{classRequest}/reject', [ClassRequestController::class, 'teacherReject'])->middleware('throttle:20,1')->name('teacher.requests.reject');
+        // Contraoferta de horario: el profesor propone hora exacta + duración.
+        // El padre responde SOLO dentro de MOVA (rutas de padre, abajo) —
+        // nunca por un endpoint público ni por respuesta de WhatsApp.
+        Route::post('/class-requests/{classRequest}/counteroffer', [CounterofferController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.requests.counteroffer');
         Route::post('/lessons', [LessonController::class, 'store'])->middleware('throttle:10,1')->name('lessons.store');
         Route::get('/teacher/classes', [LessonController::class, 'teacherIndex'])->name('teacher.lessons');
         Route::get('/teacher/reports', [LessonReportController::class, 'teacherIndex'])->name('teacher.reports');

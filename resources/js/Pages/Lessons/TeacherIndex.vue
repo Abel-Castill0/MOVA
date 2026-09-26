@@ -1,23 +1,22 @@
 <template>
-  <AppLayout title="Mis clases">
-    <div class="space-y-5">
+  <AppLayout title="Mis clases" :compact="true">
+    <div class="flex-1 min-h-0 flex flex-col space-y-2">
 
-      <div class="flex items-center justify-between gap-3 flex-wrap">
-        <h2 class="text-xl font-black text-slate-900">Mis clases</h2>
-        <div class="flex items-center gap-3">
-          <span class="text-sm text-slate-400">{{ lessons.length }} en total</span>
-          <div v-if="lessons.length" class="flex bg-slate-100 rounded-xl p-1 gap-1" role="tablist" aria-label="Modo de vista" @keydown="onTabsKeydown">
-            <button ref="tabListRef" type="button" id="tab-list-teacher" role="tab" :aria-selected="viewMode === 'list'"
-              :tabindex="viewMode === 'list' ? 0 : -1" aria-controls="panel-lessons-teacher" @click="viewMode = 'list'"
-              :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-colors', viewMode === 'list' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
-              Lista
-            </button>
-            <button ref="tabCalendarRef" type="button" id="tab-calendar-teacher" role="tab" :aria-selected="viewMode === 'calendar'"
-              :tabindex="viewMode === 'calendar' ? 0 : -1" aria-controls="panel-lessons-teacher" @click="viewMode = 'calendar'"
-              :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-colors', viewMode === 'calendar' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
-              Calendario
-            </button>
-          </div>
+      <div class="flex items-center justify-between gap-3 shrink-0">
+        <span class="text-xs font-bold text-slate-500 bg-white/80 px-2.5 py-1 rounded-lg border border-slate-200/60 shadow-2xs">
+          {{ lessons.length }} {{ lessons.length === 1 ? 'clase' : 'clases' }} en total
+        </span>
+        <div v-if="lessons.length" class="flex bg-slate-200/70 p-0.5 rounded-xl gap-0.5" role="tablist" aria-label="Modo de vista" @keydown="onTabsKeydown">
+          <button ref="tabListRef" type="button" id="tab-list-teacher" role="tab" :aria-selected="viewMode === 'list'"
+            :tabindex="viewMode === 'list' ? 0 : -1" aria-controls="panel-lessons-teacher" @click="viewMode = 'list'"
+            :class="['px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer', viewMode === 'list' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-500 hover:text-slate-800']">
+            Lista
+          </button>
+          <button ref="tabCalendarRef" type="button" id="tab-calendar-teacher" role="tab" :aria-selected="viewMode === 'calendar'"
+            :tabindex="viewMode === 'calendar' ? 0 : -1" aria-controls="panel-lessons-teacher" @click="viewMode = 'calendar'"
+            :class="['px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer', viewMode === 'calendar' ? 'bg-white text-brand-700 shadow-xs' : 'text-slate-500 hover:text-slate-800']">
+            Calendario
+          </button>
         </div>
       </div>
 
@@ -30,8 +29,8 @@
         </Link>
       </div>
 
-      <div v-else id="panel-lessons-teacher" role="tabpanel" :aria-labelledby="viewMode === 'list' ? 'tab-list-teacher' : 'tab-calendar-teacher'" tabindex="0" class="space-y-5">
-        <WeeklyCalendar v-if="viewMode === 'calendar'" :lessons="lessons" role="teacher" @join="openJitsi" />
+      <div v-else id="panel-lessons-teacher" role="tabpanel" :aria-labelledby="viewMode === 'list' ? 'tab-list-teacher' : 'tab-calendar-teacher'" tabindex="0" :class="['flex-1 min-h-0 flex flex-col', viewMode === 'list' ? 'overflow-y-auto space-y-3 pr-1' : '']">
+        <WeeklyCalendar v-if="viewMode === 'calendar'" :lessons="lessons" role="teacher" @join="openJitsi" @reschedule="openReschedule" @cancel="openCancel" />
 
         <template v-else>
           <!-- ── Esta semana ─────────────────────────────────────────────────── -->

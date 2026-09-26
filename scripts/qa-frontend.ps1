@@ -18,6 +18,9 @@ Invoke-NativeCommand { npm run build }
 Write-Host "== Title fallback regression (no Laravel default) =="
 Invoke-NativeCommand { npm run check:title }
 
+Write-Host "== Chatbot escape regression =="
+Invoke-NativeCommand { npm run check:chatbot-escape }
+
 if ($env:PLAYWRIGHT_BASE_URL) {
     Write-Host "== Playwright local =="
     Push-Location qa
