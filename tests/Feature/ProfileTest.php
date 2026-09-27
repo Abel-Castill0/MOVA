@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -103,7 +104,7 @@ class ProfileTest extends TestCase
     {
         // El entorno de test nunca tiene CLOUDINARY_URL real configurada —
         // exactamente el escenario que el fallback debe cubrir.
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
@@ -119,6 +120,30 @@ class ProfileTest extends TestCase
         Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
     }
 
+    // AZ-2: en producción (contenedor efímero) el fallback a disco local está
+    // prohibido — sin Cloudinary la subida debe fallar de forma controlada,
+    // sin persistir nada y sin tumbar la request con un 500.
+    public function test_avatar_upload_fails_closed_in_production_without_cloudinary(): void
+    {
+        config(['services.cloudinary.cloud_url' => null]);
+        Storage::fake('public');
+        // Fuera de 'testing' VerifyCsrfToken vuelve a exigir token (419);
+        // el CSRF no es lo que se prueba aquí.
+        $this->app['env'] = 'production';
+        $this->withoutMiddleware(VerifyCsrfToken::class);
+
+        $user = User::factory()->create();
+        $file = UploadedFile::fake()->create('avatar.jpg', 100, 'image/jpeg');
+
+        $response = $this->actingAs($user)->from('/profile')->post('/profile/avatar', ['avatar' => $file]);
+
+        $response->assertRedirect('/profile')->assertSessionHasErrors('avatar');
+
+        $this->assertNull($user->fresh()->avatar_url);
+        Storage::disk('public')->assertMissing("avatars/user-{$user->id}.jpg");
+        $this->assertEmpty(Storage::disk('public')->allFiles());
+    }
+
     // UpdateAvatarForm.vue ahora se reutiliza en Teacher/Edit.vue
     // (/teacher/profile), no solo en /profile — updateAvatar() debe volver
     // a la página que lo llamó (back()), nunca a una ruta fija, o subir la
@@ -126,7 +151,7 @@ class ProfileTest extends TestCase
     // su edición.
     public function test_avatar_upload_redirects_back_to_the_page_it_was_submitted_from(): void
     {
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
@@ -151,7 +176,7 @@ class ProfileTest extends TestCase
     // para probar el mismo camino — no es un test más débil.
     public function test_avatar_can_be_uploaded_then_removed_end_to_end(): void
     {
-        config(['cloudinary.cloud_url' => null]);
+        config(['services.cloudinary.cloud_url' => null]);
         Storage::fake('public');
 
         $user = User::factory()->create();
@@ -169,9 +194,8 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNull($user->fresh()->avatar_url);
-        // removeAvatar() no borra el archivo (ver TODO en ProfileController)
-        // — la sola desvinculación del avatar_url es lo que este test prueba.
-        Storage::disk('public')->assertExists("avatars/user-{$user->id}.jpg");
+        // P0-F: quitar la foto también borra el archivo (no quedan huérfanos).
+        Storage::disk('public')->assertMissing("avatars/user-{$user->id}.jpg");
     }
 
     public function test_removing_the_avatar_clears_avatar_url_and_redirects_back(): void

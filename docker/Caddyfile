@@ -1,0 +1,13 @@
+# FrankenPHP/Caddy mínimo para MOVA.
+# TLS lo termina el ingress de Azure Container Apps; aquí solo HTTP en $PORT.
+# TrustProxies ya confía en X-Forwarded-* (app/Http/Middleware/TrustProxies.php).
+{
+	frankenphp
+	auto_https off
+}
+
+:{$PORT:8080} {
+	root * /app/public
+	encode zstd br gzip
+	php_server
+}

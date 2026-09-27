@@ -147,6 +147,60 @@ class JitsiAccessWindowTest extends TestCase
         $this->assertEqualsWithDelta($expected, $payload['exp'], 60);
     }
 
+    // ── P1-02: 'paid' ya no tiene acceso ilimitado ───────────────────────
+
+    public function test_paid_lesson_inside_the_window_can_join(): void
+    {
+        [, $lesson, $parent] = $this->lessonAt(now()->subMinutes(30));
+        $lesson->update(['status' => 'paid']);
+
+        $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertOk();
+    }
+
+    public function test_paid_lesson_after_the_window_closed_is_refused(): void
+    {
+        // Fin = start + 60; cierre = fin + 120 → start hace 181 min ya cerró.
+        [, $lesson, $parent] = $this->lessonAt(now()->subMinutes(181));
+        $lesson->update(['status' => 'paid']);
+
+        $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertForbidden();
+    }
+
+    public function test_paid_lesson_from_a_year_ago_gets_no_token(): void
+    {
+        [$teacher, $lesson, $parent] = $this->lessonAt(now()->subYear());
+        $lesson->update(['status' => 'paid']);
+
+        foreach ([$parent, $teacher] as $user) {
+            $response = $this->actingAs($user)->get(route('lessons.join', $lesson))->assertForbidden();
+            $this->assertStringNotContainsString('jitsi_token', (string) $response->getContent());
+        }
+    }
+
+    public function test_paid_lesson_cannot_join_early_either(): void
+    {
+        [, $lesson, $parent] = $this->lessonAt(now()->addHours(3));
+        $lesson->update(['status' => 'paid']);
+
+        $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertForbidden();
+    }
+
+    public function test_token_never_outlives_the_authorized_closing_instant_for_any_status(): void
+    {
+        foreach (['scheduled', 'paid', 'pending_parent_confirmation'] as $status) {
+            $start = now()->subMinutes(178); // cierre en 2 minutos
+            [, $lesson, $parent] = $this->lessonAt($start);
+            $lesson->update(['status' => $status]);
+            $closesAt = $start->copy()->addMinutes(60 + 120)->timestamp;
+
+            $payload = $this->decode(
+                $this->actingAs($parent)->get(route('lessons.join', $lesson))->assertOk()->json('jitsi_token')
+            );
+
+            $this->assertLessThanOrEqual($closesAt, $payload['exp'], "{$status}: exp supera el cierre autorizado.");
+        }
+    }
+
     public function test_the_jwt_is_still_scoped_to_the_specific_room(): void
     {
         [, $lesson, $parent] = $this->lessonAt(now()->addMinutes(10));

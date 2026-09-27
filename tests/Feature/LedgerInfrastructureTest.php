@@ -216,6 +216,152 @@ class LedgerInfrastructureTest extends TestCase
         $this->assertNotSame(LedgerReconciliation::INVALID, $classified[0]['classification']);
     }
 
+    // ── LEGACY_PRE_LEDGER ─────────────────────────────────────────────────────
+    //
+    // Hallazgo del rescate de Railway (AZ-2.11/AZ-2.12): el snapshot real
+    // recuperado tiene 3 lecciones sin ningún asiento, todas creadas semanas
+    // antes de que `credit_transactions` existiera (migración de
+    // 2026-07-08). Un NO_LEDGER ahí no es la misma anomalía que un NO_LEDGER
+    // de hoy: la tabla ni siquiera existía. El corte es por fecha
+    // (LedgerReconciliation::LEDGER_EPOCH), nunca por status, para no abrir
+    // un hueco amplio en STATES_ALLOWED_WITHOUT_LEDGER.
+
+    public function test_a_pre_ledger_class_without_any_transaction_is_accepted_as_legacy(): void
+    {
+        [, , $lesson] = $this->lessonWithoutLedger();
+        $this->backdateBeforeLedgerEpoch($lesson);
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+
+        $this->assertSame(LedgerReconciliation::LEGACY_PRE_LEDGER, $classified[0]['classification']);
+
+        $report = (new LedgerReconciliation)->run();
+        $this->assertTrue($report['healthy'], 'Una lección legacy pre-ledger no debe contar como anomalía.');
+        $this->assertSame(0, $report['counts'][LedgerReconciliation::NO_LEDGER]);
+        $this->assertSame(1, $report['counts'][LedgerReconciliation::LEGACY_PRE_LEDGER]);
+
+        $this->artisan('mova:reconcile-ledger')
+            ->expectsOutputToContain('GREEN')
+            ->assertExitCode(0);
+    }
+
+    public function test_a_post_ledger_class_without_any_transaction_still_stays_red(): void
+    {
+        // Misma forma (sin transacciones) pero creada DESPUÉS del epoch: la
+        // tabla ya existía, así que sigue siendo la anomalía original.
+        [, , $lesson] = $this->lessonWithoutLedger();
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+        $this->assertSame(LedgerReconciliation::NO_LEDGER, $classified[0]['classification']);
+        $this->assertNotSame(LedgerReconciliation::LEGACY_PRE_LEDGER, $classified[0]['classification']);
+
+        $this->artisan('mova:reconcile-ledger')
+            ->expectsOutputToContain('RED')
+            ->assertExitCode(1);
+    }
+
+    public function test_a_pre_ledger_class_with_a_real_reservation_is_not_misclassified_as_legacy(): void
+    {
+        // El corte por fecha solo se aplica cuando NO hay ningún asiento.
+        // Una lección vieja con una reserva real sigue siendo OPEN_RESERVATION.
+        [, , $lesson] = $this->lessonWithReservation();
+        $this->backdateBeforeLedgerEpoch($lesson);
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+
+        $this->assertSame(LedgerReconciliation::OPEN_RESERVATION, $classified[0]['classification']);
+    }
+
+    public function test_a_pre_ledger_class_that_was_consumed_is_still_healthy_consumed(): void
+    {
+        [$profile, , $lesson] = $this->lessonWithReservation();
+        $this->backdateBeforeLedgerEpoch($lesson);
+        $this->closeWith($profile, $lesson, 'consumption');
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+
+        $this->assertSame(LedgerReconciliation::HEALTHY_CONSUMED, $classified[0]['classification']);
+    }
+
+    public function test_a_pre_ledger_class_that_was_refunded_is_still_healthy_refunded(): void
+    {
+        [$profile, , $lesson] = $this->lessonWithReservation();
+        $this->backdateBeforeLedgerEpoch($lesson);
+        $this->closeWith($profile, $lesson, 'refund');
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+
+        $this->assertSame(LedgerReconciliation::HEALTHY_REFUNDED, $classified[0]['classification']);
+    }
+
+    public function test_a_pre_ledger_class_with_an_impossible_combination_is_still_invalid(): void
+    {
+        // El corte por fecha no debe volver permisiva ninguna combinación
+        // imposible: solo exime el caso "cero asientos".
+        [$profile, , $lesson] = $this->lessonWithReservation();
+        $this->backdateBeforeLedgerEpoch($lesson);
+        $this->closeWith($profile, $lesson, 'consumption');
+        $this->closeWith($profile, $lesson, 'refund');
+
+        $classified = (new LedgerReconciliation)->classifyLessons();
+
+        $this->assertSame(LedgerReconciliation::INVALID, $classified[0]['classification']);
+
+        $this->artisan('mova:reconcile-ledger')
+            ->expectsOutputToContain('RED')
+            ->assertExitCode(1);
+    }
+
+    /** @return array{0: TeacherProfile, 1: User, 2: Lesson} */
+    private function lessonWithoutLedger(): array
+    {
+        $teacher = $this->userWithRole('teacher');
+        $profile = TeacherProfile::create([
+            'user_id' => $teacher->id,
+            'is_verified' => true,
+            'credits_available' => 0,
+            'credits_reserved' => 0,
+        ]);
+
+        $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'secundaria']);
+        $parent = $this->userWithRole('parent');
+        $student = Student::create([
+            'parent_user_id' => $parent->id,
+            'first_name' => 'Alumno',
+            'last_name' => 'Legacy',
+            'grade_level' => 'secundaria',
+        ]);
+        $request = ClassRequest::create([
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'help_needed' => 'Necesita reforzar el tema.',
+            'status' => 'accepted',
+        ]);
+        $lesson = Lesson::create([
+            'teacher_profile_id' => $profile->id,
+            'student_id' => $student->id,
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay(),
+            'duration_minutes' => 60,
+            'price_frozen_pen' => 20.00,
+            'status' => 'completed',
+        ]);
+
+        return [$profile, $teacher, $lesson];
+    }
+
+    /**
+     * Retrocede `created_at` a antes de LedgerReconciliation::LEDGER_EPOCH,
+     * escribiendo directamente por query builder (igual que lee
+     * LedgerReconciliation), sin pasar por mutadores/guarded de Eloquent.
+     */
+    private function backdateBeforeLedgerEpoch(Lesson $lesson): void
+    {
+        DB::table('classes')->where('id', $lesson->id)->update([
+            'created_at' => '2026-06-24 08:15:09',
+        ]);
+    }
+
     // ── Reversals de recarga (Mercado Pago) ──────────────────────────────────
     //
     // Bug real encontrado auditando la integración de Mercado Pago

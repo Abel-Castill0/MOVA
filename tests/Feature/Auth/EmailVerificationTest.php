@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
@@ -85,5 +86,40 @@ class EmailVerificationTest extends TestCase
         $response->assertSessionHas('error');
         $this->assertGuest();
         $this->assertFalse($linkOwner->fresh()->hasVerifiedEmail());
+    }
+
+    /**
+     * Cubre la personalización de AppServiceProvider::customizeVerifyEmailNotification()
+     * (VerifyEmail::toMailUsing(), mecanismo oficial de Laravel) — antes el
+     * correo real usaba el copy default en inglés de Laravel ("Verify your
+     * email address"), confirmado en vivo en el gate Gmail. Renderiza el
+     * MailMessage real que produciría la notificación (misma
+     * VerifyEmail::toMail() -> verificationUrl() de siempre, sin
+     * reconstruir la URL aparte) para demostrar que sigue siendo la ruta
+     * firmada real de Laravel, no un string inventado.
+     */
+    public function test_verification_email_is_in_spanish_and_keeps_the_real_signed_url(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => null]);
+
+        $mail = (new VerifyEmail)->toMail($user);
+
+        $this->assertSame('MOVA — Verifica tu correo electrónico', $mail->subject);
+        $this->assertSame('Hola, '.$user->name.'.', $mail->greeting);
+        $this->assertContains('Confirma tu correo electrónico para continuar usando MOVA.', $mail->introLines);
+        $this->assertSame('Verificar correo electrónico', $mail->actionText);
+        $this->assertNotEmpty($mail->actionUrl);
+
+        // La URL firmada real de Laravel — mismo mecanismo que
+        // test_email_can_be_verified(), no una string construida a mano.
+        $this->assertTrue(URL::hasValidSignature(\Illuminate\Http\Request::create($mail->actionUrl)));
+
+        // El flujo de verificación en sí no cambia: visitar esa misma URL
+        // sigue disparando Verified y marcando al usuario como verificado.
+        Event::fake();
+        $response = $this->actingAs($user)->get($mail->actionUrl);
+        Event::assertDispatched(Verified::class);
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $response->assertRedirect(RouteServiceProvider::HOME.'?verified=1');
     }
 }

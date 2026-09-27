@@ -30,6 +30,11 @@ $admin = App\Models\User::firstOrCreate(['email'=>'admin-phase2b@mova.test'], [
     'name'=>'Admin QA','password'=>Illuminate\Support\Facades\Hash::make('password123'),'email_verified_at'=>now(),
 ]);
 $admin->assignRole('admin');
+// P0-C: admin QA enrolado en MFA con un secret SINTÉTICO fijo (solo esta base
+// QA); qa/lib/totp.mjs genera el código real para el challenge.
+if ($admin->two_factor_confirmed_at === null) {
+    $admin->forceFill(['two_factor_secret'=>'MOVAQAE2ETOTPSECRETBASE32ONLYAAA','two_factor_confirmed_at'=>now()])->save();
+}
 $profile = App\Models\User::where('email','profesor@mova.test')->firstOrFail()->teacherProfile;
 $recharge = App\Models\RechargeRequest::firstOrCreate(['operation_number'=>'PHASE2B-QA-REVERSE'], [
     'teacher_profile_id'=>$profile->id, 'package_name'=>'Baseline QA', 'credits'=>5,

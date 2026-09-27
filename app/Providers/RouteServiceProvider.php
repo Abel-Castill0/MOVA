@@ -28,6 +28,17 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Chatbot Movi: endpoint público (anónimos incluidos) que gasta cuota
+        // de un proveedor externo. Límite por minuto, por usuario autenticado
+        // o por IP (resuelta por TrustProxies: solo el valor que Azure añade,
+        // nunca uno suministrado por el cliente). El techo GLOBAL diario vive
+        // en ChatbotService::reply(), justo antes de llamar al proveedor, para
+        // que peticiones inválidas no consuman la cuota compartida del día.
+        RateLimiter::for('chatbot', function (Request $request) {
+            return Limit::perMinute((int) config('chatbot.rate_limit_per_minute', 10))
+                ->by('chatbot:'.($request->user()?->id ? 'u'.$request->user()->id : 'ip'.$request->ip()));
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

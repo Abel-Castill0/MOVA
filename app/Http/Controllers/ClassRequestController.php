@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
+use App\Services\ClassRequestNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -177,6 +178,16 @@ class ClassRequestController extends Controller
             }
         }
 
+        // Oferta + código de referido deben señalar al MISMO profesor: si no,
+        // la solicitud del menor iría (por exclusividad del código) a un
+        // profesor distinto del que el padre ve en el resumen, y la clase se
+        // tarifaría con la oferta de otro.
+        if ($teacherProfileId !== null && $offerTeacherProfile !== null && $offerTeacherProfile->id !== $teacherProfileId) {
+            throw ValidationException::withMessages([
+                'teacher_referral_code' => 'Este código corresponde a otro profesor distinto al de la oferta elegida.',
+            ]);
+        }
+
         // P2 → RESOLVED: dedup de intención repetida (reintento de red,
         // no doble-click — Create.vue ya deshabilita el botón mientras
         // `form.processing`, eso no cubre un timeout/reconexión real que
@@ -224,16 +235,34 @@ class ClassRequestController extends Controller
         $studentIds = auth()->user()->students()->pluck('id');
         return Inertia::render('ClassRequests/Index', [
             'requests' => ClassRequest::whereIn('student_id', $studentIds)
-                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'teacherProfile.user'])
-                ->latest()->get(),
+                ->with(['student', 'subject', 'classOffer.teacherProfile.user', 'counterofferTeacherProfile.user'])
+                ->latest()->get()
+                ->map(fn (ClassRequest $r) => [
+                    ...$this->requestSummary($r),
+                    'class_offer' => $r->classOffer ? [
+                        'id'              => $r->classOffer->id,
+                        'teacher_profile' => ['user' => ['name' => $r->classOffer->teacherProfile?->user?->name]],
+                    ] : null,
+                    // Solo el nombre visible del profesor que propone, y solo
+                    // mientras la propuesta está pendiente — nunca teléfono,
+                    // email, ids internos ni datos de pago.
+                    'counteroffer_teacher' => $r->status === 'counteroffered' && $r->counterofferTeacherProfile
+                        ? ['name' => $r->counterofferTeacherProfile->user?->name]
+                        : null,
+                    // Huella opaca (HMAC) de la propuesta mostrada; el padre la
+                    // reenvía al responder — ver CounterofferController.
+                    'counteroffer_ref' => $r->status === 'counteroffered' ? $r->counterofferRef() : null,
+                ]),
         ]);
     }
 
-    public function approve(ClassRequest $classRequest)
+    public function approve(ClassRequest $classRequest, ClassRequestNotifier $notifier)
     {
         $this->authorize('view', $classRequest);
 
-        DB::transaction(function () use ($classRequest) {
+        $approvedRequest = null;
+
+        DB::transaction(function () use ($classRequest, &$approvedRequest) {
             $classRequest = ClassRequest::whereKey($classRequest->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -246,7 +275,16 @@ class ClassRequestController extends Controller
             );
 
             $classRequest->update(['status' => 'open']);
+            $approvedRequest = $classRequest;
         });
+
+        // Fuera de la transacción, solo si de verdad se aprobó (nunca en el
+        // camino que aborta por estado): avisar en base a un estado que
+        // todavía pudiera revertirse por rollback sería notificar sobre algo
+        // que nunca ocurrió.
+        if ($approvedRequest) {
+            $notifier->notifyEligibleTeachers($approvedRequest);
+        }
 
         return back()->with('success', 'Solicitud aprobada.');
     }
@@ -275,14 +313,38 @@ class ClassRequestController extends Controller
 
     public function teacherIndex()
     {
-        $profile    = auth()->user()->teacherProfile;
+        $profile = auth()->user()->teacherProfile;
+
+        // Privacidad de menores: sin un TeacherProfile VERIFICADO vigente no se
+        // consulta ni se serializa ninguna solicitud (abierta, contraofertada ni
+        // rechazada). La respuesta es idéntica haya o no solicitudes que
+        // coincidan, así no se filtra ni su existencia. Un perfil recién
+        // registrado o con la verificación retirada por un admin cae aquí.
+        if (! $profile || ! $profile->is_verified) {
+            return Inertia::render('ClassRequests/TeacherIndex', [
+                'requests'               => [],
+                'counterofferedRequests' => [],
+                'rejectedRequests'       => [],
+                'verificationPending'    => true,
+            ]);
+        }
+
         $offerIds   = $profile->classOffers()->pluck('id');
         $subjectIds = $profile->subjects()->pluck('subjects.id');
 
         $open = ClassRequest::where('status', 'open')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
-            ->with(['student', 'subject', 'classOffer'])
+            ->with(['student', 'subject'])
             ->latest()->get();
+
+        // Solicitudes que ESTE profesor ya contraofreció y están esperando
+        // respuesta del padre. Solo se muestran las propias del profesor
+        // logueado (counteroffer_teacher_profile_id === $profile->id).
+        $counteroffered = ClassRequest::where('status', 'counteroffered')
+            ->where('counteroffer_teacher_profile_id', $profile->id)
+            ->with(['student', 'subject'])
+            ->latest()
+            ->get();
 
         $rejected = ClassRequest::where('status', 'teacher_rejected')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
@@ -291,10 +353,37 @@ class ClassRequestController extends Controller
             ->take(10)
             ->get();
 
+        // P0-B: el profesor solo ve lo necesario para decidir. Nunca
+        // birth_date, school ni parent_user_id del menor.
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'         => $open,
-            'rejectedRequests' => $rejected,
+            'requests'               => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'verificationPending'    => false,
         ]);
+    }
+
+    /** Allowlist compartida por Index/TeacherIndex (contrato en ClassRequestIndexExposureTest). */
+    private function requestSummary(ClassRequest $r): array
+    {
+        return [
+            'id'                       => $r->id,
+            'status'                   => $r->status,
+            'is_mentorship'            => $r->is_mentorship,
+            'help_needed'              => $r->help_needed,
+            'preferred_times'          => $r->preferred_times,
+            'teacher_rejected_at'      => $r->teacher_rejected_at,
+            'teacher_rejection_reason' => $r->teacher_rejection_reason,
+            'counteroffer_time'             => $r->counteroffer_time,
+            'counteroffer_duration_minutes' => $r->counteroffer_duration_minutes,
+            'created_at'               => $r->created_at,
+            'student'                  => $r->student ? [
+                'first_name'  => $r->student->first_name,
+                'last_name'   => $r->student->last_name,
+                'grade_level' => $r->student->grade_level,
+            ] : null,
+            'subject'                  => $r->subject ? ['id' => $r->subject->id, 'name' => $r->subject->name] : null,
+        ];
     }
 
     public function teacherReject(ClassRequest $classRequest)
@@ -306,12 +395,20 @@ class ClassRequestController extends Controller
             'reason' => 'required|string|min:10|max:500',
         ]);
 
-        $classRequest->load(['student.parent', 'subject']);
-        $classRequest->update([
-            'status'                     => 'teacher_rejected',
-            'teacher_rejected_at'        => now(),
-            'teacher_rejection_reason'   => $data['reason'],
-        ]);
+        // Bajo lock: una aceptación o contraoferta concurrente que ya sacó la
+        // solicitud de 'open' no puede ser sobrescrita por este rechazo.
+        DB::transaction(function () use ($classRequest, $data) {
+            $locked = ClassRequest::whereKey($classRequest->id)->lockForUpdate()->firstOrFail();
+            abort_unless($locked->status === 'open', 422, 'Solo se pueden rechazar solicitudes abiertas.');
+
+            $locked->update([
+                'status'                     => 'teacher_rejected',
+                'teacher_rejected_at'        => now(),
+                'teacher_rejection_reason'   => $data['reason'],
+            ]);
+        });
+
+        $classRequest->refresh()->load(['student.parent', 'subject']);
 
         ClassEvent::log('request_rejected', auth()->id(), null, $classRequest->id, $data['reason']);
 
@@ -354,10 +451,10 @@ class ClassRequestController extends Controller
         // serializaba la fila completa al cliente igual que el hallazgo ya
         // corregido en ClassRequestController::create() (?offer_id=), mismo
         // patrón de proyección implícita, encontrado ahora en un endpoint
-        // distinto. `parent_user_id` se mantiene (es solo un id numérico,
-        // sin nombre/contacto, y no carga la relación `parent`).
+        // distinto. `parent_user_id` tampoco se envía (auditoría Codex P0-02):
+        // el profesor no necesita ningún identificador del padre.
         $classRequest->load([
-            'student:id,parent_user_id,first_name,last_name,grade_level',
+            'student:id,first_name,last_name,grade_level',
             'subject:id,name',
         ]);
 

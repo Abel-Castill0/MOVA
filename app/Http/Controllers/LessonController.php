@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\ClassConfirmed;
 use App\Models\ClassEvent;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
@@ -12,10 +11,10 @@ use App\Notifications\ClassCancelledNotification;
 use App\Notifications\ClassRescheduledNotification;
 use App\Notifications\PaymentConfirmedNotification;
 use App\Services\JaasService;
+use App\Services\LessonSchedulingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -76,134 +75,25 @@ class LessonController extends Controller
             return back()->withErrors(['start_time' => $this->scheduleConflictMessage($conflict)]);
         }
 
-        $lesson = DB::transaction(function () use ($classRequest, $data, $profile) {
-            $classRequest = ClassRequest::with(['student', 'subject', 'classOffer'])
-                ->whereKey($classRequest->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($classRequest->status !== 'open') {
-                // Re-chequeo bajo lock: si otra request ganó la carrera entre
-                // el chequeo de arriba y este `lockForUpdate()`, esta es la
-                // que realmente importa — el de arriba es solo fail-fast.
-                throw ValidationException::withMessages([
-                    'accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
-                ]);
+        // Transacción, locks, créditos, reserva, sala JaaS y ClassConfirmed
+        // viven en LessonSchedulingService — la MISMA primitiva que usa la
+        // aceptación de una contraoferta, nunca una copia paralela.
+        app(LessonSchedulingService::class)->schedule(
+            $classRequest->id,
+            $profile->id,
+            $data['start_time'],
+            (int) $data['duration_minutes'],
+            function (ClassRequest $locked) {
+                if ($locked->status !== 'open') {
+                    // Re-chequeo bajo lock: si otra request ganó la carrera
+                    // entre el chequeo de arriba y este lock, esta es la que
+                    // realmente importa — el de arriba es solo fail-fast.
+                    throw ValidationException::withMessages([
+                        'accept' => 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.',
+                    ]);
+                }
             }
-
-            // §13 — PUNTO DE SERIALIZACIÓN PARA EL ALUMNO.
-            //
-            // El chequeo de solapamiento ahora también mira al alumno, pero un
-            // SELECT (aunque lleve lockForUpdate) no puede bloquear filas que
-            // todavía no existen: dos profesores distintos aceptando a la vez
-            // dos solicitudes del MISMO menor no comparten ningún lock — ni la
-            // ClassRequest (son distintas) ni el TeacherProfile (son distintos).
-            // Ambos verían la agenda libre y ambos crearían su clase.
-            //
-            // Bloquear la fila del alumno da a las dos transacciones un recurso
-            // COMPARTIDO sobre el que serializarse, así que la segunda solo
-            // llega al chequeo cuando la primera ya ha hecho commit y su clase
-            // es visible. Es el mismo patrón que ClassRequestController::store()
-            // ya usa para su ventana anti-duplicado.
-            Student::whereKey($classRequest->student_id)->lockForUpdate()->first();
-
-            $conflict = $this->scheduleConflict(
-                $profile->id,
-                $classRequest->student_id,
-                $data['start_time'],
-                $data['duration_minutes'],
-                true
-            );
-
-            if ($conflict !== null) {
-                throw ValidationException::withMessages([
-                    'start_time' => $this->scheduleConflictMessage($conflict),
-                ]);
-            }
-
-            $teacherProfile = TeacherProfile::whereKey($profile->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $creditsNeeded = Lesson::creditCostForMinutes($data['duration_minutes']);
-
-            if ($teacherProfile->credits_available < $creditsNeeded) {
-                // Corregido en revisión: NO se ata a `duration_minutes`. La
-                // primera versión de este fix lo hacía razonando que "es lo
-                // único que el profesor puede cambiar en este formulario" —
-                // pero eso implica visualmente que cambiar la duración es
-                // LA solución, cuando la solución más directa (recargar
-                // saldo) ni siquiera está en este formulario. Es un error de
-                // negocio, no un dato de formulario inválido — usa la misma
-                // clave `accept` que el resto de errores no ligados a un
-                // campo concreto. El mensaje mismo ya menciona ambas
-                // salidas (recargar o acortar), la UI no necesita
-                // insinuarlo con la ubicación del error.
-                throw ValidationException::withMessages([
-                    'accept' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
-                ]);
-            }
-
-            if ($classRequest->is_mentorship && ! $teacherProfile->hasAvailableMentorshipSlots()) {
-                throw ValidationException::withMessages([
-                    'accept' => 'Tienes la agenda llena para acompañamiento continuo — no puedes aceptar esta solicitud por ahora.',
-                ]);
-            }
-
-            // BUG-4 (docs/MOVA_AUDIT_PHASE0.md, sección Q): `specific_rate` se
-            // valida y persiste en ClassOfferController, pero hasta este fix
-            // nunca se leía aquí — el profesor podía configurar una tarifa
-            // distinta para una oferta concreta creyendo que era la que se
-            // cobraría, y el sistema siempre congelaba la tarifa general del
-            // perfil en su lugar. `specific_rate` ya fue validado contra
-            // maxAllowedRate() al guardarse la oferta, así que no hace falta
-            // volver a acotarlo aquí — solo usarlo si existe.
-            $rate = $classRequest->classOffer?->specific_rate ?? $teacherProfile->hourly_rate;
-
-            $lesson = Lesson::create([
-                'teacher_profile_id' => $profile->id,
-                'student_id' => $classRequest->student_id,
-                'class_request_id' => $classRequest->id,
-                'class_offer_id' => $classRequest->class_offer_id,
-                'start_time' => $data['start_time'],
-                'duration_minutes' => $data['duration_minutes'],
-                'price_frozen_pen' => round($rate * $creditsNeeded, 2),
-                'status' => 'scheduled',
-            ]);
-
-            // F-07: ya no se genera jitsi_password. JaaS autentica por JWT
-            // firmado (con el `room` en el payload); la contraseña era un
-            // residuo de meet.jit.si que se guardaba en claro sin que nadie
-            // la leyera nunca.
-            $lesson->update([
-                'jitsi_room' => "mova-lesson-{$lesson->id}-".Str::random(32),
-            ]);
-
-            $profileUpdates = [
-                'credits_available' => $teacherProfile->credits_available - $creditsNeeded,
-                'credits_reserved' => $teacherProfile->credits_reserved + $creditsNeeded,
-            ];
-
-            if ($classRequest->is_mentorship) {
-                $profileUpdates['mentorship_slots_taken'] = $teacherProfile->mentorship_slots_taken + 1;
-            }
-
-            $teacherProfile->update($profileUpdates);
-
-            $teacherProfile->creditTransactions()->create([
-                'idempotency_key' => "lesson:{$lesson->id}:reservation",
-                'lesson_id' => $lesson->id,
-                'type' => 'reservation',
-                'amount' => $creditsNeeded,
-                'description' => 'Reserva por aceptación de clase',
-            ]);
-
-            $classRequest->update(['status' => 'accepted']);
-
-            return $lesson;
-        });
-
-        event(new ClassConfirmed($lesson));
+        );
 
         return redirect()->route('teacher.lessons')->with('success',
             '¡Clase programada! La sala virtual está disponible en "Mis clases".'
@@ -265,7 +155,7 @@ class LessonController extends Controller
         return Inertia::render('Lessons/TeacherIndex', [
             'lessons' => Lesson::where('teacher_profile_id', $profile->id)
                 ->with([
-                    'student:id,parent_user_id,first_name,last_name,grade_level',
+                    'student:id,first_name,last_name,grade_level',
                     'classRequest.subject:id,name',
                     'lessonReport',
                 ])
@@ -302,32 +192,27 @@ class LessonController extends Controller
         // de la clase. La UI comunicaba una restricción que el backend no
         // aplicaba — divergencia de autorización, no solo de UX.
         //
-        // 'paid' se exceptúa a propósito: es el estado en que la clase ya
-        // ocurrió y se confirmó el pago; el acceso posterior a la sala para
-        // repasar/cerrar temas ya era el comportamiento esperado (ver
-        // lessonJoin.js:13) y restringirlo aquí sería un cambio de producto,
-        // no una corrección de seguridad.
-        if ($lesson->status !== 'paid') {
-            $opensAt  = $lesson->start_time->copy()->subMinutes((int) config('jaas.join_window_before_minutes', 15));
-            $closesAt = $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+        // P1-02 (auditoría Codex): 'paid' ya NO se exceptúa — una clase de
+        // hace un año seguía obteniendo JWT nuevos. Decisión de producto:
+        // ningún estado tiene acceso ilimitado; todos usan la misma ventana
+        // absoluta anclada al horario REAL de la clase (start/end_time),
+        // nunca al momento en que se pide el token.
+        $opensAt  = $lesson->start_time->copy()->subMinutes((int) config('jaas.join_window_before_minutes', 15));
+        $closesAt = $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
 
-            abort_if(
-                now()->lt($opensAt),
-                403,
-                'La sala se abre '.config('jaas.join_window_before_minutes', 15).' minutos antes del inicio de la clase.'
-            );
-            abort_if(now()->gt($closesAt), 403, 'La sala de esta clase ya se cerró.');
-        }
+        abort_if(
+            now()->lt($opensAt),
+            403,
+            'La sala se abre '.config('jaas.join_window_before_minutes', 15).' minutos antes del inicio de la clase.'
+        );
+        abort_if(now()->gt($closesAt), 403, 'La sala de esta clase ya se cerró.');
 
         $user = auth()->user();
         $isModerator = $lesson->teacherProfile?->user_id === $user->id;
 
         // El token no sobrevive a la ventana en que este mismo endpoint lo
-        // habría concedido. Para 'paid' se mantiene una ventana corta desde
-        // ahora, en lugar de las 24h fijas de antes.
-        $tokenExpiresAt = $lesson->status === 'paid'
-            ? now()->addMinutes((int) config('jaas.join_grace_after_minutes', 120))
-            : $lesson->end_time->copy()->addMinutes((int) config('jaas.join_grace_after_minutes', 120));
+        // habría concedido: exp == cierre autorizado, para todos los estados.
+        $tokenExpiresAt = $closesAt;
 
         return response()->json([
             'jitsi_room' => $lesson->jitsi_room,
@@ -684,40 +569,12 @@ class LessonController extends Controller
         bool $lock = false,
         ?int $excludeLessonId = null
     ): ?string {
-        $requestedStart = Carbon::parse($startTime);
-        $requestedEnd = $requestedStart->copy()->addMinutes($durationMinutes);
-
-        $query = Lesson::where('status', 'scheduled')
-            ->where('start_time', '<', $requestedEnd)
-            ->where(function ($q) use ($teacherProfileId, $studentId) {
-                $q->where('teacher_profile_id', $teacherProfileId)
-                    ->orWhere('student_id', $studentId);
-            })
-            ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId));
-
-        if ($lock) {
-            $query->lockForUpdate();
-        }
-
-        $overlapping = $query->get()->filter(
-            fn (Lesson $lesson) => $lesson->end_time->gt($requestedStart)
-        );
-
-        if ($overlapping->isEmpty()) {
-            return null;
-        }
-
-        // El conflicto del profesor manda en el mensaje: es quien está eligiendo
-        // el horario y quien puede corregirlo en el acto.
-        return $overlapping->contains(fn (Lesson $lesson) => $lesson->teacher_profile_id === $teacherProfileId)
-            ? 'teacher'
-            : 'student';
+        return app(LessonSchedulingService::class)
+            ->conflict($teacherProfileId, $studentId, $startTime, $durationMinutes, $lock, $excludeLessonId);
     }
 
     private function scheduleConflictMessage(string $conflict): string
     {
-        return $conflict === 'teacher'
-            ? 'Ya tienes una clase en ese horario.'
-            : 'El alumno ya tiene otra clase agendada en ese horario con otro profesor.';
+        return app(LessonSchedulingService::class)->conflictMessage($conflict);
     }
 }

@@ -145,10 +145,26 @@ class MailerArchitectureTest extends TestCase
         $this->post('/resend/webhook')->assertNotFound();
     }
 
-    public function test_resend_is_no_longer_a_configured_mailer_or_service(): void
+    /**
+     * Laravel 11 — desde el upgrade a 11 (AZ-3G0-A), `LoadConfiguration`
+     * mergea el `config/mail.php`/`config/services.php` BASE del framework
+     * (que sí trae 'resend' — es un mailer soportado de fábrica) bajo el de
+     * la app para cualquier mailer que la app no defina explícitamente
+     * (ver Illuminate\Foundation\Bootstrap\LoadConfiguration::mergeableOptions,
+     * 'mail' => ['mailers']). La clave ya no puede estar simplemente
+     * ausente — eso es estructural del framework, no algo que este proyecto
+     * controle. Lo que sí sigue siendo cierto, y es lo que realmente importa
+     * para H-04, es que no hay credencial real detrás: sin
+     * `services.resend.key`, `Mail::mailer('resend')` fallaría al
+     * autenticar en vez de enviar nada. La ruta pública sin middleware que
+     * motivó el hallazgo original se verifica aparte, arriba.
+     */
+    public function test_resend_has_no_api_key_configured(): void
     {
-        $this->assertArrayNotHasKey('resend', config('mail.mailers'));
-        $this->assertNull(config('services.resend'));
+        $this->assertNull(
+            config('services.resend.key'),
+            'resend es un mailer soportado de fábrica desde Laravel 11 (config base mergeada), pero MOVA no debe tener ninguna credencial real detrás.'
+        );
     }
 
     /**

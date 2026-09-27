@@ -24,6 +24,17 @@ use Illuminate\Support\Facades\Schema;
  * el ledger. NULL mientras no esté verificado: MySQL permite múltiples NULL
  * en un índice UNIQUE, así que no bloquea a nadie que no haya llegado a
  * verificar.
+ *
+ * Corrección AZ-2.13: el backfill original asumía "como mucho un usuario
+ * verificado", que resultó falso al ensayar esta migración contra el
+ * snapshot real rescatado de Railway (dos cuentas legacy — un teacher y un
+ * parent, de 2026-06-24 — verificaron el mismo teléfono antes de que
+ * existiera esta restricción). No hay ninguna señal capturada en su momento
+ * que permita decidir de forma no arbitraria cuál era la dueña real, así
+ * que la política es FAIL-CLOSED: se conservan ambas cuentas completas
+ * (phone crudo, roles, historial académico) y se revoca la verificación
+ * histórica de TODO el grupo en conflicto. El propio UNIQUE de abajo decide
+ * de ahora en adelante quién demuestra control real primero al re-verificar.
  */
 return new class extends Migration
 {
@@ -33,21 +44,43 @@ return new class extends Migration
             $table->string('phone_verified_normalized', 20)->nullable()->unique()->after('phone_verified_at');
         });
 
-        // Backfill: el único usuario local con phone_verified_at ya
-        // confirmado (verificado antes de este fix) — un solo UPDATE
-        // determinista, sin ambigüedad posible porque ya se comprobó que no
-        // hay duplicados.
-        DB::table('users')
+        $verified = DB::table('users')
             ->whereNotNull('phone_verified_at')
             ->whereNotNull('phone')
             ->orderBy('id')
-            ->get(['id', 'phone'])
-            ->each(function ($user) {
-                $normalized = \App\Models\User::normalizePhone($user->phone);
-                if ($normalized) {
-                    DB::table('users')->where('id', $user->id)->update(['phone_verified_normalized' => $normalized]);
-                }
-            });
+            ->get(['id', 'phone']);
+
+        $groups = [];
+        foreach ($verified as $user) {
+            $normalized = \App\Models\User::normalizePhone($user->phone);
+            if ($normalized) {
+                $groups[$normalized][] = $user->id;
+            }
+        }
+
+        foreach ($groups as $normalized => $userIds) {
+            if (count($userIds) === 1) {
+                DB::table('users')->where('id', $userIds[0])->update([
+                    'phone_verified_normalized' => $normalized,
+                ]);
+
+                continue;
+            }
+
+            // Conflicto legacy: 2+ cuentas verificaron el mismo teléfono
+            // antes de que existiera esta restricción. NO se elige
+            // ganador por email/dominio/ID/actividad — esa señal nunca se
+            // capturó. Se preserva cada cuenta intacta y solo se revoca su
+            // estado de verificación de teléfono; deberán volver a
+            // verificar.
+            DB::table('users')->whereIn('id', $userIds)->update([
+                'phone_verified_at' => null,
+                'phone_verified_normalized' => null,
+                'phone_verification_code_hash' => null,
+                'phone_verification_expires_at' => null,
+                'phone_verification_attempts' => 0,
+            ]);
+        }
     }
 
     public function down(): void

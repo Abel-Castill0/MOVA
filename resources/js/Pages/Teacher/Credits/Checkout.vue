@@ -361,7 +361,10 @@ async function submitYapePayment() {
   // resources/js/bootstrap.js) en vez de router.post(), que espera una
   // respuesta Inertia.
   try {
-    const response = await window.axios.post(route('teacher.credits.checkout.pay', props.recharge.id), { token })
+    const response = await window.axios.post(route('teacher.credits.checkout.pay', props.recharge.id), {
+      payment_method: 'yape',
+      token,
+    })
     applyStatus(response.data)
   } catch (error) {
     phase.value = 'idle'

@@ -908,6 +908,72 @@ class MercadoPagoPaymentProviderTest extends TestCase
     }
 
     /**
+     * OBSERVABILITY — confirmado en vivo en el gate Yape TEST real: dos
+     * `POST /v1/payments` devolvieron 500 `internal_error` y, sin este
+     * header, no había forma de darle a soporte de Mercado Pago un
+     * identificador de correlación. Un 500 con `x-request-id` presente
+     * sigue clasificándose EXACTAMENTE igual (uncertain, mismo intento,
+     * misma X-Idempotency-Key) — el header es metadata de correlación
+     * para el log, nunca cambia create/reconcile semantics.
+     */
+    public function test_a_500_with_x_request_id_logs_the_correlation_id_and_still_fails_closed_as_uncertain(): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response(
+            ['message' => 'internal_error'],
+            500,
+            ['x-request-id' => 'mp-correlation-abc123']
+        )]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        try {
+            (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+            $this->fail('Se esperaba RuntimeException — un 500 nunca debe resolverse sin lanzar.');
+        } catch (RuntimeException) {
+            // esperado — ver el resto de tests 'uncertain' en este archivo.
+        }
+
+        $order = PaymentOrder::sole();
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('uncertain', $order->submission_status);
+        $this->assertNull($order->provider_order_id);
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('log')
+            ->withArgs(function (string $level, string $message, array $context) {
+                return $message === '[MercadoPago] Error al crear el pago.'
+                    && ($context['provider_request_id'] ?? null) === 'mp-correlation-abc123'
+                    && ($context['status'] ?? null) === 500;
+            })
+            ->once();
+    }
+
+    /**
+     * Ausencia del header: nunca se inventa un valor, nunca se lanza por su
+     * falta — simplemente null en el log.
+     */
+    public function test_a_500_without_x_request_id_logs_null_correlation_id(): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response(['message' => 'internal_error'], 500)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        try {
+            (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+        } catch (RuntimeException) {
+        }
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('log')
+            ->withArgs(fn (string $level, string $message, array $context) => $message === '[MercadoPago] Error al crear el pago.' && array_key_exists('provider_request_id', $context) && $context['provider_request_id'] === null)
+            ->once();
+    }
+
+    /**
      * @dataProvider unrecognizedOrMissing400Codes
      *
      * "400 desconocido → fail closed": un 400 sin un código reconocido (o

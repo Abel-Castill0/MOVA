@@ -1,0 +1,30 @@
+# MOVA MYSQL QA GATE — imagen PHP 8.3 SOLO para validación local/CI de
+# AZ-3G0-A (MySQL 8.4 full + Playwright). No es la imagen de producción
+# (ver Dockerfile en la raíz, FrankenPHP/Azure): esta trae Xdebug-free
+# PHP CLI + Composer + extensiones de dev para correr PHPUnit/Playwright
+# contra la conexión 'mysql_qa'. Nunca se publica ni se usa fuera de QA.
+FROM php:8.3-cli-bookworm
+
+# pdo_sqlite: requerido por el gate e2e_qa (SQLite QA sintética, ver
+# docker/qa-e2e-serve.sh); pdo_mysql sigue siendo el de php_qa (MySQL 8.4).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git unzip libzip-dev libpng-dev libonig-dev libicu-dev libsqlite3-dev \
+    && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip intl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# short_open_tag=Off en producción (docker/php.ini) — sin esto, la imagen
+# base de PHP trae short_open_tag=On y `<?xml version="1.0"?>` en
+# resources/views/sitemap.blade.php se interpreta como una etiqueta corta de
+# PHP en vez de texto literal (rompe SitemapTest solo en este container, no
+# es una regresión de producto).
+COPY docker/php.ini "$PHP_INI_DIR/conf.d/99-mova-qa.ini"
+
+# Node/npm para el build de Vite que consumen las rutas Inertia en Playwright.
+RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app

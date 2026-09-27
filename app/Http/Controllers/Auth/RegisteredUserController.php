@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\LegalAcceptance;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -106,6 +107,9 @@ class RegisteredUserController extends Controller
                     $subjectIds->mapWithKeys(fn($id) => [$id => ['specific_rate' => null]])
                 );
             }
+
+            // P0-K: versión + timestamp de lo aceptado, en la misma transacción.
+            LegalAcceptance::recordCurrent($user, $request);
 
             return $user;
         });

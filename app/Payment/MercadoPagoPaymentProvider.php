@@ -260,6 +260,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                     'status' => $response->status(),
                     'categoria' => $category,
                     'error' => $this->safeErrorFromResponse($response),
+                    'provider_request_id' => $this->providerRequestId($response),
                 ]);
 
             if ($category === 'validation_error') {
@@ -336,6 +337,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             Log::error('[MercadoPago] Respuesta 2xx sin id de pago — resultado inutilizable.', [
                 'recharge_request_id' => $recharge->id,
                 'body' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             // A diferencia del caso anterior, aquí SÍ hubo un 2xx — no hay
@@ -1068,6 +1070,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 'provider_order_id' => $paymentId,
                 'status' => $status,
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return ['outcome' => 'auth_config_error'];
@@ -1083,6 +1086,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             Log::critical('[MercadoPago] El pago no fue encontrado al solicitar la cancelación (inesperado — el GET canónico previo lo confirmó existente).', [
                 'provider_order_id' => $paymentId,
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return ['outcome' => 'payment_not_found'];
@@ -1096,6 +1100,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 Log::info('[MercadoPago] Cancelación rechazada con código documentado 2018 (acción inválida para el estado actual del pago) — tratado como conflicto de estado (posible carrera con otra resolución).', [
                     'provider_order_id' => $paymentId,
                     'error' => $this->safeErrorFromResponse($response),
+                    'provider_request_id' => $this->providerRequestId($response),
                 ]);
 
                 return ['outcome' => 'not_cancellable'];
@@ -1105,6 +1110,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 Log::error('[MercadoPago] Cancelación rechazada con código documentado '.$numericCode.' (solicitud/atributo inválido) — tratado como bug de integración, nunca una carrera de estado.', [
                     'provider_order_id' => $paymentId,
                     'error' => $this->safeErrorFromResponse($response),
+                    'provider_request_id' => $this->providerRequestId($response),
                 ]);
 
                 return ['outcome' => 'invalid_request'];
@@ -1115,6 +1121,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                     'provider_order_id' => $paymentId,
                     'codigo' => $rawCode,
                     'error' => $this->safeErrorFromResponse($response),
+                    'provider_request_id' => $this->providerRequestId($response),
                 ]);
 
                 return ['outcome' => 'invalid_request'];
@@ -1131,6 +1138,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 'provider_order_id' => $paymentId,
                 'codigo' => $rawCode,
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return ['outcome' => 'client_error_unclassified'];
@@ -1157,6 +1165,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             'provider_order_id' => $paymentId,
             'status' => $status,
             'error' => $this->safeErrorFromResponse($response),
+            'provider_request_id' => $this->providerRequestId($response),
         ]);
 
         return ['outcome' => 'unclassified'];
@@ -1213,6 +1222,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 'provider_order_id' => $paymentId,
                 'status' => $response->status(),
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return null;
@@ -1296,6 +1306,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                 'external_reference' => $externalReference,
                 'status' => $response->status(),
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return null;
@@ -1412,6 +1423,7 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             Log::error('[MercadoPago] GET payment_methods no exitoso.', [
                 'status' => $response->status(),
                 'error' => $this->safeErrorFromResponse($response),
+                'provider_request_id' => $this->providerRequestId($response),
             ]);
 
             return null;
@@ -1531,6 +1543,27 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
             return $error ? json_encode($error) : ('respuesta no-JSON: '.\Illuminate\Support\Str::limit($response->body(), 200));
         } catch (\Throwable) {
             return 'no se pudo interpretar la respuesta de Mercado Pago';
+        }
+    }
+
+    /**
+     * OBSERVABILITY — no verdad financiera (confirmado en el gate Yape TEST
+     * real: dos `POST /v1/payments` devolvieron 500 `internal_error` y, sin
+     * este header, no había forma de darle a soporte de Mercado Pago un
+     * identificador de correlación para rastrear esos requests en su lado).
+     * `x-request-id` es metadata de correlación pura — nunca cambia
+     * ninguna clasificación (`classifyHttpFailure()`), ningún status local
+     * ni la semántica create/reconcile; solo se adjunta a los mismos logs
+     * de error que ya existían. `header()` de la respuesta HTTP de Laravel
+     * ya es case-insensitive, así que no hace falta probar variantes de
+     * capitalización.
+     */
+    private function providerRequestId($response): ?string
+    {
+        try {
+            return $response->header('x-request-id') ?: null;
+        } catch (\Throwable) {
+            return null;
         }
     }
 }

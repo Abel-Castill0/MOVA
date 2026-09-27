@@ -90,20 +90,19 @@ class DashboardController extends Controller
                             $scheduled->where('status', 'scheduled')->where('start_time', '>=', now());
                         })->orWhere('status', 'paid');
                     })
-                    ->with(['student', 'classRequest.subject'])
+                    ->with(['student:id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                     ->orderBy('start_time')
                     ->take(5)->get() : [],
-                'pending_requests' => $profile ? (function () use ($profile) {
+                // Solo un perfil verificado ve cuántas solicitudes abiertas le
+                // corresponden (mismo invariante que ClassRequestController::teacherIndex).
+                'pending_requests' => $profile?->is_verified ? (function () use ($profile) {
                     $offerIds   = $profile->classOffers()->pluck('id');
                     $subjectIds = $profile->subjects()->pluck('subjects.id');
+                    // Mismo scope que la lista (respeta la exclusividad del
+                    // código de referido).
                     return ClassRequest::where('status', 'open')
-                        ->where(function ($q) use ($offerIds, $subjectIds) {
-                            $q->whereIn('class_offer_id', $offerIds)
-                              ->orWhere(function ($inner) use ($subjectIds) {
-                                  $inner->whereNull('class_offer_id')
-                                        ->whereIn('subject_id', $subjectIds);
-                              });
-                        })->count();
+                        ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
+                        ->count();
                 })() : 0,
                 'pending_reports'    => $pendingReports,
                 'profile_score'     => $score,
@@ -134,18 +133,18 @@ class DashboardController extends Controller
             // del dashboard pueda ofrecer la acción contextual correcta en cada caso.
             'upcoming' => Lesson::whereIn('student_id', $studentIds)
                 ->whereIn('status', ['scheduled', 'paid', 'pending_parent_confirmation'])
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                 ->orderBy('start_time')
                 ->take(5)->get(),
             'next_lesson' => Lesson::whereIn('student_id', $studentIds)
                 ->whereIn('status', ['scheduled', 'paid'])
                 ->where('start_time', '>=', now())
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                 ->orderBy('start_time')
                 ->first(),
             'recent_history' => Lesson::whereIn('student_id', $studentIds)
                 ->where('status', 'completed')
-                ->with(['teacherProfile.user', 'student', 'classRequest.subject', 'teacherReview'])
+                ->with(['teacherProfile:id,user_id,yape_number,plin_number,referral_code', 'teacherProfile.user:id,name', 'student:id,parent_user_id,first_name,last_name,grade_level', 'classRequest.subject:id,name', 'teacherReview'])
                 ->orderByDesc('start_time')
                 ->take(5)->get(),
             'stats' => [

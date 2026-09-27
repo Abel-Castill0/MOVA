@@ -102,6 +102,10 @@ return [
     // Google Cloud Console > APIs & Services > Credentials, tipo "OAuth
     // client ID / Web application", con esta redirect URI autorizada:
     // {APP_URL}/auth/google/callback
+    'cloudinary' => [
+        'cloud_url' => env('CLOUDINARY_URL'),
+    ],
+
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

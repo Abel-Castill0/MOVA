@@ -21,6 +21,11 @@ class ClassRequest extends Model
         'is_mentorship', 'help_needed', 'preferred_times', 'status',
         'request_reminder_sent_at', 'student_diagnostic_id',
         'teacher_rejected_at', 'teacher_rejection_reason',
+        // Campos de contraoferta — asignados solo desde CounterofferController
+        // (propuesta/rechazo) y LessonSchedulingService (aceptación), siempre
+        // con valores ya validados server-side, nunca desde un request body
+        // genérico.
+        'counteroffer_time', 'counteroffer_duration_minutes', 'counteroffer_teacher_profile_id',
     ];
 
     protected $casts = [
@@ -28,6 +33,8 @@ class ClassRequest extends Model
         'is_mentorship'              => 'boolean',
         'request_reminder_sent_at'   => 'datetime',
         'teacher_rejected_at'        => 'datetime',
+        'counteroffer_time'          => 'datetime',
+        'counteroffer_duration_minutes' => 'integer',
     ];
 
     public function isTeacherRejected(): bool
@@ -114,14 +121,20 @@ class ClassRequest extends Model
      */
     public function eligibleTeacherUsers(): \Illuminate\Support\Collection
     {
+        // Los tres caminos exigen un perfil VERIFICADO vigente: una
+        // notificación lleva el nombre del menor, y la verificación pudo
+        // retirarse después de crear la solicitud (p. ej. antes de que el
+        // padre la aprobara).
         if ($this->teacher_profile_id) {
-            $user = $this->teacherProfile?->user;
+            $profile = $this->teacherProfile;
+            $user = $profile?->is_verified ? $profile->user : null;
 
             return $user ? collect([$user]) : collect();
         }
 
         if ($this->class_offer_id) {
-            $user = $this->classOffer?->teacherProfile?->user;
+            $profile = $this->classOffer?->teacherProfile;
+            $user = $profile?->is_verified ? $profile->user : null;
 
             return $user ? collect([$user]) : collect();
         }
@@ -135,8 +148,74 @@ class ClassRequest extends Model
             ->values();
     }
 
+    /**
+     * ¿Este usuario está entre eligibleTeacherUsers()? Misma regla, acotada a
+     * un solo destinatario (una consulta), para re-evaluar en la entrega de
+     * cada notificación sin reconstruir la lista completa de profesores.
+     */
+    public function isEligibleTeacherUser(User $user): bool
+    {
+        if ($this->teacher_profile_id) {
+            $profile = $this->teacherProfile;
+
+            return (bool) ($profile?->is_verified && $profile->user_id === $user->id);
+        }
+
+        if ($this->class_offer_id) {
+            $profile = $this->classOffer?->teacherProfile;
+
+            return (bool) ($profile?->is_verified && $profile->user_id === $user->id);
+        }
+
+        return TeacherProfile::where('user_id', $user->id)
+            ->where('is_verified', true)
+            ->whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+            ->exists();
+    }
+
     public function lesson()
     {
         return $this->hasOne(Lesson::class);
+    }
+
+    /**
+     * El profesor que hizo la contraoferta de horario. Distinto de
+     * teacherProfile() (el profesor al que va dirigida la solicitud por
+     * código de referido) — un profesor sin código de referido también
+     * puede hacer una contraoferta sobre una solicitud abierta.
+     */
+    public function counterofferTeacherProfile()
+    {
+        return $this->belongsTo(TeacherProfile::class, 'counteroffer_teacher_profile_id');
+    }
+
+    /**
+     * Huella opaca de la propuesta vigente. El padre la reenvía al
+     * aceptar/rechazar y el servidor la compara bajo lock: una pestaña vieja
+     * nunca responde a una propuesta distinta de la que vio — ni siquiera a
+     * una re-propuesta con los MISMOS términos tras un rechazo, porque cada
+     * propuesta queda versionada por su evento 'counteroffer_proposed'
+     * (id autoincremental, escrito en la misma transacción que la propuesta).
+     * HMAC con la APP_KEY para no exponer ids internos del profesor.
+     */
+    public function counterofferRef(): ?string
+    {
+        if ($this->counteroffer_teacher_profile_id === null
+            || $this->counteroffer_time === null
+            || $this->counteroffer_duration_minutes === null) {
+            return null;
+        }
+
+        $proposalVersion = ClassEvent::where('class_request_id', $this->id)
+            ->where('event_type', 'counteroffer_proposed')
+            ->max('id');
+
+        return hash_hmac('sha256', implode('|', [
+            $this->id,
+            (int) $proposalVersion,
+            $this->counteroffer_teacher_profile_id,
+            $this->counteroffer_time->getTimestamp(),
+            (int) $this->counteroffer_duration_minutes,
+        ]), (string) config('app.key'));
     }
 }

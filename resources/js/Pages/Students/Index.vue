@@ -4,22 +4,22 @@
       <div class="flex items-center justify-between">
         <h2 class="text-2xl font-black text-slate-900">Mis hijos</h2>
         <Link :href="route('students.create')"
-          class="px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
+          class="px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 active:scale-95 transition-all shadow-md shadow-brand-600/25">
           + Añadir hijo
         </Link>
       </div>
 
-      <div v-if="!students.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">
+      <div v-if="!students.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
         <div class="mb-3 flex justify-center text-slate-300">
           <Icon name="my-students" :size="48" :stroke-width="1.5" />
         </div>
-        <p class="text-slate-500 mb-4">Aún no has añadido ningún hijo</p>
-        <Link :href="route('students.create')" class="text-brand-600 hover:underline text-sm font-medium">Añadir ahora</Link>
+        <p class="text-slate-500 mb-4 font-medium">Aún no has añadido ningún hijo</p>
+        <Link :href="route('students.create')" class="px-5 py-2 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 transition-colors inline-block">Añadir ahora</Link>
       </div>
 
       <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div v-for="s in students" :key="s.id"
-          class="bg-white rounded-2xl border border-gray-100 p-5 hover:border-brand-300 hover:shadow-md transition-all">
+          class="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 hover:border-brand-300 hover:shadow-md transition-all">
           <div class="flex items-start justify-between">
             <div>
               <p class="font-semibold text-slate-900">{{ s.full_name }}</p>

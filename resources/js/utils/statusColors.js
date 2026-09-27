@@ -28,6 +28,7 @@ export const STATUS_STYLES = {
   accepted: { label: 'Aceptada', color: 'bg-green-100 text-green-700', ring: 'border-green-200', stripe: 'bg-green-500', dot: 'bg-green-400' },
   rejected: { label: 'Rechazada', color: 'bg-red-100 text-red-700', ring: 'border-red-200', stripe: 'bg-red-500', dot: 'bg-red-400' },
   pending_parent_approval: { label: 'Pend. aprobación', color: 'bg-orange-100 text-orange-700', ring: 'border-orange-200', stripe: 'bg-orange-500', dot: 'bg-orange-400' },
+  counteroffered: { label: 'Propuesta de horario', color: 'bg-amber-100 text-amber-800', ring: 'border-amber-200', stripe: 'bg-amber-500', dot: 'bg-amber-400' },
   teacher_rejected: { label: 'Rechazada por profesor', color: 'bg-rose-100 text-rose-700', ring: 'border-rose-200', stripe: 'bg-rose-500', dot: 'bg-rose-400' },
   // §14: gris, no rojo. Caducar no es un rechazo ni un error del padre — nadie
   // la tomó a tiempo. Pintarla como "rechazada" sugeriría un juicio que no hubo.

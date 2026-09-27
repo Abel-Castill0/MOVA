@@ -24,6 +24,24 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
         return $channels;
     }
 
+    /**
+     * Re-evaluado al ENTREGAR (la notificación va encolada): lleva el nombre
+     * del menor, así que si entre el encolado y el envío se retiró la
+     * verificación del profesor, se le suspendió o la solicitud dejó de estar
+     * abierta, no se envía por ningún canal.
+     */
+    public function shouldSend($notifiable, string $channel): bool
+    {
+        $request = $this->classRequest->fresh();
+        $teacher = $notifiable->fresh();
+
+        return $request !== null
+            && $teacher !== null
+            && $teacher->suspended_at === null
+            && $request->status === 'open'
+            && $request->isEligibleTeacherUser($teacher);
+    }
+
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)

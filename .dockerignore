@@ -1,0 +1,63 @@
+# Build context seguro: nada de secretos, historial ni artefactos locales.
+.git
+.gitattributes
+.github
+.env
+.env.*
+!.env.example
+auth.json
+*.pem
+*.key
+
+# Se generan dentro de la imagen
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+bootstrap/cache/*.php
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing
+storage/logs/*
+storage/debugbar
+storage/*.key
+
+# Tests / QA / artefactos que el runtime no necesita
+tests
+qa
+test-results
+phpunit.xml
+phpunit.mysql.xml
+.phpunit.cache
+.phpunit.result.cache
+scripts
+
+# Infra, docs y tooling — no viven en el runtime
+infra
+docs
+docker/*.md
+Dockerfile
+.dockerignore
+railway*.toml
+railpack.json
+.vercel
+.telemetry
+.agents
+.claude
+*.md
+!README.md
+
+# IDE / OS
+.idea
+.vscode
+.fleet
+.editorconfig
+.DS_Store
+Thumbs.db
+
+# Entregables de marca crudos (ya extraídos a public/)
+Logos-*/
+Tipografía-*/
+*.pdf
