@@ -25,8 +25,9 @@ use Illuminate\Validation\ValidationException;
  * ClassRequest (serializa aceptaciones concurrentes de la misma solicitud),
  * luego el Student (§13: serializa aceptaciones de solicitudes DISTINTAS
  * del mismo menor, que no comparten ningún otro lock), luego las clases en
- * conflicto (lockForUpdate en scheduleConflict) y al final el
- * TeacherProfile (créditos y cupo de mentoría).
+ * conflicto (lockForUpdate en scheduleConflict), luego el TeacherProfile
+ * (créditos y cupo de mentoría) y por último el User del profesor
+ * (suspensión), para re-evaluar su habilitación ya serializado.
  *
  * El llamador sigue siendo responsable de la AUTORIZACIÓN y del estado
  * esperado: el `$guard` corre bajo el lock de la ClassRequest, antes de
@@ -73,12 +74,16 @@ class LessonSchedulingService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            // Bajo el lock del perfil: una revocación de verificación o una
-            // suspensión confirmada después del chequeo de autorización (y
-            // del guard) no puede terminar en una Lesson + reserva de
-            // créditos para un profesor ya no habilitado.
-            if (! $teacherProfile->is_verified
-                || User::whereKey($teacherProfile->user_id)->value('suspended_at') !== null) {
+            // Bajo el lock del perfil (y del usuario, último en el orden de
+            // locks): una revocación de verificación o una suspensión
+            // confirmada después del chequeo de autorización (y del guard) no
+            // puede terminar en una Lesson + reserva de créditos para un
+            // profesor ya no habilitado.
+            $teacherSuspendedAt = User::whereKey($teacherProfile->user_id)
+                ->lockForUpdate()
+                ->value('suspended_at');
+
+            if (! $teacherProfile->is_verified || $teacherSuspendedAt !== null) {
                 throw ValidationException::withMessages([
                     'accept' => 'Este profesor ya no está habilitado para agendar clases.',
                 ]);

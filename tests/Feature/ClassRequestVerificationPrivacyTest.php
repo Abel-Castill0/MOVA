@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\NewClassRequestNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -92,6 +93,33 @@ class ClassRequestVerificationPrivacyTest extends TestCase
 
         $this->assertCount(0, $viaOffer->fresh()->eligibleTeacherUsers());
         $this->assertCount(0, $viaCode->fresh()->eligibleTeacherUsers());
+    }
+
+    public function test_queued_new_request_notification_rechecks_eligibility_at_delivery(): void
+    {
+        $profile = $this->teacher('AAAAAA');
+        [, $student] = $this->parentWithStudent();
+        $request = ClassRequest::create([
+            'student_id' => $student->id, 'subject_id' => $this->subject->id,
+            'help_needed' => 'Fracciones', 'status' => 'open',
+        ]);
+        $teacher = $profile->user;
+        $notification = new NewClassRequestNotification($request);
+
+        $this->assertTrue($notification->shouldSend($teacher, 'mail'));
+
+        // Revocada entre el encolado y la entrega: no sale por ningún canal.
+        $profile->update(['is_verified' => false]);
+        $this->assertFalse($notification->shouldSend($teacher, 'mail'));
+        $this->assertFalse($notification->shouldSend($teacher, 'database'));
+
+        $profile->update(['is_verified' => true]);
+        $teacher->update(['suspended_at' => now()]);
+        $this->assertFalse($notification->shouldSend($teacher, 'mail'));
+
+        $teacher->update(['suspended_at' => null]);
+        $request->update(['status' => 'accepted']);
+        $this->assertFalse($notification->shouldSend($teacher, 'mail'));
     }
 
     public function test_offer_and_referral_code_of_different_teachers_are_rejected(): void
