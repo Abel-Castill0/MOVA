@@ -747,8 +747,11 @@
 
     </div>
 
+    <Teleport to="body">
     <!-- ── Modal de CONTRAOFERTA (Proponer otra hora) ────────────────────────── -->
-    <div v-if="counterofferTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    <!-- Teleport + z-[60]: el drawer móvil (z-50) vive en el body; dentro de
+         <main> (z-10) estos modales quedaban DEBAJO de él y no se podían tocar. -->
+    <div v-if="counterofferTarget" class="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4"
       @click.self="closeCounterofferModal" @keydown.esc="closeCounterofferModal">
       <div ref="counterofferDialog" role="dialog" aria-modal="true" aria-labelledby="counteroffer-title" tabindex="-1"
         @keydown.tab="trapFocus($event, counterofferDialog)"
@@ -816,7 +819,7 @@
     </div>
 
     <!-- ── Modal de RECHAZO ────────────────────────────────────────────────── -->
-    <div v-if="rejectTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    <div v-if="rejectTarget" class="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4"
       @keydown.esc="closeRejectModal">
       <div ref="rejectDialog" role="dialog" aria-modal="true" aria-labelledby="reject-title" tabindex="-1"
         @keydown.tab="trapFocus($event, rejectDialog)"
@@ -853,6 +856,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
   </AppLayout>
 </template>
 
