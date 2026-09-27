@@ -109,15 +109,6 @@ const submit = () => {
                         decoding="async"
                     />
 
-                    <!-- Badge Rating 5.0 (Inferior izquierdo de la ventana) -->
-                    <img
-                        src="/images/brand/forgot-password-rating-opt.png"
-                        alt=""
-                        class="absolute left-[8%] xl:left-[10%] -bottom-3.5 xl:-bottom-4 w-[29%] xl:w-[30%] h-auto object-contain z-20 drop-shadow-lg pointer-events-none"
-                        loading="eager"
-                        decoding="async"
-                    />
-
                     <!-- Widget Video (Lateral inferior derecho de la ventana) -->
                     <img
                         src="/images/brand/forgot-password-video-widget-opt.png"

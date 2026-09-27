@@ -127,12 +127,13 @@
             </div>
 
             <div class="mt-2.5">
-              <label class="block text-[11px] font-semibold text-slate-700 mb-1">Bio</label>
+              <label for="teacher-bio" class="block text-[11px] font-semibold text-slate-700 mb-1">Bio</label>
               <textarea
+                id="teacher-bio"
                 v-model="form.bio"
                 rows="3"
                 maxlength="500"
-                placeholder="Profesor de prueba generado para pruebas E2E locales."
+                placeholder="Cuéntales a los padres tu experiencia enseñando esta materia..."
                 class="w-full border border-slate-200 rounded-2xl p-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-none"
               ></textarea>
               <div class="text-[10px] text-slate-400 text-right mt-0.5 font-medium">
@@ -184,7 +185,7 @@
             <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <!-- Yape -->
               <div>
-                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Número Yape</label>
+                <label for="teacher-yape" class="block text-[11px] font-semibold text-slate-700 mb-1">Número Yape</label>
                 <div class="relative flex items-center">
                   <div class="absolute left-3 flex items-center pointer-events-none select-none">
                     <div class="w-5 h-5 rounded-full bg-[#742284] flex items-center justify-center text-white text-[7.5px] font-black italic tracking-tighter shadow-2xs">
@@ -192,6 +193,7 @@
                     </div>
                   </div>
                   <input
+                    id="teacher-yape"
                     v-model="form.yape_number"
                     type="text"
                     maxlength="20"
@@ -204,7 +206,7 @@
 
               <!-- Plin -->
               <div>
-                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Número Plin</label>
+                <label for="teacher-plin" class="block text-[11px] font-semibold text-slate-700 mb-1">Número Plin</label>
                 <div class="relative flex items-center">
                   <div class="absolute left-3 flex items-center pointer-events-none select-none">
                     <div class="w-5 h-5 rounded-full bg-[#00d0b7] flex items-center justify-center text-white text-[7.5px] font-black tracking-tighter shadow-2xs">
@@ -212,6 +214,7 @@
                     </div>
                   </div>
                   <input
+                    id="teacher-plin"
                     v-model="form.plin_number"
                     type="text"
                     maxlength="20"
@@ -277,6 +280,7 @@
             <div class="flex items-center gap-2.5">
               <input
                 v-model="subjectDraft"
+                aria-label="Nueva materia"
                 type="text"
                 list="subject-suggestions"
                 placeholder="Escribe una materia nueva..."
