@@ -16,7 +16,7 @@
               ¡Hola, {{ firstName }}! <span class="inline-block text-base">👋</span>
             </p>
             <h2 class="text-2xl sm:text-3xl lg:text-3xl font-black tracking-tight leading-tight">Tu panel de clases</h2>
-            <p class="text-orange-100/90 text-sm mt-1.5 capitalize">{{ today }}</p>
+            <p class="text-orange-100/90 text-sm mt-1.5">{{ today }}</p>
             <p class="text-white/80 text-sm mt-1.5 max-w-sm leading-relaxed hidden sm:block">Sigamos creando oportunidades a través de la educación.</p>
           </div>
 
@@ -383,7 +383,12 @@ const hasOffers = computed(() => props.has_offers)
 
 const user      = computed(() => usePage().props.auth?.user)
 const firstName = computed(() => user.value?.name?.split(' ')[0] ?? '')
-const today     = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+// Solo la inicial en mayúscula ("Domingo, 27 de septiembre de 2026"); la
+// clase CSS `capitalize` producía "27 De Septiembre De".
+const today     = computed(() => {
+  const s = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+})
 
 // `upcoming` ya viene ordenado start_time asc desde DashboardController
 const upcomingGrouped  = computed(() => splitByWeek(props.upcoming))

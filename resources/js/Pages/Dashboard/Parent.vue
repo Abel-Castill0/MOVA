@@ -14,7 +14,7 @@
           <div class="min-w-0 py-1">
             <p class="text-blue-100 text-sm font-medium mb-1">¡Bienvenido/a de vuelta!</p>
             <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">{{ firstName }}</h2>
-            <p class="text-blue-100/90 text-sm mt-1.5 capitalize">{{ today }}</p>
+            <p class="text-blue-100/90 text-sm mt-1.5">{{ today }}</p>
             <p class="text-white/80 text-sm mt-2 max-w-sm leading-relaxed hidden sm:block">Acompaña el aprendizaje de tus hijos con los mejores profesores.</p>
           </div>
 
@@ -428,7 +428,12 @@ const props = defineProps({
 
 const user      = computed(() => usePage().props.auth?.user)
 const firstName = computed(() => user.value?.name?.split(' ')[0] ?? '')
-const today     = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+// Solo la inicial en mayúscula ("Domingo, 27 de septiembre de 2026"); la
+// clase CSS `capitalize` producía "27 De Septiembre De".
+const today     = computed(() => {
+  const s = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+})
 
 const payingId = ref(null)
 const paymentError = ref('')
