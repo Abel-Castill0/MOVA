@@ -62,11 +62,35 @@ function scrollToBottom() {
   })
 }
 
+// Diálogo modal (aria-modal): al abrir, el foco entra al campo de texto; al
+// cerrar vuelve al lanzador. Escape cierra y Tab no escapa del diálogo.
+const launcherRef = ref(null)
+const dialogRef = ref(null)
+
 watch(isOpen, (open) => {
   if (open) {
     scrollToBottom()
+    nextTick(() => dialogRef.value?.querySelector('#movi-chat-input')?.focus())
+  } else {
+    nextTick(() => launcherRef.value?.focus())
   }
 })
+
+function trapFocus(event) {
+  const dialog = dialogRef.value
+  if (!dialog) return
+  const focusables = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+  if (!focusables.length) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 function restartChat() {
   messages.value = [
@@ -169,6 +193,7 @@ function getCurrentTime() {
     <div
       class="fixed bottom-0 right-2 sm:right-4 md:right-6 lg:right-8 z-40 select-none group cursor-pointer transition-all duration-300"
       :class="isOpen ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 scale-100'"
+      ref="launcherRef"
       @click="toggleChat"
       role="button"
       tabindex="0"
@@ -216,9 +241,12 @@ function getCurrentTime() {
       <div
         v-if="isOpen"
         class="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 md:bottom-6 md:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[400px] md:w-[415px] h-[580px] max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-[0_20px_60px_rgba(2,24,64,0.45)] border-2 border-slate-600 dark:border-slate-600 overflow-hidden font-sans select-text"
+        ref="dialogRef"
         role="dialog"
         aria-label="Ventana de chat con Movi"
         aria-modal="true"
+        @keydown.esc="closeChat"
+        @keydown.tab="trapFocus"
       >
         <!-- ── Encabezado de la ventana de chat ────────────────────────── -->
         <header class="relative px-5 py-3.5 bg-gradient-to-r from-[#021840] via-[#073D91] to-[#0D409A] text-white flex items-center justify-between shadow-md select-none">
