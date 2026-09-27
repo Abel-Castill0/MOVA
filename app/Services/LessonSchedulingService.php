@@ -7,6 +7,7 @@ use App\Models\ClassRequest;
 use App\Models\Lesson;
 use App\Models\Student;
 use App\Models\TeacherProfile;
+use App\Models\User;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,17 @@ class LessonSchedulingService
             $teacherProfile = TeacherProfile::whereKey($teacherProfileId)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            // Bajo el lock del perfil: una revocación de verificación o una
+            // suspensión confirmada después del chequeo de autorización (y
+            // del guard) no puede terminar en una Lesson + reserva de
+            // créditos para un profesor ya no habilitado.
+            if (! $teacherProfile->is_verified
+                || User::whereKey($teacherProfile->user_id)->value('suspended_at') !== null) {
+                throw ValidationException::withMessages([
+                    'accept' => 'Este profesor ya no está habilitado para agendar clases.',
+                ]);
+            }
 
             $creditsNeeded = Lesson::creditCostForMinutes($durationMinutes);
 

@@ -183,7 +183,8 @@ class CounterofferController extends Controller
             return ['teacher_profile_id' => $teacherProfileId, 'request' => $locked];
         });
 
-        $teacherUser = TeacherProfile::find($rejected['teacher_profile_id'])?->user;
+        $proposer = TeacherProfile::find($rejected['teacher_profile_id']);
+        $teacherUser = $proposer?->is_verified ? $proposer->user : null;
         $teacherUser?->notify(new CounterofferRejectedNotification(
             $rejected['request']->id,
             $rejected['request']->subject?->name ?? 'la clase'

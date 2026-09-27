@@ -121,14 +121,20 @@ class ClassRequest extends Model
      */
     public function eligibleTeacherUsers(): \Illuminate\Support\Collection
     {
+        // Los tres caminos exigen un perfil VERIFICADO vigente: una
+        // notificación lleva el nombre del menor, y la verificación pudo
+        // retirarse después de crear la solicitud (p. ej. antes de que el
+        // padre la aprobara).
         if ($this->teacher_profile_id) {
-            $user = $this->teacherProfile?->user;
+            $profile = $this->teacherProfile;
+            $user = $profile?->is_verified ? $profile->user : null;
 
             return $user ? collect([$user]) : collect();
         }
 
         if ($this->class_offer_id) {
-            $user = $this->classOffer?->teacherProfile?->user;
+            $profile = $this->classOffer?->teacherProfile;
+            $user = $profile?->is_verified ? $profile->user : null;
 
             return $user ? collect([$user]) : collect();
         }

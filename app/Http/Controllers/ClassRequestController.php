@@ -178,6 +178,16 @@ class ClassRequestController extends Controller
             }
         }
 
+        // Oferta + código de referido deben señalar al MISMO profesor: si no,
+        // la solicitud del menor iría (por exclusividad del código) a un
+        // profesor distinto del que el padre ve en el resumen, y la clase se
+        // tarifaría con la oferta de otro.
+        if ($teacherProfileId !== null && $offerTeacherProfile !== null && $offerTeacherProfile->id !== $teacherProfileId) {
+            throw ValidationException::withMessages([
+                'teacher_referral_code' => 'Este código corresponde a otro profesor distinto al de la oferta elegida.',
+            ]);
+        }
+
         // P2 → RESOLVED: dedup de intención repetida (reintento de red,
         // no doble-click — Create.vue ya deshabilita el botón mientras
         // `form.processing`, eso no cubre un timeout/reconexión real que
@@ -385,12 +395,20 @@ class ClassRequestController extends Controller
             'reason' => 'required|string|min:10|max:500',
         ]);
 
-        $classRequest->load(['student.parent', 'subject']);
-        $classRequest->update([
-            'status'                     => 'teacher_rejected',
-            'teacher_rejected_at'        => now(),
-            'teacher_rejection_reason'   => $data['reason'],
-        ]);
+        // Bajo lock: una aceptación o contraoferta concurrente que ya sacó la
+        // solicitud de 'open' no puede ser sobrescrita por este rechazo.
+        DB::transaction(function () use ($classRequest, $data) {
+            $locked = ClassRequest::whereKey($classRequest->id)->lockForUpdate()->firstOrFail();
+            abort_unless($locked->status === 'open', 422, 'Solo se pueden rechazar solicitudes abiertas.');
+
+            $locked->update([
+                'status'                     => 'teacher_rejected',
+                'teacher_rejected_at'        => now(),
+                'teacher_rejection_reason'   => $data['reason'],
+            ]);
+        });
+
+        $classRequest->refresh()->load(['student.parent', 'subject']);
 
         ClassEvent::log('request_rejected', auth()->id(), null, $classRequest->id, $data['reason']);
 

@@ -98,14 +98,11 @@ class DashboardController extends Controller
                 'pending_requests' => $profile?->is_verified ? (function () use ($profile) {
                     $offerIds   = $profile->classOffers()->pluck('id');
                     $subjectIds = $profile->subjects()->pluck('subjects.id');
+                    // Mismo scope que la lista (respeta la exclusividad del
+                    // código de referido).
                     return ClassRequest::where('status', 'open')
-                        ->where(function ($q) use ($offerIds, $subjectIds) {
-                            $q->whereIn('class_offer_id', $offerIds)
-                              ->orWhere(function ($inner) use ($subjectIds) {
-                                  $inner->whereNull('class_offer_id')
-                                        ->whereIn('subject_id', $subjectIds);
-                              });
-                        })->count();
+                        ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
+                        ->count();
                 })() : 0,
                 'pending_reports'    => $pendingReports,
                 'profile_score'     => $score,

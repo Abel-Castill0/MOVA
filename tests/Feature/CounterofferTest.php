@@ -439,6 +439,55 @@ class CounterofferTest extends TestCase
         $this->assertSame('counteroffered', $request->fresh()->status);
     }
 
+    public function test_scheduling_refuses_a_teacher_revoked_after_authorization(): void
+    {
+        [, $profile, , , $request, $at] = $this->counteroffered(90);
+
+        // La revocación se confirma DESPUÉS del guard (que corre con la
+        // solicitud ya bloqueada) y ANTES del lock del perfil del profesor.
+        try {
+            app(\App\Services\LessonSchedulingService::class)->schedule(
+                $request->id, $profile->id, $at->toIso8601String(), 90,
+                function () use ($profile) {
+                    TeacherProfile::whereKey($profile->id)->update(['is_verified' => false]);
+                }
+            );
+            $this->fail('Se esperaba ValidationException.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('accept', $e->errors());
+        }
+
+        $this->assertSame(0, Lesson::count());
+        $this->assertSame(0, CreditTransaction::count());
+        $this->assertSame(10, $profile->fresh()->credits_available);
+        $this->assertSame('counteroffered', $request->fresh()->status);
+    }
+
+    public function test_teacher_reject_cannot_overwrite_a_pending_counteroffer(): void
+    {
+        [, , , , $request] = $this->counteroffered(90);
+        [$otherTeacher] = $this->teacher();
+
+        $this->actingAs($otherTeacher)->post(route('teacher.requests.reject', $request), [
+            'reason' => 'No tengo disponibilidad esta semana.',
+        ])->assertStatus(422);
+
+        $fresh = $request->fresh();
+        $this->assertSame('counteroffered', $fresh->status);
+        $this->assertSame(90, $fresh->counteroffer_duration_minutes);
+    }
+
+    public function test_rejection_notice_is_not_sent_to_a_proposer_whose_verification_was_revoked(): void
+    {
+        [$teacher, $profile, $parent, , $request] = $this->counteroffered();
+        $profile->update(['is_verified' => false]);
+
+        $this->actingAs($parent)->post(route('class-requests.counteroffer.reject', $request), $this->seen($request))->assertSessionHasNoErrors();
+
+        $this->assertSame('open', $request->fresh()->status);
+        Notification::assertNotSentTo($teacher, CounterofferRejectedNotification::class);
+    }
+
     // ── PII ──────────────────────────────────────────────────────────────
 
     public function test_teacher_counteroffered_payload_is_allowlisted(): void
