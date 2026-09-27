@@ -290,13 +290,16 @@
                  class="absolute bottom-full left-1/2 -translate-x-1/2 w-48 h-48 pointer-events-none z-10 overflow-hidden">
               <div class="w-full h-full transition-transform duration-500 ease-out flex items-end justify-center"
                    :class="squirrelVisible ? 'translate-y-0' : 'translate-y-full'">
-                <video
-                  ref="squirrelVideo"
-                  src="/images/videos/ardillasinfondo.webm"
-                  muted
-                  playsinline
+                <!-- Pose final de la secuencia ya versionada (el .webm original
+                     nunca se subió al repo y daba 404). Se monta recién en el
+                     primer hover para no descargarla si nadie la ve. -->
+                <img
+                  v-if="squirrelShown"
+                  src="/images/ardilla-sinfondo-graduada/ardillagraduada_000031.png"
+                  alt=""
+                  decoding="async"
                   class="w-full object-contain"
-                ></video>
+                />
               </div>
             </div>
 
@@ -757,29 +760,16 @@ const steps = [
   { icon: '🎓', title: 'Aprende en vivo', desc: 'Conéctate por videollamada y aprende de manera personalizada, con ejercicios y seguimiento en tiempo real.' },
 ]
 
-const squirrelVideo = ref(null)
+const squirrelShown = ref(false)
 const squirrelVisible = ref(false)
 
 function playSquirrel() {
+  squirrelShown.value = true
   squirrelVisible.value = true
-  const videoEl = Array.isArray(squirrelVideo.value) ? squirrelVideo.value[0] : squirrelVideo.value
-  if (videoEl) {
-    videoEl.currentTime = 0
-    videoEl.play().catch(e => console.error("Video play error:", e))
-  }
 }
 
 function stopSquirrel() {
   squirrelVisible.value = false
-  const videoEl = Array.isArray(squirrelVideo.value) ? squirrelVideo.value[0] : squirrelVideo.value
-  if (videoEl) {
-    setTimeout(() => {
-      if (!squirrelVisible.value) {
-        videoEl.pause()
-        videoEl.currentTime = 0
-      }
-    }, 500)
-  }
 }
 
 function subjectEmoji(name) {
