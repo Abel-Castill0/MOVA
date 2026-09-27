@@ -13,7 +13,9 @@
     :class="{ 'marker-cursor--hidden': isHidden }"
     aria-hidden="true"
   >
+    <!-- La imagen (≈0,5 MB) solo se monta con puntero fino: en táctil ni se descarga. -->
     <img
+      v-if="enabled"
       src="/images/brand/Plumon-rojo.png"
       alt=""
       draggable="false"
@@ -68,6 +70,7 @@ const isHidden = computed(() => {
 })
 
 const wrapperRef = ref(null)
+const enabled = ref(false)
 
 // Estado compartido entre onMounted y onBeforeUnmount (registrado a nivel de
 // setup, no dentro de onMounted, para que la limpieza sea incondicional).
@@ -85,6 +88,7 @@ onMounted(() => {
 
   const el = wrapperRef.value
   if (!el) return
+  enabled.value = true
 
   // Offset fijo para que la PUNTA del PNG (≈1083×1106) quede sobre el puntero.
   const offsetX = -(MARKER_WIDTH * HOTSPOT_X_FRAC)
