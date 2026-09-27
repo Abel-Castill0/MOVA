@@ -39,7 +39,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             && $teacher !== null
             && $teacher->suspended_at === null
             && $request->status === 'open'
-            && $request->eligibleTeacherUsers()->contains('id', $teacher->id);
+            && $request->isEligibleTeacherUser($teacher);
     }
 
     public function toMail($notifiable): MailMessage

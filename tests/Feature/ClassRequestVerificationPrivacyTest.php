@@ -89,10 +89,35 @@ class ClassRequestVerificationPrivacyTest extends TestCase
         $this->assertCount(1, $viaOffer->fresh()->eligibleTeacherUsers());
         $this->assertCount(1, $viaCode->fresh()->eligibleTeacherUsers());
 
+        $this->assertTrue($viaOffer->fresh()->isEligibleTeacherUser($profile->user));
+        $this->assertTrue($viaCode->fresh()->isEligibleTeacherUser($profile->user));
+
         $profile->update(['is_verified' => false]);
 
         $this->assertCount(0, $viaOffer->fresh()->eligibleTeacherUsers());
         $this->assertCount(0, $viaCode->fresh()->eligibleTeacherUsers());
+        $this->assertFalse($viaOffer->fresh()->isEligibleTeacherUser($profile->user));
+        $this->assertFalse($viaCode->fresh()->isEligibleTeacherUser($profile->user));
+    }
+
+    public function test_scoped_eligibility_matches_the_subject_broadcast_rule(): void
+    {
+        $matching = $this->teacher('MATCHA');
+        $otherSubjectUser = User::factory()->create();
+        $otherSubjectUser->assignRole('teacher');
+        TeacherProfile::create(['user_id' => $otherSubjectUser->id, 'is_verified' => true, 'hourly_rate' => 30]);
+        [, $student] = $this->parentWithStudent();
+        $open = ClassRequest::create([
+            'student_id' => $student->id, 'subject_id' => $this->subject->id,
+            'help_needed' => 'Fracciones', 'status' => 'open',
+        ]);
+
+        $this->assertTrue($open->isEligibleTeacherUser($matching->user));
+        $this->assertFalse($open->isEligibleTeacherUser($otherSubjectUser));
+        $this->assertEqualsCanonicalizing(
+            $open->eligibleTeacherUsers()->pluck('id')->all(),
+            collect([$matching->user, $otherSubjectUser])->filter(fn ($u) => $open->isEligibleTeacherUser($u))->pluck('id')->all()
+        );
     }
 
     public function test_queued_new_request_notification_rechecks_eligibility_at_delivery(): void

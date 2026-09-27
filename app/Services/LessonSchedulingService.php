@@ -25,9 +25,9 @@ use Illuminate\Validation\ValidationException;
  * ClassRequest (serializa aceptaciones concurrentes de la misma solicitud),
  * luego el Student (§13: serializa aceptaciones de solicitudes DISTINTAS
  * del mismo menor, que no comparten ningún otro lock), luego las clases en
- * conflicto (lockForUpdate en scheduleConflict), luego el TeacherProfile
- * (créditos y cupo de mentoría) y por último el User del profesor
- * (suspensión), para re-evaluar su habilitación ya serializado.
+ * conflicto (lockForUpdate en scheduleConflict), luego el User del
+ * profesor (suspensión) y al final su TeacherProfile (verificación, créditos
+ * y cupo de mentoría) — User antes que perfil, igual que la baja de cuenta.
  *
  * El llamador sigue siendo responsable de la AUTORIZACIÓN y del estado
  * esperado: el `$guard` corre bajo el lock de la ClassRequest, antes de
@@ -70,18 +70,22 @@ class LessonSchedulingService
                 ]);
             }
 
+            // User del profesor ANTES que su TeacherProfile: mismo orden que
+            // la baja de cuenta (ProfileController::destroy bloquea el User y
+            // luego actualiza el perfil), así no hay ciclo de espera entre
+            // ambos flujos. user_id es inmutable: leerlo sin lock es seguro.
+            $teacherSuspendedAt = User::whereKey(TeacherProfile::whereKey($teacherProfileId)->value('user_id'))
+                ->lockForUpdate()
+                ->value('suspended_at');
+
             $teacherProfile = TeacherProfile::whereKey($teacherProfileId)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            // Bajo el lock del perfil (y del usuario, último en el orden de
-            // locks): una revocación de verificación o una suspensión
-            // confirmada después del chequeo de autorización (y del guard) no
-            // puede terminar en una Lesson + reserva de créditos para un
-            // profesor ya no habilitado.
-            $teacherSuspendedAt = User::whereKey($teacherProfile->user_id)
-                ->lockForUpdate()
-                ->value('suspended_at');
+            // Con ambos locks tomados: una revocación de verificación o una
+            // suspensión confirmada después del chequeo de autorización (y del
+            // guard) no puede terminar en una Lesson + reserva de créditos
+            // para un profesor ya no habilitado.
 
             if (! $teacherProfile->is_verified || $teacherSuspendedAt !== null) {
                 throw ValidationException::withMessages([

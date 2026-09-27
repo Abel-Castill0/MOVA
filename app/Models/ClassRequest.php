@@ -148,6 +148,31 @@ class ClassRequest extends Model
             ->values();
     }
 
+    /**
+     * ¿Este usuario está entre eligibleTeacherUsers()? Misma regla, acotada a
+     * un solo destinatario (una consulta), para re-evaluar en la entrega de
+     * cada notificación sin reconstruir la lista completa de profesores.
+     */
+    public function isEligibleTeacherUser(User $user): bool
+    {
+        if ($this->teacher_profile_id) {
+            $profile = $this->teacherProfile;
+
+            return (bool) ($profile?->is_verified && $profile->user_id === $user->id);
+        }
+
+        if ($this->class_offer_id) {
+            $profile = $this->classOffer?->teacherProfile;
+
+            return (bool) ($profile?->is_verified && $profile->user_id === $user->id);
+        }
+
+        return TeacherProfile::where('user_id', $user->id)
+            ->where('is_verified', true)
+            ->whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+            ->exists();
+    }
+
     public function lesson()
     {
         return $this->hasOne(Lesson::class);
