@@ -99,6 +99,72 @@ class ClassRequestIndexExposureTest extends TestCase
         }
     }
 
+    /**
+     * Invariante de privacidad: un profesor SIN verificación vigente no recibe
+     * ninguna solicitud (abierta, contraofertada ni rechazada) ni conteo.
+     */
+    public function test_unverified_teacher_receives_no_request_or_minor_data(): void
+    {
+        [$teacher] = $this->scenario();
+        $profile = $teacher->teacherProfile;
+        $open = ClassRequest::where('status', 'open')->firstOrFail();
+
+        // Filas que le corresponderían en cada pestaña si estuviera verificado.
+        (new ClassRequest)->forceFill([
+            'student_id' => $open->student_id, 'subject_id' => $open->subject_id, 'class_offer_id' => $open->class_offer_id,
+            'help_needed' => 'Fracciones contraoferta', 'status' => 'counteroffered',
+            'counteroffer_time' => now()->addDays(2), 'counteroffer_duration_minutes' => 60,
+            'counteroffer_teacher_profile_id' => $profile->id,
+        ])->save();
+        (new ClassRequest)->forceFill([
+            'student_id' => $open->student_id, 'subject_id' => $open->subject_id, 'class_offer_id' => $open->class_offer_id,
+            'help_needed' => 'Fracciones rechazada', 'status' => 'teacher_rejected',
+            'teacher_rejected_at' => now(), 'teacher_rejection_reason' => 'Sin disponibilidad esa semana',
+        ])->save();
+
+        $profile->update(['is_verified' => false]);
+
+        $props = $this->actingAs($teacher->fresh())->get(route('teacher.requests'))
+            ->assertOk()->inertiaPage()['props'];
+
+        $this->assertSame([], $props['requests']);
+        $this->assertSame([], $props['counterofferedRequests']);
+        $this->assertSame([], $props['rejectedRequests']);
+        $this->assertTrue($props['verificationPending']);
+
+        $json = json_encode($props);
+        foreach (['Ana', 'Pérez', 'Fracciones', '2014-05-01', 'Colegio Secreto', 'parent_user_id', 'birth_date', 'school', 'parent@mova.pe', '911222333'] as $needle) {
+            $this->assertStringNotContainsString($needle, $json);
+        }
+
+        $dashboard = $this->actingAs($teacher->fresh())->get(route('dashboard'))->assertOk()->inertiaPage()['props'];
+        $this->assertSame(0, $dashboard['pending_requests']);
+    }
+
+    public function test_verified_teacher_still_gets_allowlisted_requests_and_count(): void
+    {
+        [$teacher] = $this->scenario();
+
+        $props = $this->actingAs($teacher->fresh())->get(route('teacher.requests'))->assertOk()->inertiaPage()['props'];
+        $this->assertFalse($props['verificationPending']);
+        $this->assertCount(1, $props['requests']);
+        $this->assertEqualsCanonicalizing(self::REQUEST_KEYS, array_keys($props['requests'][0]));
+
+        $dashboard = $this->actingAs($teacher->fresh())->get(route('dashboard'))->assertOk()->inertiaPage()['props'];
+        $this->assertSame(1, $dashboard['pending_requests']);
+    }
+
+    public function test_suspended_teacher_is_blocked_from_the_request_list(): void
+    {
+        [$teacher] = $this->scenario();
+        $teacher->update(['suspended_at' => now()]);
+
+        $response = $this->actingAs($teacher->fresh())->get(route('teacher.requests'));
+
+        $response->assertRedirect(route('suspended'));
+        $this->assertStringNotContainsString('Ana', (string) $response->getContent());
+    }
+
     public function test_parent_index_only_exposes_teacher_name(): void
     {
         [, $parent] = $this->scenario();

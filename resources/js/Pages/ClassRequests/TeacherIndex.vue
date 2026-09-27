@@ -46,6 +46,18 @@
         </div>
       </Transition>
 
+      <!-- Perfil sin verificar: el servidor no envía ninguna solicitud. -->
+      <div
+        v-if="verificationPending"
+        role="status"
+        class="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-2xl px-4 py-3"
+      >
+        <p class="font-bold">Tu perfil está en revisión</p>
+        <p class="mt-0.5 text-amber-800">
+          Cuando el equipo de MOVA verifique tu perfil podrás ver y aceptar solicitudes de clase.
+        </p>
+      </div>
+
       <!-- Flash de éxito (contraoferta enviada, etc.) -->
       <div
         v-if="$page.props.flash?.success"
@@ -153,7 +165,9 @@
           <div v-if="!filteredRequests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
             <div class="text-4xl mb-2.5">🔍</div>
             <p class="font-bold text-slate-800 text-base">No se encontraron solicitudes</p>
-            <p class="text-slate-400 text-xs sm:text-sm mt-1">Prueba cambiando los términos de búsqueda o filtros.</p>
+            <p class="text-slate-400 text-xs sm:text-sm mt-1">
+              {{ verificationPending ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.' : 'Prueba cambiando los términos de búsqueda o filtros.' }}
+            </p>
           </div>
 
           <div
@@ -852,6 +866,7 @@ const props = defineProps({
   requests:           { type: Array, default: () => [] },
   rejectedRequests:   { type: Array, default: () => [] },
   counterofferedRequests: { type: Array, default: () => [] },
+  verificationPending: { type: Boolean, default: false },
 })
 
 const selectedRequest = ref(null)

@@ -93,7 +93,9 @@ class DashboardController extends Controller
                     ->with(['student:id,first_name,last_name,grade_level', 'classRequest.subject:id,name'])
                     ->orderBy('start_time')
                     ->take(5)->get() : [],
-                'pending_requests' => $profile ? (function () use ($profile) {
+                // Solo un perfil verificado ve cuántas solicitudes abiertas le
+                // corresponden (mismo invariante que ClassRequestController::teacherIndex).
+                'pending_requests' => $profile?->is_verified ? (function () use ($profile) {
                     $offerIds   = $profile->classOffers()->pluck('id');
                     $subjectIds = $profile->subjects()->pluck('subjects.id');
                     return ClassRequest::where('status', 'open')

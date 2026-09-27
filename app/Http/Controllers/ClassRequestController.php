@@ -303,7 +303,22 @@ class ClassRequestController extends Controller
 
     public function teacherIndex()
     {
-        $profile    = auth()->user()->teacherProfile;
+        $profile = auth()->user()->teacherProfile;
+
+        // Privacidad de menores: sin un TeacherProfile VERIFICADO vigente no se
+        // consulta ni se serializa ninguna solicitud (abierta, contraofertada ni
+        // rechazada). La respuesta es idéntica haya o no solicitudes que
+        // coincidan, así no se filtra ni su existencia. Un perfil recién
+        // registrado o con la verificación retirada por un admin cae aquí.
+        if (! $profile || ! $profile->is_verified) {
+            return Inertia::render('ClassRequests/TeacherIndex', [
+                'requests'               => [],
+                'counterofferedRequests' => [],
+                'rejectedRequests'       => [],
+                'verificationPending'    => true,
+            ]);
+        }
+
         $offerIds   = $profile->classOffers()->pluck('id');
         $subjectIds = $profile->subjects()->pluck('subjects.id');
 
@@ -314,16 +329,12 @@ class ClassRequestController extends Controller
 
         // Solicitudes que ESTE profesor ya contraofreció y están esperando
         // respuesta del padre. Solo se muestran las propias del profesor
-        // logueado (counteroffer_teacher_profile_id === $profile->id), y solo
-        // mientras siga verificado: si un admin le retira la verificación deja
-        // de ver los datos del menor aunque su propuesta siga pendiente.
-        $counteroffered = $profile->is_verified
-            ? ClassRequest::where('status', 'counteroffered')
-                ->where('counteroffer_teacher_profile_id', $profile->id)
-                ->with(['student', 'subject'])
-                ->latest()
-                ->get()
-            : collect();
+        // logueado (counteroffer_teacher_profile_id === $profile->id).
+        $counteroffered = ClassRequest::where('status', 'counteroffered')
+            ->where('counteroffer_teacher_profile_id', $profile->id)
+            ->with(['student', 'subject'])
+            ->latest()
+            ->get();
 
         $rejected = ClassRequest::where('status', 'teacher_rejected')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
@@ -338,6 +349,7 @@ class ClassRequestController extends Controller
             'requests'               => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
             'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->requestSummary($r)),
             'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'verificationPending'    => false,
         ]);
     }
 
