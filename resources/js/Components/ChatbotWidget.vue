@@ -261,7 +261,7 @@ function getCurrentTime() {
                 alt="Avatar Movi"
                 class="w-full h-full object-contain rounded-full"
               />
-              <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-[#073D91] rounded-full shadow-[0_0_8px_#34d399]" title="En línea"></span>
+              <span class="absolute bottom-0 right-0 w-3 h-3 bg-slate-300 border-2 border-[#073D91] rounded-full" title="Asistente educativo"></span>
             </div>
 
             <div>
@@ -272,8 +272,8 @@ function getCurrentTime() {
                 </span>
               </div>
               <p class="text-xs text-sky-200/90 font-medium flex items-center gap-1.5 mt-0.5">
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                En línea • Asistente educativo
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                Asistente educativo
               </p>
             </div>
           </div>
