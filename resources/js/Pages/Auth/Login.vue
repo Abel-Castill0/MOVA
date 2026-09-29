@@ -338,7 +338,7 @@ const submit = () => {
                 <span class="text-slate-300">|</span>
                 <Link :href="route('legal.privacy')" class="hover:text-slate-600 transition-colors">Política de Privacidad</Link>
                 <span class="text-slate-300">|</span>
-                <a href="mailto:m0v4class@gmail.com" class="hover:text-slate-600 transition-colors">Soporte</a>
+                <a :href="`mailto:${$page.props.support.email}`" class="hover:text-slate-600 transition-colors">Soporte</a>
                 <span class="text-slate-300">|</span>
                 <span>© {{ year }} MOVA. Todos los derechos reservados.</span>
             </footer>

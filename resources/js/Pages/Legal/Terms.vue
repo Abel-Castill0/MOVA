@@ -84,12 +84,12 @@
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">12. Contenido publicado por usuarios — Política de Retiro de Contenido</h2>
           <p class="text-slate-600 leading-relaxed">El contenido que subes a MOVA (foto de perfil, archivos adjuntos en reportes de clase) es tu responsabilidad exclusiva. MOVA no revisa previamente ni garantiza la legalidad de dicho contenido, y no será responsable por infracciones a derechos de autor u otros derechos de terceros cometidas por sus usuarios, en los términos del Decreto Legislativo N° 822 (Ley sobre el Derecho de Autor) y demás normas peruanas aplicables.</p>
-          <p class="text-slate-600 leading-relaxed mt-2">Si eres titular de un derecho y consideras que un contenido publicado en MOVA lo infringe, puedes solicitar su retiro escribiendo a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a> con una descripción del contenido y la titularidad reclamada. MOVA evaluará la solicitud de buena fe y podrá retirar el contenido cuando corresponda.</p>
+          <p class="text-slate-600 leading-relaxed mt-2">Si eres titular de un derecho y consideras que un contenido publicado en MOVA lo infringe, puedes solicitar su retiro escribiendo a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a> con una descripción del contenido y la titularidad reclamada. MOVA evaluará la solicitud de buena fe y podrá retirar el contenido cuando corresponda.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">13. Resolución de controversias</h2>
-          <p class="text-slate-600 leading-relaxed">Ante cualquier controversia relacionada con el uso de MOVA, buscaremos primero una solución directa escribiendo a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>.</p>
+          <p class="text-slate-600 leading-relaxed">Ante cualquier controversia relacionada con el uso de MOVA, buscaremos primero una solución directa escribiendo a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a>.</p>
           <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Profesores</strong> (relación de prestación de servicios independiente): las controversias con MOVA que no se resuelvan directamente podrán someterse, de mutuo acuerdo, a arbitraje de derecho con sede en Lima, Perú.</p>
           <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Padres/apoderados</strong> (usuarios consumidores): en línea con el Código de Protección y Defensa del Consumidor, el arbitraje es una vía <strong class="text-slate-800">opcional</strong> y nunca sustituye tu derecho a acudir a INDECOPI o al Poder Judicial. Nada en estos Términos limita los derechos que la ley peruana reconoce a los consumidores.</p>
         </section>
@@ -111,7 +111,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">17. Contacto y soporte</h2>
-          <p class="text-slate-600 leading-relaxed">Para dudas, reportes o soporte, escríbenos a: <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>. Responderemos en un plazo razonable.</p>
+          <p class="text-slate-600 leading-relaxed">Para dudas, reportes o soporte, escríbenos a: <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a>. Responderemos en un plazo razonable.</p>
         </section>
 
       </div>

@@ -18,7 +18,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">1. Responsable del tratamiento</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA es la plataforma responsable del tratamiento de los datos personales que recopila a través de este sitio. Para cualquier consulta, solicitud o ejercicio de derechos relacionados con tus datos personales o los de tus hijos, puedes escribirnos a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA es la plataforma responsable del tratamiento de los datos personales que recopila a través de este sitio. Para cualquier consulta, solicitud o ejercicio de derechos relacionados con tus datos personales o los de tus hijos, puedes escribirnos a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a>.</p>
         </section>
 
         <section>
@@ -84,7 +84,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">10. Tus derechos (ARCO)</h2>
-          <p class="text-slate-600 leading-relaxed">Conforme a la Ley N° 29733, puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición (derechos ARCO) sobre tus datos personales y los de tus hijos, escribiéndonos a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>. Responderemos en un plazo máximo de 15 días hábiles.</p>
+          <p class="text-slate-600 leading-relaxed">Conforme a la Ley N° 29733, puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición (derechos ARCO) sobre tus datos personales y los de tus hijos, escribiéndonos a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a>. Responderemos en un plazo máximo de 15 días hábiles.</p>
         </section>
 
         <section>
@@ -99,7 +99,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">13. Contacto</h2>
-          <p class="text-slate-600 leading-relaxed">Para consultas sobre privacidad o para ejercer tus derechos, escríbenos a: <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a></p>
+          <p class="text-slate-600 leading-relaxed">Para consultas sobre privacidad o para ejercer tus derechos, escríbenos a: <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a></p>
         </section>
 
       </div>

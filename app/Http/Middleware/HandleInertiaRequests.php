@@ -27,6 +27,11 @@ class HandleInertiaRequests extends Middleware
             // 'pusher' o falta la key pública; AppLayout/initEcho() deben
             // seguir funcionando sin romperse en ese caso.
             'realtime' => fn() => $this->publicRealtimeConfig(),
+            // Canal público de soporte/legal: una sola fuente (config/legal.php)
+            // para footers, layouts y páginas legales — nunca literales en Vue.
+            'support' => [
+                'email' => config('legal.support_email'),
+            ],
             'auth' => [
                 'user' => $request->user() ? [
                     'id'               => $request->user()->id,
