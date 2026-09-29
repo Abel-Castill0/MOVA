@@ -10,6 +10,15 @@ return [
         'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-07-26'),
     ],
 
+    // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al
+    // registrar a un alumno (Students/Create). Texto neutral que describe el
+    // tratamiento real; no es redacción legal aprobada. Si cambia el texto,
+    // subir la versión: cada StudentDataConsent guarda la versión mostrada.
+    'student_consent' => [
+        'version'   => '2026-09-29',
+        'statement' => 'Soy el padre, la madre o el apoderado legal de este alumno y autorizo a MOVA a tratar los datos que ingreso en este formulario para gestionar sus clases, según la Política de Privacidad.',
+    ],
+
     // Datos del proveedor exigidos en el Libro de Reclamaciones (Indecopi).
     'provider' => [
         'business_name' => env('LEGAL_BUSINESS_NAME'),

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use App\Models\StudentDataConsent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class StudentController extends Controller
@@ -17,7 +19,9 @@ class StudentController extends Controller
 
     public function create()
     {
-        return Inertia::render('Students/Create');
+        return Inertia::render('Students/Create', [
+            'consentStatement' => config('legal.student_consent.statement'),
+        ]);
     }
 
     public function store(Request $request)
@@ -28,9 +32,20 @@ class StudentController extends Controller
             'birth_date' => 'nullable|date',
             'grade_level' => 'required|in:primaria,secundaria,universidad',
             'school' => 'nullable|string|max:200',
+            // C-P0-MINOR-CONSENT: acto explícito y específico para ESTE
+            // alumno — no se infiere de haber aceptado los Términos.
+            'data_consent' => 'accepted',
+        ], [
+            'data_consent.accepted' => 'Debes confirmar que eres su padre, madre o apoderado y autorizar el tratamiento de sus datos.',
         ]);
+        unset($data['data_consent']);
 
-        auth()->user()->students()->create($data);
+        // Alumno y evidencia de consentimiento nacen juntos o no nace ninguno.
+        DB::transaction(function () use ($data, $request) {
+            $parent = $request->user();
+            $student = $parent->students()->create($data);
+            StudentDataConsent::record($student, $parent, $request);
+        });
 
         return redirect()->route('dashboard')->with('success', 'Estudiante añadido.');
     }
