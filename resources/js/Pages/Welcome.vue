@@ -710,8 +710,9 @@
 
     <LandingFooter />
 
-    <!-- Widget de Chatbot Provisional -->
-    <ChatbotWidget v-model="isChatOpen" />
+    <!-- Movi: solo si el backend puede responder (flag + clave). Apagado,
+         no se ofrece un asistente que solo diría "no disponible". -->
+    <ChatbotWidget v-if="chatbotEnabled" v-model="isChatOpen" />
   </div>
 </template>
 
@@ -734,6 +735,7 @@ const props = defineProps({
   featuredTeachers: { type: Array,  default: () => [] },
   stats:            { type: Object, default: () => ({ teachers: 0, students: 0, completed: 0 }) },
   testimonials:     { type: Array,  default: () => [] },
+  chatbotEnabled:   { type: Boolean, default: false },
 })
 
 // Promedio real de las reseñas visibles de los profesores destacados; null si

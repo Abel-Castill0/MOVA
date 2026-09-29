@@ -23,5 +23,18 @@ if (!source.includes('Asistente educativo')) {
   failed++;
 }
 
+// La home solo debe montar Movi cuando el backend lo declara disponible
+// (WelcomeController → chatbotEnabled = ChatbotService::isAvailable()).
+const welcome = readFileSync(join(root, 'resources/js/Pages/Welcome.vue'), 'utf-8');
+const mounts = welcome.match(/<ChatbotWidget\b[^>]*>/g) ?? [];
+if (mounts.length === 0 && welcome.includes('ChatbotWidget')) {
+  console.error('check-movi-availability-status: FAIL — no se pudo localizar el montaje de ChatbotWidget en Welcome.vue.');
+  failed++;
+}
+if (mounts.some((tag) => !/v-if="chatbotEnabled"/.test(tag))) {
+  console.error('check-movi-availability-status: FAIL — Welcome.vue monta ChatbotWidget sin v-if="chatbotEnabled".');
+  failed++;
+}
+
 if (failed) process.exit(1);
 console.log('check-movi-availability-status: PASS (sin afirmaciones de disponibilidad no verificadas).');
