@@ -141,7 +141,7 @@
       <!-- ══════════════════════════════════════════════
            ALERT — Verificación de celular (naranja MOVA)
            ══════════════════════════════════════════════ -->
-      <div v-if="!user?.phone_verified && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div v-if="!user?.phone_verified && phone_verification_available && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm shadow-orange-500/20">
             <Icon name="incentive" :size="20" />
@@ -375,6 +375,7 @@ const props = defineProps({
   pending_requests: Number,
   pending_reports: Number,
   profile_score: { type: Number, default: 0 },
+  phone_verification_available: { type: Boolean, default: false },
   profile_checklist: { type: Object, default: () => ({}) },
   has_offers: { type: Boolean, default: false },
 })
