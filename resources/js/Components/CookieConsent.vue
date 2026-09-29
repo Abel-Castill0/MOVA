@@ -15,13 +15,14 @@
       role="dialog" aria-label="Aviso de cookies">
       <div class="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-black/10 p-5 sm:mx-0 sm:max-w-none">
         <p class="text-sm text-slate-600 leading-relaxed">
-          Usamos cookies esenciales para que MOVA funcione y algunas opcionales para mejorar tu experiencia.
-          Al continuar navegando aceptas nuestra
+          MOVA solo usa cookies y almacenamiento local necesarios para funcionar: tu sesión, la seguridad y tus preferencias de interfaz.
+          No usamos cookies de publicidad ni de analítica.
+          Más detalles en la
           <Link :href="route('legal.privacy')" class="text-brand-600 font-medium hover:underline">Política de Privacidad</Link>.
         </p>
         <button @click="accept" type="button"
           class="w-full sm:w-auto mt-4 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 active:bg-brand-800 transition-colors">
-          Aceptar
+          Entendido
         </button>
       </div>
     </div>
@@ -32,10 +33,11 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 
-// Un solo valor persistido, sin timestamp ni versión: MOVA no distingue
-// categorías de cookies opcionales todavía, así que "aceptado" es binario.
-// Si el día de mañana se necesita volver a pedir consentimiento (cambio de
-// política, nuevas categorías), basta con cambiar este key.
+// C-P2-COOKIE-TRUTH: MOVA no tiene cookies opcionales (ni analítica ni
+// publicidad), así que esto es un AVISO informativo, no un consentimiento:
+// el valor guardado solo recuerda que se cerró. Si algún día se añade una
+// cookie opcional, hará falta un consentimiento real por categoría (y
+// actualizar Privacidad §Cookies) antes de activarla — no basta este aviso.
 const STORAGE_KEY = 'mova_cookie_consent'
 
 const visible = ref(false)
