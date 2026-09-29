@@ -9,7 +9,7 @@
       <div class="relative max-w-3xl mx-auto px-4 sm:px-6 text-white">
         <span class="inline-block px-3 py-1 bg-white/10 border border-white/20 rounded-full text-xs font-semibold uppercase tracking-widest mb-4">Legal</span>
         <h1 class="text-4xl sm:text-5xl font-black mb-3">Términos y Condiciones</h1>
-        <p class="text-white/70">Última actualización: 26 de julio de 2026</p>
+        <p class="text-white/70">Versión vigente: {{ version }}</p>
       </div>
     </section>
 
@@ -23,15 +23,15 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">2. Registro y cuentas</h2>
-          <p class="text-slate-600 leading-relaxed">Para usar MOVA debes registrarte como padre/apoderado o como profesor. Al registrarte, garantizas que la información proporcionada es veraz y que tienes al menos 18 años. Las cuentas que incluyen menores de edad deben ser gestionadas por un padre o apoderado legal, quien acepta estos términos en nombre del menor y otorga el consentimiento parental requerido para el tratamiento de sus datos. Si te registras mediante un proveedor externo (como Google), garantizas ser el titular legítimo de esa cuenta.</p>
+          <p class="text-slate-600 leading-relaxed">Para usar MOVA debes registrarte como padre/apoderado o como profesor. Al registrarte, garantizas que la información proporcionada es veraz y que tienes al menos 18 años. Las cuentas que incluyen menores de edad deben ser gestionadas por un padre o apoderado legal, quien acepta estos términos en nombre del menor. Al registrar a cada alumno, el padre o apoderado otorga una autorización específica para el tratamiento de los datos de ese alumno, según la Política de Privacidad. Si te registras mediante un proveedor externo (como Google), garantizas ser el titular legítimo de esa cuenta.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">3. Roles y obligaciones</h2>
           <p class="text-slate-600 leading-relaxed">MOVA reconoce tres roles en la plataforma:</p>
           <ul class="list-disc pl-5 space-y-1.5 mt-2 text-slate-600">
-            <li><strong class="text-slate-800">Padre/apoderado</strong> — responsable legal del menor. Debe registrar información veraz, otorgar el consentimiento parental para los datos del alumno, y coordinar directamente el pago de las clases con el profesor.</li>
-            <li><strong class="text-slate-800">Profesor</strong> — prestador de servicios independiente. Debe mantener veraz la información de su perfil (formación, materias, tarifa), asistir a las clases agendadas y aceptadas, y garantizar la calidad del contenido pedagógico que imparte y de los reportes que entrega.</li>
+            <li><strong class="text-slate-800">Padre/apoderado</strong> — responsable legal del menor. Debe registrar información veraz, autorizar el tratamiento de los datos de cada alumno que registra, y coordinar directamente el pago de las clases con el profesor.</li>
+            <li><strong class="text-slate-800">Profesor</strong> — prestador de servicios independiente. No publica anuncios: revisa las solicitudes abiertas de sus materias, o las que le llegan con su código de profesor, y las acepta o propone otro horario. Debe mantener veraz la información de su perfil (biografía y materias), asistir a las clases agendadas y garantizar la calidad del contenido pedagógico que imparte y de los reportes que entrega.</li>
             <li><strong class="text-slate-800">Administrador</strong> — equipo de MOVA. Verifica perfiles de profesores, modera contenido reportado y da soporte a incidencias.</li>
           </ul>
         </section>
@@ -43,7 +43,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">5. Créditos</h2>
-          <p class="text-slate-600 leading-relaxed">Los profesores utilizan un sistema de créditos internos de MOVA para aceptar solicitudes de clase. Los créditos se obtienen según las condiciones vigentes de la plataforma (por ejemplo, bono de bienvenida al verificar el perfil, o recarga manual vía Yape/Plin). <strong class="text-slate-800">Los créditos no son reembolsables ni transferibles</strong> entre cuentas, salvo error atribuible a MOVA. El pago de la clase en sí, entre padre y profesor, es independiente del sistema de créditos y se realiza por los medios externos ya descritos.</p>
+          <p class="text-slate-600 leading-relaxed">Los profesores utilizan un sistema de créditos internos de MOVA para aceptar solicitudes de clase: aceptar una solicitud reserva créditos del saldo del profesor, que se consumen cuando la clase se liquida y se devuelven si la clase agendada se cancela. Los créditos se obtienen según las condiciones vigentes de la plataforma: un bono de bienvenida al verificar el número de celular (cuando esa verificación esté habilitada), una recarga manual vía Yape/Plin revisada por MOVA, o un pago en línea mediante Mercado Pago cuando esté habilitado. <strong class="text-slate-800">Los créditos no son reembolsables ni transferibles</strong> entre cuentas, salvo error atribuible a MOVA. El pago de la clase en sí, entre padre y profesor, es independiente del sistema de créditos y se realiza por los medios externos ya descritos.</p>
         </section>
 
         <section>
@@ -58,12 +58,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">8. Uso de inteligencia artificial</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA utiliza <strong class="text-slate-800">Google Gemini</strong> de forma opcional para analizar descripciones de dificultades académicas y enriquecer el diagnóstico pedagógico. Esta función:</p>
-          <ul class="list-disc pl-5 space-y-1.5 mt-2 text-slate-600">
-            <li>Solo analiza descripciones académicas anónimas, sin datos personales del alumno o familia.</li>
-            <li>Nunca decide de forma autónoma qué profesor recomendar ni toma decisiones sin supervisión humana.</li>
-            <li>Puede estar desactivada sin afectar el funcionamiento principal de la plataforma.</li>
-          </ul>
+          <p class="text-slate-600 leading-relaxed">Actualmente MOVA no utiliza servicios de inteligencia artificial. Las funciones opcionales de asistente (Movi) y de enriquecimiento del diagnóstico académico están desactivadas; la plataforma funciona sin ellas. Antes de activar alguna se publicará una nueva versión de la Política de Privacidad, que deberás aceptar.</p>
         </section>
 
         <section>
@@ -73,7 +68,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">10. Notificaciones</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA envía notificaciones relevantes por correo electrónico y notificaciones dentro de la plataforma. Si has proporcionado un número de teléfono verificado, también podemos enviarte mensajes de WhatsApp, dependiendo de la disponibilidad del servicio. Puedes contactarnos para solicitar la desactivación de estas comunicaciones.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA envía notificaciones relevantes por correo electrónico y notificaciones dentro de la plataforma. Si verificaste tu número de celular y lo autorizaste expresamente, también podemos enviarte mensajes de WhatsApp cuando ese servicio esté habilitado. Puedes cambiar tus preferencias de notificación desde tu perfil.</p>
         </section>
 
         <section>
@@ -83,7 +78,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">12. Contenido publicado por usuarios — Política de Retiro de Contenido</h2>
-          <p class="text-slate-600 leading-relaxed">El contenido que subes a MOVA (foto de perfil, archivos adjuntos en reportes de clase) es tu responsabilidad exclusiva. MOVA no revisa previamente ni garantiza la legalidad de dicho contenido, y no será responsable por infracciones a derechos de autor u otros derechos de terceros cometidas por sus usuarios, en los términos del Decreto Legislativo N° 822 (Ley sobre el Derecho de Autor) y demás normas peruanas aplicables.</p>
+          <p class="text-slate-600 leading-relaxed">El contenido que publicas en MOVA (foto de perfil, biografía, reportes de clase y reseñas) es tu responsabilidad exclusiva. MOVA no revisa previamente ni garantiza la legalidad de dicho contenido, y no será responsable por infracciones a derechos de autor u otros derechos de terceros cometidas por sus usuarios, en los términos del Decreto Legislativo N° 822 (Ley sobre el Derecho de Autor) y demás normas peruanas aplicables.</p>
           <p class="text-slate-600 leading-relaxed mt-2">Si eres titular de un derecho y consideras que un contenido publicado en MOVA lo infringe, puedes solicitar su retiro escribiendo a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a> con una descripción del contenido y la titularidad reclamada. MOVA evaluará la solicitud de buena fe y podrá retirar el contenido cuando corresponda.</p>
         </section>
 
@@ -101,7 +96,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">15. Modificaciones</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA puede actualizar estos términos. Los cambios importantes serán notificados por email con anticipación. El uso continuado de la plataforma implica la aceptación de los términos vigentes.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA puede actualizar estos términos. La versión vigente se indica al inicio de esta página. Si los cambiamos de forma relevante, te pediremos aceptar la nueva versión la próxima vez que ingreses a tu cuenta, antes de seguir usándola; las versiones que aceptaste antes quedan registradas.</p>
         </section>
 
         <section>
@@ -131,4 +126,8 @@
 import { Head, Link } from '@inertiajs/vue3'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
 import LandingFooter from '@/Components/LandingFooter.vue'
+
+defineProps({
+  version: { type: String, default: '' },
+})
 </script>

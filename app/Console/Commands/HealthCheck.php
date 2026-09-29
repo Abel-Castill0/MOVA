@@ -258,6 +258,18 @@ class HealthCheck extends Command
             }
         }
 
+        // ── C-P0-LEGAL-TRUTH: la Política de Privacidad vigente declara que MOVA
+        // no envía datos a servicios de IA. Activar Movi o el enriquecimiento
+        // de diagnósticos sin publicar antes una versión que lo declare haría
+        // falso el texto legal. Al publicarla, actualizar también esta regla.
+        if ($environment === 'production'
+            && (config('chatbot.enabled') || config('diagnostic.ai_enabled'))) {
+            $warnings[] = [
+                'code' => 'LEGAL_PRIVACY_AI_MISMATCH',
+                'message' => 'Hay una función de IA activa (CHATBOT_ENABLED o DIAGNOSTIC_AI_ENABLED) pero la Política de Privacidad vigente declara que no se envían datos a IA.',
+            ];
+        }
+
         // ── P0-J / P1-03: latidos de worker y scheduler ──────────────────
         // /readyz no los mira a propósito (su caída no debe sacar al web del
         // balanceador); la señal operativa es ESTA. Worker: la detecta la

@@ -4,10 +4,15 @@
 // los datos del proveedor se configuran por entorno y, si faltan, la UI lo
 // muestra como pendiente y mova:health-check lo marca en producción.
 return [
-    // Versión vigente de cada documento. Subirla cuando cambie el texto.
+    // Versión vigente de cada documento. Subirla cuando cambie el texto de
+    // forma relevante: el middleware legal.current pedirá aceptarla a todo
+    // usuario existente en su próxima navegación.
+    // 2026-09-29 (C1): texto alineado con el runtime real — IA desactivada,
+    // minimización pre-aceptación, consentimiento por alumno, pagos de
+    // créditos, proveedores/transferencia internacional, cookies, re-aceptación.
     'versions' => [
-        'terms'   => env('LEGAL_TERMS_VERSION', '2026-07-26'),
-        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-07-26'),
+        'terms'   => env('LEGAL_TERMS_VERSION', '2026-09-29'),
+        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-09-29'),
     ],
 
     // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al
