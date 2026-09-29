@@ -42,7 +42,9 @@ class LocalTestDataSeeder extends Seeder
         if (! $teacherUser->hasRole('teacher')) {
             $teacherUser->assignRole('teacher');
         }
-        LegalAcceptance::recordMissingCurrent($teacherUser, null);
+        if ($teacherUser->wasRecentlyCreated) {
+            LegalAcceptance::recordMissingCurrent($teacherUser, null);
+        }
 
         // Los saldos van SOLO en los valores de creación (segundo array de
         // firstOrCreate), nunca en un update: antes esto era un
@@ -121,7 +123,9 @@ class LocalTestDataSeeder extends Seeder
         if (! $parentUser->hasRole('parent')) {
             $parentUser->assignRole('parent');
         }
-        LegalAcceptance::recordMissingCurrent($parentUser, null);
+        if ($parentUser->wasRecentlyCreated) {
+            LegalAcceptance::recordMissingCurrent($parentUser, null);
+        }
 
         $student1 = Student::firstOrCreate(
             ['parent_user_id' => $parentUser->id, 'first_name' => 'Mateo', 'last_name' => 'Prueba'],
@@ -368,7 +372,9 @@ class LocalTestDataSeeder extends Seeder
             if (! $extraTeacherUser->hasRole('teacher')) {
                 $extraTeacherUser->assignRole('teacher');
             }
-            LegalAcceptance::recordMissingCurrent($extraTeacherUser, null);
+            if ($extraTeacherUser->wasRecentlyCreated) {
+                LegalAcceptance::recordMissingCurrent($extraTeacherUser, null);
+            }
 
             $extraProfile = TeacherProfile::firstOrCreate(
                 ['user_id' => $extraTeacherUser->id],
@@ -417,7 +423,9 @@ class LocalTestDataSeeder extends Seeder
             if (! $extraParentUser->hasRole('parent')) {
                 $extraParentUser->assignRole('parent');
             }
-            LegalAcceptance::recordMissingCurrent($extraParentUser, null);
+            if ($extraParentUser->wasRecentlyCreated) {
+                LegalAcceptance::recordMissingCurrent($extraParentUser, null);
+            }
 
             Student::firstOrCreate(
                 ['parent_user_id' => $extraParentUser->id],

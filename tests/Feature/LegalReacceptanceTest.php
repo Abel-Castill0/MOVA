@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\LegalAcceptance;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
@@ -120,6 +121,36 @@ class LegalReacceptanceTest extends TestCase
         $this->assertNotSame(route('legal.accept'), $response->headers->get('Location'));
     }
 
+    public function test_stale_acceptance_cannot_create_a_student_by_posting_directly(): void
+    {
+        $user = $this->parent();
+        config(['legal.versions.privacy' => 'P-2']);
+
+        $this->actingAs($user)->post(route('students.store'), [
+            'first_name' => 'Ana',
+            'last_name' => 'Prueba',
+            'grade_level' => 'primaria',
+            'data_consent' => '1',
+        ])->assertRedirect(route('legal.accept'));
+
+        $this->assertSame(0, $user->students()->count());
+    }
+
+    public function test_stale_acceptance_rejects_json_mutations(): void
+    {
+        $user = $this->parent();
+        config(['legal.versions.privacy' => 'P-2']);
+
+        $this->actingAs($user)->postJson(route('students.store'), [
+            'first_name' => 'Ana',
+            'last_name' => 'Prueba',
+            'grade_level' => 'primaria',
+            'data_consent' => '1',
+        ])->assertStatus(409);
+
+        $this->assertSame(0, $user->students()->count());
+    }
+
     public function test_admins_are_not_gated(): void
     {
         $admin = User::factory()->withoutCurrentLegalAcceptance()->create();
@@ -144,5 +175,18 @@ class LegalReacceptanceTest extends TestCase
         $user = User::where('email', 'nueva@example.com')->first();
         $this->assertNotNull($user, 'El registro debe crear al usuario.');
         $this->assertTrue(LegalAcceptance::hasAcceptedCurrent($user));
+    }
+
+    public function test_reseeding_does_not_accept_new_terms_for_an_existing_demo_user(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $teacher = User::where('email', 'carlos@mova.test')->firstOrFail();
+        $this->assertTrue(LegalAcceptance::hasAcceptedCurrent($teacher));
+
+        config(['legal.versions.terms' => 'T-2']);
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertFalse(LegalAcceptance::hasAcceptedCurrent($teacher));
+        $this->assertSame(2, LegalAcceptance::where('user_id', $teacher->id)->count());
     }
 }

@@ -12,10 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
  * Privacidad (config/legal.php), el usuario debe aceptarla antes de seguir
  * navegando. Decisiones deliberadas:
  *
- *  - Solo intercepta navegaciones GET (visitas Inertia o página completa).
- *    Nunca respuestas JSON ni el polling de pagos: cortar a mitad un checkout
- *    o una consulta de estado podría dejar un pago en un estado confuso. La
- *    siguiente navegación del usuario lo lleva a aceptar.
+ *  - Intercepta navegaciones y mutaciones normales. Una petición POST directa
+ *    no puede crear datos de un menor ni aceptar clases con términos vencidos.
+ *    Conserva las consultas JSON y las operaciones de un checkout ya iniciado
+ *    para no dejar un pago a medias.
  *  - Admins exentos: son el equipo de MOVA, no usuarios del servicio, y no
  *    se les debe bloquear la operación (incidentes, reclamos) por esto.
  *  - Las rutas de aceptación y las páginas legales viven FUERA del grupo que
@@ -29,14 +29,28 @@ class EnsureCurrentLegalAcceptance
         $user = $request->user();
 
         if (! $user
-            || ! $request->isMethod('GET')
-            || $request->expectsJson()
             || $user->hasRole('admin')
             || LegalAcceptance::hasAcceptedCurrent($user)) {
             return $next($request);
         }
 
-        redirect()->setIntendedUrl($request->fullUrl());
+        if (($request->isMethod('GET') && $request->expectsJson())
+            || $request->routeIs(
+                'teacher.credits.checkout.show',
+                'teacher.credits.checkout.status',
+                'teacher.credits.checkout.pay',
+                'teacher.credits.checkout.refresh',
+            )) {
+            return $next($request);
+        }
+
+        if ($request->isMethod('GET')) {
+            redirect()->setIntendedUrl($request->fullUrl());
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Debes aceptar los documentos legales vigentes para continuar.'], 409);
+        }
 
         return redirect()->route('legal.accept');
     }

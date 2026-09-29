@@ -39,7 +39,8 @@ class LegalDocumentsTruthTest extends TestCase
 
         $forbidden = [
             'ofertas de clase'              => 'los profesores ya no crean ofertas',
-            'tarifa'                        => 'no existe tarifa editable por el profesor',
+            'fija tu tarifa'                => 'el profesor no fija una tarifa editable',
+            'configura tu tarifa'           => 'el profesor no configura una tarifa editable',
             'archivos adjuntos'             => 'los reportes no admiten adjuntos',
             'al verificar el perfil'        => 'el bono se otorga al verificar el celular',
             'uso continuado'                => 'los cambios relevantes exigen re-aceptación',
