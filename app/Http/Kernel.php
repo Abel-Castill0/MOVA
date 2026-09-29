@@ -77,5 +77,6 @@ class Kernel extends HttpKernel
         'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         'not.suspended' => \App\Http\Middleware\EnsureNotSuspended::class,
         'admin.mfa' => \App\Http\Middleware\EnsureAdminMfa::class,
+        'legal.current' => \App\Http\Middleware\EnsureCurrentLegalAcceptance::class,
     ];
 }

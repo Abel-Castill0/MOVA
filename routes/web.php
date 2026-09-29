@@ -28,6 +28,7 @@ use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
 use App\Http\Controllers\CounterofferController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\LegalAcceptanceController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
 use App\Http\Controllers\HealthController;
@@ -109,7 +110,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin/mfa')->name('admin.mfa.
     Route::post('/recovery-codes', [AdminMfaController::class, 'regenerateRecoveryCodes'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('recovery-codes.regenerate');
 });
 
-Route::middleware(['auth', 'verified', 'admin.mfa'])->group(function () {
+// C-P1-LEGAL-REACCEPTANCE: fuera del grupo con 'legal.current' (sin bucle).
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/legal/aceptar', [LegalAcceptanceController::class, 'show'])->name('legal.accept');
+    Route::post('/legal/aceptar', [LegalAcceptanceController::class, 'store'])->middleware('throttle:10,1')->name('legal.accept.store');
+});
+
+Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(function () {
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 

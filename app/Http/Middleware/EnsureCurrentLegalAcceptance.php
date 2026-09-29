@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Models\LegalAcceptance;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * C-P1-LEGAL-REACCEPTANCE — si cambia la versión vigente de Términos o
+ * Privacidad (config/legal.php), el usuario debe aceptarla antes de seguir
+ * navegando. Decisiones deliberadas:
+ *
+ *  - Solo intercepta navegaciones GET (visitas Inertia o página completa).
+ *    Nunca respuestas JSON ni el polling de pagos: cortar a mitad un checkout
+ *    o una consulta de estado podría dejar un pago en un estado confuso. La
+ *    siguiente navegación del usuario lo lleva a aceptar.
+ *  - Admins exentos: son el equipo de MOVA, no usuarios del servicio, y no
+ *    se les debe bloquear la operación (incidentes, reclamos) por esto.
+ *  - Las rutas de aceptación y las páginas legales viven FUERA del grupo que
+ *    lleva este middleware (routes/web.php): no hay bucle de redirección y
+ *    el usuario puede leer los documentos antes de aceptar.
+ */
+class EnsureCurrentLegalAcceptance
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $user = $request->user();
+
+        if (! $user
+            || ! $request->isMethod('GET')
+            || $request->expectsJson()
+            || $user->hasRole('admin')
+            || LegalAcceptance::hasAcceptedCurrent($user)) {
+            return $next($request);
+        }
+
+        redirect()->setIntendedUrl($request->fullUrl());
+
+        return redirect()->route('legal.accept');
+    }
+}

@@ -6,6 +6,7 @@ use App\Models\ClassOffer;
 use App\Models\ClassRequest;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\LegalAcceptance;
 use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -40,6 +41,7 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
             $user->assignRole('teacher');
+            LegalAcceptance::recordMissingCurrent($user, null);
 
             $profile = TeacherProfile::firstOrCreate(['user_id' => $user->id], [
                 'bio'         => $td['bio'],
@@ -83,6 +85,7 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
             $parent->assignRole('parent');
+            LegalAcceptance::recordMissingCurrent($parent, null);
 
             $sn = $studentNames[$i * 2];
             $s1 = Student::firstOrCreate(
