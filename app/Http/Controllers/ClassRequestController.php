@@ -354,11 +354,12 @@ class ClassRequestController extends Controller
             ->get();
 
         // P0-B: el profesor solo ve lo necesario para decidir. Nunca
-        // birth_date, school ni parent_user_id del menor.
+        // birth_date, school ni parent_user_id del menor — y, antes de que la
+        // clase exista, tampoco su apellido (teacherRequestSummary).
         return Inertia::render('ClassRequests/TeacherIndex', [
-            'requests'               => $open->map(fn (ClassRequest $r) => $this->requestSummary($r)),
-            'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->requestSummary($r)),
-            'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->requestSummary($r)),
+            'requests'               => $open->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
+            'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
+            'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
             'verificationPending'    => false,
         ]);
     }
@@ -383,6 +384,23 @@ class ClassRequestController extends Controller
                 'grade_level' => $r->student->grade_level,
             ] : null,
             'subject'                  => $r->subject ? ['id' => $r->subject->id, 'name' => $r->subject->name] : null,
+        ];
+    }
+
+    /**
+     * Minimización previa a la aceptación (C-P0-LEGAL-TRUTH / Privacidad §4):
+     * mientras no hay clase agendada, el profesor decide con la necesidad
+     * académica, la materia, el grado y un nombre de pila para dirigirse al
+     * alumno. El apellido solo llega con la clase ya creada (Lesson).
+     */
+    private function teacherRequestSummary(ClassRequest $r): array
+    {
+        return [
+            ...$this->requestSummary($r),
+            'student' => $r->student ? [
+                'first_name'  => $r->student->first_name,
+                'grade_level' => $r->student->grade_level,
+            ] : null,
         ];
     }
 
@@ -444,7 +462,7 @@ class ClassRequestController extends Controller
         $profile = auth()->user()->teacherProfile;
 
         // Proyección explícita: `Accept.vue` solo lee subject.name y
-        // student.first_name/last_name (verificado leyendo el archivo, no
+        // student.first_name (verificado leyendo el archivo, no
         // supuesto). `Student` tiene `birth_date` y `school` — datos reales
         // de un menor que este profesor todavía ni siquiera aceptó — sin
         // ninguna columna elegida aquí, `->load(['student','subject'])`
@@ -453,8 +471,10 @@ class ClassRequestController extends Controller
         // patrón de proyección implícita, encontrado ahora en un endpoint
         // distinto. `parent_user_id` tampoco se envía (auditoría Codex P0-02):
         // el profesor no necesita ningún identificador del padre.
+        // Tampoco el apellido: la solicitud sigue abierta (ver
+        // teacherRequestSummary).
         $classRequest->load([
-            'student:id,first_name,last_name,grade_level',
+            'student:id,first_name,grade_level',
             'subject:id,name',
         ]);
 

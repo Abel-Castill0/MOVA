@@ -17,7 +17,7 @@
         <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center text-white text-lg flex-shrink-0">📚</div>
         <div>
           <p class="font-bold text-brand-900">{{ classRequest.subject?.name }}</p>
-          <p class="text-sm text-brand-700">Alumno: <strong>{{ classRequest.student?.first_name }} {{ classRequest.student?.last_name }}</strong></p>
+          <p class="text-sm text-brand-700">Alumno: <strong>{{ classRequest.student?.first_name }}</strong></p>
           <p v-if="classRequest.help_needed" class="text-xs text-slate-500 mt-1 line-clamp-2">{{ classRequest.help_needed }}</p>
         </div>
       </div>
