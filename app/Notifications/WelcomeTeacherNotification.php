@@ -30,11 +30,11 @@ class WelcomeTeacherNotification extends Notification implements ShouldQueue
             ->subject('Le damos la bienvenida a MOVA como profesor')
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Colega, gracias por registrarse en MOVA como profesor. Siga estos pasos para comenzar:')
-            ->line('**1.** Complete su perfil con biografía y tarifa por hora.')
-            ->line('**2.** Agregue las materias que enseña.')
-            ->line('**3.** Espere la verificación del equipo de MOVA.')
-            ->line('**4.** Una vez verificado, cree sus ofertas de clase.')
-            ->line('**5.** Responda las solicitudes de las familias.')
+            ->line('**1.** Complete su perfil con su biografía y las materias que enseña.')
+            ->line('**2.** Espere la verificación del equipo de MOVA.')
+            ->line('**3.** Una vez verificado, revise las solicitudes abiertas de sus materias: acéptelas o proponga otro horario.')
+            ->line('**4.** Comparta su código de profesor con las familias que ya conoce: sus solicitudes le llegarán solo a usted.')
+            ->line('**5.** Aceptar una clase reserva créditos de su saldo MOVA.')
             ->line('**6.** Después de cada clase, envíe un reporte de aprendizaje.')
             ->action('Completar perfil', $this->appRoute('teacher.setup'))
             ->salutation('El equipo de MOVA');
@@ -44,11 +44,11 @@ class WelcomeTeacherNotification extends Notification implements ShouldQueue
     {
         return "Le damos la bienvenida a MOVA como profesor, {$notifiable->name}.\n\n"
             . "Pasos para empezar:\n"
-            . "1. Complete su perfil (biografía y tarifa)\n"
-            . "2. Agregue sus materias\n"
-            . "3. Espere la verificación del equipo\n"
-            . "4. Cree sus ofertas de clase\n"
-            . "5. Responda solicitudes y envíe reportes\n\n"
+            . "1. Complete su perfil (biografía y materias)\n"
+            . "2. Espere la verificación del equipo\n"
+            . "3. Revise las solicitudes abiertas de sus materias: acéptelas o proponga otro horario\n"
+            . "4. Comparta su código de profesor con las familias que ya conoce\n"
+            . "5. Después de cada clase, envíe un reporte\n\n"
             . $this->appRoute('teacher.setup');
     }
 
