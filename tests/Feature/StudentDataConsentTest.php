@@ -58,6 +58,12 @@ class StudentDataConsentTest extends TestCase
     {
         config(['legal.versions.privacy' => '2099-01-01', 'legal.student_consent.version' => 'stmt-7']);
 
+        // La versión de Privacidad cambió después de crear el padre de
+        // prueba: debe reaceptarla antes de registrar datos de otro menor.
+        $this->actingAs($this->parent)
+            ->post(route('legal.accept.store'), ['accepted' => '1'])
+            ->assertSessionHasNoErrors();
+
         $this->actingAs($this->parent)
             ->withHeader('User-Agent', 'ConsentTest/1.0')
             ->post(route('students.store'), [...$this->studentData(), 'data_consent' => '1'])
