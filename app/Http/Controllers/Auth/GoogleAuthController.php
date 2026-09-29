@@ -56,15 +56,32 @@ class GoogleAuthController extends Controller
      */
     private const PENDING_SESSION_KEY = 'google_pending_registration';
 
+    /**
+     * C-P1-GOOGLE-OAUTH — única definición de "Google está disponible":
+     * flag explícito Y credenciales presentes. La UI (googleLoginEnabled en
+     * Login/Register) y ambos extremos OAuth usan esta misma respuesta, así
+     * que el frontend nunca anuncia un botón que el backend rechazaría.
+     */
+    public static function isAvailable(): bool
+    {
+        return (bool) config('services.google.login_enabled')
+            && filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'));
+    }
+
     public function redirect(): SymfonyRedirectResponse|RedirectResponse
     {
-        abort_unless(config('services.google.login_enabled'), 503, 'El inicio de sesión con Google está temporalmente no disponible.');
+        abort_unless(self::isAvailable(), 503, 'El inicio de sesión con Google está temporalmente no disponible.');
 
         return Socialite::driver('google')->redirect();
     }
 
     public function callback(): RedirectResponse
     {
+        // También aquí: con el flag apagado, un código OAuth obtenido
+        // construyendo a mano la URL de Google no debe poder crear sesión.
+        abort_unless(self::isAvailable(), 503, 'El inicio de sesión con Google está temporalmente no disponible.');
+
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
         } catch (Throwable $e) {

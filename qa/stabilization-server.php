@@ -18,6 +18,9 @@ if (PHP_SAPI === 'cli-server') {
     $provider->shouldReceive('stateless')->andReturnSelf();
     $provider->shouldReceive('user')->andReturn($identity);
     Laravel\Socialite\Facades\Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+    // GoogleAuthController::isAvailable() exige flag + credenciales también en
+    // el callback; valores sintéticos, solo en este router QA.
+    config(['services.google.login_enabled'=>true, 'services.google.client_id'=>'qa-google', 'services.google.client_secret'=>'qa-google']);
     $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
     $response = $kernel->handle($request = Illuminate\Http\Request::capture());
     $response->send();

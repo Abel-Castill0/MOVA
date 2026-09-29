@@ -25,6 +25,14 @@ class GoogleAuthTest extends TestCase
         }
 
         Notification::fake();
+
+        // Los flujos OAuth de este archivo requieren Google operativo (flag +
+        // credenciales). Los tests de "apagado" lo desactivan explícitamente.
+        config([
+            'services.google.login_enabled' => true,
+            'services.google.client_id'     => 'test-client-id',
+            'services.google.client_secret' => 'test-client-secret',
+        ]);
     }
 
     private function fakeGoogleUser(string $email, string $name = 'Google User'): void
@@ -42,19 +50,52 @@ class GoogleAuthTest extends TestCase
     // modal), pero un enlace directo a /auth/google tampoco debe funcionar.
     public function test_redirect_is_disabled_by_default(): void
     {
+        config(['services.google.login_enabled' => false]);
+
         $response = $this->get(route('auth.google'));
 
         $response->assertStatus(503);
     }
 
+    public function test_flag_without_credentials_is_not_available(): void
+    {
+        config(['services.google.client_id' => null]);
+
+        $this->get(route('auth.google'))->assertStatus(503);
+        $this->get(route('login'))->assertInertia(fn ($page) => $page->where('googleLoginEnabled', false));
+    }
+
+    public function test_callback_is_rejected_while_google_is_disabled(): void
+    {
+        config(['services.google.login_enabled' => false]);
+        $this->fakeGoogleUser('nuevo@example.com');
+
+        $this->get(route('auth.google.callback'))->assertStatus(503);
+
+        $this->assertNull(session('google_pending_registration'));
+        $this->assertGuest();
+    }
+
+    public function test_login_and_register_only_advertise_google_when_it_is_available(): void
+    {
+        foreach (['login', 'register'] as $route) {
+            $this->get(route($route))->assertOk()
+                ->assertInertia(fn ($page) => $page->where('googleLoginEnabled', true));
+        }
+
+        config(['services.google.login_enabled' => false]);
+
+        foreach (['login', 'register'] as $route) {
+            $this->get(route($route))->assertOk()
+                ->assertInertia(fn ($page) => $page->where('googleLoginEnabled', false));
+        }
+    }
+
     public function test_redirect_sends_user_to_google_when_explicitly_enabled(): void
     {
-        config(['services.google.login_enabled' => true]);
-
-        // No mockeamos driver()->redirect(): sin credenciales reales de Google
-        // configuradas, Socialite igual construye la URL (con client_id vacío)
-        // sin lanzar excepción — solo verificamos que la ruta responde con un
-        // redirect, no que la URL sea válida ante Google.
+        // No mockeamos driver()->redirect(): Socialite construye la URL con
+        // las credenciales de prueba — solo verificamos que la ruta responde
+        // con un redirect a Google, no que la URL sea válida ante Google.
         $response = $this->get(route('auth.google'));
 
         $response->assertRedirect();

@@ -36,6 +36,7 @@ class RegisteredUserController extends Controller
 
         return Inertia::render('Auth/Register', [
             'lockedRole' => $lockedRole,
+            'googleLoginEnabled' => GoogleAuthController::isAvailable(),
         ]);
     }
 
