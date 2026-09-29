@@ -3,8 +3,9 @@
 Estado: **provisionado** en `mova-prod-rg` (mexicocentral): foundation y apps
 (`mova-web`, `mova-worker`) sirven el staging que pasó MOVA 1.0 STAGING
 RELEASE QA. `mova-scheduler` sigue sin desplegar (`deployScheduler=false`)
-hasta el cutover. Railway se mantiene solo como rollback hasta el cutover de
-dominio; gates pendientes en `docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
+hasta el cutover. Railway sigue siendo la producción actual y se mantiene
+como rollback durante el cutover; gates pendientes en
+`docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
 
 ## Archivos
 

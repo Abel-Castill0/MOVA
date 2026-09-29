@@ -14,10 +14,11 @@ MOVA conecta familias con profesores particulares para clases en vivo por videol
 | Autenticación | Laravel Breeze |
 | Roles | Spatie Laravel Permission |
 | Videollamadas | JaaS (8x8 / Jitsi) con JWT por sala |
-| Email | Gmail API en producción (`MAIL_MAILER` por entorno) |
+| Email | Proveedor según `MAIL_MAILER`; Gmail API documentada para la producción actual, Azure staging usa `array` |
 | Pagos de créditos | Mercado Pago (proveedor automático previsto, apagado por flags) + recarga manual revisada |
 | Cola | Laravel Queue |
-| Producción | Azure Container Apps + Azure MySQL (`infra/azure`) — Railway solo como rollback hasta el cutover de dominio |
+| Producción actual | Railway hasta el cutover de dominio |
+| Destino de producción | Azure Container Apps + Azure MySQL (`infra/azure`) |
 
 ## Rama De Producción
 
@@ -79,9 +80,9 @@ npm run qa:production-readonly
 
 Destino de producción: **Azure Container Apps + Azure Database for MySQL**, modelado en `infra/azure` (ver su README). Estado de lanzamiento y gates pendientes: `docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
 
-### Railway (legado / rollback)
+### Railway (producción actual / rollback)
 
-Railway fue la plataforma anterior y se conserva solo como rollback hasta el cutover de dominio (C-P1-DOMAIN-CUTOVER). El repositorio mantiene su configuración:
+Railway sigue como producción actual y rollback hasta el cutover de dominio (C-P1-DOMAIN-CUTOVER). El repositorio mantiene su configuración:
 
 - `railway.toml`: servicio web principal.
 - `railway.queue.toml`: worker de cola.
