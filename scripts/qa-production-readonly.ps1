@@ -1,11 +1,14 @@
 $ErrorActionPreference = "Stop"
 
+# Sin URL por defecto a propósito: la producción está migrando de Railway a
+# Azure y un default silencioso podría auditar el entorno equivocado.
 $baseUrl = $env:MOVA_PRODUCTION_URL
 if (-not $baseUrl) {
-    $baseUrl = "https://mova-production-8750.up.railway.app"
+    Write-Error "Define MOVA_PRODUCTION_URL (URL base del entorno a consultar en solo lectura)."
+    exit 1
 }
 
-$paths = @("/healthz", "/", "/login", "/marketplace", "/quienes-somos", "/terminos", "/privacidad")
+$paths = @("/healthz", "/readyz", "/", "/login", "/marketplace", "/quienes-somos", "/terminos", "/privacidad", "/libro-de-reclamaciones")
 
 foreach ($path in $paths) {
     $url = $baseUrl.TrimEnd("/") + $path

@@ -1,7 +1,10 @@
 # MOVA — Azure IaC (Bicep)
 
-Estado: **AZ-2 — modelado y validado localmente. NO provisionado.**
-Railway sigue siendo producción/rollback hasta que AZ-3/AZ-4 lo reemplacen.
+Estado: **provisionado** en `mova-prod-rg` (mexicocentral): foundation y apps
+(`mova-web`, `mova-worker`) sirven el staging que pasó MOVA 1.0 STAGING
+RELEASE QA. `mova-scheduler` sigue sin desplegar (`deployScheduler=false`)
+hasta el cutover. Railway se mantiene solo como rollback hasta el cutover de
+dominio; gates pendientes en `docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
 
 ## Archivos
 
