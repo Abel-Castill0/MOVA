@@ -66,12 +66,13 @@ class DashboardController extends Controller
             $checklist = [];
             $score     = 0;
             if ($profile) {
-                $hasSubjects     = $profile->subjects()->exists();
-                $hasActiveOffer  = $profile->classOffers()->where('is_active', true)->exists();
+                // Solo requisitos que un profesor puede cumplir hoy. 'active_offer'
+                // se retiró: la creación de ofertas ya no existe (§21, rutas
+                // class-offers sin create/store), así que dejaba a todo
+                // profesor nuevo atascado por debajo del 100%.
                 $checks = [
                     'bio'            => !empty($profile->bio),
-                    'subjects'       => $hasSubjects,
-                    'active_offer'   => $hasActiveOffer,
+                    'subjects'       => $profile->subjects()->exists(),
                     'phone_verified' => !is_null($user->phone_verified_at),
                     'email_verified' => !is_null($user->email_verified_at),
                     'is_verified'    => $profile->is_verified,

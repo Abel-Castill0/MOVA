@@ -413,20 +413,12 @@ onMounted(() => {
   }
 })
 
-// PRODUCT AUDIT (hallazgo real, no solo visual): este checklist todavía
-// pide "Al menos una oferta activa" como requisito de perfil completo, pero
-// el flujo de creación de ofertas ya no existe para profesores nuevos (ver
-// el comentario de "Mis ofertas anteriores" más abajo — el profesor acepta
-// solicitudes abiertas, no publica anuncios). Si `active_offer` sigue
-// viniendo del backend como parte de `profile_checklist`, un profesor nuevo
-// puede quedar atascado en <100% sin ninguna acción visible para resolverlo.
-// No se toca la lógica de backend en este pase (fuera del alcance de una
-// auditoría de diseño) — se deja marcado aquí y en
-// docs/MOVA_DESIGN_AUDIT_FINAL.md para que se decida explícitamente.
+// Debe reflejar exactamente las claves de `profile_checklist` que envía
+// DashboardController. Ya no incluye "oferta activa": el profesor acepta
+// solicitudes abiertas, no publica anuncios (§21).
 const checklistLabels = {
   bio:            'Biografía completa',
   subjects:       'Materias asignadas',
-  active_offer:   'Al menos una oferta activa',
   phone_verified: 'Teléfono verificado',
   email_verified: 'Email verificado',
   is_verified:    'Verificado por el equipo MOVA',
