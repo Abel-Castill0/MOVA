@@ -48,6 +48,9 @@ jobs:
       - run: npm run check:title
       # Texto hostil del proveedor de IA sale escapado (Movi, v-html).
       - run: npm run check:chatbot-escape
+      # Movi no afirma disponibilidad no verificada y la home solo lo monta
+      # cuando el backend lo declara disponible (C-P2-CI-MOVI).
+      - run: npm run check:movi-availability
       - uses: actions/upload-artifact@v4
         with:
           name: vite-build
