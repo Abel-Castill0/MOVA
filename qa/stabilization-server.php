@@ -21,6 +21,9 @@ if (PHP_SAPI === 'cli-server') {
     // GoogleAuthController::isAvailable() exige flag + credenciales también en
     // el callback; valores sintéticos, solo en este router QA.
     config(['services.google.login_enabled'=>true, 'services.google.client_id'=>'qa-google', 'services.google.client_secret'=>'qa-google']);
+    // El spec XSS intercepta /chatbot/message en el navegador; necesita el
+    // widget real montado, pero nunca llama a Gemini. Solo en este router QA.
+    config(['chatbot.enabled'=>true, 'chatbot.gemini.api_key'=>'qa-gemini-placeholder']);
     $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
     $response = $kernel->handle($request = Illuminate\Http\Request::capture());
     $response->send();
