@@ -1,7 +1,8 @@
 # MOVA V1 — Completion Ledger
 
-Fuente de verdad persistente del programa de completitud de MOVA V1 para
-producción real. **El ledger decide el estado, no la prosa.** Nada pasa a
+**CURRENT — fuente de verdad** del programa de completitud de MOVA V1 para
+el cutover a TARGET_PRODUCTION. `MOVA_V1_STATE.md` es HISTÓRICO. **El ledger
+decide el estado, no la prosa.** Nada pasa a
 `CLOSED` sin evidencia ejecutada contra el snapshot correcto (y, cuando el
 criterio lo exige, evidencia en vivo del entorno real).
 
@@ -10,10 +11,52 @@ criterio lo exige, evidencia en vivo del entorno real).
   `sha256:e34f814c2ec11fe6bec55b8869f28d7f042cf90b51bba1a861654ba0fae5b28a`
 - Fase C1 (esta): rama `release/mova-v1-production-completion`
 
+## Clases de evidencia y nombres de entorno
+
+`CODE` = comportamiento y migraciones inspeccionados; `LOCAL_TEST` = suites
+ejecutadas en QA local; `STATIC_IAC` = intención de plantilla, **nunca** estado
+desplegado; `LIVE_STAGING` = Azure CLI de solo lectura en las apps que sirven
+`staging.movaeduca.me`; `OWNER_CONFIRMATION` = decisión o prueba aportada por
+el titular; `PRODUCTION_LIVE` = comprobación del servicio que realmente sirve
+el dominio público tras cutover. `PUBLIC_APEX` nombra el dominio público cuya
+ruta efectiva aún debe verificarse; `LEGACY` nombra el servicio anterior sin
+presuponer que siga atendiendo producción; `TARGET_PRODUCTION` nombra la
+arquitectura Azure prevista. El nombre `mova-prod-rg` y `APP_ENV=production`
+son configuración de staging y no constituyen prueba `PRODUCTION_LIVE`.
+
+### Inventario LIVE_STAGING (Azure CLI de solo lectura, 2026-09-29)
+
+| Rol | Revisión lista | Estado | Escala | Modo de liquidación | Correo |
+|---|---|---|---|---|---|
+| `mova-web` | `mova-web--0000024` | app Running; revisión Healthy, ScaledToZero | min 0, max 2 | `dry_run` | `array` |
+| `mova-worker` | `mova-worker--0000013` | Healthy / Running, 1 réplica | min 1, max 1 | `dry_run` | `array` |
+| `mova-scheduler` | `mova-scheduler--0000008` | Healthy / Running, 1 réplica observada | min 1, max 1 | `dry_run` | `array` |
+
+`LIVE_STAGING`: los tres roles tienen `APP_URL=https://staging.movaeduca.me`,
+`APP_ENV=production`, `APP_DEBUG=false`, `SEARCH_INDEXING_ENABLED=false`,
+`PAYMENTS_ENABLED=false`, `PAYMENT_PROVIDER=fake`, `RECHARGES_ENABLED=false`,
+`MERCADOPAGO_WEBHOOKS_ENABLED=false`, `WHATSAPP_ENABLED=false`,
+`WHATSAPP_PROVIDER=fake`, `GOOGLE_LOGIN_ENABLED=false`,
+`DIAGNOSTIC_AI_ENABLED=false`, `QUEUE_CONNECTION=database`,
+`CACHE_DRIVER=database`, `BROADCAST_DRIVER=null`. `CHATBOT_ENABLED` no figura
+como variable en ninguna de las tres apps; no se deduce su valor efectivo.
+Solo **presencia de nombres**, sin valores: `GMAIL_*` en los tres roles
+(credenciales por `secretRef`), `JAAS_*` en web/scheduler (clave por
+`secretRef`), `CLOUDINARY_URL` en web (`secretRef`), `SENTRY_LARAVEL_DSN`
+en web/worker (`secretRef`), `MERCADOPAGO_*` de configuración/credenciales
+en web (credencial por `secretRef`). `GOOGLE_CLIENT_*`, `META_WHATSAPP_*` y
+`PUSHER_*` no aparecieron. Presencia no acredita validez, entrega o uso.
+
+`STATIC_IAC`: el archivo `apps.bicepparam` anterior a C1.1 decía
+`deployScheduler=false` y liquidación `live`, en contradicción con el
+inventario. La corrección C1.1 fija `dry_run` por defecto y separa la
+decisión de desplegar scheduler de la de activar liquidación. No se desplegó.
+
 ## Evidencia de gates en esta rama
 
-Snapshot de trabajo previo al commit final de ledger/revisión: `2a1b62f` más
-los cambios locales descritos al final. En 2026-09-29 pasaron con código 0:
+Evidencia C1 sobre la rama después de las correcciones de comportamiento
+hasta `d61d81c`; C1.1 solo modifica IaC y documentación, sin volver a
+ejecutar la matriz funcional completa. En 2026-09-29 pasaron con código 0:
 `composer validate --strict`, `composer audit --locked`,
 `npm audit --omit=dev --audit-level=high` (0 vulnerabilidades),
 `npm run build`, `npm run check:title`, `npm run check:chatbot-escape`,
@@ -54,8 +97,10 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P0-CREDITS | P0 | Dinero | BLOCKED_EXTERNAL |
 | C-P0-SETTLEMENT | P0 | Dinero | BLOCKED_EXTERNAL |
 | C-P0-DB-CREDENTIAL | P0 | Seguridad | BLOCKED_EXTERNAL |
-| C-P0-LEGAL-TRUTH | P0 | Legal | VERIFIED |
-| C-P0-MINOR-CONSENT | P0 | Menores / legal | VERIFIED |
+| C-P0-LEGAL-TRUTH | P0 | Texto/código legal | VERIFIED |
+| C-P0-LEGAL-APPROVAL | P0 | Aprobación legal externa | REQUIRES_OWNER_INPUT |
+| C-P0-MINOR-CONSENT-NEW | P0 | Registro nuevo de menores | VERIFIED |
+| C-P0-MINOR-CONSENT-HISTORICAL | P0 | Alumnos anteriores | REQUIRES_OWNER_INPUT |
 | C-P0-ANPD-REGISTRATION | P0 | Legal | REQUIRES_OWNER_INPUT |
 | C-P0-TRANSBORDER | P0 | Legal | REQUIRES_OWNER_INPUT |
 | C-P1-TEACHER-PROFILE-SCORE | P1 | Producto | VERIFIED |
@@ -65,12 +110,12 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P1-MOVI | P1 | Producto / IA | BLOCKED_EXTERNAL |
 | C-P1-MERCADOPAGO | P1 | Dinero | BLOCKED_EXTERNAL |
 | C-P1-LEGAL-REACCEPTANCE | P1 | Legal | VERIFIED |
-| C-P1-JITSI-MEDIA | P1 | Integraciones | BLOCKED_EXTERNAL |
+| C-P1-JITSI-MEDIA | P1 | Integraciones | IMPLEMENTED_NOT_VERIFIED |
 | C-P1-BACKUP-RESTORE | P1 | Operación | BLOCKED_EXTERNAL |
 | C-P1-DOMAIN-CUTOVER | P1 | Operación | BLOCKED_EXTERNAL |
 | C-P1-REALTIME | P1 | Integraciones | BLOCKED_EXTERNAL |
-| C-P1-CLOUDINARY | P1 | Integraciones | BLOCKED_EXTERNAL |
-| C-P1-SENTRY | P1 | Operación | BLOCKED_EXTERNAL |
+| C-P1-CLOUDINARY | P1 | Integraciones | IMPLEMENTED_NOT_VERIFIED |
+| C-P1-SENTRY | P1 | Operación | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-CI-MOVI | P2 | CI | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-DOCS | P2 | Docs | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-COOKIE-TRUTH | P2 | Legal / UI | IMPLEMENTED_NOT_VERIFIED |
@@ -83,7 +128,7 @@ _(El detalle de cada ID, abajo, es la única fuente del estado final.)_
 **NO-GO para producción/GA.** Los gates de código locales pasaron, pero
 ningún ID se marca `CLOSED` solo por ello. Persisten los bloqueos P0 de
 entrega real de correo, fuente de créditos operativa, liquidación viva,
-rotación verificable de la credencial expuesta, validación jurídica del texto,
+rotación verificable de la credencial expuesta, aprobación jurídica del texto,
 consentimiento de alumnos históricos y gestión ANPD/transfronteriza. El
 cutover de dominio, JaaS con cámara/micrófono y demás proveedores requieren
 pruebas o decisiones externas. C1 no cambió producción, Azure, DNS, Railway,
@@ -98,21 +143,35 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P0-LEGAL-TRUTH
 - **Severidad / dominio:** P0 · Legal.
-- **Evidencia:** Términos y Privacidad previos contenían afirmaciones contradichas por el runtime; `Legal/Terms.vue`, `Legal/Privacy.vue`, `LegalController` y `HealthCheck` ahora describen minimización, consentimiento, proveedores y estado apagado de IA.
-- **Estado:** `VERIFIED` (código verificado localmente; validación jurídica y publicación pendientes).
-- **Criterio de cierre:** tests de verdad y build verdes en HEAD final; titular/asesor legal valida texto, datos del proveedor y versión efectiva del entorno; smoke de documentos publicados.
+- **Evidencia `CODE` / `LOCAL_TEST`:** Términos y Privacidad previos contenían afirmaciones contradichas por el runtime; `Legal/Terms.vue`, `Legal/Privacy.vue`, `LegalController` y `HealthCheck` ahora describen minimización, consentimiento, proveedores y estado apagado de IA.
+- **Estado:** `VERIFIED` para veracidad del texto frente al software local; no implica aprobación legal.
+- **Criterio de cierre:** tests de verdad y build verdes en HEAD final; smoke de documentos publicados en PRODUCTION_LIVE. La aprobación jurídica se sigue por separado en C-P0-LEGAL-APPROVAL.
 - **Commit / tests:** `2a1b62f`, `a68d58e`; `LegalDocumentsTruthTest`, SQLite 1264/0, MySQL 1264/0, build y checks pasaron.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** `LEGAL_TERMS_VERSION` y `LEGAL_PRIVACY_VERSION`, si están definidos en el entorno, pueden prevalecer sobre los defaults `2026-09-29`; verificar nombres/versiones efectivas antes del despliegue sin mostrar secretos.
 
-### C-P0-MINOR-CONSENT
+### C-P0-LEGAL-APPROVAL
+- **Severidad / dominio:** P0 · Legal externo.
+- **Evidencia `CODE`:** los documentos describen el flujo implementado; no hay `OWNER_CONFIRMATION` de asesoría legal, datos formales del titular ni aprobación de versiones efectivas.
+- **Estado:** `REQUIRES_OWNER_INPUT`.
+- **Criterio de cierre:** titular/asesor valida texto, identidad del proveedor, excepciones de reaceptación y versiones finales; registra su decisión antes de publicar.
+- **Evidencia `PRODUCTION_LIVE`:** pendiente. La aprobación de textos no sustituye trámites ANPD o flujo transfronterizo.
+
+### C-P0-MINOR-CONSENT-NEW
 - **Severidad / dominio:** P0 · Menores / legal.
-- **Evidencia:** `StudentController::store` exige casilla explícita y crea alumno + `StudentDataConsent` en una transacción; migración `2026_09_29_000001` conserva versión, padre y alumno.
-- **Estado:** `VERIFIED` (código local; validación jurídica e históricos pendientes).
-- **Criterio de cierre:** gates SQLite/MySQL/E2E verdes, migración y rollback revisados, texto validado por titular/asesor, flujo real de registro de menor probado con cuenta QA propia. Decidir tratamiento de alumnos históricos sin consentimiento específico.
+- **Evidencia `CODE` / `LOCAL_TEST`:** `StudentController::store` exige casilla explícita y crea alumno + `StudentDataConsent` en una transacción; migración `2026_09_29_000001` conserva versión, padre y alumno.
+- **Estado:** `VERIFIED` localmente para alumnos nuevos; no acredita aceptación jurídica ni despliegue.
+- **Criterio de cierre:** flujo real con cuenta QA propia, texto aprobado en C-P0-LEGAL-APPROVAL y migración revisada antes de producción. Históricos se siguen por separado.
 - **Commit / tests:** `a951632`, `d61d81c`; `StudentDataConsentTest` incluye reaceptación de la versión vigente antes de registrar al menor; test dirigido 1/12 assertions y suites SQLite/MySQL completas pasaron.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** sin backfill deliberadamente; código nuevo no acredita consentimiento de alumnos históricos. El `down()` elimina la tabla y su evidencia, así que cualquier rollback posterior al uso real requiere preservar una copia de auditoría antes de ejecutarse.
+- **Notas / STOP de rollback:** sin backfill deliberadamente. Una vez existan filas reales, `down()` ejecuta `dropIfExists` y destruye evidencia. No revertir automáticamente esa migración; detener, preservar y verificar copia de auditoría, y decidir una recuperación supervisada. No se inventa plazo legal de conservación.
+
+### C-P0-MINOR-CONSENT-HISTORICAL
+- **Severidad / dominio:** P0 · Menores / legal externo.
+- **Evidencia `CODE`:** la migración no hace backfill y `student_data_consents` solo registra consentimientos nuevos. No existe evidencia de consentimiento específico por alumno histórico.
+- **Estado:** `REQUIRES_OWNER_INPUT`.
+- **Criterio de cierre:** titular/asesor define tratamiento de alumnos anteriores y reúne consentimiento válido por alumno cuando corresponda, sin inferirlo de otras acciones; evidencia documentada antes del cutover.
+- **Evidencia `OWNER_CONFIRMATION` / `PRODUCTION_LIVE`:** pendiente.
 
 ### C-P1-TEACHER-PROFILE-SCORE
 - **Severidad / dominio:** P1 · Producto.
@@ -205,16 +264,16 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P0-EMAIL
 - **Severidad / dominio:** P0 · Integraciones (correo transaccional).
-- **Evidencia:** `docs/release/MOVA_V1_STATE.md` atribuye Gmail API a producción histórica; `infra/azure/apps.bicepparam` fija `MAIL_MAILER=array` para Azure. No se consultaron valores secretos ni se verificó entrega real. De este canal dependen verificación de email, recuperación de contraseña, copia del Libro de Reclamaciones y avisos de clase.
+- **Evidencia `LIVE_STAGING`:** `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN` están presentes por `secretRef` en web/worker/scheduler; esto no prueba vigencia de credenciales. El runtime observado tiene `MAIL_MAILER=array` en los tres roles, por lo que no hay entrega externa de ese correo desde staging. `STATIC_IAC` coincide en `MAIL_MAILER=array`. La afirmación de Gmail en `MOVA_V1_STATE.md` es histórica. No se consultaron valores secretos ni se verificó entrega real. De este canal dependen verificación de email, recuperación de contraseña, copia del Libro de Reclamaciones y avisos de clase.
 - **Estado:** `BLOCKED_EXTERNAL`.
 - **Criterio de cierre:** en el entorno de producción definitivo, un registro real recibe el correo de verificación y un reclamo de prueba recibe su constancia; evidencia = ids de mensaje / capturas del buzón, sin exponer contenido personal.
 - **Commit / tests:** — (sin cambio de código en C1).
 - **Evidencia en vivo:** pendiente.
-- **Notas:** comprobar proveedor efectivo sin mostrar credenciales y sus límites de envío antes de GA.
+- **Notas:** comprobar proveedor efectivo, validez de credenciales y límites sin mostrar secretos. Configuración presente, mailer activo y entrega real son tres gates distintos.
 
 ### C-P0-CREDITS
 - **Severidad / dominio:** P0 · Dinero.
-- **Evidencia:** un profesor necesita créditos para aceptar cualquier solicitud (`LessonSchedulingService`: `credits_available < creditsNeeded` → error). Hoy en producción sus tres fuentes están cerradas o condicionadas: (1) bono de bienvenida → solo al verificar el teléfono (`PhoneVerificationController::grantTeacherWelcomeBonus`), imposible con `WHATSAPP_ENABLED=false`; (2) recarga manual Yape/Plin → requiere `RECHARGE_PAYMENT_DESTINATION` (`Teacher\CreditController`) y aprobación admin con MFA; (3) checkout Mercado Pago → `PAYMENTS_ENABLED`/`PAYMENT_PROVIDER` apagados.
+- **Evidencia `CODE` / `LIVE_STAGING`:** un profesor necesita créditos para aceptar una solicitud (`LessonSchedulingService`: `credits_available < creditsNeeded` → error). En staging, (1) bono de bienvenida depende de OTP y `WHATSAPP_ENABLED=false`; (2) recarga manual requiere destino de pago y aprobación admin con MFA; (3) checkout Mercado Pago tiene `PAYMENTS_ENABLED=false` y `PAYMENT_PROVIDER=fake`, aunque existen nombres de configuración/credenciales en web. El estado de estas fuentes en PUBLIC_APEX/PRODUCTION_LIVE no está demostrado.
 - **Estado:** `BLOCKED_EXTERNAL` (configuración de producción + decisión del titular sobre qué fuente habilitar al lanzar).
 - **Criterio de cierre:** al menos una fuente de créditos operativa en producción y probada extremo a extremo con evidencia de ledger (`credit_transactions`) — sin tocar datos reales de terceros.
 - **Commit / tests:** — ; SQLite/MySQL y build pasaron, entrega real de correo pendiente.
@@ -223,11 +282,11 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P0-SETTLEMENT
 - **Severidad / dominio:** P0 · Dinero.
-- **Evidencia:** `app/Console/Kernel.php` programa `mova:settle-lessons` en `--dry-run` salvo `SettlementMode::isLive()`; el scheduler en Azure no está desplegado (`infra/azure/apps.bicepparam`: `deployScheduler = false`, deliberado mientras Railway sea producción). Sin liquidación viva, los créditos reservados no se consumen automáticamente.
-- **Estado:** `BLOCKED_EXTERNAL` (gate controlado posterior: activar scheduler + modo live en el cutover).
-- **Criterio de cierre:** scheduler único desplegado en producción, `SettlementMode` live, una liquidación real observada en el ledger y sin doble ejecución (Railway apagado).
+- **Evidencia `CODE` / `LIVE_STAGING` / `STATIC_IAC`:** `app/Console/Kernel.php` programa `mova:settle-lessons` en `--dry-run` salvo `SettlementMode::isLive()`. Azure staging tiene scheduler Healthy, una réplica, min/max 1 y `LESSON_SETTLEMENT_MODE=dry_run` en los tres roles. El archivo IaC anterior decía `deployScheduler=false` y `live`; eso era intención estática desactualizada, no runtime. C1.1 cambia el default IaC a `dry_run` y exige selección explícita para `live`, sin desplegarlo. No hay evidencia de liquidación real en PRODUCTION_LIVE.
+- **Estado:** `BLOCKED_EXTERNAL` (gate financiero y cutover controlado posteriores).
+- **Criterio de cierre:** scheduler único en PRODUCTION_LIVE, modo live elegido deliberadamente tras revisar reconciliación y migraciones, una liquidación real observada en el ledger y ausencia de ejecución duplicada del entorno LEGACY.
 - **Commit / tests:** — (fuera de alcance C1 por instrucción: "no activar settlement live").
-- **Evidencia en vivo:** pendiente; el parámetro Azure `live` no demuestra que haya scheduler desplegado ni liquidación real.
+- **Evidencia en vivo:** LIVE_STAGING confirmada en `dry_run`; PRODUCTION_LIVE pendiente.
 - **Notas:** `php artisan migrate --force` en el arranque de Railway sigue siendo riesgo crítico antes de publicar cualquier migración.
 
 ### C-P0-DB-CREDENTIAL
@@ -250,7 +309,7 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P0-TRANSBORDER
 - **Severidad / dominio:** P0 · Legal (flujo transfronterizo).
-- **Evidencia:** la infraestructura destino es Azure región `mexicocentral` (`infra/azure/apps.bicep`), fuera de Perú; además envían/almacenan datos fuera de Perú: Google (Gmail API, OAuth), Meta (WhatsApp, cuando se active), 8x8 (JaaS), Cloudinary, Sentry (si se configura DSN), Mercado Pago (pagos de créditos). En C1 la Política de Privacidad pasa a declararlo explícitamente (ver C-P0-LEGAL-TRUTH).
+- **Evidencia `STATIC_IAC` / `LIVE_STAGING` / `CODE`:** la plantilla selecciona Azure `mexicocentral`; las tres Container Apps de staging se consultaron en `mova-prod-rg`. Hay nombres de configuración de Gmail, JaaS, Cloudinary, Sentry y Mercado Pago en distintos roles; presencia no demuestra transmisión real ni ubicación final de datos. Google OAuth, Meta y Pusher no tenían nombres de credenciales en ese inventario. En C1 la Política pasa a describir proveedores de modo condicional.
 - **Estado:** `REQUIRES_OWNER_INPUT` (comunicación/gestión formal del flujo transfronterizo según la norma peruana; validación legal del texto).
 - **Criterio de cierre:** gestión formal del titular completada y el texto de Privacidad validado por asesoría legal.
 - **Commit / tests:** `2a1b62f` (divulgación de proveedores); SQLite/MySQL y build pasaron, gestión legal externa pendiente.
@@ -259,7 +318,7 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P1-MERCADOPAGO
 - **Severidad / dominio:** P1 · Dinero (proveedor de pago automático previsto).
-- **Evidencia:** integración Checkout API (tarjeta/Yape, 3DS, webhooks, reconciliación, reversión) verde en MySQL según `docs/release/MOVA_V1_STATE.md` (P0-G); flags apagados en staging; falta prueba con credenciales TEST reales en el entorno y homologación.
+- **Evidencia `CODE` / `LOCAL_TEST` / `LIVE_STAGING`:** integración Checkout API cubierta por pruebas MySQL locales; la afirmación P0-G de `MOVA_V1_STATE.md` es histórica. Azure web tiene nombres `MERCADOPAGO_*` de config y secretos, pero los tres roles mantienen pagos/recargas/webhooks apagados. Presencia no acredita credenciales TEST válidas, homologación ni cobros.
 - **Estado:** `BLOCKED_EXTERNAL` (credenciales TEST/PROD del titular; esta fase no activa pagos por instrucción).
 - **Criterio de cierre:** pago TEST extremo a extremo en staging (aprobado, rechazado, 3DS, webhook, reconciliación) con evidencia de `payment_orders` + `credit_transactions`; luego activación controlada en producción con un pago real mínimo y su reverso documentado. Usar la skill `mova-mercadopago`.
 - **Commit / tests:** — en C1; pruebas con proveedor real pendientes.
@@ -268,34 +327,34 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P1-JITSI-MEDIA
 - **Severidad / dominio:** P1 · Integraciones (videollamadas JaaS/8x8).
-- **Evidencia:** JWT RS256 por sala y moderador solo profesor, con tests (P0-F); en Azure faltan `JAAS_*` (health-check `JAAS_NOT_CONFIGURED` crítico en producción). Nunca se probó audio/video real entre dos dispositivos en el entorno destino.
-- **Estado:** `BLOCKED_EXTERNAL`.
-- **Criterio de cierre:** `JAAS_*` configurados en producción, health-check limpio y una clase de prueba con dos cuentas QA propias (audio, video, permisos de moderador) documentada.
+- **Evidencia `CODE` / `LOCAL_TEST` / `LIVE_STAGING`:** JWT RS256 por sala y autorización de moderador solo profesor tienen tests; `JAAS_APP_ID`, `JAAS_KEY_ID` y `JAAS_PRIVATE_KEY` figuran en Azure web/scheduler (clave por `secretRef`). No se verificó su validez ni una llamada real de audio/video entre dos dispositivos.
+- **Estado:** `IMPLEMENTED_NOT_VERIFIED` (config presente, smoke físico pendiente).
+- **Criterio de cierre:** config válida en PRODUCTION_LIVE, health-check limpio, JWT de sala aceptado por el proveedor y una clase de prueba con dos cuentas QA propias (audio, video, permisos de moderador) documentada.
 - **Commit / tests:** — en C1; pruebas de medios físicos pendientes.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** JWT probado no prueba cámara ni micrófono.
+- **Notas:** presencia de configuración, autorización JWT y medios físicos son tres evidencias distintas.
 
 ### C-P1-BACKUP-RESTORE
 - **Severidad / dominio:** P1 · Operación.
-- **Evidencia:** runbook Azure PITR en `docs/BACKUP_RESTORE_PLAYBOOK.md` §9; dump→restore local con paridad de esquema. La verificación de datos del servidor `mova-mysql-restoretest` quedó bloqueada (secretos dentro de la VNet) y ese servidor contiene copia de datos personales mientras exista.
+- **Evidencia `CODE` / `LIVE_STAGING`:** el playbook ahora prioriza Azure PITR; dump→restore local con paridad de esquema fue evidencia histórica. Consulta Azure de solo lectura del 2026-09-29: origen `mova-mysql-splisbj6ldoqw` Ready, MySQL 8.4, retención 7 días, geo-backup Disabled; `mova-mysql-restoretest` **no apareció** en la lista actual. El reporte histórico de una restauración anterior no prueba que la copia o su verificación sigan vigentes.
 - **Estado:** `BLOCKED_EXTERNAL`.
-- **Criterio de cierre:** restauración verificada por el titular (conteos/tablas clave) y servidor de prueba eliminado; fecha y resultado anotados aquí.
+- **Criterio de cierre:** nueva restauración a servidor aislado verificada por el titular (incluida tabla de consentimientos y ledger financiero); limpieza de copia temporal confirmada por inventario; fecha y resultado anotados aquí.
 - **Commit / tests:** — en C1; no aplica prueba local adicional.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** conservar evidencia de la restauración sin datos personales.
+- **Notas:** conservar evidencia sin datos personales. STOP de rollback: `down()` de la migración de `student_data_consents` destruye filas reales; no revertirla automáticamente tras usarla. La migración se mantuvo intacta: un guard dependiente del entorno en `down()` complicaría la recuperación local y no protegería contra restauraciones destructivas; el runbook obliga a detenerse y preservar evidencia.
 
 ### C-P1-DOMAIN-CUTOVER
 - **Severidad / dominio:** P1 · Operación.
-- **Evidencia:** Railway sigue siendo producción/rollback; `SEARCH_INDEXING_ENABLED=false` hasta el cutover; DNS en Namecheap sin tocar (instrucción).
+- **Evidencia `LIVE_STAGING` / `OWNER_CONFIRMATION`:** Azure staging usa `APP_URL=https://staging.movaeduca.me` y `SEARCH_INDEXING_ENABLED=false`. No se verificó en esta fase qué servicio sirve el PUBLIC_APEX ni el estado actual de LEGACY; no se tocó DNS.
 - **Estado:** `BLOCKED_EXTERNAL` (gate controlado posterior).
-- **Criterio de cierre:** dominio definitivo apuntando a Azure con TLS válido, `APP_URL`/callbacks (Google, Mercado Pago, JaaS) actualizados, indexación activada a propósito, Railway apagado sin doble scheduler.
+- **Criterio de cierre:** verificar primero ruta real de PUBLIC_APEX/LEGACY; dominio definitivo apuntando a Azure con TLS válido, `APP_URL`/callbacks (Google, Mercado Pago, JaaS) actualizados, indexación activada a propósito y ningún scheduler duplicado.
 - **Commit / tests:** — en C1; prueba de DNS pendiente.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** no se modificaron DNS, Azure ni Railway.
 
 ### C-P1-REALTIME
 - **Severidad / dominio:** P1 · Integraciones (notificaciones en vivo).
-- **Evidencia:** `BROADCAST_DRIVER=pusher`; `HandleInertiaRequests::publicRealtimeConfig()` degrada a `enabled=false` sin clave pública, así que la app funciona sin tiempo real. No hay evidencia de credenciales Pusher en Azure ni de una prueba en vivo.
+- **Evidencia `CODE` / `LIVE_STAGING`:** `HandleInertiaRequests::publicRealtimeConfig()` degrada a `enabled=false` sin clave pública. Los tres roles Azure tienen `BROADCAST_DRIVER=null` y no tienen nombres `PUSHER_*` en su entorno. No hay prueba de entrega en vivo.
 - **Estado:** `BLOCKED_EXTERNAL`.
 - **Criterio de cierre:** decisión del titular (activar con credenciales y prueba en vivo, o lanzar sin tiempo real con la degradación ya soportada y documentada).
 - **Commit / tests:** — en C1; pruebas en vivo pendientes.
@@ -304,17 +363,17 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P1-CLOUDINARY
 - **Severidad / dominio:** P1 · Integraciones (fotos de perfil).
-- **Evidencia:** sin `CLOUDINARY_URL` la subida de avatar usa disco local (`.env.example`); en Azure Container Apps el disco de la réplica es efímero, así que las fotos se perderían en cada revisión/reinicio.
-- **Estado:** `BLOCKED_EXTERNAL`.
-- **Criterio de cierre:** `CLOUDINARY_URL` configurado en producción y una subida + borrado (`deleteAvatar`) verificados en vivo con una cuenta QA propia.
+- **Evidencia `CODE` / `LIVE_STAGING`:** `CLOUDINARY_URL` figura en Azure web por `secretRef`; no se consultó su valor ni se hizo subida/borrado real. Sin configuración válida, el fallback local usa disco efímero en Container Apps.
+- **Estado:** `IMPLEMENTED_NOT_VERIFIED` (config presente, validez y smoke pendientes).
+- **Criterio de cierre:** Cloudinary válido en PRODUCTION_LIVE y una subida + borrado (`deleteAvatar`) verificados con una cuenta QA propia, incluida persistencia tras reinicio/revisión.
 - **Commit / tests:** — en C1; prueba de proveedor pendiente.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** no se modificó almacenamiento en producción.
 
 ### C-P1-SENTRY
 - **Severidad / dominio:** P1 · Operación (monitoreo de errores).
-- **Evidencia:** `sentry/sentry-laravel` instalado; `send_default_pii=false` por defecto (`config/sentry.php`). No hay evidencia de `SENTRY_LARAVEL_DSN` en Azure ni de un evento de prueba recibido.
-- **Estado:** `BLOCKED_EXTERNAL`.
+- **Evidencia `CODE` / `LIVE_STAGING`:** `sentry/sentry-laravel` instalado; `send_default_pii=false` por defecto (`config/sentry.php`). `SENTRY_LARAVEL_DSN` figura por `secretRef` en Azure web/worker, sin consultar su valor. No hay evidencia de evento recibido.
+- **Estado:** `IMPLEMENTED_NOT_VERIFIED` (config presente, evento de prueba pendiente).
 - **Criterio de cierre:** DSN configurado, evento de prueba recibido sin PII, y Sentry listado como encargado en Privacidad (ya declarado condicionalmente en C1).
 - **Commit / tests:** `2a1b62f` (mención condicional); prueba de evento pendiente.
 - **Evidencia en vivo:** no aportada.
