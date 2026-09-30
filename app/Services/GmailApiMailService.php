@@ -63,9 +63,10 @@ class GmailApiMailService
     /**
      * ¿Hay credenciales suficientes para intentar siquiera un envío?
      *
-     * Lo usa AppServiceProvider para no registrar el transporte cuando no está
-     * configurado, y así el `failover` caiga directamente a SMTP en vez de
-     * gastar un intento fallido contra Google en cada correo.
+     * NO decide el registro del transporte: AppServiceProvider registra
+     * `gmail_api` siempre, y sin credenciales el transporte lanza al enviar (así
+     * `failover` pasa al siguiente). Es un predicado de solo lectura sobre la
+     * configuración.
      */
     public function isConfigured(): bool
     {

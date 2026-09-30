@@ -99,6 +99,11 @@ class HealthCheck extends Command
             }
         }
 
+        // ── C-P0-EMAIL: el correo transaccional debe poder salir de verdad ─
+        [$mailChecks, $mailWarnings] = $this->mailReadiness($environment);
+        $checks   = array_merge($checks, $mailChecks);
+        $warnings = array_merge($warnings, $mailWarnings);
+
         // ── F-04: el despacho debe poder revertirse con el claim ─────────
         // SendClassReminders reclama la lección y despacha el aviso dentro de
         // una misma transacción, para que un fallo libere el marcador en vez de
@@ -386,6 +391,142 @@ class HealthCheck extends Command
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * C-P0-EMAIL — Preparación (CONFIGURACIÓN, no validez) del correo saliente.
+     *
+     * Verificación de email, recuperación de contraseña, la constancia del Libro
+     * de Reclamaciones y los avisos de clase dependen de este canal. Con
+     * `MAIL_MAILER=array|log` MOVA arranca sano, SafeMailChannel descarta el
+     * envío en silencio y nadie recibe nada: por eso en producción es crítico.
+     *
+     * Alcance deliberado: solo mira configuración. No hace ninguna llamada de
+     * red, así que NO prueba que el refresh token de Gmail siga siendo válido
+     * (eso es un gate distinto: una comprobación humana antes de activar). Solo
+     * imprime NOMBRES de variables, nunca valores.
+     *
+     * `failover` se evalúa por hoja: que exista la cadena no implica que el
+     * respaldo pueda enviar. Un SMTP sin usuario/contraseña ni MAIL_URL solo
+     * daría una falsa sensación de redundancia.
+     *
+     * @return array{0: array<string,string>, 1: array<int, array{code:string,message:string}>}
+     */
+    private function mailReadiness(string $environment): array
+    {
+        $default = (string) config('mail.default');
+        $checks  = ['mail_mailer' => $default];
+
+        $definition = config("mail.mailers.{$default}");
+        if (! is_array($definition)) {
+            return [$checks, $environment === 'production' ? [[
+                'code'    => 'MAIL_MAILER_INVALID',
+                'message' => "MAIL_MAILER=\"{$default}\" no existe en config/mail.php: ningún correo saldrá.",
+            ]] : []];
+        }
+
+        // Hojas de la cadena: `failover`/`roundrobin` se expanden un nivel.
+        $chain = in_array($definition['transport'] ?? null, ['failover', 'roundrobin'], true)
+            ? array_values((array) ($definition['mailers'] ?? []))
+            : [$default];
+        if ($chain !== [$default]) {
+            $checks['mail_chain'] = implode(' → ', $chain);
+        }
+
+        $nonDelivering = ['array', 'log'];
+        $leaves = collect($chain)->map(function (string $name) use ($nonDelivering) {
+            $transport = config("mail.mailers.{$name}.transport");
+
+            return [
+                'name'       => $name,
+                'transport'  => $transport,
+                'delivering' => is_string($transport) && ! in_array($transport, $nonDelivering, true),
+                'missing'    => $this->missingMailConfig($name, (string) $transport),
+            ];
+        });
+
+        if ($environment !== 'production') {
+            return [$checks, []];
+        }
+
+        $warnings = [];
+        $usable   = $leaves->filter(fn ($l) => $l['delivering'] && $l['missing'] === []);
+
+        if ($leaves->every(fn ($l) => ! $l['delivering'])) {
+            $warnings[] = [
+                'code'    => 'MAIL_MAILER_NON_DELIVERING',
+                'message' => "El correo saliente usa MAIL_MAILER=\"{$default}\" en producción: no entrega nada. "
+                    .'Verificación de email, recuperación de contraseña y la constancia del Libro de Reclamaciones '
+                    .'no llegarán a nadie. Configura un mailer real (gmail_api o failover).',
+            ];
+        }
+
+        foreach ($leaves->filter(fn ($l) => $l['delivering'] && $l['missing'] !== []) as $leaf) {
+            $warnings[] = [
+                'code'    => $leaf['transport'] === 'gmail_api' ? 'MAIL_GMAIL_CONFIG_MISSING' : 'MAIL_TRANSPORT_CONFIG_MISSING',
+                'message' => "El mailer \"{$leaf['name']}\" está en uso pero le falta configuración: "
+                    .implode(', ', $leaf['missing']).'.',
+            ];
+        }
+
+        // `failover` sin ningún destino de respaldo capaz de enviar no es
+        // redundancia: es un solo camino con un segundo eslabón decorativo.
+        if (count($chain) > 1 && $usable->count() < 2 && $leaves->contains(fn ($l) => $l['delivering'])) {
+            $warnings[] = [
+                'code'    => 'MAIL_FAILOVER_NO_USABLE_FALLBACK',
+                'message' => 'El mailer compuesto ('.implode(' → ', $chain).') no tiene un segundo transporte '
+                    .'con configuración suficiente: no hay redundancia real de correo.',
+            ];
+        }
+
+        if ($usable->isNotEmpty() && $this->mailFromIsPlaceholder()) {
+            $warnings[] = [
+                'code'    => 'MAIL_FROM_ADDRESS_MISSING',
+                'message' => 'La dirección remitente (MAIL_FROM_ADDRESS / GMAIL_FROM_ADDRESS) falta o es el '
+                    .'valor de ejemplo: el proveedor rechazará los envíos.',
+            ];
+        }
+
+        return [$checks, $warnings];
+    }
+
+    /**
+     * Nombres de variable que faltan para que un mailer pueda enviar. Solo se
+     * validan los transportes que MOVA usa hoy (gmail_api, smtp); los demás
+     * transportes reales se dan por buenos: no se rechaza lo que no se conoce.
+     *
+     * @return list<string>
+     */
+    private function missingMailConfig(string $mailer, string $transport): array
+    {
+        if ($transport === 'gmail_api') {
+            return collect([
+                'GMAIL_CLIENT_ID'     => 'services.gmail.client_id',
+                'GMAIL_CLIENT_SECRET' => 'services.gmail.client_secret',
+                'GMAIL_REFRESH_TOKEN' => 'services.gmail.refresh_token',
+            ])->filter(fn ($key) => blank(config($key)))->keys()->all();
+        }
+
+        if ($transport === 'smtp') {
+            if (filled(config("mail.mailers.{$mailer}.url"))) {
+                return [];
+            }
+
+            return collect([
+                'MAIL_HOST'     => "mail.mailers.{$mailer}.host",
+                'MAIL_USERNAME' => "mail.mailers.{$mailer}.username",
+                'MAIL_PASSWORD' => "mail.mailers.{$mailer}.password",
+            ])->filter(fn ($key) => blank(config($key)))->keys()->all();
+        }
+
+        return [];
+    }
+
+    private function mailFromIsPlaceholder(): bool
+    {
+        $address = (string) config('mail.from.address');
+
+        return blank($address) || $address === 'hello@example.com';
     }
 
     /**
