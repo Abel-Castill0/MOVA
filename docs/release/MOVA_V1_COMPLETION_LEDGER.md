@@ -9,7 +9,13 @@ criterio lo exige, evidencia en vivo del entorno real).
 - Baseline: `master` @ `28fb28fe6a5b5b87e13b358ec1b1108860513c36`
 - Staging QA: MOVA 1.0 STAGING RELEASE QA PASS — imagen
   `sha256:e34f814c2ec11fe6bec55b8869f28d7f042cf90b51bba1a861654ba0fae5b28a`
-- Fase C1 (esta): rama `release/mova-v1-production-completion`
+- Fase C1: rama `release/mova-v1-production-completion` — **fusionada**. PR #3
+  (fusión normal) → `master` @ `d6bd462b06c8308d13c27016e7879976d2997111`;
+  HEAD de C1 `5a0abf2261eaaab60003b450049593ae39303189`. GitHub Actions sobre
+  el commit de fusión, ejecución `36653637812`: `frontend`, `composer`,
+  `sqlite`, `mysql` y `e2e` en `success`.
+- **Baseline de C2** = `master` @ `d6bd462b06c8308d13c27016e7879976d2997111`.
+  Fase C2.1 (esta): rama `release/mova-v1-c2-email`.
 
 ## Clases de evidencia y nombres de entorno
 
@@ -40,8 +46,11 @@ son configuración de staging y no constituyen prueba `PRODUCTION_LIVE`.
 `DIAGNOSTIC_AI_ENABLED=false`, `QUEUE_CONNECTION=database`,
 `CACHE_DRIVER=database`, `BROADCAST_DRIVER=null`. `CHATBOT_ENABLED` no figura
 como variable en ninguna de las tres apps; no se deduce su valor efectivo.
-Solo **presencia de nombres**, sin valores: `GMAIL_*` en los tres roles
-(credenciales por `secretRef`), `JAAS_*` en web/scheduler (clave por
+Solo **presencia de nombres**, sin valores: `GMAIL_CLIENT_ID`,
+`GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN` en web y worker (`secretRef`);
+`GMAIL_FROM_ADDRESS`/`GMAIL_FROM_NAME` (directas) en los tres roles — el
+scheduler **no** tiene las tres credenciales (corregido en C2.1; el inventario
+anterior decía «en los tres roles»). `JAAS_*` en web/scheduler (clave por
 `secretRef`), `CLOUDINARY_URL` en web (`secretRef`), `SENTRY_LARAVEL_DSN`
 en web/worker (`secretRef`), `MERCADOPAGO_*` de configuración/credenciales
 en web (credencial por `secretRef`). `GOOGLE_CLIENT_*`, `META_WHATSAPP_*` y
@@ -116,7 +125,7 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P1-REALTIME | P1 | Integraciones | BLOCKED_EXTERNAL |
 | C-P1-CLOUDINARY | P1 | Integraciones | IMPLEMENTED_NOT_VERIFIED |
 | C-P1-SENTRY | P1 | Operación | IMPLEMENTED_NOT_VERIFIED |
-| C-P2-CI-MOVI | P2 | CI | IMPLEMENTED_NOT_VERIFIED |
+| C-P2-CI-MOVI | P2 | CI | CLOSED |
 | C-P2-DOCS | P2 | Docs | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-COOKIE-TRUTH | P2 | Legal / UI | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-QA-PAYMENTS | P2 | QA | OPEN |
@@ -230,11 +239,11 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P2-CI-MOVI
 - **Severidad / dominio:** P2 · CI.
 - **Evidencia:** `.github/workflows/ci.yml` ejecuta `check:movi-availability` en la puerta frontend.
-- **Estado:** `IMPLEMENTED_NOT_VERIFIED`.
+- **Estado:** `CLOSED`.
 - **Criterio de cierre:** check local verde y corrida CI del commit remoto verde.
-- **Commit / tests:** `1f5588d`; `check:movi-availability` pasó localmente. El PR #3 existe (borrador, sin fusionar). Para el HEAD revisado `9b0aaeb616a38a535ebc324ff7e83566d675e2e3`, la ejecución de GitHub Actions `36648600938` pasó `frontend`, `composer`, `sqlite`, `mysql` y `e2e`. Ese resultado no cubre commits posteriores: el HEAD final de C1.2 requiere su propia corrida CI verde antes de fusionar.
-- **Evidencia en vivo:** CI remota verde solo para `9b0aaeb`; pendiente para el HEAD final de C1.2.
-- **Notas:** el PR #3 no se ha fusionado a master.
+- **Commit / tests:** `1f5588d`; `check:movi-availability` pasó localmente. PR #3 fusionado (HEAD de C1 `5a0abf2261eaaab60003b450049593ae39303189`; commit de fusión en master `d6bd462b06c8308d13c27016e7879976d2997111`).
+- **Evidencia en vivo:** GitHub Actions, ejecución `36653637812` sobre `d6bd462`: `frontend` (que ejecuta `npm run check:movi-availability`), `composer`, `sqlite`, `mysql` y `e2e` en `success`. Criterio de cierre cumplido; es CI de repositorio, no requiere evidencia PRODUCTION_LIVE.
+- **Notas:** las corridas previas `36648600938` (sobre `9b0aaeb`) quedan superadas por esta.
 
 ### C-P2-DOCS
 - **Severidad / dominio:** P2 · Documentación.
@@ -267,9 +276,9 @@ cierre · commit · tests · evidencia en vivo · notas.
 - **Evidencia `LIVE_STAGING`:** `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN` están presentes por `secretRef` en web/worker/scheduler; esto no prueba vigencia de credenciales. El runtime observado tiene `MAIL_MAILER=array` en los tres roles, por lo que no hay entrega externa de ese correo desde staging. `STATIC_IAC` coincide en `MAIL_MAILER=array`. La afirmación de Gmail en `MOVA_V1_STATE.md` es histórica. No se consultaron valores secretos ni se verificó entrega real. De este canal dependen verificación de email, recuperación de contraseña, copia del Libro de Reclamaciones y avisos de clase.
 - **Estado:** `BLOCKED_EXTERNAL`.
 - **Criterio de cierre:** en el entorno de producción definitivo, un registro real recibe el correo de verificación y un reclamo de prueba recibe su constancia; evidencia = ids de mensaje / capturas del buzón, sin exponer contenido personal.
-- **Commit / tests:** — (sin cambio de código en C1).
-- **Evidencia en vivo:** pendiente.
-- **Notas:** comprobar proveedor efectivo, validez de credenciales y límites sin mostrar secretos. Configuración presente, mailer activo y entrega real son tres gates distintos.
+- **Commit / tests:** C2.1: `mova:health-check` avisa (crítico, solo en producción) de `MAIL_MAILER=array|log`, mailer inexistente, configuración Gmail incompleta (solo nombres de variable), `failover` sin un segundo transporte capaz de enviar y remitente ausente/de ejemplo; `HealthCheckMailReadinessTest` 13 tests / 46 assertions (SQLite, PHP 8.3.33, `php_qa`); mutación verificada (8 de 13 fallan con el `HealthCheck` anterior). Es un chequeo de **configuración**: no hace red y no prueba validez de credenciales.
+- **Evidencia en vivo:** `LIVE_STAGING` (Azure CLI, solo lectura, C2.1): `MAIL_MAILER=array` directo en web/worker/scheduler. Web y worker: `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN` por `secretRef` y `GMAIL_FROM_ADDRESS/NAME` directas. Scheduler: solo `GMAIL_FROM_*`; sin credenciales Gmail (el IaC sí se las asignaría: deriva). Ningún rol define `MAIL_HOST/PORT/USERNAME/PASSWORD/URL` ni `MAIL_FROM_*`: SMTP **no** está configurado, así que `MAIL_MAILER=failover` hoy no daría redundancia real. `apps.bicepparam` (AZ-3G) registra que el refresh token dio `INVALID_GRANT` al validarlo en Railway: validez desconocida y probablemente vencida hasta re-autorizar. Entrega real: no verificada.
+- **Notas:** comprobar proveedor efectivo, validez de credenciales y límites sin mostrar secretos. Configuración presente, mailer activo y entrega real son tres gates distintos. Roles que envían: web (verificación y recuperación, notificaciones del framework, síncronas) y worker (todas las notificaciones de MOVA son `ShouldQueue`); el scheduler solo encola, pero ejecuta `mova:health-check --alert` cada hora con su propia configuración. La re-autorización de Gmail (`GmailAuthUrl`/`GmailExchangeCode`) es un paso humano previo a la activación.
 
 ### C-P0-CREDITS
 - **Severidad / dominio:** P0 · Dinero.
