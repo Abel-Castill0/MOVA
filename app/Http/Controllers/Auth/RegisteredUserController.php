@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\MailDeliveryException;
 use App\Http\Controllers\Controller;
 use App\Models\LegalAcceptance;
 use App\Models\Subject;
@@ -115,18 +116,35 @@ class RegisteredUserController extends Controller
             return $user;
         });
 
-        event(new Registered($user));
+        // La cuenta ya está confirmada: se autentica ANTES del evento para que
+        // un fallo del correo de verificación no deje al usuario creado, sin
+        // sesión y con un 500 (reintentar el registro chocaría con el email).
         Auth::login($user);
 
-        if ($request->role === 'parent') {
-            $user->notify(new WelcomeParentNotification());
-            $user->update(['welcome_notification_sent_at' => now()]);
-            return redirect()->route('students.create');
+        $verificationMailFailed = false;
+        try {
+            event(new Registered($user));
+        } catch (MailDeliveryException $e) {
+            // Solo el fallo de ENTREGA del correo se recupera; cualquier otra
+            // excepción de un listener sigue propagándose.
+            report($e);
+            $verificationMailFailed = true;
         }
 
-        $user->notify(new WelcomeTeacherNotification());
+        // El onboarding in-app (canal database) no depende del correo.
+        $welcome = $request->role === 'parent' ? new WelcomeParentNotification() : new WelcomeTeacherNotification();
+        $user->notify($welcome);
         $user->update(['welcome_notification_sent_at' => now()]);
 
-        return redirect()->route('teacher.setup');
+        if ($verificationMailFailed) {
+            return redirect()->route('verification.notice')->with(
+                'error',
+                'Tu cuenta fue creada, pero no pudimos enviar el correo de verificación. Intenta reenviarlo en unos momentos.'
+            );
+        }
+
+        return $request->role === 'parent'
+            ? redirect()->route('students.create')
+            : redirect()->route('teacher.setup');
     }
 }

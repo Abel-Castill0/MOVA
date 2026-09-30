@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\MailDeliveryException;
 use App\Models\Complaint;
 use App\Notifications\ComplaintFiledNotification;
 use App\Notifications\WelcomeEmailNotification;
@@ -63,8 +64,13 @@ class SafeMailChannelReliabilityTest extends TestCase
         try {
             $this->send(new MailOnlySync());
             $this->fail('El fallo de un correo solo-correo debe propagarse.');
-        } catch (RuntimeException $e) {
-            $this->assertSame('boom', $e->getMessage());
+        } catch (MailDeliveryException $e) {
+            // Mensaje fijo: sin destinatario ni texto del proveedor; la causa
+            // real queda disponible para diagnóstico.
+            $this->assertStringNotContainsString('secret-recipient', $e->getMessage());
+            $this->assertStringNotContainsString('boom', $e->getMessage());
+            $this->assertInstanceOf(RuntimeException::class, $e->getPrevious());
+            $this->assertSame('boom', $e->getPrevious()->getMessage());
         }
 
         Log::shouldHaveReceived('error')->withArgs(function ($message, $context) {
@@ -184,14 +190,13 @@ class SafeMailChannelReliabilityTest extends TestCase
         $this->assertInstanceOf(ShouldQueue::class, new WelcomeEmailNotification());
     }
 
-    public function test_password_reset_failure_reaches_the_caller_instead_of_looking_sent(): void
+    public function test_a_synchronous_mail_only_failure_reaches_the_caller_as_a_mail_delivery_exception(): void
     {
         $user = User::factory()->create();
-        $this->withoutExceptionHandling();
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(MailDeliveryException::class);
 
-        $this->post('/forgot-password', ['email' => $user->email]);
+        $user->sendEmailVerificationNotification();
     }
 }
 

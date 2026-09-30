@@ -2,6 +2,7 @@
 
 namespace App\Channels;
 
+use App\Exceptions\MailDeliveryException;
 use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
@@ -20,10 +21,11 @@ use Throwable;
  *  - SOLO CORREO (`via()` == ['mail']: constancia del Libro de Reclamaciones,
  *    bienvenida, verificación de email, recuperación de contraseña): no hay
  *    ningún otro canal que duplicar, y tragar el fallo dejaría el correo
- *    perdido para siempre con el job «exitoso». Aquí la excepción se RELANZA:
- *    en cola el job falla y usa los reintentos del worker (`--tries`,
- *    `--backoff`) hasta `failed_jobs`; en flujos síncronos el llamador recibe
- *    el error en vez de darlo por enviado.
+ *    perdido para siempre con el job «exitoso». Aquí se lanza
+ *    MailDeliveryException (con la causa real en `previous`): en cola el job
+ *    falla y usa los reintentos del worker (`--tries`, `--backoff`) hasta
+ *    `failed_jobs`; en flujos síncronos el llamador la recibe y decide cómo
+ *    recuperarse (registro, reenvío y recuperación de contraseña lo hacen).
  *
  * El conjunto de canales se lee de `$notification->via($notifiable)`, el mismo
  * método que usa NotificationSender. Laravel no pasa el contexto de canales a
@@ -79,10 +81,10 @@ class SafeMailChannel extends MailChannel
             ]);
 
             if ($mailOnly) {
-                // Se relanza SIN report(): quien la recibe (worker de cola o
-                // handler HTTP) ya la reporta a Sentry; reportarla aquí la
-                // duplicaría en cada intento.
-                throw $e;
+                // SIN report(): el worker de cola reporta lo que no se captura, y
+                // los controladores que se recuperan a propósito la reportan
+                // una vez; hacerlo aquí duplicaría el reporte en cada intento.
+                throw new MailDeliveryException($e);
             }
 
             // Multicanal: observable sin hacer fallar el job; los demás canales
