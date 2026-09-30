@@ -14,8 +14,12 @@ use Symfony\Component\HttpFoundation\Response;
  *
  *  - Intercepta navegaciones y mutaciones normales. Una petición POST directa
  *    no puede crear datos de un menor ni aceptar clases con términos vencidos.
- *    Conserva las consultas JSON y las operaciones de un checkout ya iniciado
- *    para no dejar un pago a medias.
+ *    Conserva las consultas JSON GET y tres rutas de un checkout que YA existe,
+ *    solo para no dejar un pago a medias: ver la pantalla (show), leer su estado
+ *    (status) y reconciliar un intento ya enviado (refresh). Ninguna de las tres
+ *    crea un intento de pago nuevo. `pay` NO está exento: puede crear un
+ *    PaymentOrder nuevo (primer intento o reintento tras failed/cancelled/
+ *    expired), así que exige la versión legal vigente como cualquier mutación.
  *  - Admins exentos: son el equipo de MOVA, no usuarios del servicio, y no
  *    se les debe bloquear la operación (incidentes, reclamos) por esto.
  *  - Las rutas de aceptación y las páginas legales viven FUERA del grupo que
@@ -38,7 +42,6 @@ class EnsureCurrentLegalAcceptance
             || $request->routeIs(
                 'teacher.credits.checkout.show',
                 'teacher.credits.checkout.status',
-                'teacher.credits.checkout.pay',
                 'teacher.credits.checkout.refresh',
             )) {
             return $next($request);

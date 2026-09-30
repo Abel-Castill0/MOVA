@@ -223,18 +223,18 @@ cierre · commit · tests · evidencia en vivo · notas.
 - **Evidencia:** `EnsureCurrentLegalAcceptance`, rutas y página de aceptación piden versiones vigentes en navegación y bloquean mutaciones normales con versiones vencidas; evidencia append-only y lock de usuario para doble envío.
 - **Estado:** `VERIFIED` (código local; smoke de reaceptación en entorno final pendiente).
 - **Criterio de cierre:** suite final verde, versiones efectivas verificadas en despliegue, aceptación de usuario QA antiguo y ausencia de bucles observadas en vivo.
-- **Commit / tests:** `8ea68fa`, `a68d58e`; `LegalReacceptanceTest` 13 tests / 48 assertions dirigido en SQLite; suites SQLite/MySQL completas y Playwright pasaron.
+- **Commit / tests:** `8ea68fa`, `a68d58e`, C1.2 (cierre de la excepción `pay`); `LegalReacceptanceTest` 17 tests / 68 assertions dirigido en SQLite (PHP 8.3.33, `php_qa`). Las suites SQLite/MySQL completas y Playwright de C1 pasaron sobre `9b0aaeb`/`d61d81c`; la matriz completa del HEAD C1.2 la ejecuta la CI remota de ese SHA.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** el middleware conserva GET JSON y operaciones de checkout ya iniciado (`show`, `status`, `pay`, `refresh`) para no cortar un pago; bloquea otros POST y JSON de mutación. Confirmar con asesoría si estas excepciones son aceptables. Los seeders solo deben crear aceptación para usuarios recién creados, nunca para usuarios existentes.
+- **Notas:** el middleware conserva GET JSON y tres rutas de un checkout que ya existe: `teacher.credits.checkout.show`, `.status` y `.refresh` (ver, leer estado y reconciliar un intento ya enviado; ninguna crea un intento nuevo). `teacher.credits.checkout.pay` **no** está exento: `createPaymentAttempt()` puede crear un `PaymentOrder` nuevo (primer intento o reintento tras `failed`/`cancelled`/`expired`), así que exige la versión legal vigente; `teacher.credits.checkout.store` tampoco lo está. El test verifica que con términos vencidos `pay` no crea `PaymentOrder` ni llama al proveedor, y que sí llega al proveedor tras aceptar. Confirmar con asesoría si las tres excepciones restantes son aceptables (C-P0-LEGAL-APPROVAL sigue `REQUIRES_OWNER_INPUT`). Los seeders solo deben crear aceptación para usuarios recién creados, nunca para usuarios existentes.
 
 ### C-P2-CI-MOVI
 - **Severidad / dominio:** P2 · CI.
 - **Evidencia:** `.github/workflows/ci.yml` ejecuta `check:movi-availability` en la puerta frontend.
 - **Estado:** `IMPLEMENTED_NOT_VERIFIED`.
 - **Criterio de cierre:** check local verde y corrida CI del commit remoto verde.
-- **Commit / tests:** `1f5588d`; `check:movi-availability` pasó localmente; corrida CI remota pendiente.
-- **Evidencia en vivo:** corrida CI remota pendiente.
-- **Notas:** no se creó PR ni se fusionó a master.
+- **Commit / tests:** `1f5588d`; `check:movi-availability` pasó localmente. El PR #3 existe (borrador, sin fusionar). Para el HEAD revisado `9b0aaeb616a38a535ebc324ff7e83566d675e2e3`, la ejecución de GitHub Actions `36648600938` pasó `frontend`, `composer`, `sqlite`, `mysql` y `e2e`. Ese resultado no cubre commits posteriores: el HEAD final de C1.2 requiere su propia corrida CI verde antes de fusionar.
+- **Evidencia en vivo:** CI remota verde solo para `9b0aaeb`; pendiente para el HEAD final de C1.2.
+- **Notas:** el PR #3 no se ha fusionado a master.
 
 ### C-P2-DOCS
 - **Severidad / dominio:** P2 · Documentación.
@@ -276,7 +276,7 @@ cierre · commit · tests · evidencia en vivo · notas.
 - **Evidencia `CODE` / `LIVE_STAGING`:** un profesor necesita créditos para aceptar una solicitud (`LessonSchedulingService`: `credits_available < creditsNeeded` → error). En staging, (1) bono de bienvenida depende de OTP y `WHATSAPP_ENABLED=false`; (2) recarga manual requiere destino de pago y aprobación admin con MFA; (3) checkout Mercado Pago tiene `PAYMENTS_ENABLED=false` y `PAYMENT_PROVIDER=fake`, aunque existen nombres de configuración/credenciales en web. El estado de estas fuentes en PUBLIC_APEX/PRODUCTION_LIVE no está demostrado.
 - **Estado:** `BLOCKED_EXTERNAL` (configuración de producción + decisión del titular sobre qué fuente habilitar al lanzar).
 - **Criterio de cierre:** al menos una fuente de créditos operativa en producción y probada extremo a extremo con evidencia de ledger (`credit_transactions`) — sin tocar datos reales de terceros.
-- **Commit / tests:** — ; SQLite/MySQL y build pasaron, entrega real de correo pendiente.
+- **Commit / tests:** — (sin cambio de código en C1 para este ID); SQLite/MySQL y build pasaron.
 - **Evidencia en vivo:** pendiente.
 - **Notas:** ninguna fuente de créditos se activó en C1.
 

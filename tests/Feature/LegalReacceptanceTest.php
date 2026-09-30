@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\LegalAcceptance;
+use App\Models\PaymentOrder;
+use App\Models\RechargeRequest;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -188,5 +192,109 @@ class LegalReacceptanceTest extends TestCase
 
         $this->assertFalse(LegalAcceptance::hasAcceptedCurrent($teacher));
         $this->assertSame(2, LegalAcceptance::where('user_id', $teacher->id)->count());
+    }
+
+    /**
+     * Profesor con una recarga de checkout ya creada y versión legal vencida.
+     * Pagos sintéticos: sin Mercado Pago real (Http::fake en cada test).
+     *
+     * @return array{0: User, 1: RechargeRequest}
+     */
+    private function staleTeacherWithCheckout(): array
+    {
+        config([
+            'payments.enabled' => true,
+            'payments.provider' => 'mercadopago',
+            'payments.mercadopago.base_url' => 'https://api.mercadopago.com',
+            'payments.mercadopago.access_token' => 'legal-test-placeholder-000',
+            'payments.mercadopago.public_key' => 'TEST-legal-public-key',
+            'payments.mercadopago.application_id' => '6583217782927097',
+            'payments.mercadopago.expected_collector_id' => '123456789',
+            'payments.mercadopago.expected_live_mode' => 'false',
+            'payments.mercadopago.webhooks_enabled' => false,
+        ]);
+
+        $teacher = User::factory()->create();
+        $teacher->assignRole('teacher');
+        $profile = TeacherProfile::create([
+            'user_id' => $teacher->id,
+            'is_verified' => true,
+            'credits_available' => 0,
+            'credits_reserved' => 0,
+        ]);
+        $recharge = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id,
+            'package_code' => 'inicio',
+            'package_name' => 'Inicio',
+            'credits' => 5,
+            'amount_pen' => '10.00',
+            'payment_method' => 'mercadopago',
+            'status' => 'pending',
+        ]);
+
+        config(['legal.versions.terms' => 'T-2']); // vence la aceptación del profesor
+
+        return [$teacher, $recharge];
+    }
+
+    public function test_stale_terms_cannot_start_a_payment_attempt_through_checkout_pay(): void
+    {
+        Http::fake();
+        [$teacher, $recharge] = $this->staleTeacherWithCheckout();
+        $payload = ['payment_method' => 'yape', 'token' => 'yape-token-abc'];
+
+        // Navegación normal: se le obliga a aceptar, sin ejecutar el pago.
+        $this->actingAs($teacher)->post(route('teacher.credits.checkout.pay', $recharge), $payload)
+            ->assertRedirect(route('legal.accept'));
+        // Mutación JSON: 409, misma regla que cualquier otra mutación.
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), $payload)
+            ->assertStatus(409);
+
+        $this->assertSame(0, PaymentOrder::count(), 'Un bloqueo legal no debe crear ningún intento de pago.');
+        Http::assertNothingSent();
+    }
+
+    public function test_checkout_pay_reaches_the_provider_only_after_accepting_current_terms(): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+            'id' => 555, 'status' => 'in_process', 'status_detail' => 'pending_contingency',
+        ], 201)]);
+        [$teacher, $recharge] = $this->staleTeacherWithCheckout();
+        $payload = ['payment_method' => 'yape', 'token' => 'yape-token-abc'];
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), $payload)->assertStatus(409);
+        $this->assertSame(0, PaymentOrder::count());
+
+        $this->actingAs($teacher)->post(route('legal.accept.store'), ['accepted' => '1'])->assertSessionHasNoErrors();
+
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.pay', $recharge), $payload)->assertOk();
+        $this->assertSame(1, PaymentOrder::count(), 'La frontera es la aceptación legal, no otra regla.');
+    }
+
+    public function test_stale_terms_can_still_view_read_and_reconcile_an_existing_checkout(): void
+    {
+        Http::fake();
+        [$teacher, $recharge] = $this->staleTeacherWithCheckout();
+
+        $this->actingAs($teacher)->get(route('teacher.credits.checkout.show', $recharge))->assertOk();
+        $this->actingAs($teacher)->getJson(route('teacher.credits.checkout.status', $recharge))
+            ->assertOk()->assertJsonPath('status', 'idle');
+        $this->actingAs($teacher)->postJson(route('teacher.credits.checkout.refresh', $recharge))
+            ->assertOk()->assertJsonPath('status', 'idle');
+
+        // Ninguna de las tres rutas exentas crea un intento ni llama al proveedor.
+        $this->assertSame(0, PaymentOrder::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_stale_terms_still_cannot_create_a_new_checkout_recharge(): void
+    {
+        Http::fake();
+        [$teacher] = $this->staleTeacherWithCheckout();
+
+        $this->actingAs($teacher)->post(route('teacher.credits.checkout.store'), ['package_code' => 'inicio'])
+            ->assertRedirect(route('legal.accept'));
+
+        $this->assertSame(1, RechargeRequest::count(), 'No se crea una recarga nueva con términos vencidos.');
     }
 }
