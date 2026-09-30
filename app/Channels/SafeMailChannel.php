@@ -2,20 +2,35 @@
 
 namespace App\Channels;
 
+use App\Exceptions\MailDeliveryException;
 use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Una sola responsabilidad: **un fallo de correo no debe tumbar la
- * notificación entera**.
+ * Una sola responsabilidad: **decidir qué hace un fallo de correo según los
+ * canales de la notificación**.
  *
- * Una Notification de MOVA suele viajar por varios canales a la vez (database,
- * broadcast, mail, WhatsApp). Si el canal `mail` propagara su excepción, el job
- * fallaría y se reintentaría hasta 3 veces, reenviando TAMBIÉN los canales que
- * ya habían salido bien: el usuario recibiría la misma notificación in-app y el
- * mismo WhatsApp tres veces por un problema que solo afectaba al correo.
+ *  - MULTICANAL (database, broadcast, mail, WhatsApp...): un fallo de correo NO
+ *    debe tumbar la notificación. Si el canal `mail` propagara su excepción, el
+ *    job se reintentaría y reenviaría TAMBIÉN los canales que ya habían salido
+ *    bien (la misma notificación in-app o el mismo WhatsApp varias veces por un
+ *    problema que solo afectaba al correo). Se registra, se reporta y se sigue.
+ *
+ *  - SOLO CORREO (`via()` == ['mail']: constancia del Libro de Reclamaciones,
+ *    bienvenida, verificación de email, recuperación de contraseña): no hay
+ *    ningún otro canal que duplicar, y tragar el fallo dejaría el correo
+ *    perdido para siempre con el job «exitoso». Aquí se lanza
+ *    MailDeliveryException (con la causa real en `previous`): en cola el job
+ *    falla y usa los reintentos del worker (`--tries`, `--backoff`) hasta
+ *    `failed_jobs`; en flujos síncronos el llamador la recibe y decide cómo
+ *    recuperarse (registro, reenvío y recuperación de contraseña lo hacen).
+ *
+ * El conjunto de canales se lee de `$notification->via($notifiable)`, el mismo
+ * método que usa NotificationSender. Laravel no pasa el contexto de canales a
+ * MailChannel, así que se llama una vez, solo en el camino de fallo (los `via()`
+ * de MOVA son funciones puras de atributos del notifiable).
  *
  * H-05 — QUÉ SE QUITÓ DE AQUÍ Y POR QUÉ:
  *
@@ -54,15 +69,46 @@ class SafeMailChannel extends MailChannel
         try {
             return parent::send($notifiable, $notification);
         } catch (Throwable $e) {
+            $mailOnly = $this->isMailOnly($notifiable, $notification);
+
+            // Sin dirección de destino ni mensaje de la excepción (los
+            // transportes pueden incluir el destinatario): solo la clase.
             Log::error('[Mail] No se pudo enviar el correo de la notificación.', [
                 'notification' => class_basename($notification),
                 'mailer' => $mailer,
-                'error' => $e->getMessage(),
+                'exception' => $e::class,
+                'mail_only' => $mailOnly,
             ]);
 
-            // Observable sin hacer fallar el job: los demás canales de esta
-            // notificación ya salieron y no deben reenviarse.
+            if ($mailOnly) {
+                // SIN report(): el worker de cola reporta lo que no se captura, y
+                // los controladores que se recuperan a propósito la reportan
+                // una vez; hacerlo aquí duplicaría el reporte en cada intento.
+                throw new MailDeliveryException($e);
+            }
+
+            // Multicanal: observable sin hacer fallar el job; los demás canales
+            // ya salieron y no deben reenviarse.
             report($e);
         }
+    }
+
+    /**
+     * ¿Es el correo el ÚNICO canal de esta notificación? Ante cualquier duda
+     * (via() lanza o devuelve algo raro) se asume multicanal: es la opción que
+     * jamás duplica canales ya entregados.
+     */
+    private function isMailOnly(mixed $notifiable, Notification $notification): bool
+    {
+        try {
+            $channels = array_unique(array_map(
+                fn ($channel) => is_string($channel) ? $channel : (is_object($channel) ? $channel::class : ''),
+                array_values((array) $notification->via($notifiable))
+            ));
+        } catch (Throwable) {
+            return false;
+        }
+
+        return $channels === ['mail'];
     }
 }

@@ -333,6 +333,9 @@ class SchedulerConfigurationTest extends TestCase
             'credits.settlement_mode' => SettlementMode::LIVE,
             // Aislar también de los avisos de producción P0-J/P0-K.
             'legal.provider.business_name' => 'X', 'legal.provider.ruc' => '1', 'legal.provider.address' => 'X',
+            // ...y del aviso C-P0-EMAIL: un mailer real con configuración sintética.
+            'mail.default' => 'gmail_api', 'mail.from.address' => 'no-reply@mova.test',
+            'services.gmail.client_id' => 'x', 'services.gmail.client_secret' => 'x', 'services.gmail.refresh_token' => 'x',
         ]);
         \App\Support\Heartbeat::beat(\App\Support\Heartbeat::WORKER);
         \App\Support\Heartbeat::beat(\App\Support\Heartbeat::SCHEDULER);

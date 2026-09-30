@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\MailDeliveryException;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,9 +37,17 @@ class PasswordResetLinkController extends Controller
         // We will send the password reset link to this user. Once we have attempted
         // to send the link, we will examine the response then see the message we
         // need to show to the user. Finally, we'll send out a proper response.
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        try {
+            $status = Password::sendResetLink(
+                $request->only('email')
+            );
+        } catch (MailDeliveryException $e) {
+            report($e);
+
+            throw ValidationException::withMessages([
+                'email' => ['No pudimos enviar el correo en este momento. Inténtalo de nuevo en unos minutos.'],
+            ]);
+        }
 
         if ($status == Password::RESET_LINK_SENT) {
             return back()->with('status', __($status));

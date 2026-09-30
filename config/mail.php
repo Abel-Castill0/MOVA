@@ -108,9 +108,11 @@ return [
          * el anterior LANZA. Un envío exitoso nunca continúa la cadena, así que
          * el doble envío es imposible por construcción.
          *
-         * Para activarlo: MAIL_MAILER=failover. Con MAIL_MAILER=gmail_api (lo
-         * que hay hoy en producción) no hay respaldo, que es también una
-         * decisión válida y explícita.
+         * Para activarlo: MAIL_MAILER=failover, con SMTP realmente configurado
+         * (MAIL_HOST/MAIL_USERNAME/MAIL_PASSWORD o MAIL_URL). Con
+         * MAIL_MAILER=gmail_api no hay respaldo, que es también una decisión
+         * válida y explícita. `mova:health-check` avisa si el respaldo no puede
+         * enviar.
          */
         'failover' => [
             'transport' => 'failover',
