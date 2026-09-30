@@ -53,14 +53,17 @@ fi
 # también descartaba resources/views/vendor/mail (plantillas de correo
 # publicadas) y el QA divergía del checkout real. --anchored + "./vendor"
 # excluye únicamente ./vendor; el resto de patrones sigue sin anclar.
+# storage/logs contiene archivos vivos de PHPUnit y no forma parte del
+# snapshot de código; copiarlo puede hacer fallar tar si cambia al leerlo.
 tar -C /workspace \
     --exclude=.git \
     --exclude=node_modules \
     --exclude=qa/node_modules \
     --exclude=bootstrap/cache \
+    --exclude=storage/logs \
     --anchored --exclude=./vendor --no-anchored \
     -cf - . | tar -C /app -xf -
-mkdir -p /app/bootstrap/cache
+mkdir -p /app/bootstrap/cache /app/storage/logs
 
 # Fidelidad de la copia: todo directorio "vendor" anidado del snapshot debe
 # existir también en /app.

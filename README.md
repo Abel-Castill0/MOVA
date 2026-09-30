@@ -1,22 +1,24 @@
 # MOVA - Plataforma de clases particulares en línea
 
-MOVA conecta familias con profesores particulares para clases en vivo por videollamada. Los padres registran alumnos, buscan profesores en el marketplace, solicitan clases y reciben confirmaciones mediante los canales configurados por entorno.
+MOVA conecta familias con profesores particulares para clases en vivo por videollamada. Los padres registran alumnos y crean solicitudes de clase (abiertas a los profesores verificados de la materia, o dirigidas a un profesor con su código); el profesor acepta o propone otro horario usando créditos MOVA.
 
 ## Stack Tecnológico
 
 | Capa | Tecnología |
 |---|---|
-| Backend | PHP 8.1+ · Laravel 10 |
+| Backend | PHP 8.3+ · Laravel 13 |
 | Frontend | Vue 3 · Inertia.js |
 | Estilos | Tailwind CSS |
 | Bundler | Vite 5 |
-| Base de datos | MySQL |
+| Base de datos | MySQL 8.4 (Azure Database for MySQL – Flexible Server) |
 | Autenticación | Laravel Breeze |
 | Roles | Spatie Laravel Permission |
-| Videollamadas | Zoom API, según variables de entorno |
-| Email | Proveedor definido por entorno |
+| Videollamadas | JaaS (8x8 / Jitsi) con JWT por sala |
+| Email | Proveedor según `MAIL_MAILER`; Gmail API documentada para la producción actual, Azure staging usa `array` |
+| Pagos de créditos | Mercado Pago (proveedor automático previsto, apagado por flags) + recarga manual revisada |
 | Cola | Laravel Queue |
-| Producción | Railway |
+| Producción actual | Railway hasta el cutover de dominio |
+| Destino de producción | Azure Container Apps + Azure MySQL (`infra/azure`) |
 
 ## Rama De Producción
 
@@ -55,7 +57,9 @@ La suite Laravel segura debe usar SQLite en memoria. `phpunit.xml` fuerza:
 - `SESSION_DRIVER=array`
 - `QUEUE_CONNECTION=sync`
 - `MAIL_MAILER=array`
-- IA, WhatsApp, Zoom, Gmail API, OpenAI, Gemini y Sentry desactivados o sin credenciales en testing.
+- IA, WhatsApp, JaaS, Gmail API, OpenAI, Gemini, Mercado Pago y Sentry desactivados o sin credenciales en testing.
+
+Con PHP local < 8.3, correr PHPUnit dentro de `php_qa` (`docker-compose.qa.yml`); ver `docs/release/MOVA_V1_STATE.md`.
 
 Comandos disponibles:
 
@@ -70,11 +74,15 @@ npm run qa:production-readonly
 
 `npm run qa:frontend` ejecuta build y solo corre Playwright si `PLAYWRIGHT_BASE_URL` apunta a un servidor local.
 
-`npm run qa:production-readonly` consulta endpoints públicos con GET. No envía formularios ni modifica datos.
+`npm run qa:production-readonly` consulta endpoints públicos con GET contra `MOVA_PRODUCTION_URL` (obligatoria). No envía formularios ni modifica datos.
 
-## Railway
+## Infraestructura
 
-El repositorio tiene configuración Railway:
+Destino de producción: **Azure Container Apps + Azure Database for MySQL**, modelado en `infra/azure` (ver su README). Estado de lanzamiento y gates pendientes: `docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
+
+### Railway (producción actual / rollback)
+
+Railway sigue como producción actual y rollback hasta el cutover de dominio (C-P1-DOMAIN-CUTOVER). El repositorio mantiene su configuración:
 
 - `railway.toml`: servicio web principal.
 - `railway.queue.toml`: worker de cola.

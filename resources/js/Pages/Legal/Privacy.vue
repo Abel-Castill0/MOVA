@@ -9,7 +9,7 @@
       <div class="relative max-w-3xl mx-auto px-4 sm:px-6 text-white">
         <span class="inline-block px-3 py-1 bg-white/10 border border-white/20 rounded-full text-xs font-semibold uppercase tracking-widest mb-4">Legal</span>
         <h1 class="text-4xl sm:text-5xl font-black mb-3">Política de Privacidad</h1>
-        <p class="text-white/70">Última actualización: 26 de julio de 2026</p>
+        <p class="text-white/70">Versión vigente: {{ version }}</p>
       </div>
     </section>
 
@@ -18,88 +18,110 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">1. Responsable del tratamiento</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA es la plataforma responsable del tratamiento de los datos personales que recopila a través de este sitio. Para cualquier consulta, solicitud o ejercicio de derechos relacionados con tus datos personales o los de tus hijos, puedes escribirnos a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA es la plataforma responsable del tratamiento de los datos personales que recopila a través de este sitio.</p>
+          <ul class="list-none space-y-1 mt-2 text-slate-600 text-sm">
+            <li>Razón social: <strong class="text-slate-800">{{ provider.business_name || 'Pendiente de publicación' }}</strong></li>
+            <li>RUC: <strong class="text-slate-800">{{ provider.ruc || 'Pendiente de publicación' }}</strong></li>
+            <li>Domicilio: <strong class="text-slate-800">{{ provider.address || 'Pendiente de publicación' }}</strong></li>
+            <li>Contacto: <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a></li>
+          </ul>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">2. Datos que recopilamos</h2>
-          <p class="text-slate-600 leading-relaxed">Para operar el servicio, MOVA recopila:</p>
           <ul class="list-disc pl-5 space-y-1.5 mt-2 text-slate-600">
-            <li><strong class="text-slate-800">Datos de registro:</strong> nombre, email, número de teléfono (opcional), rol (padre o profesor), foto de perfil (opcional, principalmente para profesores).</li>
-            <li><strong class="text-slate-800">Datos del estudiante (menor de edad):</strong> nombre, edad, grado o nivel escolar, materias de interés. Solo accede el padre/apoderado que lo registra y el profesor que acepta la solicitud de clase.</li>
-            <li><strong class="text-slate-800">Datos de uso:</strong> clases solicitadas, diagnósticos académicos, reportes de clase, reseñas.</li>
-            <li><strong class="text-slate-800">Datos técnicos:</strong> dirección IP, tipo de dispositivo, logs de errores (sin contenido personal).</li>
+            <li><strong class="text-slate-800">Cuenta:</strong> nombre, correo electrónico, contraseña (guardada cifrada), rol (padre/apoderado o profesor), número de celular (opcional) y foto de perfil (opcional). Si inicias sesión con Google, recibimos de Google tu nombre y tu correo verificado.</li>
+            <li><strong class="text-slate-800">Perfil de profesor:</strong> biografía, materias que enseña, cupos de mentoría, código de profesor y, si decide registrarlos, sus números de Yape o Plin.</li>
+            <li><strong class="text-slate-800">Datos del alumno (menor de edad):</strong> nombre, apellidos, nivel educativo y, si el padre o apoderado los ingresa, fecha de nacimiento y centro educativo.</li>
+            <li><strong class="text-slate-800">Solicitudes y clases:</strong> materia, descripción de la necesidad académica, horarios preferidos, diagnósticos académicos, clases agendadas, cancelaciones y reprogramaciones, reportes de aprendizaje y reseñas.</li>
+            <li><strong class="text-slate-800">Evidencia de aceptación y consentimiento:</strong> versión aceptada de estos documentos y de la autorización para cada alumno, con fecha, dirección IP y navegador.</li>
+            <li><strong class="text-slate-800">Créditos del profesor:</strong> ver sección 8.</li>
+            <li><strong class="text-slate-800">Libro de Reclamaciones:</strong> nombre, documento de identidad, domicilio, teléfono, correo y el detalle del reclamo o queja.</li>
+            <li><strong class="text-slate-800">Datos técnicos:</strong> dirección IP, navegador y registros técnicos de errores y seguridad.</li>
           </ul>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">3. Para qué usamos tus datos</h2>
           <ul class="list-disc pl-5 space-y-1.5 text-slate-600">
-            <li>Conectar familias con profesores compatibles según el perfil académico del estudiante.</li>
-            <li>Enviar notificaciones de clases por email y notificaciones dentro de la plataforma.</li>
-            <li>Enviar mensajes de WhatsApp si proporcionaste un número verificado y el servicio está disponible.</li>
-            <li>Mejorar la plataforma con datos agregados y anonimizados.</li>
+            <li>Gestionar tu cuenta y conectar familias con profesores según la materia y el nivel del alumno.</li>
+            <li>Agendar y realizar las clases por videollamada, y registrar reportes y reseñas.</li>
+            <li>Administrar los créditos que los profesores usan para aceptar solicitudes.</li>
+            <li>Enviarte avisos por correo y dentro de la plataforma, y por WhatsApp solo si lo autorizas y el servicio está habilitado.</li>
+            <li>Atender reclamos, solicitudes de derechos y soporte, y proteger la seguridad de la plataforma.</li>
             <li>Cumplir obligaciones legales.</li>
           </ul>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">4. Datos de menores de edad</h2>
-          <p class="text-slate-600 leading-relaxed">Los datos de estudiantes menores de edad (nombre, edad, grado escolar) son ingresados y gestionados por el padre o apoderado registrado, quien otorga el <strong class="text-slate-800">consentimiento explícito</strong> para su tratamiento conforme a la Ley N° 29733, Ley de Protección de Datos Personales, y su reglamento. El alumno nunca crea ni administra su propia cuenta. MOVA no recopila datos de menores directamente ni los usa para publicidad. El padre es responsable de la exactitud y autorización de dichos datos. El profesor solo accede al nombre del estudiante y a la descripción del problema académico <strong class="text-slate-800">después de aceptar una solicitud de clase</strong>.</p>
+          <p class="text-slate-600 leading-relaxed">El alumno nunca crea ni administra una cuenta: sus datos los ingresa y gestiona el padre o apoderado registrado. Al registrar a cada alumno, el padre o apoderado marca una autorización específica para ese alumno, y MOVA guarda la fecha, la versión de esta política y los datos técnicos de ese acto. MOVA no usa los datos de menores para publicidad.</p>
+          <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Qué ve un profesor antes de tener una clase agendada:</strong> los profesores verificados que pueden atender la solicitud (los de esa materia o, si se usó su código, solo ese profesor) ven el nombre de pila del alumno, su nivel educativo, la materia, la descripción de la necesidad académica y los horarios preferidos.</p>
+          <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Cuando la clase ya está agendada,</strong> el profesor asignado ve además el apellido del alumno. MOVA no comparte con ningún profesor la fecha de nacimiento, el centro educativo ni el correo o teléfono del padre o apoderado.</p>
         </section>
 
         <section>
-          <h2 class="text-lg font-black text-slate-900 mb-2">5. Uso de inteligencia artificial</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA utiliza <strong class="text-slate-800">Google Gemini</strong> para enriquecer el diagnóstico pedagógico: analiza la descripción de la dificultad académica del alumno para sugerir un mejor enfoque de clase y ayudar a emparejar al padre con profesores adecuados. Solo se envían datos académicos anónimos (descripción de la dificultad, materia, nivel educativo) — nunca se envía nombre, email, teléfono ni identificadores del alumno o la familia. <strong class="text-slate-800">Ninguna decisión se toma de forma automatizada sin supervisión humana:</strong> la IA enriquece la información, pero no decide de forma autónoma qué profesor se recomienda ni aprueba o rechaza solicitudes.</p>
+          <h2 class="text-lg font-black text-slate-900 mb-2">5. Inteligencia artificial</h2>
+          <p class="text-slate-600 leading-relaxed">Actualmente MOVA <strong class="text-slate-800">no envía datos a servicios de inteligencia artificial</strong>. La plataforma incluye dos funciones opcionales que están desactivadas: el asistente Movi y el enriquecimiento automático del diagnóstico académico. Antes de activar cualquiera de ellas publicaremos una nueva versión de esta política que indique el proveedor y los datos que se envían, y te pediremos aceptarla.</p>
         </section>
 
         <section>
-          <h2 class="text-lg font-black text-slate-900 mb-2">6. Reseñas verificadas</h2>
-          <p class="text-slate-600 leading-relaxed">Las reseñas que los padres dejan sobre los profesores son anónimas: no se muestra el nombre del padre ni del alumno en el perfil público del profesor. Las reseñas quedan vinculadas internamente al padre y la clase para fines de verificación y moderación.</p>
+          <h2 class="text-lg font-black text-slate-900 mb-2">6. Reseñas</h2>
+          <p class="text-slate-600 leading-relaxed">Las reseñas que los padres dejan sobre los profesores se muestran sin el nombre del padre ni del alumno. Quedan vinculadas internamente al padre y a la clase para fines de verificación y moderación.</p>
         </section>
 
         <section>
-          <h2 class="text-lg font-black text-slate-900 mb-2">7. Compartición de datos con terceros</h2>
-          <p class="text-slate-600 leading-relaxed">No vendemos tus datos personales. Los compartimos únicamente, y en la medida necesaria, con:</p>
+          <h2 class="text-lg font-black text-slate-900 mb-2">7. Proveedores y transferencia internacional</h2>
+          <p class="text-slate-600 leading-relaxed">No vendemos tus datos personales. Los compartimos solo en la medida necesaria con estos proveedores, cada uno únicamente cuando la función correspondiente está activa:</p>
           <ul class="list-disc pl-5 space-y-1.5 mt-2 text-slate-600">
-            <li><strong class="text-slate-800">Gmail</strong> — envío de correos transaccionales y notificaciones.</li>
-            <li><strong class="text-slate-800">Meta (WhatsApp Business Cloud API)</strong> — envío de códigos de verificación y notificaciones por WhatsApp, si el servicio está disponible. Recibe el número de teléfono del destinatario y el contenido del mensaje.</li>
-            <li><strong class="text-slate-800">JaaS (8x8)</strong> — videollamadas de clase. El acceso a cada sala se genera mediante un token JWT único, temporal y firmado por MOVA; nadie fuera del padre y el profesor de esa clase puede unirse.</li>
-            <li><strong class="text-slate-800">Railway</strong> — alojamiento (hosting) de la aplicación.</li>
-            <li><strong class="text-slate-800">Google Gemini</strong> — enriquecimiento opcional del diagnóstico pedagógico (ver sección 5).</li>
-            <li>Cuando la ley peruana o una resolución judicial lo exija.</li>
+            <li><strong class="text-slate-800">Microsoft Azure</strong> — alojamiento de la aplicación y de la base de datos (región México).</li>
+            <li><strong class="text-slate-800">Google</strong> — envío de correos (Gmail) e inicio de sesión con Google, si lo eliges.</li>
+            <li><strong class="text-slate-800">8x8 (JaaS)</strong> — videollamadas de clase. El acceso a cada sala usa un token temporal emitido por MOVA solo para el profesor y la familia de esa clase.</li>
+            <li><strong class="text-slate-800">Cloudinary</strong> — almacenamiento de fotos de perfil.</li>
+            <li><strong class="text-slate-800">Mercado Pago</strong> — pago en línea de créditos de profesores (ver sección 8).</li>
+            <li><strong class="text-slate-800">Meta (WhatsApp Business)</strong> — códigos de verificación y avisos por WhatsApp, cuando ese servicio esté habilitado. Recibe el número y el contenido del mensaje.</li>
+            <li><strong class="text-slate-800">Pusher</strong> — avisos en tiempo real dentro de la plataforma.</li>
+            <li><strong class="text-slate-800">Sentry</strong> — registro de errores técnicos, configurado para no adjuntar datos de identificación del usuario (como su IP o su sesión).</li>
+            <li>Autoridades, cuando la ley peruana o una resolución judicial lo exija.</li>
           </ul>
-          <p class="text-sm text-slate-400 mt-3 leading-relaxed">MOVA no utiliza actualmente Meta Pixel, Google Analytics ni ninguna otra herramienta de analítica publicitaria o de rastreo de terceros. Si en el futuro se integra alguna, esta sección se actualizará antes de activarla.</p>
+          <p class="text-slate-600 leading-relaxed mt-3">Estos proveedores y los servidores de MOVA se encuentran fuera del Perú, por lo que el uso de MOVA implica una transferencia internacional de tus datos para las finalidades descritas.</p>
+          <p class="text-sm text-slate-500 mt-3 leading-relaxed">MOVA no usa Meta Pixel, Google Analytics ni otras herramientas de analítica o publicidad de terceros. Si alguna vez se integra una, esta política se actualizará antes de activarla.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">8. Pagos</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA <strong class="text-slate-800">no procesa ni almacena datos de pago o bancarios</strong>. Los pagos por las clases se coordinan y realizan directamente entre el padre y el profesor a través de medios externos (Yape, Plin u otros que acuerden entre ellos). MOVA no interviene en esa transacción ni tiene acceso a los datos financieros de ninguna de las partes.</p>
+          <p class="text-slate-600 leading-relaxed"><strong class="text-slate-800">Pago de las clases:</strong> se coordina y realiza directamente entre el padre y el profesor por medios externos (Yape, Plin u otros). MOVA no interviene en ese pago. Si el profesor registró su número de Yape o Plin, MOVA lo muestra a las familias que tienen clases con él.</p>
+          <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Créditos del profesor:</strong> cuando un profesor recarga créditos, MOVA registra el paquete, el monto, el estado y las fechas de la operación. En una recarga manual guarda además el medio de pago y el número de operación que el profesor informa. En un pago en línea con Mercado Pago, MOVA envía a Mercado Pago el correo del profesor, un identificador del medio de pago generado por Mercado Pago y, si se paga con tarjeta, el documento de identidad del titular; y guarda los identificadores y el estado de la operación. MOVA no recibe ni guarda el número completo de la tarjeta, su código de seguridad ni el código de aprobación de Yape.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">9. Seguridad</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA usa HTTPS en todas las comunicaciones, contraseñas encriptadas con bcrypt, sesiones seguras y protección CSRF.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA usa HTTPS, contraseñas cifradas con bcrypt, sesiones seguras, protección CSRF, controles de acceso por rol y verificación en dos pasos obligatoria para el equipo administrador.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">10. Tus derechos (ARCO)</h2>
-          <p class="text-slate-600 leading-relaxed">Conforme a la Ley N° 29733, puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición (derechos ARCO) sobre tus datos personales y los de tus hijos, escribiéndonos a <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a>. Responderemos en un plazo máximo de 15 días hábiles.</p>
+          <p class="text-slate-600 leading-relaxed">Conforme a la Ley N° 29733, puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición sobre tus datos y los de tus hijos escribiéndonos a <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a>. Responderemos en un plazo máximo de 15 días hábiles.</p>
         </section>
 
         <section>
-          <h2 class="text-lg font-black text-slate-900 mb-2">11. Retención de datos</h2>
-          <p class="text-slate-600 leading-relaxed">Conservamos tus datos mientras tu cuenta esté activa o sea necesario para la operación del servicio. Puedes solicitar la eliminación de tu cuenta contactándonos directamente.</p>
+          <h2 class="text-lg font-black text-slate-900 mb-2">11. Conservación y eliminación</h2>
+          <p class="text-slate-600 leading-relaxed">Conservamos tus datos mientras tu cuenta esté activa. Puedes eliminar tu cuenta desde tu perfil. Si la cuenta tiene historial de clases o de créditos, en lugar de borrarse se anonimiza: se eliminan tu nombre, correo, teléfono y foto, y se conservan solo los registros necesarios para la integridad de ese historial. Las hojas del Libro de Reclamaciones se conservan aunque elimines tu cuenta.</p>
         </section>
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">12. Cookies y almacenamiento local</h2>
-          <p class="text-slate-600 leading-relaxed">MOVA usa solo cookies de sesión y almacenamiento local necesarios para el funcionamiento del sistema (mantener tu sesión iniciada, recordar preferencias de la interfaz). No usamos cookies de rastreo ni publicidad.</p>
+          <p class="text-slate-600 leading-relaxed">MOVA solo usa lo necesario para funcionar: una cookie de sesión y una cookie de seguridad contra falsificación de solicitudes (CSRF), y almacenamiento local del navegador para recordar que cerraste el aviso de cookies y tus preferencias de interfaz. No usamos cookies de publicidad ni de analítica. Cuando usas la videollamada (8x8) o el pago en línea (Mercado Pago), esos servicios pueden usar sus propias cookies o almacenamiento para funcionar y prevenir fraude.</p>
         </section>
 
         <section>
-          <h2 class="text-lg font-black text-slate-900 mb-2">13. Contacto</h2>
-          <p class="text-slate-600 leading-relaxed">Para consultas sobre privacidad o para ejercer tus derechos, escríbenos a: <a href="mailto:m0v4class@gmail.com" class="text-brand-600 hover:underline font-medium">m0v4class@gmail.com</a></p>
+          <h2 class="text-lg font-black text-slate-900 mb-2">13. Cambios en esta política</h2>
+          <p class="text-slate-600 leading-relaxed">La versión vigente se indica al inicio de esta página. Si la cambiamos de forma relevante, te pediremos aceptar la nueva versión la próxima vez que ingreses a tu cuenta; las versiones que aceptaste antes quedan registradas.</p>
+        </section>
+
+        <section>
+          <h2 class="text-lg font-black text-slate-900 mb-2">14. Contacto</h2>
+          <p class="text-slate-600 leading-relaxed">Para consultas sobre privacidad o para ejercer tus derechos, escríbenos a: <a :href="`mailto:${$page.props.support.email}`" class="text-brand-600 hover:underline font-medium">{{ $page.props.support.email }}</a></p>
         </section>
 
       </div>
@@ -119,4 +141,9 @@
 import { Head, Link } from '@inertiajs/vue3'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
 import LandingFooter from '@/Components/LandingFooter.vue'
+
+defineProps({
+  version:  { type: String, default: '' },
+  provider: { type: Object, default: () => ({}) },
+})
 </script>

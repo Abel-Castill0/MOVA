@@ -1,5 +1,13 @@
 # MOVA 1.0 — Release state
 
+> **HISTÓRICO / SUPERADO (snapshot AZ-3G0).** Este documento conserva evidencia
+> de una fase anterior. Sus afirmaciones sobre rama, Azure, Railway, proveedores
+> y CI no describen necesariamente el estado actual. La única fuente de verdad
+> **CURRENT** para MOVA V1 es
+> [MOVA V1 Completion Ledger](MOVA_V1_COMPLETION_LEDGER.md), respaldado por
+> verificaciones nuevas de código, pruebas y entorno. No usar este snapshot
+> para aprobar un deploy o un rollback.
+
 HEAD: ver `git log -1` (gates locales sobre c8af121; GitHub CI verde sobre 015a9f4)
 BRANCH: hardening/az3g0-release-baseline
 

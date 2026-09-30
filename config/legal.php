@@ -4,10 +4,24 @@
 // los datos del proveedor se configuran por entorno y, si faltan, la UI lo
 // muestra como pendiente y mova:health-check lo marca en producción.
 return [
-    // Versión vigente de cada documento. Subirla cuando cambie el texto.
+    // Versión vigente de cada documento. Subirla cuando cambie el texto de
+    // forma relevante: el middleware legal.current pedirá aceptarla a todo
+    // usuario existente en su próxima navegación.
+    // 2026-09-29 (C1): texto alineado con el runtime real — IA desactivada,
+    // minimización pre-aceptación, consentimiento por alumno, pagos de
+    // créditos, proveedores/transferencia internacional, cookies, re-aceptación.
     'versions' => [
-        'terms'   => env('LEGAL_TERMS_VERSION', '2026-07-26'),
-        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-07-26'),
+        'terms'   => env('LEGAL_TERMS_VERSION', '2026-09-29'),
+        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-09-29'),
+    ],
+
+    // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al
+    // registrar a un alumno (Students/Create). Texto neutral que describe el
+    // tratamiento real; no es redacción legal aprobada. Si cambia el texto,
+    // subir la versión: cada StudentDataConsent guarda la versión mostrada.
+    'student_consent' => [
+        'version'   => '2026-09-29',
+        'statement' => 'Soy el padre, la madre o el apoderado legal de este alumno y autorizo a MOVA a tratar los datos que ingreso en este formulario para gestionar sus clases, según la Política de Privacidad.',
     ],
 
     // Datos del proveedor exigidos en el Libro de Reclamaciones (Indecopi).

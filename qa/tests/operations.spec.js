@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
 
 async function login(page, email = 'admin-phase2b@mova.test') {
   await page.goto('/login');
-  const cookie = page.getByRole('button', { name: 'Aceptar', exact: true });
+  const cookie = page.getByRole('button', { name: 'Entendido', exact: true });
   if (await cookie.isVisible()) await cookie.click();
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill('password123');

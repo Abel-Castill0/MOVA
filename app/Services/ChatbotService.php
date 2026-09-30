@@ -36,6 +36,17 @@ class ChatbotService
      * @param  array<int, array{sender:string,text:string}>  $history
      * @return array{ok:bool, reply?:string, reason?:string}
      */
+    /**
+     * C-P1-MOVI — ¿puede Movi responder de verdad? Flag + clave presente.
+     * La home solo monta el widget si esto es true, para no ofrecer un
+     * asistente que únicamente contestaría "no disponible".
+     */
+    public static function isAvailable(): bool
+    {
+        return (bool) config('chatbot.enabled', false)
+            && filled(config('chatbot.gemini.api_key'));
+    }
+
     public function reply(string $userMessage, array $history = []): array
     {
         if (! config('chatbot.enabled', false)) {

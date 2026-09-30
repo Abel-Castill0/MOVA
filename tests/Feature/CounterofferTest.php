@@ -501,7 +501,7 @@ class CounterofferTest extends TestCase
         foreach (['2014-05-01', 'Colegio Secreto', '911222333', 'parent_user_id', 'counteroffer_teacher_profile_id'] as $needle) {
             $this->assertStringNotContainsString($needle, $json);
         }
-        $this->assertSame(['first_name', 'last_name', 'grade_level'], array_keys($props['counterofferedRequests'][0]['student']));
+        $this->assertSame(['first_name', 'grade_level'], array_keys($props['counterofferedRequests'][0]['student']));
         $this->assertSame(90, $props['counterofferedRequests'][0]['counteroffer_duration_minutes']);
     }
 

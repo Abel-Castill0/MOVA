@@ -1,6 +1,63 @@
 # MOVA — Backup & Restore Playbook
 
-> Última revisión: 2026-06-29
+> **CURRENT TARGET_PRODUCTION:** Azure MySQL Flexible Server. La fuente de
+> verdad de estado y gates es [MOVA V1 Completion Ledger](release/MOVA_V1_COMPLETION_LEDGER.md).
+> Las secciones 1–8 son **HISTÓRICAS / LEGACY Railway** (última revisión
+> 2026-06-29), preservadas como contexto de rollback solo si ese entorno sigue
+> siendo aplicable. No acreditan que Railway sirva hoy el PUBLIC_APEX.
+
+## Ruta primaria de restauración para el cutover Azure
+
+La consulta **LIVE_STAGING** de solo lectura del 2026-09-29 encontró
+`mova-mysql-splisbj6ldoqw` en estado `Ready`, MySQL 8.4, retención de backup
+de 7 días y geo-backup deshabilitado. `earliestRestoreDate` existía en esa
+consulta; comprobar de nuevo su valor y la ventana efectiva antes de elegir
+la hora de recuperación. Ningún servidor de restore temporal aparecía en el
+inventario de ese resource group; el snapshot histórico de una prueba anterior
+no prueba que siga existiendo.
+
+1. **STOP y autorización:** identificar el incidente, la base que sirve el
+   PUBLIC_APEX, la pérdida de datos aceptable y el titular que autoriza la
+   restauración. Congelar escrituras de web, worker y scheduler de forma
+   coordinada. No ejecutar migraciones como parte automática del arranque;
+   `php artisan migrate --force` exige revisión individual de migraciones y
+   autorización para el entorno real.
+2. **Punto de restauración:** consultar el servidor origen y su
+   `earliestRestoreDate` con Azure CLI de solo lectura; elegir una hora UTC
+   dentro de la ventana, anterior al incidente. Confirmar el identificador
+   exacto de la instancia fuente y un nombre nuevo para el destino.
+3. **Restaurar a servidor NUEVO:** usar Azure MySQL Flexible Server PITR
+   (`az mysql flexible-server restore` con `--source-server`, `--restore-time`
+   y un `--name` nuevo). Nunca sobrescribir el origen. Esta operación crea
+   infraestructura y requiere autorización explícita; este documento no la
+   ejecuta.
+4. **Verificar dentro de la red privada:** confirmar `Ready`, conexión TLS,
+   estado de migraciones, conteos de tablas clave (`users`, `students`,
+   `student_data_consents`, `classes`, `credit_transactions`,
+   `recharge_requests`, `payment_orders`) y reconciliación de ledger en modo
+   de solo lectura. Comparar con evidencia previa y documentar diferencias
+   esperadas. Probar flujos de autenticación y salud en un entorno aislado.
+5. **Cutover supervisado:** actualizar `DB_HOST` de web, worker y scheduler a
+   la nueva instancia de forma coordinada, verificar revisiones, colas,
+   jobs, saldos y acceso. Conservar el origen hasta que el titular acepte el
+   resultado. La actualización de Azure y DNS requiere autorización aparte.
+6. **Evidencia y limpieza:** registrar hora UTC, servidor fuente/destino,
+   resultados sin datos personales y responsable. Destruir una copia temporal
+   únicamente tras autorización y verificación de que ya no es necesaria.
+
+**STOP de rollback de consentimiento:** una vez existan filas reales en
+`student_data_consents`, revertir la migración
+`2026_09_29_000001_create_student_data_consents_table.php` ejecuta
+`dropIfExists` y borra evidencia de consentimiento. No hacer rollback
+automático de esa migración. Preservar y verificar una copia de auditoría,
+detener el procedimiento y decidir la recuperación con el titular. No crear
+consentimiento retroactivo para alumnos históricos.
+
+## Archivo histórico LEGACY Railway (secciones 1–8)
+
+Los pasos siguientes pertenecen al entorno Railway anterior. Confirmar
+primero qué sistema sirve el PUBLIC_APEX y qué fuente de datos se intenta
+recuperar; no aplicar estos comandos a Azure.
 
 ## Índice
 
@@ -222,9 +279,15 @@ Verificar: `GET /healthz` debe devolver 200.
 
 ---
 
-## 9. Azure (MySQL Flexible Server) — runbook corto
+## 9. Azure (MySQL Flexible Server) — evidencia y ejemplo histórico
 
-Backups automáticos: diarios, retención 7 días, PITR (verificado: `earliestRestoreDate` disponible). Sin geo-backup.
+Este bloque conserva el ejemplo de una prueba anterior. Usar la ruta primaria
+al inicio de este documento y verificar nombres, ventana PITR y estado actual
+antes de cualquier operación. **No ejecutar literalmente nombres temporales
+o comandos de creación/eliminación de este ejemplo sin autorización.**
+
+En la consulta LIVE_STAGING del 2026-09-29: retención 7 días, PITR
+disponible por `earliestRestoreDate`, sin geo-backup.
 
 **Restore de prueba (nunca sobre el origen):**
 ```bash
@@ -234,7 +297,8 @@ az mysql flexible-server show -g mova-prod-rg -n mova-mysql-restoretest --query 
 ```
 El servidor restaurado hereda red privada (snet-mysql + Private DNS) y el usuario admin del origen. Verificación de datos: solo desde dentro de la VNet (Container Apps Job con la misma imagen y `DB_HOST=mova-mysql-restoretest.mysql.database.azure.com`), ejecutando `php artisan migrate:status` y `php artisan mova:reconcile-ledger` (solo lectura) y comparando conteos de `users`, `students`, `classes`, `credit_transactions`, `recharge_requests`, `payment_orders` con el origen.
 
-**Borrar el servidor temporal al terminar** (contiene copia de datos personales):
+**Ejemplo histórico de limpieza** (el servidor temporal no aparecía en el
+inventario de 2026-09-29; verificar identidad y autorización primero):
 ```bash
 az mysql flexible-server delete -g mova-prod-rg -n mova-mysql-restoretest --yes
 ```

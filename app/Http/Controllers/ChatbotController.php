@@ -13,9 +13,9 @@ class ChatbotController extends Controller
      * permiten distinguir "apagado", "sin clave" o "error del proveedor" —
      * nunca se revela configuración, variables de entorno ni al proveedor.
      */
-    private const UNAVAILABLE_MESSAGE = 'Movi no está disponible en este momento. Puedes escribirnos a m0v4class@gmail.com o volver a intentarlo más tarde.';
+    private const UNAVAILABLE_MESSAGE = 'Movi no está disponible en este momento. Puedes escribirnos a :email o volver a intentarlo más tarde.';
 
-    private const DAILY_LIMIT_MESSAGE = 'Movi recibió muchas consultas hoy. Vuelve a intentarlo más tarde o escríbenos a m0v4class@gmail.com.';
+    private const DAILY_LIMIT_MESSAGE = 'Movi recibió muchas consultas hoy. Vuelve a intentarlo más tarde o escríbenos a :email.';
 
     public function message(Request $request, ChatbotService $chatbotService): JsonResponse
     {
@@ -35,10 +35,15 @@ class ChatbotController extends Controller
         }
 
         if ($result['reason'] === ChatbotService::DAILY_LIMIT) {
-            return response()->json(['ok' => false, 'message' => self::DAILY_LIMIT_MESSAGE], 429);
+            return response()->json(['ok' => false, 'message' => $this->withSupportEmail(self::DAILY_LIMIT_MESSAGE)], 429);
         }
 
         // 503 idéntico para apagado, sin clave o error del proveedor.
-        return response()->json(['ok' => false, 'message' => self::UNAVAILABLE_MESSAGE], 503);
+        return response()->json(['ok' => false, 'message' => $this->withSupportEmail(self::UNAVAILABLE_MESSAGE)], 503);
+    }
+
+    private function withSupportEmail(string $message): string
+    {
+        return str_replace(':email', (string) config('legal.support_email'), $message);
     }
 }

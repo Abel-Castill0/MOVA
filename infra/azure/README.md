@@ -1,7 +1,15 @@
 # MOVA — Azure IaC (Bicep)
 
-Estado: **AZ-2 — modelado y validado localmente. NO provisionado.**
-Railway sigue siendo producción/rollback hasta que AZ-3/AZ-4 lo reemplacen.
+**Fuente de verdad CURRENT:** [MOVA V1 Completion Ledger](../../docs/release/MOVA_V1_COMPLETION_LEDGER.md).
+Este documento describe IaC y procedimientos; una plantilla no demuestra el
+estado desplegado. Consulta de solo lectura de Azure, 2026-09-29:
+`mova-web`, `mova-worker` y `mova-scheduler` tienen revisiones Healthy en el
+entorno **STAGING** `mova-prod-rg`; web estaba ScaledToZero (min 0), worker
+y scheduler tenían una réplica cada uno, y
+`LESSON_SETTLEMENT_MODE=dry_run` en los tres roles. El nombre del resource
+group y `APP_ENV=production` no demuestran que sea **PRODUCTION_LIVE**.
+La asignación del **PUBLIC_APEX** y el estado **LEGACY** requieren una
+verificación separada antes del cutover. Gates pendientes en el ledger.
 
 ## Archivos
 
@@ -17,21 +25,46 @@ Railway sigue siendo producción/rollback hasta que AZ-3/AZ-4 lo reemplacen.
 | `modules/aca-environment.bicep` | Environment en VNet, perfil Consumption, sin zone redundancy |
 | `modules/container-app.bicep` | App genérica (misma imagen; rol = command/args + ingress) |
 
-## Despliegue en dos pasos (`deployApps`)
+## Despliegue separado de foundation y apps
 
-`main.bicep` separa **foundation** de **apps** para no desplegar nunca MOVA con una imagen que no existe (o con una pública de ejemplo):
+`main.bicep` solo modela **foundation**; `apps.bicep` es una plantilla aparte
+con alcance de resource group. El deploy de apps exige una imagen real por
+digest y no reutiliza la contraseña admin del servidor MySQL:
 
-| Fase | `deployApps` | Crea | Exige |
+| Fase | Plantilla/paso | Crea | Exige |
 |---|---|---|---|
-| 1. Foundation | `false` (default) | RG, VNet/subnets, Private DNS, Log Analytics, ACR, identity + AcrPull, MySQL, ACA environment | `MOVA_MYSQL_ADMIN_PASSWORD` |
-| 2. Build + push | — | `docker build` → `<acr>.azurecr.io/mova@sha256:<digest>` | AcrPush del operador/pipeline |
-| 3. Bootstrap DB | — | Job manual (ver abajo): `CREATE USER mova_app` + `GRANT` solo sobre `mova.*` | admin DB (solo en el Job) |
-| 4. Migrations | — | mismo Job: `php artisan migrate --force` (una vez por deploy) | `mova_app` o admin, dentro de la VNet |
-| 5. Apps | `true` | `mova-web`, `mova-worker`, `mova-scheduler` | `MOVA_CONTAINER_IMAGE` (imagen MOVA real del ACR), `MOVA_MYSQL_APP_PASSWORD`, `MOVA_APP_KEY` (el actual, **no regenerar**; obligatorio, fail-closed) |
+| 1. Foundation | `main.bicep` + `main.bicepparam` | RG, VNet/subnets, Private DNS, Log Analytics, ACR, identity + AcrPull, MySQL, ACA environment | `MOVA_MYSQL_ADMIN_PASSWORD` |
+| 2. Build + push | imagen | `docker build` → `<acr>.azurecr.io/mova@sha256:<digest>` | AcrPush del operador/pipeline |
+| 3. Bootstrap DB | Job manual | `CREATE USER mova_app` + `GRANT` solo sobre `mova.*` | admin DB (solo en el Job) |
+| 4. Migrations | paso manual revisado | `php artisan migrate --force` solo tras revisar todas las migraciones | `mova_app` o admin, dentro de la VNet |
+| 5. Apps | `apps.bicep` + `apps.bicepparam` | `mova-web` y `mova-worker` por defecto; `mova-scheduler` solo con `MOVA_DEPLOY_SCHEDULER=true` | `MOVA_CONTAINER_IMAGE`, `MOVA_MYSQL_APP_PASSWORD`, `MOVA_APP_KEY` (el actual, **no regenerar**; fail-closed) |
 
-Contrato de `containerImage`: **no hay fallback**. Vacío en foundation. Con `MOVA_DEPLOY_APPS=true`, `main.bicepparam` **falla en compilación** (`fail()` → BCP338, antes de cualquier deployment) si faltan `MOVA_CONTAINER_IMAGE`, `MOVA_MYSQL_APP_PASSWORD` (≥ 16) o `MOVA_APP_KEY`; `main.bicep` repite el guard como segunda capa. `appConfig` nunca puede sobrescribir los invariantes de `sharedEnv` (van al final del `union`; el último argumento gana). `main.bicepparam` falla si falta `MOVA_MYSQL_ADMIN_PASSWORD` (sin default).
+Contrato de `containerImage`: **no hay fallback** en `apps.bicepparam`.
+Sin `MOVA_CONTAINER_IMAGE`, `MOVA_MYSQL_APP_PASSWORD` (≥ 16) o
+`MOVA_APP_KEY`, falla la compilación de parámetros, antes de cualquier
+deployment. `appConfig` no puede sobrescribir los invariantes de `sharedEnv`
+(van al final del `union`; el último argumento gana). `main.bicepparam`
+falla si falta `MOVA_MYSQL_ADMIN_PASSWORD` (sin default).
 
 `APP_URL`: vacío ⇒ `https://mova-web.<defaultDomain del ACA environment>` (primer staging). El dominio final se fija en el cutover vía `MOVA_APP_URL`.
+
+### Scheduler y liquidación
+
+`apps.bicepparam` toma `MOVA_DEPLOY_SCHEDULER` del entorno del operador
+(`false` por defecto, solo acepta `true`/`false`). Desplegar scheduler no
+activa liquidación: `MOVA_LESSON_SETTLEMENT_MODE` vale `dry_run` por defecto.
+El modo `live` exige **ambos** `MOVA_LESSON_SETTLEMENT_MODE=live` y
+`MOVA_LIVE_SETTLEMENT_ACK=I_ACKNOWLEDGE_LIVE_SETTLEMENT`. La plantilla
+`apps.bicep` limita el modo a `dry_run`/`live` y lo fija fuera de `appConfig`.
+El ACK solo protege contra activación accidental; no sustituye el gate
+financiero, la revisión del ledger ni la autorización de cutover.
+
+**STAGING:** si el operador necesita scheduler, selecciona
+`MOVA_DEPLOY_SCHEDULER=true` y mantiene `dry_run`. **TARGET_PRODUCTION:**
+selecciona `live` solo después de aprobar el gate, comprobar unicidad del
+scheduler y detener la instancia **LEGACY** que pudiera duplicar trabajos.
+Estas decisiones se toman en cada deploy; el archivo no refleja ni cambia
+por sí mismo el estado actual de Azure.
 
 ## Identidades de base de datos
 
@@ -55,10 +88,11 @@ Sin privilegios server-wide.
 ## Invariantes
 
 - **Misma imagen (mismo SHA)** para `mova-web`, `mova-worker`, `mova-scheduler`.
-- **`mova-scheduler`: min = max = 1 réplica.** Dos `schedule:work` duplicarían recordatorios y reconciliaciones. No subir `maxReplicas`.
+- **`mova-scheduler`: min = max = 1 réplica cuando se despliega.** Dos `schedule:work` duplicarían recordatorios y reconciliaciones. No subir `maxReplicas`.
 - **`mova-worker`: min = max = 1** en esta etapa (sin KEDA/autoscaling por cola).
 - `QUEUE_CONNECTION=SESSION_DRIVER=CACHE_DRIVER=database` — el disco del contenedor es efímero; los locks de `withoutOverlapping()` necesitan un store compartido.
 - **Nunca `migrate --force` en el entrypoint.** Migraciones = paso explícito y único por deploy (AZ-3).
+- **STOP de rollback de consentimiento:** después de crear filas reales en `student_data_consents`, `down()` de `2026_09_29_000001_create_student_data_consents_table.php` borraría evidencia real. No revertir esa migración en TARGET_PRODUCTION; detener el procedimiento, preservar/verificar los datos de auditoría y decidir una recuperación supervisada. No inferir consentimientos de alumnos históricos.
 - MySQL **sin IP pública**; `require_secure_transport=ON`.
 - Pull de imágenes por Managed Identity; **sin usuario/contraseña de registry**.
 - La contraseña admin de MySQL **nunca** llega a web/worker/scheduler; el runtime usa `mova_app`.
@@ -82,13 +116,12 @@ Sin privilegios server-wide.
 | APP SECRET | `APP_KEY` (migrar **exactamente**, no regenerar), `DB_PASSWORD`, `CLOUDINARY_URL`, credenciales Meta/Google/Gmail/Mercado Pago/JaaS/Pusher/Sentry | `appSecrets` → secrets de Container Apps (`secretRef`) |
 | INFRA SECRET | `mysqlAdminPassword`, shared key de Log Analytics | Parámetro `@secure()` / `listKeys()` en deploy; nunca en el repo |
 
-## Validación ejecutada en AZ-2
+## Validación histórica AZ-2 y comprobación C1.1
 
-```bash
-az bicep build --file infra/azure/main.bicep
-# foundation (MOVA_DEPLOY_APPS sin definir / false)
-az deployment sub what-if --location mexicocentral --template-file infra/azure/main.bicep --parameters infra/azure/main.bicepparam
-# apps (MOVA_DEPLOY_APPS=true + MOVA_CONTAINER_IMAGE + MOVA_MYSQL_APP_PASSWORD)
-```
-
-AZ-2.3: foundation what-if = 12 `Create` sin ninguna app; apps what-if = mismos 12 + `mova-web/worker/scheduler` en `potentialChanges` (dependen de outputs runtime); sin `MOVA_APP_KEY` o sin `MOVA_MYSQL_APP_PASSWORD` la compilación del param file falla (BCP338). What-if es solo preview. **No ejecutar `az deployment sub create` hasta AZ-3.**
+En AZ-2 se compiló `main.bicep` y se hizo what-if de foundation; ese
+resultado histórico no prueba el estado desplegado hoy. En C1.1 se compiló
+`apps.bicep` y se evaluó `apps.bicepparam` con valores de prueba, sin deploy:
+default ⇒ scheduler `false` y `dry_run`; scheduler `true` + `dry_run` ⇒
+`dry_run`; modo `live` sin ACK ⇒ rechazo; modo `live` con ACK explícito ⇒
+compilación. `git diff --check` pasó. No se ejecutó what-if ni deployment
+contra Azure en C1.1.

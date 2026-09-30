@@ -75,6 +75,11 @@ class Student extends Model
         return $this->belongsTo(User::class, 'parent_user_id');
     }
 
+    public function dataConsents()
+    {
+        return $this->hasMany(StudentDataConsent::class);
+    }
+
     public function classRequests()
     {
         return $this->hasMany(ClassRequest::class);

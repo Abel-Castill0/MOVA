@@ -24,7 +24,8 @@ class VerifyEmailController extends Controller
         $user = $request->user();
 
         // After email verification, prompt phone verification if user has a phone but hasn't verified it
-        if ($user->phone && !$user->phone_verified_at && User::normalizePhone($user->phone)) {
+        if ($user->phone && !$user->phone_verified_at && User::normalizePhone($user->phone)
+            && PhoneVerificationController::isAvailable()) {
             return redirect()->route('phone.verification.notice')
                 ->with('status', 'email-verified');
         }

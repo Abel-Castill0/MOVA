@@ -7,6 +7,7 @@ use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\TeacherReview;
 use App\Models\User;
+use App\Services\ChatbotService;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
@@ -16,6 +17,9 @@ class WelcomeController extends Controller
     {
         return Inertia::render('Welcome', [
             'subjects' => Subject::orderBy('name')->get(['id', 'name', 'level']),
+
+            // Movi solo se monta si puede responder (ChatbotService::isAvailable).
+            'chatbotEnabled' => ChatbotService::isAvailable(),
 
             // P0 encontrado y corregido junto con el mismo bug en
             // MarketplaceController::index() (ver docs/MOVA_DESIGN_AUDIT_FINAL.md):

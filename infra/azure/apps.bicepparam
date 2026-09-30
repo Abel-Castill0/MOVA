@@ -20,12 +20,17 @@ param location = 'mexicocentral'
 var image = readEnvironmentVariable('MOVA_CONTAINER_IMAGE', '')
 param containerImage = empty(image) ? fail('MOVA_CONTAINER_IMAGE requerido: <acr>.azurecr.io/mova@sha256:<digest>') : image
 
-// AZ-3G: web + worker. scheduler queda para AZ-3H (ejecuta liquidación real,
-// recordatorios y recuperación de pagos -- side effects que exigen que las
-// integraciones externas estén revisadas primero, no solo desplegadas).
+// El scheduler y la liquidación live son decisiones independientes. Sin
+// MOVA_DEPLOY_SCHEDULER=true no se crea scheduler; si se crea, empieza en
+// dry_run salvo selección y confirmación explícitas del modo live.
 param deployWeb = true
 param deployWorker = true
-param deployScheduler = false
+var schedulerChoice = readEnvironmentVariable('MOVA_DEPLOY_SCHEDULER', 'false')
+param deployScheduler = schedulerChoice == 'true' ? true : schedulerChoice == 'false' ? false : fail('MOVA_DEPLOY_SCHEDULER debe ser true o false')
+
+var settlementChoice = readEnvironmentVariable('MOVA_LESSON_SETTLEMENT_MODE', 'dry_run')
+var liveSettlementAck = readEnvironmentVariable('MOVA_LIVE_SETTLEMENT_ACK', '')
+param settlementMode = settlementChoice == 'dry_run' ? 'dry_run' : settlementChoice == 'live' && liveSettlementAck == 'I_ACKNOWLEDGE_LIVE_SETTLEMENT' ? 'live' : fail('Modo live requiere MOVA_LESSON_SETTLEMENT_MODE=live y MOVA_LIVE_SETTLEMENT_ACK=I_ACKNOWLEDGE_LIVE_SETTLEMENT; dry_run es el default')
 
 param mysqlDatabaseName = 'mova'
 param mysqlAppUser = 'mova_app'
@@ -182,10 +187,8 @@ param appConfig = union(
   mpConfig,
   rechargeConfig,
   {
-    // AZ-3F: settle-lessons --dry-run --json contra la BD real de Azure dio
-    // safe_to_enable=true -- 0 candidatas post-ledger. El scheduler sigue
-    // apagado, así que esto no ejecuta liquidación todavía.
-    LESSON_SETTLEMENT_MODE: 'live'
+    // LESSON_SETTLEMENT_MODE se fija como invariante en apps.bicep desde
+    // settlementMode; nunca se activa por desplegar el scheduler.
     MAIL_MAILER: 'array'
     BROADCAST_DRIVER: 'null'
     WHATSAPP_ENABLED: 'false'

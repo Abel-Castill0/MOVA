@@ -2,6 +2,21 @@
   <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-white rounded-2xl border border-gray-200 p-8">
       <h1 class="text-2xl font-bold text-gray-900 mb-1">Verifica tu WhatsApp</h1>
+
+      <!-- C-P1-PHONE-VERIFICATION: el código solo se entrega por WhatsApp.
+           Si el canal no está habilitado no se ofrece un formulario que nunca
+           podría completarse. -->
+      <template v-if="!available">
+        <div role="status" class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
+          <p class="font-semibold text-slate-900 mb-1">La verificación por WhatsApp todavía no está habilitada</p>
+          <p>Por ahora no es posible verificar tu número de celular en MOVA. Puedes seguir usando tu cuenta; no necesitas hacer nada más aquí.</p>
+        </div>
+        <Link :href="route('dashboard')" class="mt-6 inline-flex w-full justify-center bg-brand-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-brand-700 transition-colors">
+          Ir a mi panel
+        </Link>
+      </template>
+
+      <template v-else>
       <p class="text-sm text-gray-500 mb-6">
         Enviamos un código de 6 dígitos a tu número terminado en <strong>{{ phone }}</strong>.
       </p>
@@ -77,6 +92,7 @@
         Puedes verificar tu número más tarde desde tu perfil.
         <Link :href="route('dashboard')" class="text-brand-500 hover:underline">Omitir por ahora</Link>
       </p>
+      </template>
     </div>
   </div>
 </template>
@@ -86,6 +102,7 @@ import { Link, useForm } from '@inertiajs/vue3'
 
 const props = defineProps({
   phone: String,
+  available: { type: Boolean, default: false },
 })
 
 const form = useForm({ code: '', whatsapp_notifications: false })

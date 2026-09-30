@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Auth\PhoneVerificationController;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
 use App\Models\LessonReport;
@@ -65,17 +66,24 @@ class DashboardController extends Controller
 
             $checklist = [];
             $score     = 0;
+            $phoneVerificationAvailable = PhoneVerificationController::isAvailable();
             if ($profile) {
-                $hasSubjects     = $profile->subjects()->exists();
-                $hasActiveOffer  = $profile->classOffers()->where('is_active', true)->exists();
+                // Solo requisitos que un profesor puede cumplir hoy. 'active_offer'
+                // se retiró: la creación de ofertas ya no existe (§21, rutas
+                // class-offers sin create/store), así que dejaba a todo
+                // profesor nuevo atascado por debajo del 100%.
                 $checks = [
                     'bio'            => !empty($profile->bio),
-                    'subjects'       => $hasSubjects,
-                    'active_offer'   => $hasActiveOffer,
+                    'subjects'       => $profile->subjects()->exists(),
                     'phone_verified' => !is_null($user->phone_verified_at),
                     'email_verified' => !is_null($user->email_verified_at),
                     'is_verified'    => $profile->is_verified,
                 ];
+                // Mismo principio: si la verificación del celular no puede
+                // completarse (WhatsApp deshabilitado), no se exige.
+                if (! $phoneVerificationAvailable && ! $checks['phone_verified']) {
+                    unset($checks['phone_verified']);
+                }
                 $score     = (int) round(array_sum($checks) / count($checks) * 100);
                 $checklist = $checks;
             }
@@ -107,6 +115,7 @@ class DashboardController extends Controller
                 'pending_reports'    => $pendingReports,
                 'profile_score'     => $score,
                 'profile_checklist' => $checklist,
+                'phone_verification_available' => $phoneVerificationAvailable,
                 'reviews'           => $profile ? TeacherReview::where('teacher_profile_id', $profile->id)
                     ->where('is_visible', true)
                     ->latest()

@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\NewClassRequestNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -90,11 +91,12 @@ class ClassRequestIndexExposureTest extends TestCase
         $this->assertCount(1, $props['requests']);
         $req = $props['requests'][0];
         $this->assertEqualsCanonicalizing(self::REQUEST_KEYS, array_keys($req));
-        $this->assertEqualsCanonicalizing(['first_name', 'last_name', 'grade_level'], array_keys($req['student']));
+        // Pre-aceptación: nombre de pila + grado, nunca el apellido.
+        $this->assertEqualsCanonicalizing(['first_name', 'grade_level'], array_keys($req['student']));
         $this->assertSame('Ana', $req['student']['first_name']);
 
         $json = json_encode($props);
-        foreach (['2014-05-01', 'Colegio Secreto', 'parent@mova.pe', '911222333', 'parent_user_id', 'birth_date'] as $needle) {
+        foreach (['Pérez', 'last_name', '2014-05-01', 'Colegio Secreto', 'parent@mova.pe', '911222333', 'parent_user_id', 'birth_date', 'school'] as $needle) {
             $this->assertStringNotContainsString($needle, $json);
         }
     }
@@ -224,6 +226,39 @@ class ClassRequestIndexExposureTest extends TestCase
             }
             $this->assertStringContainsString('Ana', $json, "{$name} debe seguir mostrando el nombre del alumno.");
         }
+
+        // La pantalla de aceptación sigue siendo PRE-aceptación (la solicitud
+        // está 'open'): sin apellido del menor.
+        $accept = $payloads['teacher.requests.accept'];
+        // full_name es un accessor `$appends` de Student; sin last_name
+        // seleccionado se reduce al nombre de pila.
+        $this->assertEqualsCanonicalizing(['id', 'first_name', 'grade_level', 'full_name'], array_keys($accept['student']));
+        $this->assertSame('Ana', trim($accept['student']['full_name']));
+        $this->assertStringNotContainsString('Pérez', json_encode($accept));
+    }
+
+    public function test_new_request_notification_to_teachers_carries_only_the_first_name(): void
+    {
+        [$teacher] = $this->scenario();
+        $request = ClassRequest::where('status', 'open')->firstOrFail();
+
+        $n = new NewClassRequestNotification($request);
+        $mail = $n->toMail($teacher);
+        $json = json_encode([$n->toArray($teacher), $mail->subject, $mail->introLines]);
+
+        $this->assertStringContainsString('Ana', $json);
+        foreach (['Pérez', '2014-05-01', 'Colegio Secreto', 'parent@mova.pe'] as $needle) {
+            $this->assertStringNotContainsString($needle, $json);
+        }
+    }
+
+    public function test_parent_index_keeps_the_full_student_name(): void
+    {
+        [, $parent] = $this->scenario();
+
+        $props = $this->actingAs($parent)->get(route('class-requests.index'))->assertOk()->inertiaPage()['props'];
+
+        $this->assertSame('Pérez', $props['requests'][0]['student']['last_name']);
     }
 
     private function allKeys(array $data): array

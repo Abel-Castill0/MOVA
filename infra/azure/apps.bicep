@@ -28,6 +28,10 @@ param deployWeb bool = true
 param deployWorker bool = false
 param deployScheduler bool = false
 
+@description('Liquidación programada: dry_run por defecto. live requiere selección explícita del operador en apps.bicepparam y gate de producción aprobado.')
+@allowed(['dry_run', 'live'])
+param settlementMode string = 'dry_run'
+
 @description('Nombre de la base de datos de la aplicación (debe coincidir con la foundation).')
 param mysqlDatabaseName string = 'mova'
 
@@ -104,6 +108,8 @@ var sharedEnv = union(
     SESSION_DRIVER: 'database'
     CACHE_DRIVER: 'database'
     FILESYSTEM_DISK: 'local'
+    // Invariante separado de deployScheduler; appConfig no puede activarlo.
+    LESSON_SETTLEMENT_MODE: settlementMode
   }
 )
 

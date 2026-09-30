@@ -1,13 +1,10 @@
 
 <script setup>
-import Icon from '@/Components/Icon.vue';
 import InputError from '@/Components/InputError.vue';
-import Modal from '@/Components/Modal.vue';
 import MovaLogo from '@/Components/MovaLogo.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { onMounted, onUnmounted, ref } from 'vue';
 
-const showGoogleModal = ref(false);
 const showPassword = ref(false);
 
 defineProps({
@@ -18,6 +15,10 @@ defineProps({
     status: {
         type: String,
         default: null,
+    },
+    googleLoginEnabled: {
+        type: Boolean,
+        default: false,
     },
 });
 
@@ -189,10 +190,12 @@ const submit = () => {
                         <span>{{ status }}</span>
                     </div>
 
-                    <!-- Botón Google Login -->
-                    <button
-                        type="button"
-                        @click="showGoogleModal = true"
+                    <!-- Google: solo si el backend lo tiene operativo (flag +
+                         credenciales, GoogleAuthController::isAvailable()).
+                         Navegación completa, no Inertia: es un redirect OAuth. -->
+                    <template v-if="googleLoginEnabled">
+                    <a
+                        :href="route('auth.google')"
                         class="w-full h-[50px] sm:h-[52px] flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium sm:font-semibold text-slate-700 shadow-sm transition-all duration-150 hover:bg-slate-50 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                     >
                         <svg class="h-5 w-5 flex-shrink-0" viewBox="0 0 48 48">
@@ -202,27 +205,7 @@ const submit = () => {
                             <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
                         </svg>
                         <span>Continuar con Google</span>
-                    </button>
-
-                    <!-- Modal Informativo de Google (conserva lógica existente) -->
-                    <Modal :show="showGoogleModal" max-width="sm" @close="showGoogleModal = false">
-                        <div class="p-6 text-center">
-                            <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mb-3">
-                                <Icon name="pending" :size="24" />
-                            </div>
-                            <h3 class="text-lg font-bold text-slate-900">Opción temporalmente no disponible</h3>
-                            <p class="text-sm text-slate-500 mt-2">
-                                Estamos trabajando para ofrecerte esta opción. Por ahora, inicia sesión con tu correo electrónico.
-                            </p>
-                            <button
-                                type="button"
-                                @click="showGoogleModal = false"
-                                class="mt-5 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 transition-colors"
-                            >
-                                Entendido
-                            </button>
-                        </div>
-                    </Modal>
+                    </a>
 
                     <!-- Divisor -->
                     <div class="my-5 flex items-center gap-3">
@@ -230,6 +213,7 @@ const submit = () => {
                         <span class="text-xs font-medium text-slate-400">o con tu correo</span>
                         <div class="h-px flex-1 bg-slate-200"></div>
                     </div>
+                    </template>
 
                     <!-- Formulario de Autenticación -->
                     <form @submit.prevent="submit" class="space-y-4">
@@ -338,7 +322,7 @@ const submit = () => {
                 <span class="text-slate-300">|</span>
                 <Link :href="route('legal.privacy')" class="hover:text-slate-600 transition-colors">Política de Privacidad</Link>
                 <span class="text-slate-300">|</span>
-                <a href="mailto:m0v4class@gmail.com" class="hover:text-slate-600 transition-colors">Soporte</a>
+                <a :href="`mailto:${$page.props.support.email}`" class="hover:text-slate-600 transition-colors">Soporte</a>
                 <span class="text-slate-300">|</span>
                 <span>© {{ year }} MOVA. Todos los derechos reservados.</span>
             </footer>

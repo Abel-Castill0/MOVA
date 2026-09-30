@@ -213,7 +213,7 @@
 
                 <!-- Nombre del Alumno -->
                 <h3 :class="['text-base sm:text-lg font-black leading-snug transition-colors', selectedRequest?.id === r.id ? 'text-blue-950' : 'text-slate-900 group-hover:text-blue-900']">
-                  {{ studentFullName(r) }}
+                  {{ studentLabel(r) }}
                 </h3>
 
                 <!-- Descripción / Necesidad -->
@@ -290,14 +290,14 @@
               <img
                 v-if="selectedRequest.student?.avatar_url"
                 :src="selectedRequest.student.avatar_url"
-                :alt="studentFullName(selectedRequest)"
+                :alt="studentLabel(selectedRequest)"
                 class="w-12 h-12 rounded-2xl object-cover ring-2 ring-blue-500/20 shadow-xs shrink-0"
               />
               <div
                 v-else
                 class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0D409A] via-[#1F5AA6] to-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-blue-600/20 ring-2 ring-blue-100 shrink-0"
               >
-                {{ studentFullName(selectedRequest).charAt(0).toUpperCase() }}
+                {{ studentLabel(selectedRequest).charAt(0).toUpperCase() }}
               </div>
 
               <!-- Info principal del alumno -->
@@ -314,7 +314,7 @@
                   </span>
                 </div>
                 <h2 class="text-base xl:text-lg font-black text-slate-900 tracking-tight leading-snug mt-0.5 truncate">
-                  {{ studentFullName(selectedRequest) }}
+                  {{ studentLabel(selectedRequest) }}
                 </h2>
                 <p class="text-[11px] font-medium text-slate-400 truncate">
                   {{ selectedRequest.student?.grade_level || 'Estudiante MOVA' }} · Solicitud individual
@@ -513,14 +513,14 @@
                   <img
                     v-if="selectedRequest.student?.avatar_url"
                     :src="selectedRequest.student.avatar_url"
-                    :alt="studentFullName(selectedRequest)"
+                    :alt="studentLabel(selectedRequest)"
                     class="w-12 h-12 rounded-2xl object-cover ring-2 ring-blue-500/20 shadow-xs shrink-0"
                   />
                   <div
                     v-else
                     class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0D409A] via-[#1F5AA6] to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md shadow-blue-600/20 ring-2 ring-blue-100 shrink-0"
                   >
-                    {{ studentFullName(selectedRequest).charAt(0).toUpperCase() }}
+                    {{ studentLabel(selectedRequest).charAt(0).toUpperCase() }}
                   </div>
 
                   <!-- Info del alumno -->
@@ -537,7 +537,7 @@
                       </span>
                     </div>
                     <h2 class="text-base font-black text-slate-900 tracking-tight leading-snug mt-0.5 truncate">
-                      {{ studentFullName(selectedRequest) }}
+                      {{ studentLabel(selectedRequest) }}
                     </h2>
                     <p class="text-[11px] font-medium text-slate-400 truncate">
                       {{ selectedRequest.student?.grade_level || 'Estudiante MOVA' }} · Solicitud individual
@@ -710,7 +710,7 @@
             <span :class="['text-xs font-bold px-3 py-1 rounded-full border mb-2 inline-block', subjectBadgeTheme(r.subject?.name).badge]">
               {{ r.subject?.name || 'Materia' }}
             </span>
-            <h3 class="text-base font-black text-slate-900 mt-1">{{ studentFullName(r) }}</h3>
+            <h3 class="text-base font-black text-slate-900 mt-1">{{ studentLabel(r) }}</h3>
             <p class="text-xs text-amber-800 font-semibold mt-1">
               Propusiste: {{ fmtDateTime(r.counteroffer_time) }} ({{ r.counteroffer_duration_minutes }} min) — esperando confirmación del padre.
             </p>
@@ -734,7 +734,7 @@
             <span :class="['text-xs font-bold px-3 py-1 rounded-full border mb-2 inline-block', subjectBadgeTheme(r.subject?.name).badge]">
               {{ r.subject?.name || 'Materia' }}
             </span>
-            <h3 class="text-base font-black text-slate-900 mt-1">{{ studentFullName(r) }}</h3>
+            <h3 class="text-base font-black text-slate-900 mt-1">{{ studentLabel(r) }}</h3>
             <p class="text-xs text-slate-500 mt-1 font-normal">
               Motivo: <span class="font-medium text-slate-700">{{ r.teacher_rejection_reason }}</span>
             </p>
@@ -997,9 +997,10 @@ function closeDetail() {
   if (opener) nextTick(() => opener.focus())
 }
 
-function studentFullName(r) {
+function studentLabel(r) {
   if (!r?.student) return 'Alumno'
-  return [r.student.first_name, r.student.last_name].filter(Boolean).join(' ') || 'Alumno'
+  // Antes de aceptar solo llega el nombre de pila (minimización de datos).
+  return r.student.first_name || 'Alumno'
 }
 
 function requestCode(r) {
@@ -1178,7 +1179,7 @@ const filteredRequests = computed(() => {
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim()
     list = list.filter((r) => {
-      const student = studentFullName(r).toLowerCase()
+      const student = studentLabel(r).toLowerCase()
       const subject = (r.subject?.name || '').toLowerCase()
       const help = (r.help_needed || '').toLowerCase()
       return student.includes(q) || subject.includes(q) || help.includes(q)
@@ -1194,7 +1195,7 @@ const filteredRequests = computed(() => {
     }
     list.sort((a, b) => score(b) - score(a))
   } else if (sortBy.value === 'student') {
-    list.sort((a, b) => studentFullName(a).localeCompare(studentFullName(b)))
+    list.sort((a, b) => studentLabel(a).localeCompare(studentLabel(b)))
   } else if (sortBy.value === 'subject') {
     list.sort((a, b) => (a.subject?.name || '').localeCompare(b.subject?.name || ''))
   } else {

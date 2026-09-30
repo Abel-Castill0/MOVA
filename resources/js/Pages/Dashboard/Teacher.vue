@@ -141,7 +141,7 @@
       <!-- ══════════════════════════════════════════════
            ALERT — Verificación de celular (naranja MOVA)
            ══════════════════════════════════════════════ -->
-      <div v-if="!user?.phone_verified && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div v-if="!user?.phone_verified && phone_verification_available && showPhoneBanner" class="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm shadow-orange-500/20">
             <Icon name="incentive" :size="20" />
@@ -375,6 +375,7 @@ const props = defineProps({
   pending_requests: Number,
   pending_reports: Number,
   profile_score: { type: Number, default: 0 },
+  phone_verification_available: { type: Boolean, default: false },
   profile_checklist: { type: Object, default: () => ({}) },
   has_offers: { type: Boolean, default: false },
 })
@@ -413,20 +414,12 @@ onMounted(() => {
   }
 })
 
-// PRODUCT AUDIT (hallazgo real, no solo visual): este checklist todavía
-// pide "Al menos una oferta activa" como requisito de perfil completo, pero
-// el flujo de creación de ofertas ya no existe para profesores nuevos (ver
-// el comentario de "Mis ofertas anteriores" más abajo — el profesor acepta
-// solicitudes abiertas, no publica anuncios). Si `active_offer` sigue
-// viniendo del backend como parte de `profile_checklist`, un profesor nuevo
-// puede quedar atascado en <100% sin ninguna acción visible para resolverlo.
-// No se toca la lógica de backend en este pase (fuera del alcance de una
-// auditoría de diseño) — se deja marcado aquí y en
-// docs/MOVA_DESIGN_AUDIT_FINAL.md para que se decida explícitamente.
+// Debe reflejar exactamente las claves de `profile_checklist` que envía
+// DashboardController. Ya no incluye "oferta activa": el profesor acepta
+// solicitudes abiertas, no publica anuncios (§21).
 const checklistLabels = {
   bio:            'Biografía completa',
   subjects:       'Materias asignadas',
-  active_offer:   'Al menos una oferta activa',
   phone_verified: 'Teléfono verificado',
   email_verified: 'Email verificado',
   is_verified:    'Verificado por el equipo MOVA',

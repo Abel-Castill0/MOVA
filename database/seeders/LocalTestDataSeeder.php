@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\ClassRequest;
 use App\Models\CreditTransaction;
+use App\Models\LegalAcceptance;
 use App\Models\Lesson;
 use App\Models\LessonReport;
 use App\Models\Student;
@@ -40,6 +41,9 @@ class LocalTestDataSeeder extends Seeder
         );
         if (! $teacherUser->hasRole('teacher')) {
             $teacherUser->assignRole('teacher');
+        }
+        if ($teacherUser->wasRecentlyCreated) {
+            LegalAcceptance::recordMissingCurrent($teacherUser, null);
         }
 
         // Los saldos van SOLO en los valores de creación (segundo array de
@@ -118,6 +122,9 @@ class LocalTestDataSeeder extends Seeder
         );
         if (! $parentUser->hasRole('parent')) {
             $parentUser->assignRole('parent');
+        }
+        if ($parentUser->wasRecentlyCreated) {
+            LegalAcceptance::recordMissingCurrent($parentUser, null);
         }
 
         $student1 = Student::firstOrCreate(
@@ -365,6 +372,9 @@ class LocalTestDataSeeder extends Seeder
             if (! $extraTeacherUser->hasRole('teacher')) {
                 $extraTeacherUser->assignRole('teacher');
             }
+            if ($extraTeacherUser->wasRecentlyCreated) {
+                LegalAcceptance::recordMissingCurrent($extraTeacherUser, null);
+            }
 
             $extraProfile = TeacherProfile::firstOrCreate(
                 ['user_id' => $extraTeacherUser->id],
@@ -412,6 +422,9 @@ class LocalTestDataSeeder extends Seeder
             );
             if (! $extraParentUser->hasRole('parent')) {
                 $extraParentUser->assignRole('parent');
+            }
+            if ($extraParentUser->wasRecentlyCreated) {
+                LegalAcceptance::recordMissingCurrent($extraParentUser, null);
             }
 
             Student::firstOrCreate(

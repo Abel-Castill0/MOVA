@@ -42,6 +42,16 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             && $request->isEligibleTeacherUser($teacher);
     }
 
+    /**
+     * Pre-aceptación: solo el nombre de pila del menor (misma minimización que
+     * ClassRequestController::teacherRequestSummary). Esta notificación llega
+     * a todos los profesores elegibles, no solo al que termine aceptando.
+     */
+    private function studentLabel(): string
+    {
+        return (string) $this->classRequest->student->first_name;
+    }
+
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
@@ -49,7 +59,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line('Colega, ha recibido una nueva solicitud de clase.')
             ->line('**Asignatura:** ' . $this->classRequest->subject->name)
-            ->line('**Estudiante:** ' . $this->classRequest->student->full_name)
+            ->line('**Estudiante:** ' . $this->studentLabel())
             ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
     }
@@ -60,8 +70,8 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             'type'       => 'new_class_request',
             'request_id' => $this->classRequest->id,
             'subject'    => $this->classRequest->subject->name,
-            'student'    => $this->classRequest->student->full_name,
-            'message'    => 'Nueva solicitud de ' . $this->classRequest->subject->name . ' de ' . $this->classRequest->student->full_name . '.',
+            'student'    => $this->studentLabel(),
+            'message'    => 'Nueva solicitud de ' . $this->classRequest->subject->name . ' de ' . $this->studentLabel() . '.',
         ];
     }
 }

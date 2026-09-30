@@ -23,16 +23,37 @@ class PhoneVerificationController extends Controller
     private const PHONE_RATE_LIMIT_MAX = 5;
     private const PHONE_RATE_LIMIT_DECAY_SECONDS = 3600;
 
+    /**
+     * C-P1-PHONE-VERIFICATION — ¿puede completarse hoy la verificación? El
+     * único canal de entrega del OTP es WhatsApp; con WHATSAPP_ENABLED=false
+     * ningún código llega en producción. En local/testing el código se
+     * muestra en pantalla (ver send()), así que ahí el flujo sí funciona.
+     * No cambia el proveedor: solo evita dirigir a una acción imposible.
+     */
+    public static function isAvailable(): bool
+    {
+        return (bool) config('services.whatsapp.enabled', false)
+            || app()->environment('local', 'testing');
+    }
+
     public function show(Request $request): Response
     {
         return Inertia::render('Auth/PhoneVerification', [
             'phone' => $this->maskPhone($request->user()->phone),
+            'available' => self::isAvailable(),
         ]);
     }
 
     public function send(Request $request): RedirectResponse
     {
         $user = $request->user();
+
+        // Antes: se generaba el código, se consumía el límite por número y se
+        // respondía "intenta de nuevo en unos minutos" — un fallo presentado
+        // como pasajero que nunca se resolvería.
+        if (! self::isAvailable()) {
+            return back()->withErrors(['phone' => 'La verificación por WhatsApp todavía no está habilitada en MOVA.']);
+        }
 
         if ($user->phone_verified_at) {
             return back()->with('status', 'phone-already-verified');
