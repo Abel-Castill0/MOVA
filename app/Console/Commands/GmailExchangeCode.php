@@ -5,6 +5,11 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
+/**
+ * HUMAN-INTERACTIVE SECRET STEP. This command prints a refresh token. Run it
+ * only in a private terminal; never from an agent session, and never paste its
+ * output into chat transcripts, CI logs or committed files.
+ */
 class GmailExchangeCode extends Command
 {
     protected $signature   = 'mova:gmail-exchange-code {code : The authorization code from the OAuth redirect}';
@@ -27,7 +32,7 @@ class GmailExchangeCode extends Command
             'client_id'     => config('services.gmail.client_id'),
             'client_secret' => config('services.gmail.client_secret'),
             'code'          => $code,
-            'redirect_uri'  => 'http://localhost',
+            'redirect_uri'  => GmailAuthUrl::REDIRECT_URI,
             'grant_type'    => 'authorization_code',
         ]);
 
@@ -52,8 +57,8 @@ class GmailExchangeCode extends Command
         $this->newLine();
         $this->line($refreshToken);
         $this->newLine();
-        $this->comment('Add this as GMAIL_REFRESH_TOKEN in Railway → MOVA → Variables.');
-        $this->comment('NEVER commit this token to git.');
+        $this->comment('Store it in the Azure Container Apps secret store (GMAIL_REFRESH_TOKEN).');
+        $this->comment('NEVER commit it to git or paste it into chat/agent transcripts or CI logs.');
         $this->newLine();
 
         return self::SUCCESS;
