@@ -101,6 +101,10 @@ return [
         // para cualquier tópico).
         'expected_live_mode' => env('MERCADOPAGO_EXPECTED_LIVE_MODE'),
 
+        // Allowlist de correos que pueden usar el checkout automático (QA/staging).
+        // Vacía = sin restricción. Ver App\Support\CheckoutAllowlist.
+        'checkout_allowlist' => env('MERCADOPAGO_CHECKOUT_ALLOWLIST'),
+
         // Umbrales de MercadoPagoWebhookRecoveryService — nunca
         // hardcodeados en el servicio/comando, siempre configurables sin
         // tocar código (ver app/Console/Commands/MercadoPagoReconcile.php).

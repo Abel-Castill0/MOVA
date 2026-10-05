@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
+use App\Support\CheckoutAllowlist;
 use App\Models\RechargeRequest;
 use App\Payment\Contracts\CardPaymentInstrument;
 use App\Payment\Contracts\PaymentProviderContract;
@@ -553,6 +554,9 @@ class CreditCheckoutController extends Controller
     {
         return (bool) config('payments.enabled')
             && config('payments.provider') === 'mercadopago'
-            && filled(config('payments.mercadopago.public_key'));
+            && filled(config('payments.mercadopago.public_key'))
+            // Acotado a usuarios QA cuando MERCADOPAGO_CHECKOUT_ALLOWLIST está definida
+            // (vacía = sin restricción). Ver App\Support\CheckoutAllowlist.
+            && CheckoutAllowlist::permits(auth()->user());
     }
 }

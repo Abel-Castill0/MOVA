@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RechargeRequest;
 use App\Models\User;
 use App\Notifications\NewRechargeRequestNotification;
+use App\Support\CheckoutAllowlist;
 use App\Support\OperationNumberNormalizer;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -155,6 +156,7 @@ class CreditController extends Controller
     {
         return (bool) config('payments.enabled')
             && config('payments.provider') === 'mercadopago'
-            && filled(config('payments.mercadopago.public_key'));
+            && filled(config('payments.mercadopago.public_key'))
+            && CheckoutAllowlist::permits(auth()->user());
     }
 }
