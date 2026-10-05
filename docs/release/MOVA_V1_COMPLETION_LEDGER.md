@@ -125,6 +125,9 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 - **Datos legales:** `apps.bicepparam` acepta `MOVA_LEGAL_BUSINESS_NAME/RUC/ADDRESS/SUPPORT_EMAIL`; sin ellos
   `mova:health-check` marca `LEGAL_PROVIDER_DATA_MISSING` (los aporta el titular; no se inventan).
 - **CI:** GitHub Actions `CI` en `success` para `f3d0028` y `3f15ce4`.
+- **Cobertura añadida (rutas V1 sin test directo):** interruptor de control parental, alta de perfil docente y bandeja de
+  notificaciones (propiedad/404 ajeno) — `ParentSettingsAndTeacherSetupTest` (7 tests). PHPUnit SQLite sobre el árbol final:
+  **1408 tests / 5513 assertions, 0 failures, 7 skips**.
 
 ### Decisiones pendientes del titular (con recomendación)
 
