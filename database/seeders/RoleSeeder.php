@@ -15,6 +15,13 @@ class RoleSeeder extends Seeder
             Role::firstOrCreate(['name' => $role]);
         }
 
+        // La cuenta de desarrollo admin@mova.test con contraseña conocida SOLO existe en local/testing.
+        // En producción/staging este seeder solo crea los roles: sembrar de más dejó una vez un
+        // administrador con contraseña pública en la base de producción (eliminado el mismo día).
+        if (! app()->environment(['local', 'testing'])) {
+            return;
+        }
+
         $admin = User::firstOrCreate(
             ['email' => 'admin@mova.test'],
             [

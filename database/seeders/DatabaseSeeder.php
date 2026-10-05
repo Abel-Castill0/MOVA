@@ -16,6 +16,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Datos de DESARROLLO (cuentas de prueba con contraseñas conocidas): nunca en un entorno real.
+        abort_if(app()->environment('production'), 500, 'Este seeder es solo para desarrollo/QA y se niega a correr en producción/staging.');
+
         $this->call([
             RoleSeeder::class,
             SubjectSeeder::class,
