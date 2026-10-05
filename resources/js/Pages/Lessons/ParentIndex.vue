@@ -79,7 +79,7 @@
     <RescheduleLessonModal :show="!!rescheduleTarget" :lesson="rescheduleTarget" :error="rescheduleError" :processing="rescheduling"
       @close="closeReschedule" @confirm="submitReschedule" />
 
-    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" :connecting="connecting" @close="closeJitsi" />
+    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" :connecting="connecting" :notice="mediaNotice" @dismiss-notice="mediaNotice = ''" @close="closeJitsi" />
   </AppLayout>
 </template>
 
@@ -107,7 +107,7 @@ const {
 const payingId       = ref(null)
 const paymentError   = ref('')
 const paymentErrorId = ref(null)
-const { showingJitsiModal, joinError, connecting, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
+const { showingJitsiModal, joinError, connecting, mediaNotice, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
 const grouped  = computed(() => splitByWeek(props.lessons))
 // El backend ordena `lessons` por start_time desc (historial arriba) — para

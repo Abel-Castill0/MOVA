@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\JaasWebhookController;
 use App\Http\Controllers\MercadoPagoWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Http\Request;
@@ -52,3 +53,16 @@ Route::prefix('webhooks/mercadopago')->middleware('throttle:120,1')->group(funct
         ->name('webhooks.mercadopago.handle')
         ->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class.':api');
 });
+
+// Presencia de JaaS (PARTICIPANT_JOINED / PARTICIPANT_LEFT). SOLO guarda
+// evidencia en lesson_presence_events: no cambia estados de clase, créditos ni
+// liquidación (las reglas de asistencia no están definidas). Desactivado por
+// defecto (JAAS_WEBHOOKS_ENABLED=false → 404) y autenticado con la firma
+// X-Jaas-Signature (JAAS_WEBHOOK_SIGNING_SECRET) y/o un header Authorization
+// opcional (JAAS_WEBHOOK_AUTH_TOKEN); ver config/jaas.php. Mismo motivo que el webhook de Mercado Pago para
+// quitar el throttle 'api': los reintentos legítimos de JaaS no deben
+// descartarse por el límite global de 60/min.
+Route::post('webhooks/jaas', [JaasWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.jaas.handle')
+    ->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class.':api');

@@ -54,4 +54,37 @@ return [
     'join_window_before_minutes' => (int) env('JAAS_JOIN_WINDOW_BEFORE_MINUTES', 15),
     'join_grace_after_minutes'   => (int) env('JAAS_JOIN_GRACE_AFTER_MINUTES', 120),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Webhooks de presencia (PARTICIPANT_JOINED / PARTICIPANT_LEFT)
+    |--------------------------------------------------------------------------
+    |
+    | Solo evidencia en lesson_presence_events; ninguna regla de MOVA decide
+    | asistencia a partir de ellos. DESACTIVADO por defecto. Para activarlo:
+    | consola de JaaS > Webhooks > Add endpoint con la URL
+    | https://<dominio>/api/webhooks/jaas y los eventos PARTICIPANT_JOINED y
+    | PARTICIPANT_LEFT.
+    |
+    | DOS mecanismos de autenticación, con SECRETOS DISTINTOS (no mezclar):
+    |
+    |  1. FIRMA (recomendada): JaaS firma cada petición con HMAC-SHA256 en el
+    |     header `X-Jaas-Signature: t=<unix>,v1=<base64>`. La clave es el
+    |     "signing secret" que JaaS genera por endpoint (consola > endpoint >
+    |     "Reveal secret"). Va en JAAS_WEBHOOK_SIGNING_SECRET. Se firma
+    |     "<t>.<cuerpo crudo>", se compara en tiempo constante, se ignoran
+    |     esquemas distintos de v1 y se rechaza un `t` fuera de la tolerancia.
+    |  2. Header `Authorization` estático (opcional): lo defines TÚ en la
+    |     consola de JaaS al crear el endpoint; JaaS lo reenvía tal cual. Debe ser
+    |     "Bearer <JAAS_WEBHOOK_AUTH_TOKEN>" (token largo y aleatorio inventado
+    |     por ti, NO el signing secret de JaaS).
+    |
+    | Se exige al menos uno configurado (fail closed); si hay ambos, se exigen
+    | ambos. Duplicados: `idempotencyKey` único en BD.
+    |
+    */
+    'webhooks_enabled'           => (bool) env('JAAS_WEBHOOKS_ENABLED', false),
+    'webhook_signing_secret'     => env('JAAS_WEBHOOK_SIGNING_SECRET'),
+    'webhook_auth_token'         => env('JAAS_WEBHOOK_AUTH_TOKEN'),
+    'webhook_tolerance_seconds'  => (int) env('JAAS_WEBHOOK_TOLERANCE_SECONDS', 600),
+
 ];

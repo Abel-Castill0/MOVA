@@ -1,7 +1,31 @@
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 
 const JAAS_DOMAIN = '8x8.vc'
+const SCRIPT_LOAD_TIMEOUT_MS = 20000
+
+const LOAD_ERROR_MESSAGE = 'No pudimos cargar la videollamada. Revisa tu conexión a Internet (o si tu red bloquea 8x8.vc) y vuelve a intentarlo.'
+
+// Errores de cámara/micrófono que reporta JaaS (`cameraError` / `micError`).
+// No bloquean la clase —la persona puede seguir entrando sin cámara o sin
+// micrófono—, así que se muestran como aviso con la acción concreta, no como error.
+function describeMediaError(device, event) {
+  const label = device === 'camera' ? 'la cámara' : 'el micrófono'
+  const type = String(event?.type || event?.error?.name || '').toLowerCase()
+
+  if (type.includes('permission') || type.includes('denied') || type.includes('notallowed')) {
+    return `No tenemos permiso para usar ${label}. Permite el acceso desde el icono del candado junto a la dirección del navegador y recarga la sala.`
+  }
+  if (type.includes('not_found') || type.includes('notfound') || type.includes('devicesnotfound')) {
+    return `No encontramos ${label} en tu dispositivo. Conéctalo y vuelve a entrar, o continúa sin él.`
+  }
+  if (type.includes('in_use') || type.includes('inuse') || type.includes('notreadable') || type.includes('track')) {
+    const used = device === 'camera' ? 'La cámara está siendo usada' : 'El micrófono está siendo usado'
+    return `${used} por otra aplicación. Ciérrala y vuelve a entrar.`
+  }
+
+  return `No pudimos activar ${label}. Revisa los permisos del navegador y vuelve a entrar.`
+}
 
 let scriptPromise = null
 
@@ -17,8 +41,14 @@ function loadJitsiScript(appId) {
     const script = document.createElement('script')
     script.src = `https://${JAAS_DOMAIN}/${appId}/external_api.js`
     script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => { scriptPromise = null; reject(new Error('No se pudo cargar Jitsi.')) }
+    // Sin límite, una red que nunca responde dejaba el modal en "Conectando…" para siempre.
+    const timer = setTimeout(() => {
+      scriptPromise = null
+      script.remove()
+      reject(new Error('Tiempo de espera agotado cargando Jitsi.'))
+    }, SCRIPT_LOAD_TIMEOUT_MS)
+    script.onload = () => { clearTimeout(timer); resolve() }
+    script.onerror = () => { clearTimeout(timer); scriptPromise = null; script.remove(); reject(new Error('No se pudo cargar Jitsi.')) }
     document.head.appendChild(script)
   })
 
@@ -39,12 +69,26 @@ export function useJitsiMeet() {
   // credenciales + cargar el script + construir el iframe), no lo que pase
   // dentro de JaaS después de eso.
   const connecting = ref(false)
+  // Aviso NO bloqueante (cámara/micrófono). Distinto de joinError, que sí
+  // impide la clase: aquí la llamada sigue activa.
+  const mediaNotice = ref('')
   let api = null
 
   // usePage() debe llamarse en el momento síncrono de setup() — se guarda la
   // referencia reactiva aquí y se lee auth.user.name más tarde, dentro de
   // openJitsi() (async), en vez de volver a llamar usePage() ahí.
   const page = usePage()
+
+  // Si la página se desmonta con la sala abierta (navegación de Inertia, botón
+  // atrás), la instancia del SDK no debe quedar huérfana consumiendo
+  // cámara/micrófono/red, ni el body bloqueado sin scroll.
+  onBeforeUnmount(() => {
+    if (api) {
+      api.dispose()
+      api = null
+    }
+    document.body.style.overflow = ''
+  })
 
   // El modal de Jitsi es a pantalla completa — igual que el Modal genérico,
   // bloqueamos el scroll del body mientras está abierto.
@@ -74,6 +118,7 @@ export function useJitsiMeet() {
     if (showingJitsiModal.value) return
 
     joinError.value = ''
+    mediaNotice.value = ''
     activeLesson.value = lesson
     showingJitsiModal.value = true
     connecting.value = true
@@ -91,10 +136,18 @@ export function useJitsiMeet() {
       return
     }
 
-    await loadJitsiScript(credentials.jaas_app_id)
+    try {
+      await loadJitsiScript(credentials.jaas_app_id)
+    } catch {
+      joinError.value = LOAD_ERROR_MESSAGE
+      connecting.value = false
+      return
+    }
 
     const container = document.getElementById(containerId)
     if (!container || !window.JitsiMeetExternalAPI) {
+      // Antes: salía en silencio y el modal quedaba vacío sin explicación.
+      joinError.value = LOAD_ERROR_MESSAGE
       connecting.value = false
       return
     }
@@ -120,6 +173,18 @@ export function useJitsiMeet() {
     // botón "Cerrar sala", así el regreso a MOVA es automático sin importar
     // cómo la persona salga de la llamada.
     api.addEventListener('readyToClose', closeJitsi)
+
+    // Cámara/micrófono: avisar con la acción concreta; la llamada sigue.
+    api.addEventListener('cameraError', (event) => { mediaNotice.value = describeMediaError('camera', event) })
+    api.addEventListener('micError', (event) => { mediaNotice.value = describeMediaError('mic', event) })
+
+    // Error fatal de la conferencia (p. ej. el JWT ya no es válido): es un
+    // error de acceso, no una clase que "terminó" — ver closeJitsi().
+    api.addEventListener('errorOccurred', (event) => {
+      if (event?.error?.isFatal) {
+        joinError.value = 'La videollamada se interrumpió. Cierra la sala y vuelve a entrar.'
+      }
+    })
   }
 
   function closeJitsi() {
@@ -128,6 +193,7 @@ export function useJitsiMeet() {
 
     showingJitsiModal.value = false
     joinError.value = ''
+    mediaNotice.value = ''
     activeLesson.value = null
     connecting.value = false
     if (api) {
@@ -146,5 +212,5 @@ export function useJitsiMeet() {
     }
   }
 
-  return { showingJitsiModal, joinError, connecting, activeLesson, openJitsi, closeJitsi }
+  return { showingJitsiModal, joinError, connecting, mediaNotice, activeLesson, openJitsi, closeJitsi }
 }

@@ -30,7 +30,8 @@ class JaasService
         string $roomName,
         string $userName,
         bool $isModerator,
-        ?\DateTimeInterface $expiresAt = null
+        ?\DateTimeInterface $expiresAt = null,
+        ?int $userId = null
     ): string {
         $appId = config('jaas.app_id');
         $privateKey = config('jaas.private_key');
@@ -57,10 +58,14 @@ class JaasService
             'exp' => $exp,
             'nbf' => $now - 10,
             'context' => [
-                'user' => [
+                'user' => array_filter([
                     'name' => $userName,
                     'moderator' => $isModerator,
-                ],
+                    // Id del usuario de MOVA: es lo que JaaS devuelve en los
+                    // webhooks de presencia (data.id) para atribuirlos a la
+                    // persona correcta. Solo el id: nunca correo ni teléfono.
+                    'id' => $userId === null ? null : (string) $userId,
+                ], fn ($value) => $value !== null),
                 'features' => [
                     'livestreaming' => false,
                     'recording' => false,

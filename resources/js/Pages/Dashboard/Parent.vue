@@ -395,7 +395,7 @@
     </div>
 
     <!-- Modal Sala Virtual (Jitsi) — sin cambios -->
-    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" :connecting="connecting" @close="closeJitsi" />
+    <JitsiModal :show="showingJitsiModal" :lesson="activeLesson" :error="joinError" :connecting="connecting" :notice="mediaNotice" @dismiss-notice="mediaNotice = ''" @close="closeJitsi" />
   </AppLayout>
 </template>
 
@@ -440,7 +440,7 @@ const paymentError = ref('')
 const paymentErrorId = ref(null)
 const postClassLessonId = ref(null)
 const postClassEnded = ref(true)
-const { showingJitsiModal, joinError, connecting, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
+const { showingJitsiModal, joinError, connecting, mediaNotice, activeLesson, openJitsi, closeJitsi } = useJitsiMeet()
 
 // `upcoming` ya viene ordenado start_time asc (próxima primero) desde DashboardController
 const upcomingGrouped  = computed(() => splitByWeek(props.upcoming))

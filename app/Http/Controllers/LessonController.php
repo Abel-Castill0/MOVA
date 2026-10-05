@@ -216,7 +216,7 @@ class LessonController extends Controller
 
         return response()->json([
             'jitsi_room' => $lesson->jitsi_room,
-            'jitsi_token' => $jaas->generateToken($lesson->jitsi_room, $user->name, $isModerator, $tokenExpiresAt),
+            'jitsi_token' => $jaas->generateToken($lesson->jitsi_room, $user->name, $isModerator, $tokenExpiresAt, $user->id),
             // App ID de JaaS — no es secreto (aparece en cada URL/script tag
             // de la llamada), el frontend lo necesita para construir el room
             // name con prefijo de tenant y la URL de external_api.js.

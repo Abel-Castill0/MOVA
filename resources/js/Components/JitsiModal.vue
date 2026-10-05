@@ -45,6 +45,23 @@
           </div>
 
           <template v-else>
+            <!-- Aviso NO bloqueante de cámara/micrófono: la llamada sigue activa. -->
+            <div
+              v-if="notice"
+              role="status"
+              data-testid="jitsi-media-notice"
+              class="absolute top-0 inset-x-0 z-10 flex items-start justify-between gap-3 bg-amber-400 px-4 py-2.5 text-sm text-slate-950"
+            >
+              <p>{{ notice }}</p>
+              <button
+                type="button"
+                class="flex-shrink-0 rounded-control bg-slate-950/10 px-3 py-1 text-xs font-semibold hover:bg-slate-950/20"
+                @click="$emit('dismiss-notice')"
+              >
+                Entendido
+              </button>
+            </div>
+
             <div id="jitsi-container" class="w-full h-[85vh] sm:h-[90vh]" allow="camera; microphone; fullscreen; display-capture"></div>
 
             <!-- Estado explícito entre "la modal se abrió" y "el contenido
@@ -85,6 +102,7 @@ defineProps({
   lesson: { type: Object, default: null },
   error: { type: String, default: '' },
   connecting: { type: Boolean, default: false },
+  notice: { type: String, default: '' },
 })
-defineEmits(['close'])
+defineEmits(['close', 'dismiss-notice'])
 </script>
