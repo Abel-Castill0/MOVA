@@ -1,6 +1,6 @@
 # MOVA — Runbook de producción (Azure)
 
-> Estado: producción **aprovisionada y sana, aún sin tráfico público ni integraciones live**. Este documento no
+> Estado (2026-10-06): producción **sana y sirviendo `https://movaeduca.me` con TLS, pero sin correo ni integraciones live**. Este documento no
 > contiene secretos: solo nombres, destinos y procedimientos. Estados según el ledger
 > (`LOCAL_TEST` / `LIVE_STAGING` / `PRODUCTION_LIVE`): lo descrito aquí como «construido» es `PRODUCTION_LIVE`
 > **solo para infraestructura y salud**; ninguna integración externa está activa en producción.
@@ -14,7 +14,7 @@
 | Subred / DNS privada | `snet-mysql` | `snet-mysql-prod` (10.20.2.16/28), misma zona privada |
 | Secretos | secretos de las apps `mova-*` | secretos propios de `movap-*` (APP_KEY nueva, contraseña de BD propia) |
 | Entorno ACA / VNet / ACR / identidad / logs | `mova-aca-env`, `mova-vnet`, ACR, `mova-apps-identity`, `mova-logs` en `mova-prod-rg` | **compartidos** (ver restricción) |
-| Dominio | `staging.movaeduca.me` | `movaeduca.me` (pendiente de cutover) |
+| Dominio | `staging.movaeduca.me` | `movaeduca.me` (apex y `www` ya sirven producción) |
 
 **Restricción real (suscripción Azure for Students):** máximo **1 Container Apps Environment en total**
 (`MaxNumberOfGlobalEnvironmentsInSubExceeded`; verificado también en `canadacentral`). Por eso producción comparte
@@ -25,10 +25,14 @@ compartida* pese a su nombre. Consecuencias: (1) la IP de ingreso es la misma qu
 crear un entorno ACA propio para producción y mover `movap-*` (IaC ya parametrizado: `MOVA_PREFIX`,
 `MOVA_APP_NAME_PREFIX`, `MOVA_MYSQL_SERVER_NAME`, `MOVA_LOCATION`).
 
-Costo estimado incremental (precios de lista): MySQL B1ms + 32 GB ≈ USD 15/mes; 3 réplicas pequeñas (web 0,5 vCPU/1 GiB,
-worker/scheduler 0,25 vCPU/0,5 GiB, siempre encendidas) ≈ USD 20–30/mes tras la capa gratuita. **Total ≈ USD 35–45/mes.**
-Saldo del crédito Student leído en el portal el 2026-10-05: ≈ US$ 86 de US$ 100 → no alcanza con holgura para más de ~2 meses;
-confirmar en https://www.microsoftazuresponsorships.com / Cost Management y decidir plan de pago antes de agotarlo.
+**Costo y crédito (lectura del 2026-10-06):** crédito restante US$ 86, vence 14/09/2027 ⇒ gasto sostenible ≈ US$ 7,6/mes.
+Gasto real: septiembre ≈ US$ 12,3 (solo staging); octubre 1–5 ≈ US$ 2,23. Previsión del portal US$ 19,22/mes, que **aún no
+incluye** el MySQL de producción ni las réplicas siempre activas de `movap-*`. Estimación con producción completa
+≈ US$ 30–38/mes (MySQL de producción ≈ 16; `movap-*` ≈ 8–10; ACR ≈ 5; IP pública del entorno ≈ 3,5; staging ≈ 3–5).
+Con eso el crédito alcanza ≈ 2,5–3 meses; al agotarse la suscripción Student se deshabilita. Medir con la API de Cost
+Management (`az rest` → `Microsoft.CostManagement/query`, agrupando por `ResourceId`) cuando la facturación de producción
+aparezca. Ahorro aplicado: staging `worker`/`scheduler` a 0 réplicas (`az containerapp update --min-replicas 1` para volver).
+Presupuesto `mova-monthly-20` (US$ 20/mes) con alertas al 50 %/80 % reales y 100 % previsto: informa, no limita el gasto.
 
 ## 2. Despliegue (procedimiento reproducible)
 
@@ -67,18 +71,12 @@ los contenedores en bucle; ahora es tolerante y `/readyz` sigue en 503 hasta mig
 | `staging.movaeduca.me` | CNAME | `mova-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io` |
 | `asuid.staging.movaeduca.me` | TXT | (verificación del entorno ACA) |
 
-**Estado 2026-10-05:** `www` ya apunta a `movap-web` (cert gestionado, 301 → apex). El apex sigue en GitHub Pages: el paso 3 está pendiente (lo hace o autoriza el titular).
-
-**Cambios previstos (solo web; MX/SPF/TXT/DKIM/DMARC intactos):**
-1. TXT `asuid` (apex y `www`) con el *customDomainVerificationId* del entorno (se obtiene con
-   `az containerapp env show … --query properties.customDomainConfiguration.customDomainVerificationId`).
-2. `www` CNAME → FQDN de `movap-web` (no a `movaeduca.me`) para el certificado gestionado y el redirect.
-3. Apex: registro A → IP estática del entorno (`az containerapp env show … --query properties.staticIp`).
-4. `az containerapp hostname add/bind` + certificado gestionado para apex y `www` en `movap-web`.
-5. `MOVA_APP_URL=https://movaeduca.me`; `www` → apex lo hace `RedirectWwwToApex` (301).
-6. Verificar: resolución, TLS, `www`→apex, `/healthz`, `/readyz`, login, correo, OAuth, webhooks.
-Ventana esperada sin TLS válido en el apex: minutos (el certificado gestionado exige que el A ya apunte al entorno).
-Rollback: restaurar los 4 registros A de GitHub Pages y el CNAME de `www` (TTL del registrador).
+**Estado 2026-10-06:** apex `A` → `68.155.88.233`, `www` CNAME → `movap-web`; MX (`eforward1–5`), SPF y TXT sin cambios; los
+registros de GitHub Pages ya no existen. Apex y `www` enlazados con certificado gestionado en `movap-web` (`az containerapp
+hostname add` + `bind --validation-method HTTP`); `www` → apex 301; `/healthz` y `/readyz` 200; `noindex` activo.
+**Pendiente:** confirmar que el registrante que figura en Namecheap es la persona autorizada antes de editar más registros.
+Rollback (si hiciera falta volver): `A @` → 185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153 (GitHub Pages)
+y `www` CNAME → `movaeduca.me`; quitar el enlace con `az containerapp hostname delete -n movap-web --hostname movaeduca.me`.
 
 ## 5. Credenciales de producción (el propietario las rota/carga al final)
 
@@ -96,7 +94,17 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 | Datos legales (no secretos) | `LEGAL_BUSINESS_NAME`, `LEGAL_RUC`, `LEGAL_ADDRESS`, `LEGAL_SUPPORT_EMAIL` (vía `MOVA_LEGAL_*` en `apps.bicepparam`) | Titular (razón social, RUC, domicilio) | `mova:health-check` sin `LEGAL_PROVIDER_DATA_MISSING` |
 | Cuenta admin | (se crea sin contraseña conocida) | — | Recuperar contraseña por correo y activar MFA |
 
-Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción).
+**Rotar antes de activar integraciones live (estado 2026-10-06):**
+1. Clave de firma del webhook de Mercado Pago: es **una sola por aplicación** (modo de prueba y productivo coinciden, o sea
+   compartida con staging) y se mostró en la interfaz: regenerar en el panel y actualizar `mercadopago-webhook-secret` en los
+   3 roles de producción y el secreto de staging. Hoy está inactiva (`MERCADOPAGO_WEBHOOKS_ENABLED=false`).
+2. DSN de Sentry de producción (`sentry-laravel-dsn`): pasó por un archivo temporal local ya eliminado; rotación opcional.
+3. Token de acceso y clave pública live de Mercado Pago, contraseña de aplicación de correo, clave API de JaaS y
+   `CLOUDINARY_URL` de producción: cargarlos al crearlos, nunca por el chat.
+4. Credencial histórica del incidente F-26 (MySQL de Railway en el historial de git): sigue abierta y separada.
+
+Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción;
+excepción conocida y pendiente: la clave de firma del webhook de Mercado Pago, única por aplicación).
 Tras cargar cada grupo: nueva revisión de los tres roles, `/readyz`, y el smoke de la tabla.
 
 ## 6. Gates de lanzamiento pendientes (no técnicos)

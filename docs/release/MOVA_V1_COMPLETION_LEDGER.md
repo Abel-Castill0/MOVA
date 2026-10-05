@@ -40,9 +40,9 @@ criterio lo exige, evidencia en vivo del entorno real).
 
 ## Estado actual (2026-10-05, cierre de la ronda de lanzamiento)
 
-**No se declara «100 % terminado».** Producción Azure existe, está sana y aislada en datos, pero **no tiene
-tráfico público ni integraciones live**, y el dominio aún apunta a GitHub Pages. Este bloque
-**sustituye** cualquier estado anterior del ledger que lo contradiga.
+**No se declara «100 % terminado».** Producción Azure existe, está sana, aislada en datos y **atiende
+`https://movaeduca.me` con TLS válido** (2026-10-06), pero **sin correo, sin JaaS/Cloudinary de producción y sin
+cobros live** (pagos `fake`/apagados). Este bloque **sustituye** cualquier estado anterior del ledger que lo contradiga.
 
 **Evidencia de código sobre el árbol definitivo (`LOCAL_TEST`, PHP 8.3.35):** `composer audit`/`npm audit`
 sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 failures, 7 skips; PHPUnit MySQL 8.4
@@ -52,8 +52,10 @@ sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 f
 Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
 
 **Despliegue final (2026-10-05):** imagen `mova@sha256:c2b396e24f93bd204e4e3c9140a455bf9c20a6ae7ada66c5c1265a9e00d97c9c`
-(construida del commit `783138e`; `master` publicado en `f3d0028`). GitHub Actions sobre `f3d0028`: `CI` en `success`.
-Producción: `movap-web--0000001`, `movap-worker--0000001`, `movap-scheduler--0000001` (`/readyz` ready).
+(construida del commit `783138e`; `master` publicado en `0c01259`, con solo tests y documentación posteriores). GitHub
+Actions sobre `0c01259`: `CI` en `success`.
+Producción: `movap-web--0000004`, `movap-worker--0000004`, `movap-scheduler--0000004` (`/readyz` ready; las revisiones
+2–4 solo añadieron variables/secretos de configuración, misma imagen).
 Staging: `mova-web--0000038`, `mova-worker--0000024`, `mova-scheduler--0000017` (`/readyz` ready; checkout de
 Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 
@@ -61,12 +63,12 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 
 | Función | Implementada | LOCAL_TEST | LIVE_STAGING | PRODUCTION_LIVE | Pendiente exacto |
 |---|---|---|---|---|---|
-| Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Correo real aceptado y recibido (verificación, reset, constancia); flujo de UI completo no repetido en esta ronda | No (correo `array`) | Credenciales SMTP de producción; crear admin con `mova:create-admin` |
+| Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Registro → verificación → recuperación → ingreso probados con correo real (un buzón alias) | No (correo `array`; el registro público no puede verificarse) | Credenciales SMTP de producción; crear admin con `mova:create-admin` |
 | Disponibilidad semanal, búsqueda y recomendaciones | Sí | PHPUnit + E2E (3) | Desplegado; migraciones aplicadas | Migraciones aplicadas, sin datos | Prueba con docentes reales |
 | Solicitud y reserva de clases | Sí | E2E «flujo de 8 pasos» | Sin re-verificar en esta ronda | No | Verificación en producción tras cutover |
 | Clases JaaS (sala, permisos, ventana, reconexión) | Sí | 11 E2E con script simulado | **Reunión real** docente+padre (escritorio y móvil), salida/reingreso | No (sin credenciales) | Credenciales JaaS de producción; prueba humana de audio/video |
 | Presencia JaaS (`PARTICIPANT_JOINED/LEFT`) | Sí (solo evidencia) | 21 tests | **Webhook real firmado**, idempotente | No | Registrar endpoint de producción; **no** decide asistencia |
-| Créditos del profesor / checkout Mercado Pago | Sí | Sonda sandbox + PHPUnit | **Sandbox**: Card Brick, 3DS, Yape, rechazos, móvil, reintentos, webhook real y simulador, reverso sandbox | No (`PAYMENTS_ENABLED=false`) | Credenciales **live**, URL de webhook de producción, un cobro real mínimo + reembolso aprobados por el titular |
+| Créditos del profesor / checkout Mercado Pago | Sí | Sonda sandbox + PHPUnit | **Sandbox**: Card Brick, 3DS, Yape, rechazos, móvil, reintentos, webhook real y simulador, reverso sandbox | No (`PAYMENTS_ENABLED=false`) | Credenciales **live**, regenerar la clave de firma del webhook (ya registrado, inactivo), un cobro real mínimo + reembolso aprobados por el titular |
 | Pago padre → profesor por la clase | **No existe** | — | — | — | MOVA solo carga créditos del profesor; el flujo padre→profesor no está implementado ni probado |
 | Reversos/contracargos | Reacciona a reembolso/contracargo confirmado; reversión manual de ledger (admin) | PHPUnit | Reembolso **sandbox** reconciliado (un `reversal`) | No | Política de deuda/negativos y quién inicia reembolsos |
 | Notificaciones por correo | Sí | Mailpit + PHPUnit | SMTP real a buzón autorizado (`MAIL_ALLOWLIST`) | No | Credenciales y dominio remitente (SPF/DKIM/DMARC) |
@@ -78,14 +80,14 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 | WhatsApp, Google Login, IA de diagnóstico, broadcasting | Sí (apagados) | PHPUnit | Apagados | Apagados | Decisión de producto/credenciales; fuera del alcance de arranque |
 | Asistencia/ausencias/disputas, clases recurrentes, verificación documental docente | **No definidos** | — | — | — | Decisión de negocio (ver abajo) |
 | Infraestructura de producción | Sí | — | — | **Sí (infra y salud)** | Ver siguiente sección |
-| Dominio `movaeduca.me` → producción | — | — | `www` sí (TLS + redirect); **apex no** | **No** | Registro A del apex en Namecheap (bloqueado por control de seguridad; lo hace/autoriza el titular) + correo operativo |
+| Dominio `movaeduca.me` → producción | — | — | — | **Sí (infra)**: apex y `www` con TLS gestionado, `www`→apex 301, `/healthz` y `/readyz` 200, `noindex` | Confirmar titularidad del registrante (ver abajo); sin correo operativo los registros no pueden verificarse |
 
 ### Producción Azure (`PRODUCTION_LIVE` para infraestructura y salud únicamente)
 
 - Apps `movap-web` (min 1), `movap-worker`, `movap-scheduler` (1 réplica) en el único entorno ACA permitido por la
   suscripción Student (1 por suscripción: `MaxNumberOfGlobalEnvironmentsInSubExceeded`, probado también en
   `canadacentral`), por lo que comparten entorno/VNet/ACR con staging; apps, secretos, base y usuario de BD son propios.
-  FQDN provisional `https://movap-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io`:
+  Sirven `https://movaeduca.me` (y el FQDN `https://movap-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io`):
   `/healthz` 200, `/readyz` `{"status":"ready"}` (BD, migraciones, caché), `/login` y `/register` 200.
 - **Base separada:** servidor MySQL 8.4 `mova-prod-mysql-8uxzgq` (B1ms, 32 GB, privado, TLS, PITR 14 días, sin
   geo-redundancia), BD `mova`, usuario `movap_app` con DML+DDL solo sobre `mova.*`. Se aplicaron las 102 migraciones
@@ -96,46 +98,72 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   42 tablas, 3 roles, 6 materias); servidor de prueba eliminado.
 - **Configuración segura por defecto:** `APP_ENV=production`, `APP_DEBUG=false`, correo `array`, pagos `fake`/apagados,
   recargas y webhooks apagados, WhatsApp/Google/IA apagados, indexación apagada, liquidación `dry_run`, solo un
-  scheduler. Sin credenciales de Mercado Pago, JaaS, Cloudinary, Sentry ni SMTP (nombres y procedimiento en
+  scheduler. Sin credenciales de Mercado Pago, JaaS, Cloudinary ni SMTP; Sentry sí (nombres y procedimiento en
   `docs/release/MOVA_PRODUCTION_RUNBOOK.md`).
-- **Incidente (resuelto, 2026-10-05):** `RoleSeeder` creaba `admin@mova.test` con contraseña `password` y se ejecutó
-  una vez en la base de producción vacía. Cuenta sin verificar, **0 sesiones**, eliminada ≈ 70 min después; producción
-  quedó con 0 usuarios. Corregido: `RoleSeeder` solo crea roles fuera de local/testing; `DatabaseSeeder` y
-  `LocalTestDataSeeder` abortan en producción; nuevo `mova:create-admin` (contraseña desconocida + MFA).
-- **Verificación del incidente (agregados, sin datos personales):** producción tiene **0 usuarios y 0 sesiones de usuario**;
-  los únicos seeders ejecutados fueron `RoleSeeder` (roles + la cuenta `admin@mova.test`, ya eliminada) y `SubjectSeeder`
-  (materias); no se ejecutaron `DatabaseSeeder` ni `LocalTestDataSeeder`. Se limpiaron las notificaciones huérfanas de
-  esa cuenta. No se encontró evidencia de ningún inicio de sesión con ella. No se ejecutarán más seeders en producción.
-- **Crédito y costo (Azure for Students, lectura del portal 2026-10-05):** saldo ≈ US$ 86 de US$ 100. Costo incremental
-  estimado ≈ USD 35–45/mes (MySQL ≈ 15; 3 réplicas siempre activas ≈ 20–30): **el crédito no cubre un mes completo
-  con holgura**; no se creó ningún recurso adicional ni se pasó a un plan de pago. Reducir réplicas (`MOVA_WEB_MIN_REPLICAS`)
-  o pasar a pago es decisión del titular.
-- **Sentry:** proyecto propio `mova-production` con DSN distinto del de staging, cargado como secreto `sentry-laravel-dsn`
-  en los tres roles de producción (valor no registrado).
-- **Dominio (estado parcial):** `www.movaeduca.me` ya apunta a `movap-web` con certificado gestionado y redirige 301 al
-  apex. **El apex sigue en GitHub Pages** (4 registros A): el cambio del registro A en Namecheap fue bloqueado por el
-  control de seguridad de la sesión y **no se eludió**; MX/SPF/TXT intactos. `APP_URL` de producción ya es
-  `https://movaeduca.me`.
-- **Mercado Pago producción:** webhook de modo productivo registrado en el panel (`https://movaeduca.me/api/webhooks/mercadopago`,
-  evento Pagos) y su clave de firma cargada como secreto `mercadopago-webhook-secret` (los tres roles; valor no mostrado).
-  `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`, `MERCADOPAGO_WEBHOOKS_ENABLED=false`: **ningún cobro posible**. Faltan
-  credenciales live (las rota el titular al final).
-- **Flujos de autenticación en staging (correo real, un solo buzón alias):** registro → verificación → recuperación de
-  contraseña → ingreso con la nueva contraseña, todo OK. En producción el correo sigue `array` (sin SMTP).
+- **Incidente del admin (cerrado con evidencia agregada, 2026-10-06):** `RoleSeeder` creó `admin@mova.test` con
+  contraseña conocida en la base de producción vacía y se eliminó ≈ 70 min después. Hoy producción tiene **0 usuarios,
+  0 sesiones autenticadas, 0 tokens de recuperación, 0 tokens personales, 0 notificaciones, 0 asignaciones de rol y 0
+  correos `@mova.test`**; las únicas tablas con filas son `migrations` (102), `roles` (3), `subjects` (6),
+  `system_heartbeats`, `operational_alerts` (4, ver abajo) y `sessions`. Las 6 sesiones existentes son **de invitado**
+  (`user_id` nulo): se crean al abrir `/login` o `/register`, así que no contradicen «0 sesiones de usuario» (eso se
+  refería a sesiones autenticadas; las de invitado crecen con cada visita, incluidas mis comprobaciones). Las notificaciones
+  huérfanas de la cuenta temporal ya no existen. Seeders ejecutados: `RoleSeeder` y `SubjectSeeder` (no `DatabaseSeeder`
+  ni `LocalTestDataSeeder`). **Límite de la evidencia:** el contenedor no registra accesos HTTP, por lo que ningún log
+  prueba la ausencia de `POST /login` en esa ventana; lo verificado es que la cuenta nunca verificó su correo, que no
+  quedó sesión autenticada ni token, y que ya no existe. Corregido en código: `RoleSeeder` solo crea roles fuera de local/testing; `DatabaseSeeder` y `LocalTestDataSeeder` abortan en producción; nuevo `mova:create-admin` (contraseña desconocida + MFA). No se ejecutarán más seeders en producción.
+- **Alertas operativas de producción (4 críticas, esperadas):** `SETTLEMENT_DRY_RUN_IN_PRODUCTION`,
+  `MAIL_MAILER_NON_DELIVERING`, `LEGAL_PROVIDER_DATA_MISSING`, `JAAS_NOT_CONFIGURED`. Confirman que el monitor detecta
+  los huecos reales; cada una desaparece al cerrar su causa.
+- **Costo y crédito (Azure for Students, 2026-10-06):** crédito restante **US$ 86**, vence **14/09/2027** (≈ 11,3 meses
+  ⇒ gasto sostenible ≈ **US$ 7,6/mes**); previsión del portal US$ 19,22/mes. Gasto real (API de Cost Management):
+  septiembre ≈ US$ 12,3 (solo staging); octubre 1–5 ≈ US$ 2,23 (Container Registry 0,78; IP pública del entorno 0,57;
+  Container Apps 0,80; DNS 0,08; MySQL 0). El portal **aún no incluye** el MySQL de producción ni las réplicas siempre
+  activas de `movap-*` (retraso de facturación 24–48 h), así que el 19,22 es un piso; mi estimación con producción
+  completa es ≈ US$ 30–38/mes (MySQL de producción ≈ 16, porque la capa gratuita cubre un solo servidor y ya la usa el de
+  staging; `movap-*` ≈ 8–10). **A ese ritmo el crédito alcanza ≈ 2,5–3 meses, no hasta septiembre de 2027**; al agotarse,
+  la suscripción Student se deshabilita (no hay cargo a tarjeta). Ahorro aplicado: staging `worker` y `scheduler` a 0
+  réplicas (≈ US$ 3/mes; staging no tiene tráfico; revertir con `az containerapp update --min-replicas 1`). No se añadió
+  ningún recurso. Presupuesto `mova-monthly-20` creado (US$ 20/mes; correo al 50 % y 80 % reales y al 100 % previsto;
+  **informa, no limita el gasto**). Decisión del titular: pasar a plan de pago antes de ~dic-2026, o recortar (apagar el
+  staging por completo ahorra ≈ US$ 7–10/mes) aceptando menos disponibilidad. Actualizar esta cifra con la facturación real
+  de producción en cuanto aparezca.
+- **Sentry:** proyecto propio `mova-production`, DSN propio cargado como secreto `sentry-laravel-dsn` en los tres roles.
+  El archivo temporal local que lo contuvo se sobrescribió y se eliminó; el valor no aparece en el repositorio, la
+  documentación ni los logs. Todavía no hay evento sintético de producción.
+- **Dominio y registro (Namecheap):** el apex `A` ya apuntaba a `68.155.88.233` (lo cambió el titular; en esta ronda no
+  edité Namecheap), `www` CNAME → `movap-web`, MX (`eforward1–5`), SPF y TXT intactos; los 4 registros de GitHub Pages ya
+  no existen. Enlacé el apex con certificado gestionado en `movap-web`. **Titularidad:** el registrante de `movaeduca.me`
+  en Namecheap figura con un nombre y un correo distintos de los del titular de este proyecto; no se cambian más
+  registros hasta que el titular confirme que la cuenta es la autorizada.
+- **Mercado Pago producción:** webhook de modo productivo registrado (`https://movaeduca.me/api/webhooks/mercadopago`,
+  evento Pagos). **La clave de firma es una sola por aplicación** (la de modo de prueba y la productiva coinciden), así
+  que está compartida con staging, y se mostró en la interfaz al copiarla: se considera **potencialmente expuesta**. Está
+  cargada como secreto `mercadopago-webhook-secret` pero **inactiva**: `MERCADOPAGO_WEBHOOKS_ENABLED=false`,
+  `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`. Hay que regenerarla en el panel (y actualizarla en staging) **antes** de
+  habilitar el webhook. Ningún cobro es posible.
+- **Correo de producción:** bloqueado. Google exige un desafío de **llave de acceso (passkey)** para crear la contraseña
+  de aplicación de la cuenta de correo del proyecto; solo el titular puede aprobarlo. Staging sí funciona con correo real
+  (registro, verificación y recuperación probados).
+- **JaaS / Cloudinary producción:** no configurados. JaaS: plan **JaaS Dev (25 MAU, US$ 0)** con una sola app compartida
+  con staging (8 MAU ya consumidos por las pruebas); producción necesita clave API propia y decidir plan (25 MAU solo
+  sirve de piloto). Cloudinary: sin sesión abierta en el navegador.
+- **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
+  Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
+  pública live de Mercado Pago; (4) contraseña de aplicación de correo, JaaS y Cloudinary de producción al crearlas;
+  (5) la credencial histórica del incidente F-26 (MySQL de Railway en el historial de git), que sigue abierta y separada.
 - **Datos legales:** `apps.bicepparam` acepta `MOVA_LEGAL_BUSINESS_NAME/RUC/ADDRESS/SUPPORT_EMAIL`; sin ellos
   `mova:health-check` marca `LEGAL_PROVIDER_DATA_MISSING` (los aporta el titular; no se inventan).
-- **CI:** GitHub Actions `CI` en `success` para `f3d0028` y `3f15ce4`.
-- **Cobertura añadida (rutas V1 sin test directo):** interruptor de control parental, alta de perfil docente y bandeja de
-  notificaciones (propiedad/404 ajeno) — `ParentSettingsAndTeacherSetupTest` (7 tests). PHPUnit SQLite sobre el árbol final:
-  **1408 tests / 5513 assertions, 0 failures, 7 skips**.
+- **Cobertura V1 añadida:** interruptor de control parental, alta de perfil docente y bandeja de notificaciones
+  (`ParentSettingsAndTeacherSetupTest`, 7 tests). PHPUnit SQLite sobre el árbol final: **1408 tests / 5513 assertions,
+  0 failures, 7 skips**. CI de `0c01259`: `success`.
 
 ### Decisiones pendientes del titular (con recomendación)
 
 | Decisión | Recomendación | Consecuencia si no se decide |
 |---|---|---|
 | Credenciales live y de producción (MP live, SMTP, JaaS, Cloudinary, Sentry) | Cargarlas por `az containerapp secret set` (runbook §5), distintas de las de staging | Producción sin correo, reuniones, avatares ni pagos: no se hace el cutover |
-| Cutover DNS de `movaeduca.me` | Hacerlo cuando haya correo operativo; login en Namecheap en la pestaña abierta | El dominio sigue en GitHub Pages |
-| Entorno ACA propio para producción | Pasar a una suscripción de pago y mover `movap-*` | Producción comparte entorno/IP de ingreso con staging |
+| Titularidad de `movaeduca.me` en Namecheap | Confirmar que el registrante que figura es la persona autorizada (o añadir/transferir contacto) | No se tocan más registros DNS; el dominio ya sirve producción |
+| Entorno ACA propio y plan de pago | Pasar a una suscripción de pago y mover `movap-*` antes de ~dic-2026 | Producción comparte entorno con staging y el crédito (US$ 86) se agota en ≈ 2,5–3 meses |
 | Reembolsos/deuda por saldo negativo, quién inicia devoluciones | Reembolso manual desde el panel de Mercado Pago + reversión de ledger; saldo negativo = bloqueo de cuenta | Sin política, un contracargo deja saldo negativo sin dueño |
 | Pago padre → profesor | Definir el modelo (marketplace vs. créditos prepagos por familia) antes de prometerlo | No debe anunciarse |
 | Liquidación `live`, asistencia/disputas, clases recurrentes, verificación documental, consentimiento de menores/ANPD/transferencia internacional | Validación legal primero; mantener `dry_run` y verificación manual | Gate legal abierto: no se declara producción «lista» |
