@@ -28,6 +28,9 @@ yarn-error.log
 # F-24A: plantilla sin secretos — debe poder commitearse aunque calce con
 # el patrón .env* de arriba.
 !qa/.env.qa.example
+# Plantilla (solo nombres, sin valores) de las sondas de sandbox; el archivo
+# real `qa/.env.sandbox` sigue ignorado por `.env*`.
+!qa/.env.sandbox.example
 # F-24A.1: storageState de Playwright (cookies/sesión reales) — encontrado
 # tracked y pusheado en qa/auth/admin.json con una sesión real de
 # producción. Nunca debe volver a versionarse.

@@ -275,6 +275,33 @@ class HealthCheck extends Command
             ];
         }
 
+        // ── Separación staging/producción ──────────────────────────────
+        // Un sitio declarado PÚBLICO (indexación activa) no puede estar sirviendo
+        // una base con cuentas de prueba: es exactamente lo que ocurriría si el
+        // dominio final se apuntara por error a la base de staging (que contiene
+        // fixtures de QA). No decide nada: solo deja una incidencia crítica.
+        if ($environment === 'production' && config('seo.indexing_enabled')) {
+            try {
+                $fixtures = DB::table('users')->where(function ($q) {
+                    $q->where('email', 'like', '%@mova.test')
+                        ->orWhere('email', 'like', '%@example.test')
+                        ->orWhere('email', 'like', '%.test')
+                        ->orWhere('email', 'like', 'qa-%');
+                })->count();
+                $checks['qa_fixture_users'] = (string) $fixtures;
+
+                if ($fixtures > 0) {
+                    $warnings[] = [
+                        'code' => 'QA_FIXTURE_DATA_IN_PUBLIC_SITE',
+                        'message' => "El sitio está declarado público (indexación activa) pero la base contiene {$fixtures} cuenta(s) de prueba (correos @mova.test / .test / qa-*). "
+                            .'Probable apuntado a la base de staging: no usar esta base para producción.',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $checks['qa_fixture_users'] = 'no disponible';
+            }
+        }
+
         // ── P0-J / P1-03: latidos de worker y scheduler ──────────────────
         // /readyz no los mira a propósito (su caída no debe sacar al web del
         // balanceador); la señal operativa es ESTA. Worker: la detecta la

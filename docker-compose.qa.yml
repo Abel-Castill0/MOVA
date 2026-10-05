@@ -34,6 +34,18 @@ services:
     tmpfs:
       - /var/lib/mysql
 
+  # Servidor SMTP REAL de QA (solo captura, no entrega a Internet): permite
+  # probar el transporte `smtp` de Laravel de punta a punta y leer el correo
+  # recibido por su API (http://localhost:8026/api/v1/messages). Nunca envía
+  # a destinatarios reales. Ver tests/Feature/MailDeliverySmokeTest.php.
+  mail_qa:
+    image: axllent/mailpit:v1.31.3
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "8026:8025"
+
   php_qa:
     build:
       context: .

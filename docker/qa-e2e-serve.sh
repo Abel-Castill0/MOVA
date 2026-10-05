@@ -61,7 +61,7 @@ tar -C /workspace \
     --exclude=qa/node_modules \
     --exclude=bootstrap/cache \
     --exclude=storage/logs \
-    --anchored --exclude=./vendor --no-anchored \
+    --anchored --exclude=./vendor --exclude=./.env --no-anchored \
     -cf - . | tar -C /app -xf -
 mkdir -p /app/bootstrap/cache /app/storage/logs
 
@@ -74,6 +74,14 @@ while IFS= read -r nested; do
     fi
 done < <(find /workspace -path /workspace/vendor -prune -o -path '*/node_modules' -prune -o -type d -name vendor -print)
 cd /app
+
+# El .env del checkout NUNCA entra al snapshot (puede traer credenciales reales
+# de desarrollo): se excluye de la copia y se crea uno EFÍMERO aquí, con una
+# APP_KEY desechable y sin broadcasting. El gate no depende de ningún secreto.
+cp .env.example .env
+sed -i "s|^APP_KEY=.*|APP_KEY=base64:$(php -r 'echo base64_encode(random_bytes(32));')|" .env
+sed -i 's/^BROADCAST_DRIVER=.*/BROADCAST_DRIVER=null/' .env
+grep -q '^APP_KEY=base64:' .env || { echo "ABORT: no se pudo generar el .env efímero del gate E2E." >&2; exit 1; }
 
 export APP_ENV=local
 export DB_CONNECTION=sqlite
@@ -98,6 +106,19 @@ export RECHARGES_ENABLED=true
 # backend de cache apto para un server QA de un-proceso-por-request.
 export CACHE_DRIVER=array
 export QA_PHP_BIN="${QA_PHP_BIN:-php}"
+
+# JaaS de PRUEBA para el gate E2E: sin esto /lessons/{id}/join responde 500
+# ("JaaS no está configurado") y la experiencia de entrada a la sala no se puede
+# ejercitar. La llave RSA es DESECHABLE (se genera en cada corrida, nunca es una
+# credencial real) y solo firma el JWT local; el spec que la usa simula el script
+# external_api.js de 8x8.vc. Si el entorno ya trae JAAS_* reales (corrida con
+# `scripts/sandbox-smoke.sh jaas`), NO se pisan.
+if [ -z "${JAAS_PRIVATE_KEY:-}" ]; then
+    export JAAS_APP_ID="vpaas-magic-cookie-e2eqa"
+    export JAAS_KEY_ID="vpaas-magic-cookie-e2eqa/e2e"
+    JAAS_PRIVATE_KEY="$(php -r '$k = openssl_pkey_new(["private_key_bits" => 2048]); openssl_pkey_export($k, $pem); echo base64_encode($pem);')"
+    export JAAS_PRIVATE_KEY
+fi
 
 expected_db="/app/storage/logs/phase2b-e2e.sqlite"
 if [ "$APP_ENV" != "local" ] || [ "$DB_CONNECTION" != "sqlite" ] || [ "$DB_DATABASE" != "$expected_db" ]; then

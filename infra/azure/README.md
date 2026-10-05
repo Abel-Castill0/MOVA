@@ -66,6 +66,25 @@ scheduler y detener la instancia **LEGACY** que pudiera duplicar trabajos.
 Estas decisiones se toman en cada deploy; el archivo no refleja ni cambia
 por sí mismo el estado actual de Azure.
 
+## Integraciones: variables de despliegue (defaults seguros)
+
+`apps.bicepparam` las lee del shell que ejecuta el deploy; ninguna activa nada por
+sí sola y ninguna escribe un valor en el repositorio. Si falta algo obligatorio, el
+resultado vuelve al estado seguro (nunca queda una integración a medio configurar).
+Probado compilando con `bicep build-params` para cada combinación (2026-10-05).
+
+| Variable | Default | Efecto |
+|---|---|---|
+| `MOVA_MAIL_MAILER` | `array` | `gmail_api` (requiere las 3 `MOVA_GMAIL_*`) o `smtp` (requiere `MOVA_MAIL_HOST`, `MOVA_MAIL_USERNAME`, `MOVA_MAIL_PASSWORD`, `MOVA_MAIL_FROM_ADDRESS`; opcionales `MOVA_MAIL_PORT`=587, `MOVA_MAIL_ENCRYPTION`=tls, `MOVA_MAIL_FROM_NAME`=MOVA). Cualquier otro valor → `array`. |
+| `MOVA_PAYMENTS_MODE` | `off` | `sandbox` enciende `PAYMENTS_ENABLED`, `PAYMENT_PROVIDER=mercadopago`, `RECHARGES_ENABLED` y `MERCADOPAGO_WEBHOOKS_ENABLED` **solo si** están las credenciales completas de Mercado Pago (incluidos `MOVA_MERCADOPAGO_APPLICATION_ID`, `…_EXPECTED_COLLECTOR_ID` y `…_WEBHOOK_SECRET`) y `MOVA_MERCADOPAGO_EXPECTED_LIVE_MODE=false`. No existe un modo `live` en esta plantilla: cobrar de verdad exige una decisión y un cambio explícitos del titular. |
+| `MOVA_JAAS_WEBHOOKS_ENABLED` + `MOVA_JAAS_WEBHOOK_SIGNING_SECRET` / `MOVA_JAAS_WEBHOOK_AUTH_TOKEN` | `false` | Activa el receptor de presencia `/api/webhooks/jaas` **solo si** JaaS está completo, hay al menos un secreto y vale `true`. Solo guarda evidencia (`lesson_presence_events`); no decide asistencia ni toca créditos. **Dos secretos distintos:** `SIGNING_SECRET` es el que genera JaaS por endpoint (consola → endpoint → «Reveal secret») y verifica `X-Jaas-Signature` (HMAC-SHA256, recomendado); `AUTH_TOKEN` lo inventas tú y se carga en la consola como header `Authorization: Bearer <token>` (opcional; si hay ambos se exigen ambos). Eventos: `PARTICIPANT_JOINED` y `PARTICIPANT_LEFT`. |
+| `MOVA_MAIL_ALLOWLIST` | vacío | **Staging**: correos exactos o dominios (`@dominio`) separados por comas; el correo SOLO sale hacia ellos (`App\Support\MailAllowlist`). Obligatoria en un staging con cuentas existentes antes de usar un mailer real. Vacía en producción. |
+| `MOVA_SENTRY_ENVIRONMENT` | `staging` | Etiqueta de los eventos de Sentry (solo si hay DSN). En el deploy de producción: `production`. Sin etiqueta, staging contaminaría el proyecto de producción porque `APP_ENV=production` también en staging. |
+
+Un cambio de estas variables es un nuevo deploy de las apps (revisión nueva): no
+se aplica a mano sobre `az containerapp update`, para que la plantilla siga siendo
+la fuente de verdad y no haya deriva.
+
 ## Identidades de base de datos
 
 | Identidad | Uso | Dónde vive |
@@ -125,3 +144,32 @@ default ⇒ scheduler `false` y `dry_run`; scheduler `true` + `dry_run` ⇒
 `dry_run`; modo `live` sin ACK ⇒ rechazo; modo `live` con ACK explícito ⇒
 compilación. `git diff --check` pasó. No se ejecutó what-if ni deployment
 contra Azure en C1.1.
+
+## Estado operativo de staging (2026-10-05) y reglas aprendidas
+
+- Deploy actual: imagen `mova@sha256:09d64d9f…` (construida del árbol de trabajo sin commit) en
+  web/worker/scheduler. Imagen previa de web para rollback: `sha256:cfcf0105…`.
+- **Las migraciones no corren al arrancar.** `/readyz` devuelve 503 mientras haya migraciones
+  pendientes, así que una revisión nueva no se activa (la anterior sigue sirviendo). Orden seguro:
+  actualizar worker a la imagen nueva → `php artisan migrate:status --pending` y `migrate --force`
+  desde ahí tras revisar los archivos → crear revisión nueva de web.
+- **Un secreto guardado no basta:** Container Apps exige una revisión nueva para cargarlo
+  (`az containerapp update --set-env-vars ...` con cualquier cambio inocuo). Verifica
+  `latestReadyRevisionName` tras cada cambio.
+- `az containerapp exec` tiene límite de tasa (429, espera de 10 min) y no admite comillas
+  fiables: pasar el código PHP en base64 por `$argv` (`php -r eval(gzinflate(base64_decode($argv[1])));`).
+- Secreto de firma de JaaS: se obtiene en la consola (endpoint → «Reveal secret», formato
+  `whsec_…`) y se carga como secreto `jaas-webhook-signing-secret` →
+  `JAAS_WEBHOOK_SIGNING_SECRET`. Nunca por el chat ni por archivos versionados.
+- Mercado Pago está en **sandbox** en staging (`PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true`,
+  `MERCADOPAGO_EXPECTED_LIVE_MODE=false`, credenciales `TEST-`, recargas apagadas). **Cada rol** que procese
+  pagos (web, worker y scheduler) necesita el secreto Y la variable de entorno que lo referencia
+  (`MERCADOPAGO_ACCESS_TOKEN=secretref:mercadopago-access-token`, `MERCADOPAGO_WEBHOOK_SECRET=secretref:…`):
+  un secreto sin variable deja al worker con `fetchPayment` fallando en cerrado y los webhooks en `failed`.
+  Si pasa, `php artisan mercadopago:reconcile` los reprocesa sin duplicar abonos.
+- **Checkout automático acotado:** `MERCADOPAGO_CHECKOUT_ALLOWLIST` (correos separados por comas) limita quién
+  puede usar el pago de Mercado Pago; vacía = todos (producción). `RECHARGES_ENABLED` solo gobierna el flujo
+  manual, NO este checkout: con pagos sandbox encendidos y sin allowlist, todos los profesores de staging
+  pueden generar créditos de prueba. Estado de cierre del 2026-10-05: un correo inexistente (checkout cerrado
+  para todos, webhooks y recuperación activos); para probar, poner el correo del profesor QA y crear revisión
+  nueva en web, worker y scheduler.

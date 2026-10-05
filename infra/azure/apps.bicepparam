@@ -105,8 +105,27 @@ var jaasAppId = readEnvironmentVariable('MOVA_JAAS_APP_ID', '')
 var jaasKeyId = readEnvironmentVariable('MOVA_JAAS_KEY_ID', '')
 var jaasPrivateKey = readEnvironmentVariable('MOVA_JAAS_PRIVATE_KEY', '')
 var jaasPresent = !empty(jaasAppId) && !empty(jaasKeyId) && !empty(jaasPrivateKey)
-var jaasConfig = jaasPresent ? { JAAS_APP_ID: jaasAppId, JAAS_KEY_ID: jaasKeyId } : {}
-var jaasSecrets = jaasPresent ? { JAAS_PRIVATE_KEY: jaasPrivateKey } : {}
+// Webhooks de presencia de JaaS: solo evidencia (lesson_presence_events), sin
+// efectos de negocio. Se activan SOLO si hay JaaS completo, hay al menos un
+// secreto de autenticación y MOVA_JAAS_WEBHOOKS_ENABLED=true. DOS secretos
+// distintos (ver config/jaas.php):
+//   MOVA_JAAS_WEBHOOK_SIGNING_SECRET  "signing secret" que genera JaaS por endpoint
+//                                     (verifica X-Jaas-Signature, HMAC-SHA256). Recomendado.
+//   MOVA_JAAS_WEBHOOK_AUTH_TOKEN      token que defines tú; se carga en la consola de JaaS
+//                                     como header Authorization = "Bearer <token>". Opcional.
+var jaasWebhookSigningSecret = readEnvironmentVariable('MOVA_JAAS_WEBHOOK_SIGNING_SECRET', '')
+var jaasWebhookAuthToken = readEnvironmentVariable('MOVA_JAAS_WEBHOOK_AUTH_TOKEN', '')
+var jaasWebhooksChoice = readEnvironmentVariable('MOVA_JAAS_WEBHOOKS_ENABLED', 'false')
+var jaasWebhooksOn = jaasPresent && (!empty(jaasWebhookSigningSecret) || !empty(jaasWebhookAuthToken)) && jaasWebhooksChoice == 'true'
+var jaasConfig = jaasPresent ? union(
+  { JAAS_APP_ID: jaasAppId, JAAS_KEY_ID: jaasKeyId },
+  { JAAS_WEBHOOKS_ENABLED: jaasWebhooksOn ? 'true' : 'false' }
+) : {}
+var jaasSecrets = jaasPresent ? union(
+  { JAAS_PRIVATE_KEY: jaasPrivateKey },
+  jaasWebhooksOn && !empty(jaasWebhookSigningSecret) ? { JAAS_WEBHOOK_SIGNING_SECRET: jaasWebhookSigningSecret } : {},
+  jaasWebhooksOn && !empty(jaasWebhookAuthToken) ? { JAAS_WEBHOOK_AUTH_TOKEN: jaasWebhookAuthToken } : {}
+) : {}
 
 // Google OAuth (login social). Ausente en Railway a fecha de AZ-3G.
 // GOOGLE_LOGIN_ENABLED se mantiene false en appConfig hasta que exista el
@@ -143,6 +162,43 @@ var metaSecrets = metaPresent ? {
 // observabilidad, sin feature flag que active comportamiento de usuario.
 var sentryDsn = readEnvironmentVariable('MOVA_SENTRY_LARAVEL_DSN', '')
 var sentrySecrets = empty(sentryDsn) ? {} : { SENTRY_LARAVEL_DSN: sentryDsn }
+// SENTRY_ENVIRONMENT etiqueta cada evento. Sin él, el SDK asume "production" y
+// staging contaminaría el proyecto de producción (APP_ENV=production también
+// en staging). Por defecto 'staging'; en el deploy de producción: MOVA_SENTRY_ENVIRONMENT=production.
+var sentryEnvironment = readEnvironmentVariable('MOVA_SENTRY_ENVIRONMENT', 'staging')
+var sentryConfig = empty(sentryDsn) ? {} : { SENTRY_ENVIRONMENT: sentryEnvironment }
+
+// Correo transaccional. DEFAULT SEGURO: 'array' (no entrega nada). Pasar a
+// 'gmail_api' o 'smtp' es una decisión explícita por deploy:
+//   MOVA_MAIL_MAILER=gmail_api  requiere las tres credenciales Gmail (gmailPresent)
+//   MOVA_MAIL_MAILER=smtp       requiere MOVA_MAIL_HOST, MOVA_MAIL_USERNAME,
+//                               MOVA_MAIL_PASSWORD y MOVA_MAIL_FROM_ADDRESS
+// Si falta algo, vuelve a 'array' (nunca queda un mailer a medio configurar).
+// El health-check (mova:health-check) ya marca como crítico un correo no apto.
+var mailMailerChoice = readEnvironmentVariable('MOVA_MAIL_MAILER', 'array')
+var smtpHost = readEnvironmentVariable('MOVA_MAIL_HOST', '')
+var smtpPort = readEnvironmentVariable('MOVA_MAIL_PORT', '587')
+var smtpUsername = readEnvironmentVariable('MOVA_MAIL_USERNAME', '')
+var smtpPassword = readEnvironmentVariable('MOVA_MAIL_PASSWORD', '')
+var smtpEncryption = readEnvironmentVariable('MOVA_MAIL_ENCRYPTION', 'tls')
+var mailFromAddress = readEnvironmentVariable('MOVA_MAIL_FROM_ADDRESS', '')
+var mailFromName = readEnvironmentVariable('MOVA_MAIL_FROM_NAME', 'MOVA')
+var smtpReady = !empty(smtpHost) && !empty(smtpUsername) && !empty(smtpPassword) && !empty(mailFromAddress)
+var mailMailer = mailMailerChoice == 'gmail_api' && gmailPresent ? 'gmail_api' : mailMailerChoice == 'smtp' && smtpReady ? 'smtp' : 'array'
+var mailConfig = mailMailer == 'smtp' ? {
+  MAIL_MAILER: 'smtp'
+  MAIL_HOST: smtpHost
+  MAIL_PORT: smtpPort
+  MAIL_USERNAME: smtpUsername
+  MAIL_ENCRYPTION: smtpEncryption
+  MAIL_FROM_ADDRESS: mailFromAddress
+  MAIL_FROM_NAME: mailFromName
+} : { MAIL_MAILER: mailMailer }
+var mailSecrets = mailMailer == 'smtp' ? { MAIL_PASSWORD: smtpPassword } : {}
+// Allowlist de destinatarios (STAGING): con valor, el correo solo sale hacia esos
+// destinatarios (App\Support\MailAllowlist). Vacía en producción.
+var mailAllowlist = readEnvironmentVariable('MOVA_MAIL_ALLOWLIST', '')
+var mailAllowlistConfig = empty(mailAllowlist) ? {} : { MAIL_ALLOWLIST: mailAllowlist }
 
 // Mercado Pago. Ausente por completo en Railway a fecha de AZ-3G.
 // PAYMENTS_ENABLED se mantiene false en appConfig pase lo que pase aquí --
@@ -165,6 +221,26 @@ var mpSecrets = mpPresent ? {
   MERCADOPAGO_WEBHOOK_SECRET: mpWebhookSecret
 } : {}
 
+// Pagos. DEFAULT SEGURO: apagados (PAYMENTS_ENABLED=false, proveedor fake).
+// MOVA_PAYMENTS_MODE=sandbox los enciende SOLO si, además, están presentes las
+// credenciales completas de Mercado Pago Y MOVA_MERCADOPAGO_EXPECTED_LIVE_MODE
+// vale exactamente 'false' (credenciales de PRUEBA). No existe un modo 'live'
+// en este archivo a propósito: habilitar cobros reales exige una decisión y un
+// cambio explícitos del titular, fuera de esta plantilla.
+var paymentsModeChoice = readEnvironmentVariable('MOVA_PAYMENTS_MODE', 'off')
+var paymentsSandbox = paymentsModeChoice == 'sandbox' && mpPresent && mpExpectedLiveMode == 'false' && !empty(mpApplicationId) && !empty(mpExpectedCollectorId)
+var paymentsConfig = paymentsSandbox ? {
+  PAYMENTS_ENABLED: 'true'
+  PAYMENT_PROVIDER: 'mercadopago'
+  RECHARGES_ENABLED: 'true'
+  MERCADOPAGO_WEBHOOKS_ENABLED: 'true'
+} : {
+  PAYMENTS_ENABLED: 'false'
+  PAYMENT_PROVIDER: 'fake'
+  RECHARGES_ENABLED: 'false'
+  MERCADOPAGO_WEBHOOKS_ENABLED: 'false'
+}
+
 // Destino de recarga manual (fallback si Mercado Pago no está listo).
 // Ausente en Railway a fecha de AZ-3G.
 var rechargeDestination = readEnvironmentVariable('MOVA_RECHARGE_PAYMENT_DESTINATION', '')
@@ -186,19 +262,21 @@ param appConfig = union(
   metaConfig,
   mpConfig,
   rechargeConfig,
+  sentryConfig,
+  // MAIL_MAILER y los flags de pago salen de mailConfig/paymentsConfig, que
+  // por defecto son 'array' y apagado/fake (ver arriba). Van ANTES del objeto
+  // literal para que nada de lo de abajo los pise por accidente.
+  mailConfig,
+  mailAllowlistConfig,
+  paymentsConfig,
   {
     // LESSON_SETTLEMENT_MODE se fija como invariante en apps.bicep desde
     // settlementMode; nunca se activa por desplegar el scheduler.
-    MAIL_MAILER: 'array'
     BROADCAST_DRIVER: 'null'
     WHATSAPP_ENABLED: 'false'
     WHATSAPP_PROVIDER: 'fake'
     WHATSAPP_MODE: 'sandbox'
     GOOGLE_LOGIN_ENABLED: 'false'
-    RECHARGES_ENABLED: 'false'
-    PAYMENTS_ENABLED: 'false'
-    PAYMENT_PROVIDER: 'fake'
-    MERCADOPAGO_WEBHOOKS_ENABLED: 'false'
     DIAGNOSTIC_AI_ENABLED: 'false'
     SEARCH_INDEXING_ENABLED: 'false'
   }
@@ -212,5 +290,6 @@ param appSecrets = union(
   googleSecrets,
   metaSecrets,
   sentrySecrets,
+  mailSecrets,
   mpSecrets
 )
