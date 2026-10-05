@@ -51,6 +51,12 @@ sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 f
 (+9 tests, verificados en SQLite y MySQL) y un repaso completo de SQLite: 1401 tests / 5476 assertions, 0 failures.
 Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
 
+**Despliegue final (2026-10-05):** imagen `mova@sha256:c2b396e24f93bd204e4e3c9140a455bf9c20a6ae7ada66c5c1265a9e00d97c9c`
+(construida del commit `783138e`; `master` publicado en `f3d0028`). GitHub Actions sobre `f3d0028`: `CI` en `success`.
+Producción: `movap-web--0000001`, `movap-worker--0000001`, `movap-scheduler--0000001` (`/readyz` ready).
+Staging: `mova-web--0000038`, `mova-worker--0000024`, `mova-scheduler--0000017` (`/readyz` ready; checkout de
+Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
+
 ### Matriz por función
 
 | Función | Implementada | LOCAL_TEST | LIVE_STAGING | PRODUCTION_LIVE | Pendiente exacto |
