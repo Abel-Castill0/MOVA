@@ -162,6 +162,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowlist de destinatarios (staging / entornos no productivos)
+    |--------------------------------------------------------------------------
+    |
+    | Lista separada por comas de correos exactos o dominios ("@dominio.com").
+    | Con valor, el correo SOLO sale hacia esos destinatarios (ver
+    | App\Support\MailAllowlist). Vacía → sin filtro (producción). Staging
+    | debe definirla para no escribir nunca a direcciones existentes.
+    |
+    */
+    'allowlist' => env('MAIL_ALLOWLIST'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |

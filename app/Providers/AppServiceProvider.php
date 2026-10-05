@@ -131,6 +131,9 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerGmailApiMailer();
         $this->customizeVerifyEmailNotification();
+
+        // Allowlist de destinatarios (staging): inerte si MAIL_ALLOWLIST está vacía.
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Mail\Events\MessageSending::class, [\App\Support\MailAllowlist::class, 'handle']);
     }
 
     /**
