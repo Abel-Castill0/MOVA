@@ -172,6 +172,13 @@ class TeacherProfile extends Model
         return $this->hasMany(ClassOffer::class);
     }
 
+    public function availabilitySlots()
+    {
+        return $this->hasMany(TeacherAvailabilitySlot::class)
+            ->orderBy('day_of_week')
+            ->orderBy('start_time');
+    }
+
     public function classes()
     {
         return $this->hasMany(Lesson::class);

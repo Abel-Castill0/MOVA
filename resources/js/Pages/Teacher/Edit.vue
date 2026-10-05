@@ -318,6 +318,8 @@
           </button>
         </div>
       </form>
+
+      <TeacherAvailabilityEditor :slots="availability" :max-slots="availabilityMaxSlots" />
     </div>
   </AppLayout>
 </template>
@@ -326,10 +328,13 @@
 import { computed, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import TeacherAvailabilityEditor from '@/Components/TeacherAvailabilityEditor.vue'
 
 const props = defineProps({
   profile: Object,
   subjects: Array,
+  availability: { type: Array, default: () => [] },
+  availabilityMaxSlots: { type: Number, default: 28 },
 })
 
 const user = computed(() => usePage().props.auth.user)

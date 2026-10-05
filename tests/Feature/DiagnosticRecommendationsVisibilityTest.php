@@ -193,7 +193,13 @@ class DiagnosticRecommendationsVisibilityTest extends TestCase
             ->assertInertia(fn ($page) => $page->has('recommendations', 0));
     }
 
-    public function test_a_deactivated_offer_is_not_recommended(): void
+    /**
+     * Ya no se crean ClassOffer nuevas: el estado de una oferta heredada NO
+     * decide si un profesor verificado es recomendable. Desactivar o borrar
+     * la oferta no lo saca del resultado (sí lo hacen la suspensión, perder la
+     * verificación o dejar de enseñar la materia).
+     */
+    public function test_a_legacy_offer_state_does_not_affect_recommendations(): void
     {
         [$parent, $student] = $this->parentWithStudent();
         [, , $offer] = $this->eligibleTeacherWithOffer();
@@ -201,6 +207,23 @@ class DiagnosticRecommendationsVisibilityTest extends TestCase
         $diagnostic = $this->runDiagnostic($parent, $student);
 
         $offer->update(['is_active' => false]);
+        $this->actingAs($parent)
+            ->get(route('diagnostics.results', $diagnostic))
+            ->assertInertia(fn ($page) => $page->has('recommendations', 1));
+
+        $offer->delete();
+        $this->actingAs($parent)
+            ->get(route('diagnostics.results', $diagnostic))
+            ->assertInertia(fn ($page) => $page->has('recommendations', 1));
+    }
+
+    public function test_a_teacher_who_stops_teaching_the_subject_is_not_recommended(): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        [, $profile] = $this->eligibleTeacherWithOffer();
+
+        $diagnostic = $this->runDiagnostic($parent, $student);
+        $profile->subjects()->detach($this->subject->id);
 
         $this->actingAs($parent)
             ->get(route('diagnostics.results', $diagnostic))

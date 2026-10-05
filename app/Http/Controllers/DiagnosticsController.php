@@ -156,8 +156,8 @@ class DiagnosticsController extends Controller
      *
      * PERO SÍ SE REVALIDA LA ELEGIBILIDAD, porque el ranking es una foto y el
      * mundo se mueve: entre que se calculó y que el padre entra, un profesor
-     * pudo ser rechazado por un admin, suspendido, o haber desactivado su
-     * oferta. Recomendar a un profesor suspendido sería peor que no recomendar
+     * pudo ser rechazado por un admin, suspendido, o dejar de enseñar la
+     * materia. Recomendar a un profesor suspendido sería peor que no recomendar
      * a nadie — se filtran aquí, en la lectura, sin tocar las filas guardadas
      * (que siguen siendo el registro de qué se calculó y por qué).
      *
@@ -167,42 +167,49 @@ class DiagnosticsController extends Controller
     {
         return $diagnostic->recommendations()
             ->with([
-                'classOffer.subject:id,name',
-                'classOffer.teacherProfile:id,user_id,bio,hourly_rate,is_verified',
-                'classOffer.teacherProfile.user:id,name,avatar_url,suspended_at',
+                'teacherProfile:id,user_id,bio,hourly_rate,is_verified',
+                'teacherProfile.user:id,name,avatar_url,suspended_at',
+                'teacherProfile.subjects:id,name',
             ])
             ->get()
-            ->filter(function (DiagnosticRecommendation $recommendation) {
-                $offer = $recommendation->classOffer;
-                $profile = $offer?->teacherProfile;
+            ->filter(function (DiagnosticRecommendation $recommendation) use ($diagnostic) {
+                $profile = $recommendation->teacherProfile;
 
-                return $offer?->is_active
-                    && $profile?->is_verified
+                return $profile?->is_verified
                     && $profile->user !== null
-                    && $profile->user->suspended_at === null;
+                    && $profile->user->suspended_at === null
+                    // Sigue enseñando la materia del diagnóstico (el profesor
+                    // pudo quitarla de su perfil después del cálculo).
+                    && (! $diagnostic->subject_id
+                        || $profile->subjects->contains('id', $diagnostic->subject_id));
             })
-            ->map(fn (DiagnosticRecommendation $recommendation) => [
-                'id' => $recommendation->id,
-                'rank' => $recommendation->rank,
-                'teacher_profile_id' => $recommendation->teacher_profile_id,
-                'teacher_name' => $recommendation->classOffer->teacherProfile->user->name,
-                'avatar_url' => $recommendation->classOffer->teacherProfile->user->avatar_url,
-                'subject' => $recommendation->classOffer->subject?->name,
-                'offer_title' => $recommendation->classOffer->title,
-                'hourly_rate' => $recommendation->classOffer->specific_rate
-                    ?? $recommendation->classOffer->teacherProfile->hourly_rate,
-                'avg_rating' => $recommendation->classOffer->teacherProfile->avgRating(),
-                'review_count' => $recommendation->classOffer->teacherProfile->reviewCount(),
-                // Las razones ya vienen en castellano desde el servicio
-                // ("Enseña Matemática", "Atiende el nivel educativo de tu
-                // hijo"). Son exactamente lo que hay que mostrar.
-                'reasons' => $recommendation->reasons ?? [],
-                // El `score` interno (0–100) NO se expone: un "87" sin escala
-                // ni unidades no significa nada para un padre y solo invita a
-                // compararlo con un 85 como si la diferencia importara. Se
-                // traduce a una banda cualitativa.
-                'match_label' => $this->matchLabel((int) $recommendation->score),
-            ])
+            ->map(function (DiagnosticRecommendation $recommendation) use ($diagnostic) {
+                $profile = $recommendation->teacherProfile;
+                $subject = $diagnostic->subject_id
+                    ? $profile->subjects->firstWhere('id', $diagnostic->subject_id)
+                    : $profile->subjects->first();
+
+                return [
+                    'id' => $recommendation->id,
+                    'rank' => $recommendation->rank,
+                    'teacher_profile_id' => $recommendation->teacher_profile_id,
+                    'teacher_name' => $profile->user->name,
+                    'avatar_url' => $profile->user->avatar_url,
+                    'subject' => $subject?->name,
+                    'hourly_rate' => $subject?->pivot?->specific_rate ?? $profile->hourly_rate,
+                    'avg_rating' => $profile->avgRating(),
+                    'review_count' => $profile->reviewCount(),
+                    // Las razones ya vienen en castellano desde el servicio
+                    // ("Enseña Matemática", "Atiende el nivel educativo de tu
+                    // hijo"). Son exactamente lo que hay que mostrar.
+                    'reasons' => $recommendation->reasons ?? [],
+                    // El `score` interno (0–100) NO se expone: un "87" sin escala
+                    // ni unidades no significa nada para un padre y solo invita a
+                    // compararlo con un 85 como si la diferencia importara. Se
+                    // traduce a una banda cualitativa.
+                    'match_label' => $this->matchLabel((int) $recommendation->score),
+                ];
+            })
             ->values()
             ->all();
     }

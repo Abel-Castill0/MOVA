@@ -129,7 +129,7 @@ const features = [
 
 const steps = [
   { title: 'Crea tu perfil', desc: 'Regístrate, añade tu bio, materias que impartes y tu tarifa por hora.' },
-  { title: 'Espera solicitudes o publica ofertas', desc: 'Los estudiantes te contactan directamente o tú puedes publicar anuncios de clases disponibles.' },
+  { title: 'Recibe solicitudes', desc: 'Las solicitudes de las familias llegan a los profesores verificados de tu materia. Tú eliges cuáles aceptar y puedes indicar tu disponibilidad semanal.' },
   { title: 'Da tu primera clase', desc: 'Acepta la solicitud, acuerda el horario y conéctate por videollamada. ¡Así de fácil!' },
 ]
 </script>

@@ -51,6 +51,13 @@ class TeacherProfileController extends Controller
         return Inertia::render('Teacher/Edit', [
             'profile' => $profile,
             'subjects' => Subject::orderBy('name')->get(),
+            // Franjas semanales declaradas (hora de Lima), en HH:MM.
+            'availability' => $profile?->availabilitySlots->map(fn ($slot) => [
+                'day_of_week' => $slot->day_of_week,
+                'start_time' => substr($slot->start_time, 0, 5),
+                'end_time' => substr($slot->end_time, 0, 5),
+            ])->values() ?? [],
+            'availabilityMaxSlots' => \App\Models\TeacherAvailabilitySlot::MAX_SLOTS,
         ]);
     }
 

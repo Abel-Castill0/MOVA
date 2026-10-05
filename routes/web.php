@@ -31,6 +31,7 @@ use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\LegalAcceptanceController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
+use App\Http\Controllers\Teacher\AvailabilityController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
@@ -170,6 +171,9 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
         Route::post('/teacher/setup', [TeacherProfileController::class, 'storeSetup'])->middleware('throttle:10,1')->name('teacher.setup.store');
         Route::get('/teacher/profile', [TeacherProfileController::class, 'edit'])->name('teacher.profile');
         Route::patch('/teacher/profile', [TeacherProfileController::class, 'update'])->middleware('throttle:20,1')->name('teacher.profile.update');
+        // Disponibilidad semanal declarada (hora de Lima). Informativa: orienta
+        // las recomendaciones del diagnóstico; no autoriza ni bloquea agendas.
+        Route::put('/teacher/availability', [AvailabilityController::class, 'update'])->middleware('throttle:20,1')->name('teacher.availability.update');
         Route::get('/teacher/credits', [CreditController::class, 'index'])->name('teacher.credits.index');
         Route::post('/teacher/credits/recharge', [CreditController::class, 'storeRecharge'])->middleware('throttle:10,1')->name('teacher.credits.recharge');
 
@@ -204,8 +208,10 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
         // vivos para que un profesor con ofertas ya creadas antes de este
         // cambio pueda seguir gestionándolas (desactivar, ajustar tarifa
         // específica, borrar) — solo se cierra la puerta a crear nuevas.
-        // ClassOffer y DiagnosticRecommendationService NO se tocan: siguen
-        // leyendo is_active=true de lo que ya existe.
+        // ClassOffer ya no alimenta ninguna recomendación: el matching del
+        // diagnóstico usa el perfil docente (verificación, materias, nivel,
+        // experiencia y disponibilidad declarada). Las ofertas antiguas solo
+        // se gestionan aquí y no tienen efecto en el ranking.
         Route::resource('class-offers', ClassOfferController::class)->except(['show', 'create', 'store'])->middleware('throttle:20,1');
         Route::post('/class-offers/{classOffer}/toggle', [ClassOfferController::class, 'toggleActive'])->middleware('throttle:20,1')->name('class-offers.toggle');
 

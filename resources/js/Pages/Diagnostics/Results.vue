@@ -109,11 +109,11 @@
         </ul>
 
         <!--
-          Estado vacío REAL, no un placeholder: hoy las recomendaciones se
-          construyen sobre ofertas de clase, y los profesores ya no publican
-          ofertas nuevas (la ruta de creación está cerrada). Que no haya
-          ninguna es un desenlace normal, no un error, y el padre no pierde
-          nada: su solicitud ya salió a todos los profesores de la materia.
+          Estado vacío REAL, no un placeholder: las recomendaciones salen del
+          perfil de profesores verificados que enseñan la materia (con tarifa
+          definida y cuenta activa). Si todavía no hay ninguno, es un desenlace
+          normal, no un error, y el padre no pierde nada: su solicitud ya salió
+          a todos los profesores de la materia.
         -->
         <div v-else class="mt-4 rounded-xl bg-slate-50 px-4 py-5 text-center">
           <p class="text-sm font-medium text-slate-700">Todavía no podemos sugerirte profesores concretos.</p>
