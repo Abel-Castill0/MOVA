@@ -38,6 +38,78 @@ criterio lo exige, evidencia en vivo del entorno real).
   deliberadas al siguiente timestep TOTP del admin QA, anti-replay). No es
   evidencia `LIVE_STAGING` ni `PRODUCTION_LIVE`.
 
+## Estado actual (2026-10-05, cierre de la ronda de lanzamiento)
+
+**No se declara «100 % terminado».** Producción Azure existe, está sana y aislada en datos, pero **no tiene
+tráfico público ni integraciones live**, y el dominio aún apunta a GitHub Pages. Este bloque
+**sustituye** cualquier estado anterior del ledger que lo contradiga.
+
+**Evidencia de código sobre el árbol definitivo (`LOCAL_TEST`, PHP 8.3.35):** `composer audit`/`npm audit`
+sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 failures, 7 skips; PHPUnit MySQL 8.4
+1395 / 5455, 0 failures; Playwright **79 passed, 1 skipped** (la reunión JaaS real, que exige credenciales y
+`JAAS_REAL=1`), 0 failed. Tras esa corrida se añadieron solo los seeders seguros y `mova:create-admin`
+(+9 tests, verificados en SQLite y MySQL) y un repaso completo de SQLite: 1401 tests / 5476 assertions, 0 failures.
+Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
+
+### Matriz por función
+
+| Función | Implementada | LOCAL_TEST | LIVE_STAGING | PRODUCTION_LIVE | Pendiente exacto |
+|---|---|---|---|---|---|
+| Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Correo real aceptado y recibido (verificación, reset, constancia); flujo de UI completo no repetido en esta ronda | No (correo `array`) | Credenciales SMTP de producción; crear admin con `mova:create-admin` |
+| Disponibilidad semanal, búsqueda y recomendaciones | Sí | PHPUnit + E2E (3) | Desplegado; migraciones aplicadas | Migraciones aplicadas, sin datos | Prueba con docentes reales |
+| Solicitud y reserva de clases | Sí | E2E «flujo de 8 pasos» | Sin re-verificar en esta ronda | No | Verificación en producción tras cutover |
+| Clases JaaS (sala, permisos, ventana, reconexión) | Sí | 11 E2E con script simulado | **Reunión real** docente+padre (escritorio y móvil), salida/reingreso | No (sin credenciales) | Credenciales JaaS de producción; prueba humana de audio/video |
+| Presencia JaaS (`PARTICIPANT_JOINED/LEFT`) | Sí (solo evidencia) | 21 tests | **Webhook real firmado**, idempotente | No | Registrar endpoint de producción; **no** decide asistencia |
+| Créditos del profesor / checkout Mercado Pago | Sí | Sonda sandbox + PHPUnit | **Sandbox**: Card Brick, 3DS, Yape, rechazos, móvil, reintentos, webhook real y simulador, reverso sandbox | No (`PAYMENTS_ENABLED=false`) | Credenciales **live**, URL de webhook de producción, un cobro real mínimo + reembolso aprobados por el titular |
+| Pago padre → profesor por la clase | **No existe** | — | — | — | MOVA solo carga créditos del profesor; el flujo padre→profesor no está implementado ni probado |
+| Reversos/contracargos | Reacciona a reembolso/contracargo confirmado; reversión manual de ledger (admin) | PHPUnit | Reembolso **sandbox** reconciliado (un `reversal`) | No | Política de deuda/negativos y quién inicia reembolsos |
+| Notificaciones por correo | Sí | Mailpit + PHPUnit | SMTP real a buzón autorizado (`MAIL_ALLOWLIST`) | No | Credenciales y dominio remitente (SPF/DKIM/DMARC) |
+| Paneles padre/profesor/admin | Sí | E2E (operaciones, créditos, clases) | Parcial | Admin no creado (sin contraseña conocida) | `mova:create-admin` + MFA tras tener correo |
+| Libro de reclamaciones | Sí | PHPUnit | Constancia por correo | No | Verificar tras cutover |
+| Avatares (Cloudinary) | Sí (falla cerrado sin credencial) | Mocks + sonda | Subida/lectura/borrado reales desde staging | No | `CLOUDINARY_URL` de producción |
+| Sentry | Sí (`send_default_pii=false`) | — | 3 eventos confirmados en el panel | No (sin DSN) | DSN de producción; recomendado proyecto propio |
+| Liquidación automática | Sí | PHPUnit | `dry_run` | `dry_run` | `live` solo con decisión + ACK explícito del titular |
+| WhatsApp, Google Login, IA de diagnóstico, broadcasting | Sí (apagados) | PHPUnit | Apagados | Apagados | Decisión de producto/credenciales; fuera del alcance de arranque |
+| Asistencia/ausencias/disputas, clases recurrentes, verificación documental docente | **No definidos** | — | — | — | Decisión de negocio (ver abajo) |
+| Infraestructura de producción | Sí | — | — | **Sí (infra y salud)** | Ver siguiente sección |
+| Dominio `movaeduca.me` → producción | — | — | — | **No** | Login en Namecheap + credenciales mínimas (correo) |
+
+### Producción Azure (`PRODUCTION_LIVE` para infraestructura y salud únicamente)
+
+- Apps `movap-web` (min 1), `movap-worker`, `movap-scheduler` (1 réplica) en el único entorno ACA permitido por la
+  suscripción Student (1 por suscripción: `MaxNumberOfGlobalEnvironmentsInSubExceeded`, probado también en
+  `canadacentral`), por lo que comparten entorno/VNet/ACR con staging; apps, secretos, base y usuario de BD son propios.
+  FQDN provisional `https://movap-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io`:
+  `/healthz` 200, `/readyz` `{"status":"ready"}` (BD, migraciones, caché), `/login` y `/register` 200.
+- **Base separada:** servidor MySQL 8.4 `mova-prod-mysql-8uxzgq` (B1ms, 32 GB, privado, TLS, PITR 14 días, sin
+  geo-redundancia), BD `mova`, usuario `movap_app` con DML+DDL solo sobre `mova.*`. Se aplicaron las 102 migraciones
+  (revisadas; las 3 del 2026-10-05 son aditivas o relajan una restricción) y solo los datos de referencia
+  (3 roles, 6 materias). **Ningún dato de staging/QA, pagos, créditos ni usuarios** se copió.
+- **Restauración real:** PITR a las 20:15:45Z hacia un servidor aislado (`mova-prod-restore-drill`): iniciado 20:17Z,
+  `Ready` ≈ 21:08Z (**RTO medido ≈ 50 min**); contenido verificado con un job de solo lectura (102 migraciones,
+  42 tablas, 3 roles, 6 materias); servidor de prueba eliminado.
+- **Configuración segura por defecto:** `APP_ENV=production`, `APP_DEBUG=false`, correo `array`, pagos `fake`/apagados,
+  recargas y webhooks apagados, WhatsApp/Google/IA apagados, indexación apagada, liquidación `dry_run`, solo un
+  scheduler. Sin credenciales de Mercado Pago, JaaS, Cloudinary, Sentry ni SMTP (nombres y procedimiento en
+  `docs/release/MOVA_PRODUCTION_RUNBOOK.md`).
+- **Incidente (resuelto, 2026-10-05):** `RoleSeeder` creaba `admin@mova.test` con contraseña `password` y se ejecutó
+  una vez en la base de producción vacía. Cuenta sin verificar, **0 sesiones**, eliminada ≈ 70 min después; producción
+  quedó con 0 usuarios. Corregido: `RoleSeeder` solo crea roles fuera de local/testing; `DatabaseSeeder` y
+  `LocalTestDataSeeder` abortan en producción; nuevo `mova:create-admin` (contraseña desconocida + MFA).
+- **Costo (estimado, sin crédito legible):** ≈ USD 35–45/mes incrementales (MySQL ≈ 15; 3 réplicas siempre activas
+  ≈ 20–30). El saldo del crédito Student no se pudo leer (el portal no tenía sesión): el titular debe confirmarlo.
+
+### Decisiones pendientes del titular (con recomendación)
+
+| Decisión | Recomendación | Consecuencia si no se decide |
+|---|---|---|
+| Credenciales live y de producción (MP live, SMTP, JaaS, Cloudinary, Sentry) | Cargarlas por `az containerapp secret set` (runbook §5), distintas de las de staging | Producción sin correo, reuniones, avatares ni pagos: no se hace el cutover |
+| Cutover DNS de `movaeduca.me` | Hacerlo cuando haya correo operativo; login en Namecheap en la pestaña abierta | El dominio sigue en GitHub Pages |
+| Entorno ACA propio para producción | Pasar a una suscripción de pago y mover `movap-*` | Producción comparte entorno/IP de ingreso con staging |
+| Reembolsos/deuda por saldo negativo, quién inicia devoluciones | Reembolso manual desde el panel de Mercado Pago + reversión de ledger; saldo negativo = bloqueo de cuenta | Sin política, un contracargo deja saldo negativo sin dueño |
+| Pago padre → profesor | Definir el modelo (marketplace vs. créditos prepagos por familia) antes de prometerlo | No debe anunciarse |
+| Liquidación `live`, asistencia/disputas, clases recurrentes, verificación documental, consentimiento de menores/ANPD/transferencia internacional | Validación legal primero; mantener `dry_run` y verificación manual | Gate legal abierto: no se declara producción «lista» |
+
 ## Clases de evidencia y nombres de entorno
 
 `CODE` = comportamiento y migraciones inspeccionados; `LOCAL_TEST` = suites
@@ -81,6 +153,401 @@ en web (credencial por `secretRef`). `GOOGLE_CLIENT_*`, `META_WHATSAPP_*` y
 `deployScheduler=false` y liquidación `live`, en contradicción con el
 inventario. La corrección C1.1 fija `dry_run` por defecto y separa la
 decisión de desplegar scheduler de la de activar liquidación. No se desplegó.
+
+## Seguimiento operativo — 2026-10-04 (solo lectura; nada se desplegó ni se cambió)
+
+Consultas de solo lectura realizadas el 2026-10-04 (hora local; las del plano
+Azure aparecen como 2026-10-05 UTC). No se cambió DNS, Azure, GitHub ni Railway,
+no se desplegó, no se aplicó ninguna migración y no se leyó ningún valor
+secreto.
+
+**LIVE_STAGING (Azure `mova-prod-rg`, Mexico Central).** `mova-web--0000025`
+(creada 2026-10-01, min 0 / máx 2, `ScaledToZero` en reposo), `mova-worker--0000014`
+y `mova-scheduler--0000009` (1/1, `RunningAtMaxScale`), las tres `Healthy` y con
+la **misma imagen** `mova@sha256:cfcf0105…f4da21` (= tag `release-a37f36e02a6f`,
+construida 2026-09-30T05:28Z, es decir el código de `a37f36e`, **no** el de
+`master` actual). Solo `staging.movaeduca.me` está vinculado (certificado
+gestionado, emitido 2026-09-25, vence 2027-03-25). `/readyz` responde `ready`
+(BD, migraciones y caché `ok`); `robots.txt` bloquea todo, `X-Robots-Tag:
+noindex`, HSTS activo. Siguen vigentes en los tres roles `APP_URL=https://staging.movaeduca.me`,
+`MAIL_MAILER=array`, `PAYMENT_PROVIDER=fake`, pagos y recargas apagados,
+`LESSON_SETTLEMENT_MODE=dry_run`, Google Login/WhatsApp/IA apagados;
+`MERCADOPAGO_EXPECTED_LIVE_MODE=false`, `WHATSAPP_MODE=sandbox`,
+`FILESYSTEM_DISK=local` (disco efímero; los avatares usan Cloudinary y en
+producción fallan cerrado si no está configurado). El remitente Gmail
+configurado es una cuenta `@gmail.com`, no un buzón del dominio propio.
+
+**Datos en la BD Azure `mova` (MySQL 8.4.9-azure; solo conteos agregados).** 40
+tablas, 99 migraciones aplicadas. Filas: `users` 21 (roles: admin 2, parent 10,
+teacher 10), `teacher_profiles` 10 (3 verificados), `students` 3, `class_requests`
+10, `classes` 5 (3 `scheduled`, 2 `completed`), `credit_transactions` 4 (2
+`deposit`, 2 `reservation`; ningún `consumption`), `recharge_requests` 6 (4
+`pending`, 2 `approved`), `payment_orders` 3 (**todas `pending`**),
+`student_data_consents` **0**, `legal_acceptances` 40. Es una base de
+staging con fixtures: **no** debe asumirse limpia ni apta para que el dominio
+público apunte a ella. No se pudo clasificar cuántas cuentas son QA frente a
+reales (el límite de peticiones de `az containerapp exec` devolvió 429); los 3
+alumnos existentes no tienen consentimiento por menor registrado.
+
+**Railway (LEGACY, no operable).** Todos los deployments de `MOVA` están
+`FAILED` desde julio de 2026 (el último `REMOVED` es del 2026-07-18) y el de
+`MySQL` quedó `REMOVED` el 2026-09-15; el workspace figura con plan `free` y
+los fallos ocurren al programar el build, sin logs: la causa probable es el
+plan, pero **no está confirmada**. El volumen `mysql-volume` sigue `Ready`
+(153 MB de 500 MB) y **no debe borrarse** hasta confirmar qué datos contiene.
+Cada push a `master` sigue disparando un deployment fallido.
+
+**DNS / dominio público (Namecheap `registrar-servers.com`).** `movaeduca.me` A →
+IPs de GitHub Pages (185.199.108–111.153); `www` CNAME → `movaeduca.me`. Ningún
+repositorio de la cuenta reclama el dominio: responde 404 con certificado
+`*.github.io` (inválido para el dominio). MX `eforward1–5.registrar-servers.com`
+y SPF `include:spf.efwd.registrar-servers.com` (reenvío de correo de Namecheap)
+**deben conservarse**. No hay CAA, DMARC ni DKIM. El HTML servido no incluye
+canonical ni Open Graph: `title`/`og:*` los inyecta Vue en el cliente (sin SSR),
+así que los rastreadores sociales no los ven.
+
+**GitHub.** Repositorio **público**; `master` sin protección ni rulesets; secret
+scanning, push protection y Dependabot **desactivados**. El historial contiene una
+credencial de BD expuesta (C-P0-DB-CREDENTIAL), por lo que la exposición es
+pública. En `HEAD`/`origin/master` los archivos de la ficha F-26 ya no existen,
+pero `origin/Elias` (rama pública) todavía los contiene y el historial público
+los conserva; el incidente sigue abierto. Los valores tipo secreto de
+`docs/DEPLOY_RAILWAY.md` parecen placeholders (comprobación heurística, no prueba).
+
+**LOCAL_TEST final de integraciones (sin commit), PHP 8.3.35, 2026-10-05.**
+Sobre el árbol con sondas de sandbox, correo, JaaS (UX + webhooks de presencia)
+y guarda de separación staging/producción, una sola pasada final, todo con
+código 0: `git diff --check`, `composer validate --strict`, `composer audit
+--locked`, `npm audit --omit=dev` (0), `npm run build` y los tres `check:*`;
+PHPUnit SQLite 1378 tests / 5390 assertions, 0 failures, 7 skips; PHPUnit MySQL
+8.4 (guarda `mysql_qa`/`mova_qa`) 1378 tests / 5389 assertions, 0 failures,
+7 skips; Playwright completo (1 worker, `.env` efímero creado dentro del
+contenedor): **79 passed, 1 skipped, 0 failed** en 12,6 min. El skip es
+`qa/tests/jaas-real-meeting.spec.js` (exige `JAAS_REAL=1` y credenciales JaaS
+reales; nunca ejecutado). Los skips de PHPUnit incluyen `MailDeliverySmokeTest`
+(requiere Mailpit, cubierto aparte). Esto es `LOCAL_TEST`: no acredita Mercado
+Pago, Cloudinary, Sentry ni JaaS reales (ver «Integraciones operativas»).
+
+**LOCAL_TEST sobre el árbol de trabajo (sin commit), PHP 8.3, 2026-10-04.**
+Sobre el árbol con los cambios de disponibilidad y recomendaciones (sin commit,
+base `c97a62e`), PHP 8.3.35, todo con código de salida 0 y sin fallos:
+PHPUnit SQLite completo (`vendor/bin/phpunit`): 1338 tests / 5266 assertions,
+0 failures, 1 skip; PHPUnit MySQL 8.4 completo (`phpunit.mysql.xml`, tras
+`mova:qa-mysql-fresh-migrate` con guarda `mysql_qa`/`mova_qa`): 1338 tests /
+5265 assertions, 0 failures, 1 skip; `composer validate --strict` y
+`composer audit --locked` sin avisos; `npm run build` y los tres `check:*`
+OK; Playwright completo (contenedor QA, 1 worker, 0 reintentos, `.env`
+efímero): **68/68 passed**, 0 failed, 0 flaky, 0 skipped, 13,4 min (los 3 tests
+nuevos de `qa/tests/teacher-availability.spec.js` incluidos). Los 68 tests de
+Playwright corrieron sobre un snapshot tomado antes de la edición de `CLAUDE.md`
+y de este documento (solo documentación). Un intento previo abortó por
+`tar: file changed as we read it` al editar un archivo durante la copia del
+snapshot; fue un error de procedimiento y se repitió sin ediciones concurrentes.
+Revisión visual de la pantalla de disponibilidad en el navegador del QA
+(escritorio 1280 y móvil 390; capturas del formulario con franja guardada y con
+error de solape): estructura, textos y errores correctos; en móvil la barra
+superior fija se superpone a la captura del elemento tras el scroll (artefacto
+de captura, no verificado como defecto de layout). No se probó modo oscuro.
+Concurrencia real multi-proceso (8 procesos, MySQL `mova_qa` con guarda): `accept-lesson`,
+`settle`, `refund`, `approve-recharge` y `reminder-claim` terminaron `GREEN`
+(exactamente una mutación y ledger sano). Restore lógico de prueba dump→restore
+sobre MySQL QA local: 41 tablas / 419 columnas idénticas y checksums iguales
+(datos sintéticos; **no** es un restore de Azure).
+
+### Plan de cutover de `movaeduca.me` (NO ejecutado; requiere autorización)
+
+Fuente: documentación oficial de Container Apps, certificados gestionados.
+1. Prerrequisitos de datos: elegir/crear una BD de **producción** separada de la de
+   staging (no reutilizar `mova` con fixtures), revisar y aplicar las migraciones
+   pendientes como paso manual, backup recuperable + restore aislado verificados,
+   `APP_URL=https://movaeduca.me`, imagen construida desde el `master` final.
+2. Apex: registro `A @` → IP estática del entorno (`az containerapp env show … --query properties.staticIp`)
+   y `TXT asuid` con `customDomainVerificationId`; validación **HTTP**. Retirar
+   los cuatro A de GitHub Pages. **No tocar MX ni SPF.**
+3. `www`: `CNAME www` **directo** al FQDN de la app (un CNAME hacia el apex o hacia
+   un intermedio bloquea la emisión) y `TXT asuid.www`; el middleware
+   `RedirectWwwToApex` ya redirige `www` → apex.
+4. `az containerapp hostname add` + `hostname bind --validation-method HTTP|CNAME`; la
+   app debe estar en ejecución durante la emisión y renovaciones (fijar `minReplicas ≥ 1`
+   en producción; hoy web escala a 0).
+5. Tras comprobar HTTPS, redirects y health checks: `SEARCH_INDEXING_ENABLED=true` solo
+   en el dominio canónico y SEO con canonical/OG reales (hoy solo client-side).
+6. Reversión: restaurar los A/CNAME previos (TTL bajo antes del cambio) y conservar
+   `staging.movaeduca.me` sin indexar. Un solo scheduler activo (Railway no corre).
+
+### Controles que faltan antes de habilitar pagos reales (Mercado Pago)
+
+La batería local de pagos (≈290 tests) y las sondas de concurrencia pasan, pero no
+hay verificación contra el sandbox real de Mercado Pago ni entrega real de correo.
+Faltan: (1) credenciales de **prueba** de Mercado Pago aportadas/autorizadas para
+ejercer checkout, 3DS, rechazo, webhook repetido, timeout y reversa en staging con
+`PAYMENTS_ENABLED=true` (hoy apagado; cambiarlo es una acción de Azure no realizada);
+(2) webhook público con la URL final y secreto de firma verificados; (3) correo real
+operativo (re-autorización Gmail pendiente, `INVALID_GRANT`); (4) base de producción
+separada de QA; (5) decisión del titular sobre paquetes, precios y destino de la
+recarga; (6) liquidación `live` solo tras el gate financiero. Hasta entonces los pagos
+reales siguen **NO habilitados**.
+
+## Integraciones operativas — estado real y bloqueos (2026-10-05)
+
+Regla de lectura: **código** ≠ **probado con mocks / local** ≠ **sandbox real** ≠
+**producción**.
+
+**Actualización 2026-10-05 (tarde), con credenciales del `.env` del propietario
+leídas solo en memoria (autorizado en `AGENTS.md`):** contra proveedor real,
+desde el contenedor QA local: Cloudinary (subida, lectura por HTTPS, sin copia en
+disco, borrado verificado); JaaS (reunión real docente escritorio + padre móvil en
+la misma sala, 2 participantes, audio/video activos, salida y reingreso; JaaS
+muestra su pantalla previa «Join meeting» aunque MOVA pida
+`prejoinPageEnabled:false`); correo vía Gmail SMTP (3 mensajes ACEPTADOS por el
+transporte al buzón del remitente; **falta confirmación humana de recepción**);
+Sentry (un evento sintético, ID devuelto; falta confirmar ingestión en el panel).
+Mercado Pago: autenticación y tokenización con credenciales `TEST-` funcionan, pero
+`POST /v1/payments` responde 403 `Payer email forbidden` (código 4390) incluso con
+un comprador de prueba creado por API: la credencial pertenece a una cuenta normal;
+se necesita el Access Token de una cuenta de prueba **vendedor**. Pagos NO probados.
+Azure staging (config solamente, sin desplegar código): `mova-web` con secretos
+Cloudinary/Sentry/JaaS, `JAAS_APP_ID`/`JAAS_KEY_ID`, `SENTRY_ENVIRONMENT=staging`;
+`mova-worker` con DSN y `SENTRY_ENVIRONMENT`; pagos `fake`/apagados y correo
+`array` intactos. En staging se comprobó: web 200, evento Sentry enviado, Cloudinary
+configurado y firma de JWT JaaS posible (por inferencia de ramas en `tinker`, sin
+subida ni reunión reales en staging). Gmail: sin cambiar el mailer de staging.
+
+**Actualización 2026-10-05 (noche) — despliegue del árbol de trabajo en staging
+(sin commit; imagen `mova@sha256:09d64d9f…`, tag `staging-20261005-0231-wt`,
+construida del árbol sin commit; imagen anterior de web
+`sha256:cfcf0105…` para rollback).** Destino verificado: RG `mova-prod-rg` (staging),
+`APP_URL=https://staging.movaeduca.me`, indexación/pagos/recargas/IA/WhatsApp
+apagados, liquidación `dry_run`, PITR de 7 días. `/readyz` bloqueó la revisión
+nueva hasta aplicar migraciones (comportamiento esperado); se aplicaron SOLO las
+3 pendientes y revisadas (`teacher_availability_slots`, `lesson_presence_events`,
+y `class_offer_id` NULL + índice no único en `diagnostic_recommendations`: relaja
+una restricción, no borra ni reescribe datos). Revisiones activas: web 30, worker
+17, scheduler 11. Verificado en staging: `/healthz` y `/readyz` 200; webhook JaaS
+401 sin credenciales; webhook Mercado Pago 404 (apagado).
+- **Correo:** `MAIL_MAILER=smtp` (Gmail SMTP, contraseña de aplicación en secreto) con
+  `MAIL_ALLOWLIST` = un solo buzón autorizado en web/worker/scheduler
+  (`App\Support\MailAllowlist`, también cubierto por tests). En staging: envío a una
+  dirección fuera de la lista → cancelado; envío al buzón autorizado → aceptado por
+  el transporte (**falta confirmación humana de recepción**). Gmail API (refresh
+  token del `.env`/staging) falla al renovar el access token (HTTP 400, típico
+  `invalid_grant`): requiere reautorización; no se usa.
+- **JaaS en staging:** reunión REAL docente (escritorio) + padre (móvil Pixel 7) con
+  cuentas sintéticas `jaas-sbx-*@mova.test` y la clase #7: misma sala (2 participantes
+  en ambos), audio/video activos sin errores, salida (1) y reingreso (2). Webhook de
+  presencia: receptor verificado con firmas `X-Jaas-Signature` generadas por mí con un
+  secreto de PRUEBA (200 correcto, reintento sin duplicar, 401 con otro secreto/sin
+  firma/timestamp viejo; 2 filas atribuidas, clase y ledger sin cambios). **No** se
+  recibió ningún evento real de JaaS: el endpoint no está registrado en su consola y el
+  secreto de staging es el de prueba hasta que se cargue el real.
+- **Cloudinary (staging):** subida sintética, lectura HTTPS, sin copia local y borrado
+  confirmado por la Admin API, ejecutado desde el contenedor de staging. **Sentry:**
+  un evento sintético desde web y otro desde worker (entorno `staging`); falta
+  confirmar ingestión en el panel.
+- **Mercado Pago:** sigue SIN probar. Con el pagador `test_payer@example.com`,
+  `POST /v1/payments` responde `HTTP 500 {"message":"internal_error"}` sin causa
+  (x-request-id `f2fc1434-976a-45c4-97fe-bda867597ff9`, 2026-10-05 07:32:42 UTC), igual con
+  variantes de payload, tarjetas (Mastercard/Visa de prueba) y montos; con un
+  pagador `@testuser.com` responde 403 `Payer email forbidden` (4390). La credencial es
+  de una cuenta personal normal con claves `TEST-`; el app id y el user id del token
+  coinciden con `MERCADOPAGO_APPLICATION_ID`/`COLLECTOR_ID`. Webhook sin configurar:
+  `MERCADOPAGO_WEBHOOK_SECRET` vacío; pagos y webhook de staging siguen apagados.
+- **Deriva respecto a Bicep:** estos cambios se aplicaron con `az containerapp
+  update/secret set`; `apps.bicepparam` ya admite `MOVA_MAIL_ALLOWLIST` y los secretos
+  de firma/token de JaaS, pero el próximo deploy de plantilla debe reproducirlos.
+Herramienta común: `qa/.env.sandbox` (ignorado por Git; nombres en
+`qa/.env.sandbox.example`) + `bash scripts/sandbox-smoke.sh <payments|mail|files|sentry|jaas>`;
+cada sonda se niega fuera de local/testing, usa una BD SQLite temporal, ve solo las
+credenciales de su integración y no imprime secretos.
+
+**Actualización 2026-10-05 (fase paneles, navegador integrado de la app).**
+Herramienta de navegador: el navegador integrado de Claude (`mcp__Claude_Browser__*`)
+con sesiones ya abiertas del propietario en Mercado Pago, JaaS y Gmail; Claude in Chrome
+no estaba conectado. Esto **sustituye** lo anterior donde contradiga:
+- **Mercado Pago:** la aplicación del `.env` es «MOVA Recarga de Creditos Payments»
+  (ID 6583217782927097, coincide con el app id y el user id del Access Token). El panel
+  de credenciales y el de Webhooks piden verificar identidad (código al celular …5850):
+  **no pude abrirlos**, por tanto NO se comprobó en el panel que Public Key y Access
+  Token sean de la misma aplicación ni se configuró el webhook (URL prevista
+  `https://staging.movaeduca.me/api/webhooks/mercadopago`, evento Pagos, modo prueba).
+  Sonda corregida (payer por defecto `test_payer@example.com`): `POST /v1/payments` sigue
+  en HTTP 500 `internal_error` (request id `afeea2bc-0c83-47d0-aa10-f0b6ac844569`,
+  2026-10-05 08:58:18 UTC). Se abrió un caso en el asistente de soporte de Mercado Pago
+  Developers (producto Checkout API, MPE, request id `f2fc1434-…`, sin secretos); el
+  número `WCS-…` llega por correo al titular. El asistente sugirió comprobar que ambas
+  credenciales sean de prueba de la misma aplicación y usar un comprador de prueba; el
+  comprador de prueba creado por API ya dio 403 (4390). **Pagos y webhook de Mercado
+  Pago siguen apagados en staging; no se declara ningún flujo de pago funcional.**
+- **JaaS:** endpoint `https://staging.movaeduca.me/api/webhooks/jaas` creado en la
+  consola con `PARTICIPANT_JOINED` y `PARTICIPANT_LEFT` (sin header Authorization). El
+  secreto de firma real se guardó en el `.env` local (`JAAS_WEBHOOK_SIGNING_SECRET`) y
+  en el secreto `jaas-webhook-signing-secret` de `mova-web`, **reemplazando** el de
+  prueba (la revisión 31 llevó por error otro valor; la 32 lleva el correcto). Eventos
+  reales de una reunión docente+padre llegaron firmados: 13 filas en
+  `lesson_presence_events` (ids distintos, atribuidas al docente y al padre), clase y
+  ledger sin cambios (1 reserva, saldos intactos). Los intentos anteriores al secreto
+  correcto figuran «Failed» en el panel; los posteriores «Successful». Con el secreto
+  real: otro secreto → 401, sin cabecera → 401, firma válida con `t` de hace 1 h → 401.
+- **Correo:** en Gmail (m0v4class@gmail.com) están en la bandeja el correo de staging
+  («MOVA staging - prueba de correo») y los 3 de la sonda local (verificación, reset,
+  constancia).
+- **Sentry:** el panel no se pudo abrir (`sentry.io` pidió inicio de sesión y no
+  encontró una cuenta para m0v4class@gmail.com; no se creó ninguna organización).
+- **Estado de staging al cierre:** imagen `mova@sha256:09d64d9f…`; web
+  `mova-web--0000032`, worker `mova-worker--0000017`, scheduler
+  `mova-scheduler--0000011`; pagos `fake`/apagados, recargas y webhook de Mercado Pago
+  apagados, correo `smtp` con `MAIL_ALLOWLIST`, webhook JaaS activo. Variables
+  marcadoras `MOVA_RELEASE_LABEL` y `MOVA_SECRETS_ROTATED_AT` solo fuerzan revisiones.
+
+**Actualización 2026-10-05 (ronda 3 — Mercado Pago operativo en sandbox).** Esta ronda
+**sustituye** lo anterior donde diga que Mercado Pago «no se probó», que
+`POST /v1/payments` «falla con 500» o que Sentry no se pudo verificar:
+- **Verificación de identidad:** el titular completó el código por celular en el navegador
+  integrado; con esa sesión se accedió a la aplicación «MOVA Recarga de Creditos Payments»
+  (ID 6583217782927097, User ID 3659471468 = `MERCADOPAGO_EXPECTED_COLLECTOR_ID`). La
+  Public Key de prueba del panel coincide con la del `.env` (comparación por hash, sin
+  mostrar valores). El Access Token no se reveló (el permiso fue denegado); se verificó
+  por el id de aplicación incrustado (6583217782927097) y porque `GET /users/me`
+  devuelve ese vendedor.
+- **POST de pago:** a las 2026-10-05 17:57:43 UTC el mismo payload de MOVA devolvió
+  HTTP 201 aprobado (request id `babb650e-1c59-4555-ae13-cb3165b4a482`, pago
+  `1328350720`, `live_mode=false`, `accredited`, S/ 25). Los 500 anteriores (request ids
+  `f2fc1434-976a-45c4-97fe-bda867597ff9` 07:32:42 UTC y `afeea2bc-0c83-47d0-aa10-f0b6ac844569`
+  08:58:18 UTC) no se reprodujeron más; no se identificó la causa. El pagador por defecto de
+  la sonda es `test_payer@example.com`; un correo `@testuser.com` da 403 4390 y un correo
+  `.test` da 400 «payer.email must be a valid email».
+- **Soporte:** ticket **WCS-53285** (Checkout API, MPE). Mercado Pago respondió pidiendo
+  payload, confirmación de credenciales TEST de la misma aplicación y cuerpo del 500; se
+  respondió en el ticket con el payload saneado, ambos request ids, la confirmación y la
+  nueva situación (sin tokens ni datos de tarjeta); pendiente su explicación.
+- **Sonda local, 3 escenarios con webhook firmado:** aprobado `paid`, 1 depósito, 5
+  créditos, webhook x1/replay 200/200; rechazado `failed` 0/0; pendiente `pending` 0/0.
+- **Webhook en el panel (modo prueba):** URL
+  `https://staging.movaeduca.me/api/webhooks/mercadopago`, evento Pagos; modo productivo sin
+  URL. La clave de firma generada se guardó en el `.env` local
+  (`MERCADOPAGO_WEBHOOK_SECRET`) y en staging como secreto `mercadopago-webhook-secret`.
+- **Staging solo sandbox:** `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true`,
+  `MERCADOPAGO_WEBHOOKS_ENABLED=true`, `MERCADOPAGO_EXPECTED_LIVE_MODE=false`,
+  `RECHARGES_ENABLED=false`, credenciales `TEST-` (comprobado antes de cargarlas) en web,
+  worker y scheduler. Revisiones al cierre: web 33, worker 19, scheduler 12. Un pago
+  sandbox real creado desde staging (`1328350776`, profesor sintético
+  `test_payer@example.com`) quedó `paid` con 1 depósito de 5 créditos.
+- **Webhooks recibidos en staging:** `payment.created` real de Mercado Pago (firma válida)
+  y `payment.updated` del simulador del panel, ambos sobre `1328350776`, terminaron
+  `processed` sin crear abonos adicionales (ledger: un solo `deposit:5`, saldo 5).
+  El primero había quedado `failed` porque el worker no tenía la variable
+  `MERCADOPAGO_ACCESS_TOKEN` (solo el secreto); corregido, `mercadopago:reconcile` lo
+  reprocesó. Otras notificaciones llegaron por pagos creados por la sonda local con la
+  misma aplicación; sin orden en staging terminan `failed`
+  («no existe PaymentOrder local»), sin efecto en créditos. **Aplicación compartida:** local
+  y staging usan la misma app de pruebas, así que staging recibe notificaciones de las
+  pruebas locales.
+- **Sentry:** con la sesión propietaria (org `gym-lima`, proyecto `php-laravel`, la llave
+  del DSN coincide por hash) se confirmaron los 3 eventos sintéticos: `qa`
+  (`ac05b50d…`), `staging` web (`de5511f2…`) y `staging` worker (`a1ee7ece…`), sin
+  `user.email`. Hay además 4 eventos `local` anteriores (`QueryException` con una ruta
+  local en el mensaje).
+- **Pendientes (no probados):** flujo de recarga desde el navegador con Card Brick y 3DS,
+  Yape, reversos/contracargos en sandbox, y cualquier operación en producción.
+
+**Actualización 2026-10-05 (ronda 4 — checkout visible en staging, navegador).** Esta
+ronda **sustituye** el «pendiente» anterior sobre Card Brick, 3DS, Yape y reversos:
+- **Hallazgo y corrección de acceso:** el checkout automático NO depende de
+  `RECHARGES_ENABLED` (solo del flujo manual): con `PAYMENTS_ENABLED=true`, proveedor
+  `mercadopago` y Public Key, quedaba abierto a **todos** los profesores de staging.
+  Se añadió `MERCADOPAGO_CHECKOUT_ALLOWLIST` (`App\Support\CheckoutAllowlist`, config
+  `payments.mercadopago.checkout_allowlist`): con lista, solo esos correos ven el botón y
+  pueden crear/pagar un checkout (los demás reciben 503); vacía = sin restricción
+  (producción). No afecta a webhooks ni a la recuperación. 5 tests nuevos
+  (`CheckoutAllowlistTest`) + 32 existentes de checkout en verde; los tests destaparon un
+  `use` faltante en `CreditController` (corregido).
+- **Despliegue:** imagen `mova@sha256:5ded3a24…` (árbol sin commit), sin migraciones nuevas;
+  revisiones web 34, worker 20, scheduler 13. Usuario QA: profesor sintético
+  `test_payer@example.com` (correo `example.com` porque Mercado Pago rechaza `.test`).
+  Verificado en navegador: otro profesor (`jaas-sbx-teacher@mova.test`) no ve el botón y
+  `POST /teacher/credits/checkout` → 503.
+- **Navegador (Playwright contra `https://staging.movaeduca.me`, profesor QA, sandbox):**
+  | Escenario | Resultado en la UI | Orden | Depósitos |
+  |---|---|---|---|
+  | Card Brick aprobado (APRO) | «¡Pago aprobado!» | `paid` | 1 × 5 |
+  | Card Brick rechazado (OTHE) | «El pago no pudo completarse» | `failed` | 0 |
+  | 3DS challenge exitoso (`5483 9281 6457 4623`) | challenge mostrado, «Confirmar» → aprobado | `paid` | 1 × 5 |
+  | 3DS no autorizado (`5361 9568 0611 7557`) | challenge mostrado, «Confirmar» → fallido | `failed` | 0 |
+  | Yape aprobado (`111111111` / `123456`) | «¡Pago aprobado!» | `paid` | 1 × 5 |
+  | Yape rechazado (`111111112` / `123456`) | «El pago no pudo completarse» | `failed` | 0 |
+  Ledger final del profesor QA: exactamente un `deposit:5` por pago aprobado
+  (recargas 8, 11, 13, 15), cero por los rechazados. Tarjetas y teléfonos son los publicados
+  por Mercado Pago (documentación oficial). Una primera corrida del Yape rechazado mostró
+  «No se pudo enviar el pago. Intenta de nuevo.»: era `throttle:10,1` por usuario (12
+  peticiones en un minuto de mi script); repetido en solitario pasó. La UI usa ese mensaje
+  genérico también para un 429.
+- **Reintentos:** `POST …/refresh` ×3 y `POST …/pay` sobre una recarga ya pagada devolvieron
+  `approved` sin crear órdenes ni depósitos (órdenes con pago: 7 antes y después; ledger
+  idéntico). Los webhooks reales (`payment.created`/`updated`) de cada pago quedaron
+  `processed` (10 de 10 para pagos de QA) sin abonos extra.
+- **Reverso:** MOVA **no inicia** devoluciones en Mercado Pago (no hay llamada de reembolso
+  en el código); solo **reacciona** a un reembolso/contracargo ya confirmado por el
+  proveedor (`RechargeApprovalService::reverse()` con `actorId=null`, que aplica el reverso
+  aun dejando saldo negativo) y ofrece al administrador una reversión **manual solo de
+  ledger** (`POST /admin/recharges/{id}/reverse`, MFA sensible, motivo ≥ 10 caracteres; falla
+  cerrado si dejaría saldo negativo y alerta). Prueba **sandbox** (no real): reembolso total
+  del pago `1353133007` (recarga 11) creado por la API de Mercado Pago (`live_mode=false`);
+  el webhook real reconcilió, la recarga pasó a `reversed`, se añadió **un** asiento
+  `reversal:-5` y el saldo bajó de 20 a 15; `mercadopago:reconcile` posterior no añadió un
+  segundo reverso. Falta decidir (negocio): qué hacer con la deuda
+  si el profesor ya gastó esos créditos, quién y cómo inicia un reembolso (hoy solo desde el
+  panel de Mercado Pago) y si MOVA debe exponer una acción de devolución.
+- **Soporte WCS-53285:** sigue abierto («Pendiente»); soporte pidió payload, confirmación de
+  credenciales y cuerpo del 500, ya entregados (comentario del 2026-10-05 13:24 hora local);
+  sin respuesta nueva todavía. No se cambiaron ni rotaron credenciales.
+- **Estado final de staging (más seguro):** al terminar, `MERCADOPAGO_CHECKOUT_ALLOWLIST`
+  quedó con un correo inexistente (`checkout-cerrado@invalid.invalid`): el checkout
+  automático está cerrado para TODOS, incluido QA, mientras webhooks y recuperación siguen
+  activos. Para volver a probar, poner `test_payer@example.com` en esa variable (web, worker
+  y scheduler) y crear revisión nueva. `RECHARGES_ENABLED=false`, proveedor sandbox
+  (`live_mode` esperado `false`) sin cambios.
+- **No probado:** pagos con 3DS en un navegador móvil, Amex/Débito, cuotas > 1, otros
+  rechazos de la tabla (`FUND`, `CALL`, …), contracargos y producción.
+
+| Integración | Código | Mocks / local | Sandbox real | Bloqueo exacto |
+|---|---|---|---|---|
+| Mercado Pago | completo (Yape, tarjeta + 3DS, webhook firmado, conciliación, recovery, reversos, ledger) | ≈300 tests con HTTP simulado; 5 sondas de concurrencia real MySQL en verde; sonda `mercadopago:sandbox-smoke` (12 tests de su mecánica, HTTP simulado) | **Funciona en sandbox**: `POST /v1/payments` aprobado (201, `live_mode=false`); sonda local aprobado/rechazado/pendiente OK (1 abono y 5 créditos en aprobado, 0 en los otros, conciliación y webhook repetidos sin duplicar); en **staging** pago sandbox real `1328350776` → orden `paid`, 1 depósito de 5 créditos; webhooks reales y del simulador recibidos con firma válida; recuperación reprocesa sin duplicar | Los HTTP 500 del 2026-10-05 (07:32 y 08:58 UTC) no se reproducen desde las 17:57 UTC; caso WCS-53285 abierto para conocer la causa. Falta 3DS interactivo y el flujo con el navegador (Card Brick); recargas siguen apagadas en staging (`RECHARGES_ENABLED=false`); producción no probada |
+| Correo | Gmail API + `smtp` genérico, reintentos y recuperación | **SMTP real local (Mailpit)**: 6 tests (verificación, reset, constancia, enlaces al dominio configurado, SMTP caído); correo de reset ahora en español | **Gmail SMTP real**: 3 correos de sonda + 1 de staging, **recibidos** en la bandeja del buzón autorizado (verificado en Gmail). Gmail API: renovación del token falla (HTTP 400, probable `invalid_grant`) | Reautorizar Gmail API si se quiere ese transporte (`mova:gmail-auth-url`); proveedor/dominio final con SPF/DKIM/DMARC sin tocar MX |
+| Reuniones (JaaS) | servidor sólido; cliente endurecido; receptor de presencia (solo evidencia) | 11 E2E con `external_api.js` simulado (escritorio y móvil) + PHPUnit de ventana, permisos y presencia | **Reunión real en staging** (docente escritorio + padre móvil: misma sala, audio/video, salida y reingreso) y **webhook real**: endpoint registrado en la consola de JaaS, eventos `PARTICIPANT_JOINED/LEFT` entregados, firma `X-Jaas-Signature` verificada con el secreto real, reintentos sin duplicar, rechazo de firma inválida/timestamp viejo | Prueba humana con dos dispositivos reales (calidad de audio/video); reglas de asistencia/ausencia/disputas siguen sin definirse (los eventos son solo evidencia) |
+| Archivos (Cloudinary) | avatares: Cloudinary; en producción falla cerrado sin él; sin otro uso de disco local | tests con mocks existentes; sonda `mova:cloudinary-smoke` sin ejecutar | **Cloudinary real, local y desde staging**: subida, lectura HTTPS, sin copia local, borrado verificado en la Admin API | Prueba de subida desde el navegador con un usuario real de staging (no hecha) |
+| Sentry | integrado en el Handler; `send_default_pii=false` por defecto | — | **Verificado en el panel**: los 3 eventos (`qa`, `staging` web y worker) están en el proyecto `php-laravel` (org `gym-lima`), IDs idénticos a los devueltos por el SDK | El proyecto/org se llama `gym-lima`: confirmar que es el destino deseado para MOVA; hay 4 eventos `local` de pruebas tempranas (excepciones con ruta local) que conviene borrar en Sentry |
+
+### Mercado Pago
+- **Faltan** (nombres exactos, en `qa/.env.sandbox`): `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY` (ambas de PRUEBA, de la misma aplicación), `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID` (user id del vendedor de prueba) y, opcional, `MERCADOPAGO_WEBHOOK_SECRET` (panel → Tus integraciones → Webhooks → modo de prueba → clave secreta).
+- **Después ejecutaré:** `bash scripts/sandbox-smoke.sh payments --scenario=approved --scenario=rejected --scenario=pending`: tarjeta de prueba publicada por Mercado Pago (APRO / OTHE / CONT), conciliación dos veces y webhook firmado dos veces, verificando **exactamente un depósito** y créditos exactos. Aborta si Mercado Pago responde `live_mode=true`.
+- **No cubre y no debe afirmarse:** webhooks reales desde Mercado Pago a una URL pública (los pagos TEST no los disparan; hace falta el simulador del panel contra una URL pública, p. ej. staging), 3DS interactivo, Yape con OTP real, producción.
+- Staging vivo: `mova-web` **no tiene** `MERCADOPAGO_WEBHOOK_SECRET` y `MERCADOPAGO_WEBHOOKS_ENABLED=false`. La IaC ya soporta el secreto; activar el sandbox en staging es `MOVA_PAYMENTS_MODE=sandbox` en el próximo deploy (nuevo, con defaults seguros).
+- El `.env` local del checkout trae credenciales de Mercado Pago (no se leyeron). Si son de PRUEBA, puedes copiarlas a `qa/.env.sandbox`.
+
+### Correo
+- **Qué falla hoy con Gmail:** `INVALID_GRANT` indica un refresh token no válido. Según Google, un refresh token deja de servir si: el proyecto OAuth está en estado de publicación **Testing** (caduca a los 7 días), el usuario revocó el acceso, **cambió la contraseña de esa cuenta Gmail**, pasaron 6 meses sin usarlo o se superaron 100 tokens por cliente. La causa concreta aquí es desconocida; lo más probable es *Testing* o cambio de contraseña. **Falta:** un refresh token nuevo.
+- **Qué hacer (en tu máquina, con tu cuenta remitente):** en Google Cloud Console → proyecto del cliente OAuth → pantalla de consentimiento: publicar en *In production* (o aceptar que caduca cada 7 días); confirmar Gmail API habilitada y `http://localhost` como URI de redirección autorizada; luego `php artisan mova:gmail-auth-url`, abrir la URL con la cuenta remitente, copiar el `code` de la URL de redirección y `php artisan mova:gmail-exchange-code <code>`. **Ojo:** ese comando imprime el token en tu terminal: cópialo directo a `qa/.env.sandbox` (`GMAIL_REFRESH_TOKEN`) y a la configuración de Azure; no lo pegues en chats ni logs. Verificación: `bash scripts/sandbox-smoke.sh mail`.
+- **Recomendación:** no usar `@gmail.com` como remitente de producción (cuenta personal con límites de envío, sin dominio propio ni autenticación SPF/DKIM de `movaeduca.me`). Usar un proveedor transaccional **por SMTP**, que el código ya soporta (`MAIL_MAILER=smtp`, sin dependencias nuevas). Opción concreta: **Resend**: host `smtp.resend.com`, puerto 587 (STARTTLS) o 465 (TLS implícito), usuario `resend`, contraseña = API key, remitente en un dominio verificado. Usar un **subdominio** de envío (p. ej. `mail.movaeduca.me`; Resend lo recomienda para aislar reputación) para no tocar el MX ni el SPF del apex (reenvío de Namecheap). Los registros DNS exactos los muestra el panel de Resend al añadir el dominio (no se afirman aquí). Añadir además `_dmarc` (`v=DMARC1; p=none; rua=mailto:<buzón>`) y endurecer después de observar. **Necesito de ti:** elegir proveedor, crear la cuenta y API key (cargarla en `qa/.env.sandbox` como `MAIL_PASSWORD`, con `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_ENCRYPTION`, `MAIL_FROM_ADDRESS`), un buzón de prueba tuyo (`MAIL_SMOKE_RECIPIENT`) y autorizar añadir los registros DNS en Namecheap.
+- Deploy: `MOVA_MAIL_MAILER=smtp|gmail_api` (+ variables) cambia el mailer de `array` en la plantilla; si falta algo, vuelve a `array`.
+
+### Reuniones (JaaS)
+- **Hecho (local, simulado):** ventana de entrada autoritativa (403 antes/después, 200 dentro), JWT por sala con moderador solo para el docente, sin grabación, que vence al cerrar la ventana y ahora lleva solo el `id` de usuario (para atribuir webhooks); cliente: el fallo al cargar `8x8.vc` (antes: "Conectando…" para siempre y promesa sin capturar) muestra un mensaje y no manda a confirmar pago; avisos de cámara/micrófono con la acción concreta sin cerrar la clase; error fatal comunicado; salir/reentrar libera la instancia; liberación al desmontar. Los 4 tests de errores fallan con el código anterior (verificado).
+- **Falta (real):** `JAAS_APP_ID`, `JAAS_KEY_ID` y `JAAS_PRIVATE_KEY` (**base64 de una línea** del PEM: `base64 -w0 clave.pem`), de jaas.8x8.vc → API Keys. Después: `bash scripts/sandbox-smoke.sh jaas` (docente en escritorio y padre en móvil, medios sintéticos de Chromium, misma sala, 2 participantes, audio/video activos, reingreso). Aun así **no probará** que una persona real vea y oiga con calidad: eso exige una prueba humana con dos dispositivos. `UNKNOWN-03` (cómo trata JaaS un `exp` que vence con la llamada en curso) sigue sin confirmar.
+- **Presencia (solo código):** `POST /api/webhooks/jaas` guarda `PARTICIPANT_JOINED/LEFT` en `lesson_presence_events` sin nombre, correo ni avatar, idempotente, autenticado con la firma `X-Jaas-Signature` (HMAC-SHA256, `JAAS_WEBHOOK_SIGNING_SECRET`, el que genera JaaS) y/o un header `Authorization: Bearer <JAAS_WEBHOOK_AUTH_TOKEN>` opcional (secreto distinto, definido por MOVA), **desactivado por defecto** y **sin ningún efecto** en estado de clase, créditos o liquidación. **No es asistencia ni disputa:** siguen sin existir reglas (C-P1-ATTENDANCE-DISPUTES). Para activarlo (no hecho): consola de JaaS → Webhooks → Add endpoint con `https://<dominio>/api/webhooks/jaas`, eventos `PARTICIPANT_JOINED` y `PARTICIPANT_LEFT` y el header Authorization; en el deploy `MOVA_JAAS_WEBHOOKS_ENABLED=true` + `MOVA_JAAS_WEBHOOK_SIGNING_SECRET` (y/o `MOVA_JAAS_WEBHOOK_AUTH_TOKEN`). No pude comprobar en la documentación qué plan o rol de la consola se necesita para crear webhooks.
+
+### Archivos y Sentry
+- **Cloudinary:** `bash scripts/sandbox-smoke.sh files` sube un PNG sintético con un id reservado (≥ 9 000 000 000), lo lee por HTTPS desde el CDN, comprueba que no queda copia en disco local y lo borra, confirmando el borrado contra la Admin API. **Falta:** `CLOUDINARY_URL` de un cloud de PRUEBA en `qa/.env.sandbox`. El `CLOUDINARY_URL` de staging existe como secreto pero su validez no se probó (requeriría iniciar sesión en staging).
+- **Sentry:** `bash scripts/sandbox-smoke.sh sentry` envía un evento de prueba (`environment=qa`). **Falta:** `SENTRY_LARAVEL_DSN` de un proyecto de PRUEBA. Que el evento no contiene PII indebida solo se confirma mirándolo en Sentry (campo *User* vacío, sin cookies/cabeceras): `send_default_pii` es `false` por defecto, pero no hay prueba automatizada del payload. Nuevo: la plantilla etiqueta los eventos (`SENTRY_ENVIRONMENT`, por defecto `staging`); sin eso, staging (`APP_ENV=production`) contaminaría el proyecto de producción.
+
+### Staging ≠ producción
+- La base de staging contiene cuentas y movimientos de prueba (ver conteos arriba): **no** se debe apuntar el dominio público a ella. Nuevo control: `mova:health-check` marca `QA_FIXTURE_DATA_IN_PUBLIC_SITE` si el sitio está declarado público (`SEARCH_INDEXING_ENABLED=true`) y la base contiene cuentas `@mova.test` / `.test` / `qa-*`.
+- Falta decidir y preparar la base de producción separada (nueva base o servidor, migraciones revisadas, backup/restore verificados) y credenciales de aplicación nunca expuestas.
+
+### Autorizaciones concretas que se necesitarían (no concedidas)
+1. Cargar en Azure staging, mediante un deploy de la plantilla, las credenciales de **prueba** y `MOVA_PAYMENTS_MODE=sandbox`, `MOVA_MAIL_MAILER`, `MOVA_JAAS_WEBHOOKS_ENABLED` y `MOVA_SENTRY_ENVIRONMENT`.
+2. Registro del endpoint de presencia en la consola de JaaS (requiere URL pública HTTPS).
+3. Añadir en Namecheap los registros DNS del proveedor de correo y `_dmarc`, sin tocar MX/SPF del apex.
+4. Crear la base de producción separada.
 
 ## Evidencia de gates en esta rama
 
@@ -150,6 +617,11 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P2-DOCS | P2 | Docs | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-COOKIE-TRUTH | P2 | Legal / UI | IMPLEMENTED_NOT_VERIFIED |
 | C-P2-QA-PAYMENTS | P2 | QA | OPEN |
+| C-P1-RECOMMENDATIONS | P1 | Producto | IMPLEMENTED_NOT_VERIFIED |
+| C-P1-TEACHER-AVAILABILITY | P1 | Producto | IMPLEMENTED_NOT_VERIFIED |
+| C-P1-ATTENDANCE-DISPUTES | P1 | Producto / operación | REQUIRES_OWNER_INPUT |
+| C-P1-RECURRING-MENTORSHIP | P1 | Producto | REQUIRES_OWNER_INPUT |
+| C-P1-TEACHER-VERIFICATION | P1 | Producto / legal | REQUIRES_OWNER_INPUT |
 
 _(El detalle de cada ID, abajo, es la única fuente del estado final.)_
 
@@ -330,11 +802,16 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P0-DB-CREDENTIAL
 - **Severidad / dominio:** P0 · Seguridad.
 - **Evidencia:** `docs/MOVA_CREDENTIAL_EXPOSURE.md` F-26: contraseña de la base MySQL de producción expuesta en el historial git; validez `UNKNOWN`, se trata como comprometida hasta rotarse.
-- **Estado:** `BLOCKED_EXTERNAL` (solo el dueño de la cuenta puede rotarla; esta fase no rota secretos por instrucción).
-- **Criterio de cierre:** rotación hecha por el titular en el proveedor real + evidencia de que la credencial vieja ya no autentica (verificada por el titular, no por un agente) + la base de producción definitiva (Azure) usa credenciales nunca expuestas.
+- **Estado:** `BLOCKED_EXTERNAL` — **incidente ABIERTO** (solo el dueño de la cuenta puede rotarla; esta fase no rota secretos por instrucción).
+- **Evidencia `CODE` reverificada el 2026-10-05 (sin leer ni usar valores), por dimensión:**
+  - *Archivos presentes en el árbol actual:* los 5 archivos de la ficha F-26/F-27 (`qa/test-wizard-flow.mjs`, `qa/end-to-end-welcome-email.mjs`, `qa/check-twilio.mjs`, `qa/global-setup.js`, `qa/auth/admin.json`) **no existen** en `HEAD`, en `origin/master` (ambos `c97a62e`), en el disco ni en los worktrees. `6029ac4` (2026-08-26) **es ancestro de ambos**: ya está publicado (la ficha lo daba por local y sin push; esa afirmación quedó obsoleta y se corrigió). **Excepción abierta:** el tip de la rama pública `origin/Elias` (último commit 2026-08-01, sin protección) **aún contiene los 5 archivos**, y 4 ramas locales no publicadas también (`chore/codex-safety-hardening`, `fix/monetization-integrity`, dos `worktree-agent-*`).
+  - *Exposición en el historial público:* los commits `d7f288d`, `117dc36`, `8cbac89` y `469f848` añadieron o modificaron esos archivos y son alcanzables desde 9 ramas remotas (incluida `master`) de un repositorio público (0 forks, 0 estrellas a esa fecha). Borrar archivos de la versión actual no los retira del historial ni de clones previos; la purga de historial es una decisión separada, no tomada.
+  - *Vigencia:* `UNKNOWN`. Se trata como comprometida hasta que el titular la rote y lo acredite. No se probó con la credencial filtrada.
+- **Pasos pendientes para cerrar:** (1) el titular rota la credencial en el proveedor y acredita que la anterior ya no autentica; (2) la base de producción definitiva usa credenciales nunca expuestas; (3) decidir con su autor cómo limpiar o archivar `origin/Elias` y revisar las ramas locales antes de publicarlas; (4) decisión documentada sobre purgar o no el historial; (5) activar secret scanning y push protection (hoy desactivados) y repetir el barrido sobre todos los tips remotos; (6) Database Privilege Audit documentado.
+- **Criterio de cierre:** los seis pasos anteriores con evidencia; los archivos ausentes de `master` **no** bastan.
 - **Commit / tests:** — ; no aplica prueba de código.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** ausencia del secreto en HEAD no demuestra revocación.
+- **Notas:** ausencia del secreto en HEAD no demuestra revocación. Ver `docs/MOVA_CREDENTIAL_EXPOSURE.md` (reverificada).
 
 ### C-P0-ANPD-REGISTRATION
 - **Severidad / dominio:** P0 · Legal (Perú, Ley 29733).
@@ -425,3 +902,44 @@ cierre · commit · tests · evidencia en vivo · notas.
 - **Commit / tests:** — en C1; revisión de datos reales pendiente.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** no borrar evidencia financiera QA ni trasladarla a producción.
+
+### C-P1-RECOMMENDATIONS
+- **Severidad / dominio:** P1 · Producto.
+- **Evidencia `CODE`:** `DiagnosticRecommendationService` dependía de `ClassOffer` activas (ya no se crean) y sumaba un bono por palabras clave de la IA. Ahora los candidatos salen del perfil docente (verificado, enseña la materia, cuenta no suspendida, biografía y tarifa **efectiva** de esa materia: `teacher_subject.specific_rate` o, si no hay, `hourly_rate`), puntúa con reglas deterministas (nivel, historial, experiencia, perfil, disponibilidad) y la IA no interviene en el ranking. La disponibilidad cuenta solo franjas futuras en hora de Lima (hoy/mañana; resto de la semana lun–dom; si ya pasaron, neutral). El cálculo se serializa con `lockForUpdate` sobre el diagnóstico y reemplaza las filas en una transacción (idempotente). Migración `2026_10_05_000002` (forward-fix: `class_offer_id` nullable + índice no único); las filas históricas conservan su oferta.
+- **Estado:** `IMPLEMENTED_NOT_VERIFIED`.
+- **Criterio de cierre:** suite final SQLite/MySQL/E2E verde sobre el snapshot final y comprobación en staging tras revisar y aplicar la migración (paso manual, no realizado).
+- **Commit / tests:** sin commit (instrucción vigente: no commitear). `LOCAL_TEST` 2026-10-04 (PHP 8.3, `php_qa`): `DiagnosticRecommendationMatchingTest` (15 casos: tarifa base 0 con específica válida, específica 0, sin tarifa, franjas pasadas/en curso/domingo, idempotencia, tope de 5, desempate, IA sin efecto), `DiagnosticRecommendationsVisibilityTest` y `TeacherReferralRequestTest`: 48 tests dirigidos en verde; después las suites completas SQLite (1338) y MySQL 8.4 (1338, `mysql_qa` tras `mova:qa-mysql-fresh-migrate`) y Playwright (68/68) sobre el árbol actual, sin fallos (conteos en «Seguimiento operativo»). No se probó concurrencia real multi-proceso del cálculo; la garantía es el lock transaccional.
+- **Evidencia en vivo:** no aportada (no se desplegó ni migró nada).
+- **Notas:** `DiagnosticsController::requestClass` (ruta heredada con `{classOffer}`) sigue como redirección sin efecto. `DIAGNOSTIC_AI_AUTO_DISABLE_ON_ERROR` sigue declarada y sin implementar: decisión pendiente de quitarla o implementarla; hoy no afecta al ranking.
+
+### C-P1-TEACHER-AVAILABILITY
+- **Severidad / dominio:** P1 · Producto.
+- **Evidencia `CODE`:** tabla `teacher_availability_slots` (migración `2026_10_05_000001`), `TeacherAvailabilityService` (única vía de escritura; valida fin > inicio en la misma jornada, mínimo 30 min, sin solapes por día, tope de 28 franjas; guardado atómico con lock del perfil), `Teacher\AvailabilityController` (`PUT /teacher/availability`, solo rol teacher y no suspendido; el perfil sale de la sesión), componente `TeacherAvailabilityEditor.vue` en `/teacher/profile`. Horas de pared de Lima, sin horario de verano. Es **informativa**: orienta recomendaciones y no autoriza ni bloquea agendas (`LessonSchedulingService` sigue siendo la fuente de verdad de choques).
+- **Estado:** `IMPLEMENTED_NOT_VERIFIED`.
+- **Criterio de cierre:** suite final verde sobre el snapshot final y comprobación manual de la pantalla en staging tras aplicar la migración.
+- **Commit / tests:** sin commit. `TeacherAvailabilityTest` (16 casos: invitado, padre, suspendido, ownership con id inyectado, formatos, rangos, solapes, tope, idempotencia, vaciado explícito, fallo sin pérdida de datos, props de la pantalla, cascada al borrar perfil); `npm run build` y los tres `check:*` en verde. Más `qa/tests/teacher-availability.spec.js` (3 tests Playwright: agregar y persistir tras recarga, rechazo de solape y de fin ≤ inicio con mensaje visible, limpieza, y rechazo a un padre) en escritorio y móvil, y revisión visual de capturas en el QA local. Sigue sin verificarse en staging.
+- **Evidencia en vivo:** no aportada.
+- **Notas:** la disponibilidad no se muestra públicamente. Decisión de producto abierta: si debe validar o advertir al agendar.
+
+### C-P1-ATTENDANCE-DISPUTES
+- **Severidad / dominio:** P1 · Producto / operación.
+- **Evidencia `CODE` (2026-10-04):** no existe código de asistencia, ausencia ni disputa. `JaasService` solo emite JWT de sala; emitir un enlace **no** prueba presencia. Controles actuales: confirmación/reporte del padre y del profesor, Libro de Reclamaciones, y acciones de admin con MFA (`cancel`, `force-complete`, `force-refund`), más la gracia previa a la liquidación.
+- **Estado:** `REQUIRES_OWNER_INPUT`. **Fuera del alcance de código de esta fase.**
+- **Motivo:** cualquier consecuencia (reembolso, consumo de crédito, penalización, plazos) es política de negocio que no está definida; evidencia fiable de presencia exige configurar webhooks de JaaS (externo, no verificado). Implementar el registro sin esas reglas sería inventar política.
+- **Decisiones necesarias:** (1) plazo para reportar un problema; (2) qué ocurre con el crédito si el profesor no asiste y si el alumno no asiste; (3) si un reporte retiene la liquidación automática; (4) fuente de presencia aceptada (declaración de las partes, webhooks de JaaS o ambas).
+- **Evidencia en vivo:** no aportada.
+
+### C-P1-RECURRING-MENTORSHIP
+- **Severidad / dominio:** P1 · Producto.
+- **Evidencia `CODE` (2026-10-04):** "acompañamiento continuo" es un indicador (`class_requests.is_mentorship`) y un contador de cupos del profesor (`mentorship_slots_total/taken`, liberado al cancelar). No existen series de clases, recurrencia ni reserva de créditos para varias clases.
+- **Estado:** `REQUIRES_OWNER_INPUT`. **Fuera del alcance de código de esta fase.**
+- **Motivo:** una recurrencia reservaría créditos de varias clases futuras y cambiaría la reserva, el settlement y la cancelación; faltan reglas (frecuencia, duración, qué pasa al cancelar una serie, cobro). No se presenta como implementada: la interfaz no debe prometer agendado recurrente automático.
+- **Evidencia en vivo:** no aportada.
+
+### C-P1-TEACHER-VERIFICATION
+- **Severidad / dominio:** P1 · Producto / legal.
+- **Evidencia `CODE` (2026-10-04):** "verificado" significa que un admin aprobó el perfil (`is_verified`, con `reviewed_by/at`, MFA reciente); no se recopila ni almacena ningún documento (DNI, títulos, antecedentes).
+- **Estado:** `REQUIRES_OWNER_INPUT`. **Verificación documental fuera del alcance de código.**
+- **Motivo:** recopilar documentos sensibles exige política aprobada (qué se pide, base legal, retención, quién accede, cifrado). Hasta que el titular defina el alcance de "profesor verificado", los textos públicos no deben sugerir verificación documental.
+- **Decisiones necesarias:** criterios exactos de verificación; si habrá documentos, cuáles y cómo se custodian; texto aprobado de la insignia.
+- **Evidencia en vivo:** no aportada.
