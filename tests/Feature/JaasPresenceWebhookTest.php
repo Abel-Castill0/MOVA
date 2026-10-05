@@ -49,6 +49,9 @@ class JaasPresenceWebhookTest extends TestCase
             'jaas.app_id' => self::APP_ID,
             'jaas.webhooks_enabled' => true,
             'jaas.webhook_auth_token' => self::SECRET,
+            // El .env/entorno real puede traer un secreto de firma (p. ej. el de staging): estos tests
+            // parten de «solo token estático» y activan la firma explícitamente cuando la prueban.
+            'jaas.webhook_signing_secret' => null,
         ]);
 
         $this->teacher = User::factory()->create();

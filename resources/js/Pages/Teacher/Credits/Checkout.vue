@@ -368,7 +368,9 @@ async function submitYapePayment() {
     applyStatus(response.data)
   } catch (error) {
     phase.value = 'idle'
-    submitError.value = 'No se pudo enviar el pago. Intenta de nuevo.'
+    submitError.value = error?.response?.status === 429
+      ? 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.'
+      : 'No se pudo enviar el pago. Intenta de nuevo.'
 
     return
   }
@@ -431,7 +433,9 @@ async function submitCardPayment(formData) {
     applyStatus(response.data)
   } catch (error) {
     phase.value = 'idle'
-    submitError.value = 'No se pudo enviar el pago. Intenta de nuevo.'
+    submitError.value = error?.response?.status === 429
+      ? 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.'
+      : 'No se pudo enviar el pago. Intenta de nuevo.'
 
     throw error
   }
