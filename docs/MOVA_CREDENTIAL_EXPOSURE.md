@@ -4,7 +4,7 @@
 
 # MOVA — Exposición de credenciales en git history (F-26 / F-27 / F-24A)
 
-**Fecha de última revisión:** 2026-08-27. Documento dedicado, separado de `MOVA_QA_BASELINE.md`, porque este hallazgo dejó de ser "un detalle del saneamiento de QA" y pasó a ser un hallazgo de seguridad de infraestructura por derecho propio.
+**Fecha de última revisión:** 2026-10-05 (las dimensiones de exposición se reverificaron contra Git ese día; el resto de la ficha conserva el análisis del 2026-08-27). **Estado del incidente: ABIERTO** — la ausencia de los archivos en `master` no lo cierra. Documento dedicado, separado de `MOVA_QA_BASELINE.md`, porque este hallazgo dejó de ser "un detalle del saneamiento de QA" y pasó a ser un hallazgo de seguridad de infraestructura por derecho propio.
 
 **Ningún valor secreto real aparece en este documento.** Cada fila describe qué se encontró, dónde, y en cuántos commits/archivos — nunca el contenido del secreto, ni siquiera un fragmento parcial que pudiera facilitar correlación con el valor real (esto incluye el hostname del proxy de Railway, deliberadamente omitido en todo el documento).
 
@@ -43,14 +43,16 @@ Una versión anterior de este documento mezclaba "cuántos archivos contuvieron 
 | Dimensión | Estado | Evidencia |
 |---|---|---|
 | **Historical Exposure** | 6 archivos distintos contuvieron la contraseña a lo largo de la historia: `qa/test-wizard-flow.mjs`, `qa/end-to-end-welcome-email.mjs`, `qa/check-twilio.mjs`, `qa/global-setup.js`, `qa/auth/admin.json`\* (F-27, cookie, no la contraseña — se incluye aquí solo por haber compartido el mismo commit de origen), `qa/tests/10-create-report2.spec.js`, `qa/tests/11-check-email-report.spec.js`, `qa/tests/14-welcome-notification.spec.js`, `qa/tests/15-verify-email-welcome.spec.js` — repartidos en 5 commits (`d7f288d`, `117dc36`, `8cbac89`, `469f848`, `4518666`) | `git log --all -S"<valor>"` + inspección commit por commit |
-| **Current HEAD Exposure** | ✅ **LIMPIO** — cambió desde la última revisión de este documento. El commit local `6029ac4` (parte de un checkpoint de 12 commits, ninguno pusheado) elimina los 5 archivos que seguían en el árbol (`qa/test-wizard-flow.mjs`, `qa/end-to-end-welcome-email.mjs`, `qa/check-twilio.mjs`, `qa/global-setup.js`, `qa/auth/admin.json`) | `git cat-file -e HEAD:<ruta>` → falla para los 5 (ya no existen en `HEAD` local) |
-| **Current Remote Exposure** | ❌ **SIGUE EXPUESTO** — `origin/master` no tiene el commit de limpieza; nada se ha pusheado | `git cat-file -e origin/master:<ruta>` → los 5 archivos existen, con contenido completo, en `origin/master` hoy |
-| **Working Tree Exposure** | ✅ Limpio | Los 5 archivos no existen en disco |
+| **Current HEAD Exposure** | ✅ **LIMPIO** (reverificado 2026-10-05). `6029ac4` ("security: remove files that exposed production credentials…", 2026-08-26) **es ancestro de `HEAD` y de `origin/master`** (ambos en `c97a62e`): ya está publicado, ya no es un commit local. Elimina los 5 archivos (`qa/test-wizard-flow.mjs`, `qa/end-to-end-welcome-email.mjs`, `qa/check-twilio.mjs`, `qa/global-setup.js`, `qa/auth/admin.json`). Los otros 4 archivos de la fila histórica (`qa/tests/10-…`, `11-…`, `14-…`, `15-…`) tampoco existen en `HEAD` | `git merge-base --is-ancestor 6029ac4 HEAD` y `… origin/master` → ambos verdaderos; `git cat-file -e HEAD:<ruta>` → falla para los 9 |
+| **Current Remote Exposure — `origin/master`** | ✅ **LIMPIO** — la limpieza llegó a `origin/master` con los PR #1–#5 (el texto anterior "nada se ha pusheado" quedó obsoleto) | `git cat-file -e origin/master:<ruta>` → falla para los 9 |
+| **Current Remote Exposure — otras ramas públicas** | ❌ **SIGUE EXPUESTO en `origin/Elias`** — el tip de esa rama pública (último commit 2026-08-01, sin protección) **sigue conteniendo los 5 archivos**; `6029ac4` no es ancestro de esa rama. Una comprobación booleana gruesa (sin imprimir valores) encontró patrón de credencial/cookie en 2 de los 5 (`qa/test-wizard-flow.mjs`, `qa/auth/admin.json`); en los otros 3 no coincidió, lo que **no** prueba que estén limpios. Las demás 10 ramas remotas están limpias en su tip | `git cat-file -e origin/Elias:<ruta>` → existe para los 5; el resto de `origin/*` → falla para los 9 |
+| **Local-only branches** | ⚠️ 4 ramas locales (no publicadas) conservan los archivos en su tip: `chore/codex-safety-hardening` (los 9), `fix/monetization-integrity`, `worktree-agent-a07a0ea8d6152a3ab`, `worktree-agent-a8fbd8207cb57a233` (los 5). Son copias en la máquina local; si algún día se publican, reexponen el secreto | `git cat-file -e <rama>:<ruta>` |
+| **Working Tree Exposure** | ✅ Limpio en el checkout principal y en los dos worktrees (`jolly-hellman`, `serene-davinci`) | Ninguno de los 9 archivos existe en disco |
 | **Credential Validity** | ❌ `UNKNOWN` — se trata como **comprometida hasta que se rote**, no como "probablemente inactiva" | Deliberadamente no verificado; verificarlo requeriría usar la credencial comprometida |
 
 \* `qa/auth/admin.json` es la ficha de F-27, no de F-26 — se referencia aquí solo porque `qa/end-to-end-welcome-email.mjs` original ronda de conteo la agrupó por error dentro de "los archivos de F-26". Ver la ficha F-27 dedicada más abajo para su propio detalle.
 
-**Lectura correcta de esta tabla**: el commit local de limpieza (`6029ac4`) es real y verificable, pero **no cierra F-26** — mueve exactamente una dimensión (Current HEAD Exposure) de ❌ a ✅. Las otras cuatro (historical, remote, working tree ya estaba, credential validity) requieren acciones distintas y, en el caso de Remote y Credential Validity, una decisión y una acción del dueño de la cuenta que todavía no ha ocurrido.
+**Lectura correcta de esta tabla** (reverificada 2026-10-05): que los archivos ya no estén en `HEAD`, en `origin/master` ni en disco es real y verificable, pero **no cierra F-26**. Siguen abiertos: (1) la **exposición histórica pública** — los 4 commits que añadieron o modificaron esos archivos (`d7f288d`, `117dc36`, `8cbac89`, `469f848`; el quinto, `4518666`, es la limpieza de specs) son alcanzables desde 9 ramas remotas de un repositorio **público** (0 forks y 0 estrellas el 2026-10-05, lo que no impide que existan clones); (2) la exposición **actual** en `origin/Elias`; (3) las copias en ramas locales; y (4) la **vigencia de la credencial, `UNKNOWN`**, que se trata como comprometida hasta que el propietario la rote y lo acredite. Eliminar archivos de la versión actual no revoca nada: el valor sigue en el historial y en cualquier clon previo.
 
 ---
 
@@ -69,8 +71,8 @@ Una versión anterior de este documento afirmaba que "purgar el historial sin ha
 1. **Rotar la credencial** — apaga el riesgo de autenticación real. Máxima prioridad, sin condiciones.
 2. **Verificar sesiones/procesos afectados** — ver sección F-27 más abajo; no asumir que rotar invalida nada por sí solo.
 3. **Verificar que la aplicación sigue sana** con la nueva credencial.
-4. **Pushear la limpieza del remoto actual** (el commit `6029ac4`, ya hecho localmente) — esto es una mejora real e inmediata una vez rotada la credencial; no hay razón para posponerla más allá de eso.
-5. **Re-auditar** `HEAD`/`origin/master` tras el push.
+4. **Limpiar el remoto actual** — `origin/master` ya está limpio (`6029ac4` está publicado, reverificado 2026-10-05). **Pendiente:** `origin/Elias` sigue exponiendo los 5 archivos en su tip; decidir con su autor si se limpia o se archiva esa rama (no se borra ni se reescribe automáticamente), y revisar las 4 ramas locales que aún los conservan antes de publicarlas.
+5. **Re-auditar** `HEAD` y todos los tips de `origin/*` (no solo `origin/master`) tras la limpieza de `origin/Elias`.
 6. **Evaluar por separado**, con su propio análisis de costo/coordinación, si purgar el historial es necesario — considerando número de commits, colaboradores, forks, clones conocidos, CI/CD, backups.
 
 ---
@@ -85,8 +87,8 @@ Una versión anterior de este documento afirmaba que "purgar el historial sin ha
 
 **A partir de aquí, solo tras confirmación explícita del usuario de que 1-3 ya ocurrieron:**
 
-4. **Push del commit de limpieza ya preparado localmente** (`6029ac4` y los 11 commits posteriores del mismo checkpoint) — esto mueve "Current Remote Exposure" a ✅. No requiere `--force`, es un push normal.
-5. **Re-verificar `origin/master`** tras el push: `git cat-file -e origin/<rama>:<ruta>` para los 5 archivos → debe fallar en los 5.
+4. **Limpieza del remoto — estado 2026-10-05:** el commit `6029ac4` ya fue publicado (está en `origin/master`), por lo que "Current Remote Exposure" de `master` ya es ✅. Queda `origin/Elias` (ver tabla) y las ramas locales que conservan los archivos. No requiere `--force`; la decisión sobre la rama de un compañero es del titular.
+5. **Re-verificar todos los tips remotos** tras limpiar `origin/Elias`: `git cat-file -e origin/<rama>:<ruta>` para los 5 archivos → debe fallar en cada rama remota.
 6. **Repetir la búsqueda de exposición completa** (ver Metodología) para confirmar que no se reintrodujo ningún secreto nuevo desde la última pasada.
 7. **Auditar variables de entorno/configuración/CI-CD/documentación** por cualquier referencia residual a la credencial antigua.
 8. **Documentar el resultado del Database Privilege Audit** (sección dedicada más abajo) — qué usuario/privilegios usa realmente producción.
@@ -101,8 +103,10 @@ F-26 solo pasa a `CLOSED` cuando las cinco dimensiones estén en ✅/evidenciada
 
 - [ ] Credencial antigua rotada — confirmado por el dueño de la cuenta, no por esta sesión.
 - [ ] Aplicación verificada sana con la credencial nueva (health checks, sin errores de runtime).
-- [ ] Current HEAD Exposure ✅ (ya cumplido, commit `6029ac4`).
-- [ ] Current Remote Exposure ✅ (pendiente de push, gateado a que ocurra la rotación primero).
+- [x] Current HEAD Exposure ✅ (cumplido y reverificado 2026-10-05, commit `6029ac4` en `HEAD`).
+- [x] Current Remote Exposure de `origin/master` ✅ (reverificado 2026-10-05).
+- [ ] Current Remote Exposure del **resto de ramas públicas** — **abierto**: `origin/Elias` conserva los 5 archivos.
+- [ ] Copias en ramas locales (`chore/codex-safety-hardening`, `fix/monetization-integrity`, 2 `worktree-agent-*`) revisadas o descartadas por su dueño.
 - [ ] Ningún secreto nuevo equivalente reintroducido (repetir barrido).
 - [ ] Database Privilege Audit documentado (ver abajo) — no se exige "resuelto", se exige "documentado con lo que se pudo determinar".
 - [ ] Historical Exposure evaluado explícitamente (decisión tomada y documentada sobre purgar o no — "decidimos no purgar por ahora" es un cierre válido de este punto, "no lo pensamos" no lo es).
@@ -119,12 +123,12 @@ F-26 solo pasa a `CLOSED` cuando las cinco dimensiones estén en ✅/evidenciada
 | **Riesgo actual** | 🟢 Bajo — la cookie específica de este archivo está expirada por el paso del tiempo, no por ninguna acción de revocación tomada. Ese es un hecho distinto de "las sesiones se revocan al rotar", que sigue sin confirmarse. |
 | **Causa raíz** | `storageState` autenticado contra producción real, guardado en el propio repositorio, sin `.gitignore` en ese momento. `global-setup.js` era huérfano (ningún config lo invocaba). |
 | **Corrección preventiva** | `qa/auth/` añadido a `.gitignore` — evita reincidencia futura, no afecta lo ya tracked. |
-| **Corrección aplicada, estado real** | Eliminado en el commit local `6029ac4` (mismo checkpoint que F-26) — limpio en `HEAD` local, **sigue en `origin/master`** hasta el push post-rotación. |
+| **Corrección aplicada, estado real** | Eliminado en `6029ac4`, que (reverificado 2026-10-05) **ya está en `HEAD` y en `origin/master`**: el archivo no existe ahí. **Sigue presente en el tip de `origin/Elias`** y en 4 ramas locales; permanece en el historial público. |
 
 ### Criterios de cierre de F-27
 
 - [ ] El artefacto ya no está en `HEAD` local — ✅ cumplido.
-- [ ] El artefacto ya no está en `origin/master` — pendiente de push.
+- [x] El artefacto ya no está en `origin/master` — cumplido (reverificado 2026-10-05). **Abierto:** sigue en `origin/Elias`.
 - [ ] `qa/auth/` protegido en `.gitignore` contra reincidencia — ✅ cumplido.
 - [ ] Mecanismo real de invalidación de sesión de MOVA verificado (no asumido) — **pendiente**, ver la corrección de arriba.
 - [ ] Confirmado que no existe otro `storageState`/artefacto equivalente bajo control del proyecto — ✅ cumplido (ver Metodología, búsqueda por patrón de nombre de archivo).
