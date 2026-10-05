@@ -14,8 +14,14 @@
 // presente en el shell que ejecuta el deploy. Ver README para la lista.
 using './apps.bicep'
 
-param prefix = 'mova'
-param location = 'mexicocentral'
+// Staging usa los defaults (mova / mexicocentral). Producción vive en otro RG/región y define
+// MOVA_PREFIX=movap y MOVA_LOCATION=<región> (ver main.production.bicepparam).
+param prefix = readEnvironmentVariable('MOVA_PREFIX', 'mova')
+param location = readEnvironmentVariable('MOVA_LOCATION', 'mexicocentral')
+// Producción: MOVA_APP_NAME_PREFIX=movap, MOVA_MYSQL_SERVER_NAME=<servidor dedicado>, MOVA_WEB_MIN_REPLICAS=1.
+param appNamePrefix = readEnvironmentVariable('MOVA_APP_NAME_PREFIX', 'mova')
+param mysqlServerName = readEnvironmentVariable('MOVA_MYSQL_SERVER_NAME', '')
+param webMinReplicas = int(readEnvironmentVariable('MOVA_WEB_MIN_REPLICAS', '0'))
 
 var image = readEnvironmentVariable('MOVA_CONTAINER_IMAGE', '')
 param containerImage = empty(image) ? fail('MOVA_CONTAINER_IMAGE requerido: <acr>.azurecr.io/mova@sha256:<digest>') : image
@@ -32,8 +38,8 @@ var settlementChoice = readEnvironmentVariable('MOVA_LESSON_SETTLEMENT_MODE', 'd
 var liveSettlementAck = readEnvironmentVariable('MOVA_LIVE_SETTLEMENT_ACK', '')
 param settlementMode = settlementChoice == 'dry_run' ? 'dry_run' : settlementChoice == 'live' && liveSettlementAck == 'I_ACKNOWLEDGE_LIVE_SETTLEMENT' ? 'live' : fail('Modo live requiere MOVA_LESSON_SETTLEMENT_MODE=live y MOVA_LIVE_SETTLEMENT_ACK=I_ACKNOWLEDGE_LIVE_SETTLEMENT; dry_run es el default')
 
-param mysqlDatabaseName = 'mova'
-param mysqlAppUser = 'mova_app'
+param mysqlDatabaseName = readEnvironmentVariable('MOVA_MYSQL_DATABASE', 'mova')
+param mysqlAppUser = readEnvironmentVariable('MOVA_MYSQL_APP_USER', 'mova_app')
 
 var appPw = readEnvironmentVariable('MOVA_MYSQL_APP_PASSWORD', '')
 param mysqlAppPassword = length(appPw) < 16 ? fail('MOVA_MYSQL_APP_PASSWORD requerido (>= 16 chars, usuario mova_app)') : appPw

@@ -19,6 +19,21 @@ param prefix string = 'mova'
 @description('Región de los recursos existentes (debe coincidir con la foundation).')
 param location string = 'mexicocentral'
 
+@description('''Prefijo de los NOMBRES de las apps (<prefix>-web/-worker/-scheduler). Por defecto = prefix (staging: mova-*).
+Producción comparte entorno ACA/ACR/identidad con staging (la suscripción Student permite 1 entorno) y usa
+appNamePrefix=movap para tener apps, secretos y base de datos propios.''')
+@minLength(3)
+@maxLength(10)
+param appNamePrefix string = prefix
+
+@description('Nombre del servidor MySQL. Vacío = el de la foundation de staging (<prefix>-mysql-<uniq>). Producción pasa su servidor dedicado.')
+param mysqlServerName string = ''
+
+@description('Réplicas mínimas del web. 0 en staging (costo); 1 en producción (sin arranque en frío).')
+@minValue(0)
+@maxValue(2)
+param webMinReplicas int = 0
+
 @description('Imagen MOVA por digest inmutable: <acr>.azurecr.io/mova@sha256:<digest>. NUNCA latest/prod/stable.')
 @minLength(1)
 param containerImage string
@@ -76,7 +91,7 @@ resource envRef 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
 }
 
 resource mysqlRef 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' existing = {
-  name: '${prefix}-mysql-${uniqueString(resourceGroup().id)}'
+  name: empty(mysqlServerName) ? '${prefix}-mysql-${uniqueString(resourceGroup().id)}' : mysqlServerName
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +101,7 @@ resource mysqlRef 'Microsoft.DBforMySQL/flexibleServers@2023-12-30' existing = {
 // APP_URL: FQDN de Container Apps = <app>.<defaultDomain del environment>.
 // union(): el último argumento gana → los invariantes de IaC van al final y
 // appConfig NUNCA puede sobrescribirlos.
-var effectiveAppUrl = empty(appUrl) ? 'https://${prefix}-web.${envRef.properties.defaultDomain}' : appUrl
+var effectiveAppUrl = empty(appUrl) ? 'https://${appNamePrefix}-web.${envRef.properties.defaultDomain}' : appUrl
 var sharedEnv = union(
   appConfig,
   {
@@ -121,10 +136,10 @@ var runtimeSecrets = union(appSecrets, {
 })
 
 module web 'modules/container-app.bicep' = if (deployWeb) {
-  name: 'mova-web'
+  name: '${appNamePrefix}-web'
   params: {
     location: location
-    name: '${prefix}-web'
+    name: '${appNamePrefix}-web'
     environmentId: envRef.id
     identityId: identityRef.id
     registryServer: acrRef.properties.loginServer
@@ -137,8 +152,8 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
     healthPath: '/healthz'
     cpu: '0.5'
     memory: '1Gi'
-    // 0 para staging/costo; producción final se decidirá por cold-start observado.
-    minReplicas: 0
+    // 0 en staging (costo); producción usa webMinReplicas=1.
+    minReplicas: webMinReplicas
     maxReplicas: 2
     env: sharedEnv
     secrets: runtimeSecrets
@@ -146,10 +161,10 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
 }
 
 module worker 'modules/container-app.bicep' = if (deployWorker) {
-  name: 'mova-worker'
+  name: '${appNamePrefix}-worker'
   params: {
     location: location
-    name: '${prefix}-worker'
+    name: '${appNamePrefix}-worker'
     environmentId: envRef.id
     identityId: identityRef.id
     registryServer: acrRef.properties.loginServer
@@ -175,10 +190,10 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
 // cache=database, pero dos schedule:work duplicarían despachos de recordatorios
 // y reconciliaciones. NO subir maxReplicas.
 module scheduler 'modules/container-app.bicep' = if (deployScheduler) {
-  name: 'mova-scheduler'
+  name: '${appNamePrefix}-scheduler'
   params: {
     location: location
-    name: '${prefix}-scheduler'
+    name: '${appNamePrefix}-scheduler'
     environmentId: envRef.id
     identityId: identityRef.id
     registryServer: acrRef.properties.loginServer
