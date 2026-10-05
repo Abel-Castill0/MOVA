@@ -25,10 +25,10 @@ compartida* pese a su nombre. Consecuencias: (1) la IP de ingreso es la misma qu
 crear un entorno ACA propio para producción y mover `movap-*` (IaC ya parametrizado: `MOVA_PREFIX`,
 `MOVA_APP_NAME_PREFIX`, `MOVA_MYSQL_SERVER_NAME`, `MOVA_LOCATION`).
 
-Costo estimado incremental (precios de lista, sin crédito visible en la CLI): MySQL B1ms + 32 GB ≈ USD 15/mes;
-3 réplicas pequeñas (web 0,5 vCPU/1 GiB, worker/scheduler 0,25 vCPU/0,5 GiB, siempre encendidas) ≈ USD 20–30/mes
-tras la capa gratuita. **Total ≈ USD 35–45/mes.** El saldo del crédito Student no es legible desde la CLI ni sin
-sesión en el portal: confirmar en https://www.microsoftazuresponsorships.com (o Cost Management) que alcanza.
+Costo estimado incremental (precios de lista): MySQL B1ms + 32 GB ≈ USD 15/mes; 3 réplicas pequeñas (web 0,5 vCPU/1 GiB,
+worker/scheduler 0,25 vCPU/0,5 GiB, siempre encendidas) ≈ USD 20–30/mes tras la capa gratuita. **Total ≈ USD 35–45/mes.**
+Saldo del crédito Student leído en el portal el 2026-10-05: ≈ US$ 86 de US$ 100 → no alcanza con holgura para más de ~2 meses;
+confirmar en https://www.microsoftazuresponsorships.com / Cost Management y decidir plan de pago antes de agotarlo.
 
 ## 2. Despliegue (procedimiento reproducible)
 
@@ -67,6 +67,8 @@ los contenedores en bucle; ahora es tolerante y `/readyz` sigue en 503 hasta mig
 | `staging.movaeduca.me` | CNAME | `mova-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io` |
 | `asuid.staging.movaeduca.me` | TXT | (verificación del entorno ACA) |
 
+**Estado 2026-10-05:** `www` ya apunta a `movap-web` (cert gestionado, 301 → apex). El apex sigue en GitHub Pages: el paso 3 está pendiente (lo hace o autoriza el titular).
+
 **Cambios previstos (solo web; MX/SPF/TXT/DKIM/DMARC intactos):**
 1. TXT `asuid` (apex y `www`) con el *customDomainVerificationId* del entorno (se obtiene con
    `az containerapp env show … --query properties.customDomainConfiguration.customDomainVerificationId`).
@@ -85,12 +87,13 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 
 | Integración | Variables / secretos (nombres exactos) | Dónde se obtienen | Prueba posterior |
 |---|---|---|---|
-| Mercado Pago **live** | `MERCADOPAGO_ACCESS_TOKEN` (secreto), `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`, `MERCADOPAGO_WEBHOOK_SECRET` (secreto), `MERCADOPAGO_WEBHOOKS_ENABLED`, `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED`, `MERCADOPAGO_CHECKOUT_ALLOWLIST` | Panel MP Developers → credenciales de **producción** de la app; Webhooks → modo productivo con `https://movaeduca.me/api/webhooks/mercadopago` | Con allowlist = cuenta del propietario: un cobro real mínimo + reembolso, solo con importe aprobado por el propietario |
+| Mercado Pago **live** (webhook productivo ya registrado y `MERCADOPAGO_WEBHOOK_SECRET` cargado en los 3 roles; faltan las credenciales live) | `MERCADOPAGO_ACCESS_TOKEN` (secreto), `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`, `MERCADOPAGO_WEBHOOK_SECRET` (secreto), `MERCADOPAGO_WEBHOOKS_ENABLED`, `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED`, `MERCADOPAGO_CHECKOUT_ALLOWLIST` | Panel MP Developers → credenciales de **producción** de la app; Webhooks → modo productivo con `https://movaeduca.me/api/webhooks/mercadopago` | Con allowlist = cuenta del propietario: un cobro real mínimo + reembolso, solo con importe aprobado por el propietario |
 | Correo | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME` (secreto), `MAIL_PASSWORD` (secreto), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Proveedor SMTP / contraseña de aplicación de Gmail | Registro + verificación + recuperación a un buzón propio |
 | JaaS | `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY` (secreto, base64 PEM en una línea), `JAAS_WEBHOOKS_ENABLED`, `JAAS_WEBHOOK_SIGNING_SECRET` (secreto) | Consola JaaS: API key propia de producción; Webhooks → `https://movaeduca.me/api/webhooks/jaas` | Reunión de dos participantes + eventos de presencia |
 | Cloudinary | `CLOUDINARY_URL` (secreto) | Cloud/API key propios de producción | Subida y borrado de un avatar sintético |
 | Sentry | `SENTRY_LARAVEL_DSN` (secreto), `SENTRY_ENVIRONMENT=production` | Proyecto propio de producción (recomendado) | Un evento sintético con entorno `production` |
 | Google Login (opcional V1) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_LOGIN_ENABLED` | Google Cloud Console; redirect `https://movaeduca.me/auth/google/callback` | Login con una cuenta de prueba |
+| Datos legales (no secretos) | `LEGAL_BUSINESS_NAME`, `LEGAL_RUC`, `LEGAL_ADDRESS`, `LEGAL_SUPPORT_EMAIL` (vía `MOVA_LEGAL_*` en `apps.bicepparam`) | Titular (razón social, RUC, domicilio) | `mova:health-check` sin `LEGAL_PROVIDER_DATA_MISSING` |
 | Cuenta admin | (se crea sin contraseña conocida) | — | Recuperar contraseña por correo y activar MFA |
 
 Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción).

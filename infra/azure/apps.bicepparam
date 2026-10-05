@@ -247,6 +247,19 @@ var paymentsConfig = paymentsSandbox ? {
   MERCADOPAGO_WEBHOOKS_ENABLED: 'false'
 }
 
+// Datos legales del proveedor (Libro de Reclamaciones): razón social, RUC y domicilio los aporta el titular
+// (NO se inventan). No son secretos. Sin ellos `mova:health-check` marca LEGAL_PROVIDER_DATA_MISSING en producción.
+var legalBusinessName = readEnvironmentVariable('MOVA_LEGAL_BUSINESS_NAME', '')
+var legalRuc = readEnvironmentVariable('MOVA_LEGAL_RUC', '')
+var legalAddress = readEnvironmentVariable('MOVA_LEGAL_ADDRESS', '')
+var legalSupportEmail = readEnvironmentVariable('MOVA_LEGAL_SUPPORT_EMAIL', '')
+var legalConfig = union(
+  empty(legalBusinessName) ? {} : { LEGAL_BUSINESS_NAME: legalBusinessName },
+  empty(legalRuc) ? {} : { LEGAL_RUC: legalRuc },
+  empty(legalAddress) ? {} : { LEGAL_ADDRESS: legalAddress },
+  empty(legalSupportEmail) ? {} : { LEGAL_SUPPORT_EMAIL: legalSupportEmail }
+)
+
 // Destino de recarga manual (fallback si Mercado Pago no está listo).
 // Ausente en Railway a fecha de AZ-3G.
 var rechargeDestination = readEnvironmentVariable('MOVA_RECHARGE_PAYMENT_DESTINATION', '')
@@ -274,6 +287,7 @@ param appConfig = union(
   // literal para que nada de lo de abajo los pise por accidente.
   mailConfig,
   mailAllowlistConfig,
+  legalConfig,
   paymentsConfig,
   {
     // LESSON_SETTLEMENT_MODE se fija como invariante en apps.bicep desde
