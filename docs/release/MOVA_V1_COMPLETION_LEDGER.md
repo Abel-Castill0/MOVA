@@ -15,7 +15,28 @@ criterio lo exige, evidencia en vivo del entorno real).
   el commit de fusión, ejecución `36653637812`: `frontend`, `composer`,
   `sqlite`, `mysql` y `e2e` en `success`.
 - **Baseline de C2** = `master` @ `d6bd462b06c8308d13c27016e7879976d2997111`.
-  Fase C2.1 (esta): rama `release/mova-v1-c2-email`.
+- Fase C2.1: **fusionada**. PR #4 (`release/mova-v1-c2-email`) → `master` @
+  `ddcc2b081ad5d0d077d7f3485a3ca431d8667751`, ejecución `36667114270`; PR #5
+  (`release/mova-v1-c2-gmail-oauth`, C2.1d) → `master` @
+  `a37f36e02a6ff3ac8349e240f716811e47ba7514`, ejecución `36670394102`:
+  `frontend`, `composer`, `sqlite`, `mysql` y `e2e` en `success` en ambas.
+- **Consolidación de repositorio (2026-10-04, solo Git/documentación):** las 25
+  ramas locales y las 10 remotas distintas de `master` están contenidas en
+  `master` (0 commits propios, verificado con `merge-base --is-ancestor`); no
+  hay PRs abiertos. No cambió ningún ID de este ledger ni ningún entorno. El
+  gate `composer audit --locked` sobre `a37f36e` empezó a fallar tras el CI
+  verde por dos avisos nuevos de `league/commonmark` 2.10.1 (dependencia
+  transitiva de `laravel/framework`, sin uso directo en `app/`); se resolvió
+  con un bump solo de `composer.lock` a 2.10.3. `LOCAL_TEST` sobre ese
+  snapshot (PHP 8.3.35 en `php_qa`/`e2e_qa`): `composer validate --strict` y
+  `composer audit --locked` sin avisos; `npm ci`, `npm audit --omit=dev
+  --audit-level=high` (0), `npm run build` y los tres `check:*` con código 0;
+  PHPUnit SQLite 1306 tests / 5137 assertions, 0 failures, 1 skip; PHPUnit
+  MySQL 8.4 (`mysql_qa`, tras `mova:qa-mysql-fresh-migrate`) 1306 tests / 5136
+  assertions, 0 failures, 1 skip; Playwright 65/65, 0 flaky, 0 skipped, código
+  0 (12,1 min de tests; ~9,9 min en `operations.spec.js`, por esperas
+  deliberadas al siguiente timestep TOTP del admin QA, anti-replay). No es
+  evidencia `LIVE_STAGING` ni `PRODUCTION_LIVE`.
 
 ## Clases de evidencia y nombres de entorno
 

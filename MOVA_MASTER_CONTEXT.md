@@ -1,5 +1,7 @@
 # MOVA — Documento Maestro de Contexto
 
+> **HISTÓRICO / SUPERADO.** Snapshot de julio de 2026 sobre otra rama: las versiones de stack (Laravel 10, PHP 8.1) y la arquitectura de despliegue ya no describen `master`, que usa Laravel 13 y PHP 8.3+. Para el estado actual ver `docs/release/MOVA_V1_COMPLETION_LEDGER.md` y `composer.json`.
+>
 > **Estado del documento:** generado el 2026-07-18 mediante análisis directo del código fuente.
 > **Rama analizada:** `fix/monetization-integrity`
 > **Alcance:** modelos, controladores, servicios, migraciones, configuración, frontend, infraestructura y deuda técnica.

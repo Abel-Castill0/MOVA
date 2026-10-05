@@ -2,7 +2,7 @@
 
 ## Stack
 
-MOVA usa Laravel 10, PHP 8.1+, Vue 3, Inertia, Tailwind CSS, Vite, MySQL, Spatie Permission y Railway. El proveedor de correo se define por entorno; no asumas SMTP, Gmail API, Resend ni otro proveedor sin verificar el codigo y la configuracion efectiva.
+MOVA usa Laravel 13, PHP 8.3+ (`composer.json`), Vue 3, Inertia, Tailwind CSS, Vite, MySQL, Spatie Permission y Railway. El proveedor de correo se define por entorno; no asumas SMTP, Gmail API, Resend ni otro proveedor sin verificar el codigo y la configuracion efectiva.
 
 ## Fuente De Verdad
 
