@@ -31,7 +31,9 @@ MySQL ≈ 17,7/mes por servidor (B1ms 0,0187 US$/h + 32 GB), Container Apps de p
 DNS ≈ 0,5 ⇒ **≈ US$ 39–45/mes (≈ 26–31 sin el MySQL de staging)** ⇒ el crédito dura ≈ 2–3 meses. Medir con `az rest` →
 `Microsoft.CostManagement/query` (cuerpo en archivo, cabecera `Content-Type: application/json`, agrupar por `ResourceId`) cuando
 aparezca producción. Aplicado: staging `worker`/`scheduler` a 0 réplicas (sin colas ni tareas programadas en staging; revertir con
-`--min-replicas 1`) y `movap-web` a 0,25 vCPU/0,5 GiB. Presupuesto `mova-monthly-20`: solo informa.
+`--min-replicas 1`) y `movap-web` a 0,25 vCPU/0,5 GiB. Presupuesto `mova-monthly-20`: solo informa. MySQL de staging **detenido** el 2026-10-06 (cede la capa gratuita al de producción; Azure lo
+reinicia a los 7 días ⇒ detenerlo de nuevo con `az mysql flexible-server stop -g mova-prod-rg -n mova-mysql-splisbj6ldoqw`, o arrancarlo con
+`start` para probar staging).
 
 ## 2. Despliegue (procedimiento reproducible)
 
@@ -87,7 +89,7 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 |---|---|---|---|
 | Mercado Pago **live** (webhook productivo ya registrado y `MERCADOPAGO_WEBHOOK_SECRET` cargado en los 3 roles; faltan las credenciales live) | `MERCADOPAGO_ACCESS_TOKEN` (secreto), `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`, `MERCADOPAGO_WEBHOOK_SECRET` (secreto), `MERCADOPAGO_WEBHOOKS_ENABLED`, `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED`, `MERCADOPAGO_CHECKOUT_ALLOWLIST` | Panel MP Developers → credenciales de **producción** de la app; Webhooks → modo productivo con `https://movaeduca.me/api/webhooks/mercadopago` | Con allowlist = cuenta del propietario: un cobro real mínimo + reembolso, solo con importe aprobado por el propietario |
 | Correo (**cargado y verificado 2026-10-06**; contraseña de aplicación «MOVA produccion») | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME` (secreto `mail-username`), `MAIL_PASSWORD` (secreto `mail-password`), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Proveedor SMTP / contraseña de aplicación de Gmail | Registro + verificación + recuperación a un buzón propio |
-| JaaS | `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY` (secreto, base64 PEM en una línea), `JAAS_WEBHOOKS_ENABLED`, `JAAS_WEBHOOK_SIGNING_SECRET` (secreto) | Consola JaaS: API key propia de producción; Webhooks → `https://movaeduca.me/api/webhooks/jaas` | Reunión de dos participantes + eventos de presencia |
+| JaaS (**clave de producción `…/eb14cb` cargada 2026-10-06**; webhook de producción pendiente) | `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY` (secreto, base64 PEM en una línea), `JAAS_WEBHOOKS_ENABLED`, `JAAS_WEBHOOK_SIGNING_SECRET` (secreto) | Consola JaaS: API key propia de producción; Webhooks → `https://movaeduca.me/api/webhooks/jaas` | Reunión de dos participantes + eventos de presencia |
 | Cloudinary | `CLOUDINARY_URL` (secreto) | Cloud/API key propios de producción | Subida y borrado de un avatar sintético |
 | Sentry | `SENTRY_LARAVEL_DSN` (secreto), `SENTRY_ENVIRONMENT=production` | Proyecto propio de producción (recomendado) | Un evento sintético con entorno `production` |
 | Google Login (opcional V1) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_LOGIN_ENABLED` | Google Cloud Console; redirect `https://movaeduca.me/auth/google/callback` | Login con una cuenta de prueba |

@@ -66,7 +66,7 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 | Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Registro → verificación → recuperación → ingreso probados con correo real (un buzón alias) | **Sí, 2026-10-06**: registro, verificación, correo de bienvenida, recuperación y reingreso en `https://movaeduca.me` con un buzón de prueba; usuario eliminado después | Crear el admin con `mova:create-admin` (necesita el correo del titular) |
 | Disponibilidad semanal, búsqueda y recomendaciones | Sí | PHPUnit + E2E (3) | Desplegado; migraciones aplicadas | Migraciones aplicadas, sin datos | Prueba con docentes reales |
 | Solicitud y reserva de clases | Sí | E2E «flujo de 8 pasos» | Sin re-verificar en esta ronda | No | Verificación en producción tras cutover |
-| Clases JaaS (sala, permisos, ventana, reconexión) | Sí | 11 E2E con script simulado | **Reunión real** docente+padre (escritorio y móvil), salida/reingreso | No (sin credenciales) | Credenciales JaaS de producción; prueba humana de audio/video |
+| Clases JaaS (sala, permisos, ventana, reconexión) | Sí | 11 E2E con script simulado | **Reunión real** docente+padre (escritorio y móvil), salida/reingreso | Clave de producción cargada y válida; **sin reunión probada** | Primera reunión real en producción (límite gratuito 25 usuarios/mes); prueba humana de audio/video |
 | Presencia JaaS (`PARTICIPANT_JOINED/LEFT`) | Sí (solo evidencia) | 21 tests | **Webhook real firmado**, idempotente | No | Registrar endpoint de producción; **no** decide asistencia |
 | Créditos del profesor / checkout Mercado Pago | Sí | Sonda sandbox + PHPUnit | **Sandbox**: Card Brick, 3DS, Yape, rechazos, móvil, reintentos, webhook real y simulador, reverso sandbox | No (`PAYMENTS_ENABLED=false`) | Credenciales **live**, regenerar la clave de firma del webhook (ya registrado, inactivo), un cobro real mínimo + reembolso aprobados por el titular |
 | Pago padre → profesor por la clase | **No existe** | — | — | — | MOVA solo carga créditos del profesor; el flujo padre→profesor no está implementado ni probado |
@@ -135,7 +135,12 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   `az containerapp update -n mova-worker|mova-scheduler --min-replicas 1`. **No aplicados (requieren tu decisión):** eliminar
   el MySQL de staging (−13,7/mes; destruye datos QA sintéticos; se recrea con el IaC y migraciones), detenerlo (Azure lo
   reinicia solo a los 7 días), fusionar worker y scheduler en una réplica (−≈ 6/mes, cambio de código), apagar staging por
-  completo. Presupuesto `mova-monthly-20` (US$ 20/mes; alertas de correo al 50 % y 80 % reales y 100 % previsto) **informa,
+  completo. **Aplicado el 2026-10-06 (reversible):** MySQL de **staging detenido** (`az mysql flexible-server stop`), lo que deja la capa
+  gratuita de cómputo para el servidor de producción (≈ −13,7/mes ⇒ ≈ US$ 26–31/mes ⇒ runway ≈ 3 meses, hasta ≈ inicios de enero
+  de 2027). Azure **reinicia solo** un servidor detenido a los 7 días: volver a detenerlo antes de ese plazo o eliminarlo (decisión
+  abierta); para usar staging: `az mysql flexible-server start`. Staging queda sin base ⇒ sin pruebas de Mercado Pago sandbox hasta
+  arrancarlo. Dato del día 5/oct: US$ 0,94 (≈ 4 h de producción y del servidor del simulacro de restauración); el 6/oct aún no
+  se factura. Presupuesto `mova-monthly-20` (US$ 20/mes; alertas de correo al 50 % y 80 % reales y 100 % previsto) **informa,
   no limita**; con estos importes se superará. No se cambió a pago por uso ni se creó ningún recurso.
 - **Sentry:** proyecto propio `mova-production`, DSN propio cargado como secreto `sentry-laravel-dsn` en los tres roles.
   El archivo temporal local que lo contuvo se sobrescribió y se eliminó; el valor no aparece en el repositorio, la
@@ -167,12 +172,21 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   «Laravel»; ahora `APP_NAME=MOVA` (revisión 0000006, y en `apps.bicep`). Pendiente: el correo usa el remitente de Gmail
   (`m0v4class@gmail.com`); SPF/DKIM/DMARC de un remitente propio del dominio siguen siendo decisión del titular, y Gmail
   limita el envío (≈ 500/día). La alerta `MAIL_MAILER_NON_DELIVERING` debe cerrarse en el siguiente health-check.
-- **JaaS / Cloudinary producción:** no configurados (alerta `JAAS_NOT_CONFIGURED` abierta). JaaS: una sola app y una sola clave
-  API (la de staging); el plan **Developer** (US$ 0, 25 usuarios activos/mes, 8 ya usados) es el único sin costo; los de pago son
-  Basic US$ 99/mes (300 usuarios), Standard US$ 499, Business US$ 999, y exceso US$ 0,99 por usuario activo (precios públicos de
-  8x8): **no se compra nada**. Preparado: se puede añadir una clave API propia de producción en la misma app, pero la clave
-  privada solo se muestra al descargarla (requiere tu autorización de descarga), y el webhook de la app entrega a todos los
-  entornos. Cloudinary: sin sesión en el navegador; producción necesita su propio `CLOUDINARY_URL`.
+- **JaaS producción (2026-10-06):** creada una **clave API propia de producción** en la app JaaS existente (plan Developer gratuito;
+  clave `…/eb14cb`, RSA 2048, distinta de la de staging `…/ef42bd`). La clave privada se descargó una sola vez, se cargó como
+  secreto `jaas-private-key` en los tres roles (verificado por huella: la del contenedor coincide con la del archivo, sin mostrar
+  el valor) y el archivo local se sobrescribió y borró. Variables: `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY`;
+  `JAAS_WEBHOOKS_ENABLED=false`. **No hay reunión real probada en producción** (solo configuración + validez de la clave); la
+  alerta `JAAS_NOT_CONFIGURED` debe cerrarse en el siguiente health-check. **Límite del plan gratuito: 25 usuarios activos al mes
+  para toda la app** (staging y producción comparten cupo; 8 ya usados); más usuarios exigirían un plan de pago (Basic US$ 99/mes,
+  exceso US$ 0,99 por usuario), **no autorizado ni comprado**. El webhook de presencia de producción
+  (`https://movaeduca.me/api/webhooks/jaas`, JOINED/LEFT, su propia clave de firma) se añade en JaaS al activar reuniones: la app
+  es una sola, así que cada endpoint recibe eventos de ambos entornos (la presencia es solo evidencia y no decide asistencia).
+  Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
+  Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
+- **Cloudinary producción:** pendiente. La pestaña no tiene sesión; el titular debe iniciar sesión para crear la configuración propia.
+- **Mercado Pago, aplicación de producción:** no creada todavía. El panel de desarrolladores exige de nuevo la verificación por
+  SMS/WhatsApp/llamada al teléfono del titular (terminado en 5850) antes de abrir cada aplicación; solo el titular puede aprobarla.
 - **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
   pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
