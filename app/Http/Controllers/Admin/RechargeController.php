@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\PaymentReviewCannotBeClosed;
 use App\Exceptions\ReversalWouldGoNegative;
 use App\Http\Controllers\Controller;
 use App\Models\OperationalAlert;
 use App\Models\RechargeRequest;
 use App\Notifications\RechargeRejectedNotification;
 use App\Services\OperationalAlertService;
+use App\Services\PaymentReviewResolutionService;
 use App\Services\RechargeApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -190,6 +192,43 @@ class RechargeController extends Controller
         return back()->with(
             'success',
             $result['changed'] ? 'Recarga rechazada correctamente.' : 'La recarga ya estaba rechazada.'
+        );
+    }
+
+    /**
+     * Cierra como RECHAZADO el último intento de una recarga de Mercado Pago que quedó en revisión porque la creación del pago fue
+     * rechazada de forma terminal (p. ej. HTTP 400 / 2072) y la búsqueda remota confirma que no existe ningún pago.
+     *
+     * NO acredita, NO reembolsa, NO borra el intento ni toca el ledger. Si la existencia del pago sigue incierta, no hace nada y
+     * explica por qué. La mecánica, las condiciones y el lock viven en PaymentReviewResolutionService.
+     */
+    public function closeRejectedPayment(Request $request, RechargeRequest $recharge, PaymentReviewResolutionService $service)
+    {
+        $this->authorize('closeRejectedPayment', $recharge);
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ], [
+            'reason.required' => 'Explica por qué se cierra este intento: queda registrado en la incidencia.',
+            'reason.min' => 'El motivo debe tener al menos 10 caracteres.',
+        ]);
+
+        $order = $recharge->latestPaymentOrder;
+        if ($order === null) {
+            return back()->withErrors(['reason' => 'Esta recarga no tiene ningún intento de pago.']);
+        }
+
+        try {
+            $result = $service->closeRejectedAttempt($order, $request->user(), $data['reason']);
+        } catch (PaymentReviewCannotBeClosed $e) {
+            return back()->withErrors(['reason' => $e->getMessage()]);
+        }
+
+        return back()->with(
+            'success',
+            $result === PaymentReviewResolutionService::CLOSED
+                ? 'Intento cerrado como rechazado: no existe ningún pago en Mercado Pago. No se acreditó ni reembolsó nada.'
+                : 'Ese intento ya estaba cerrado; no se cambió nada.'
         );
     }
 }

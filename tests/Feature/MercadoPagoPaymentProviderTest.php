@@ -908,6 +908,97 @@ class MercadoPagoPaymentProviderTest extends TestCase
     }
 
     /**
+     * @dataProvider documentedNumericRequestValidationBodies
+     *
+     * Incidente live 2026-10-06 (recarga 1, Yape S/ 1): Mercado Pago respondió 400 con el mensaje «Invalid value for
+     * transaction_amount» (código oficial 2072 de la tabla de errores de «Crear pago»). El `error` raíz es solo «bad_request»
+     * y el código real llega en `cause[].code`: antes el extractor devolvía el primero («bad_request»), el 400 caía en
+     * 'unclassified' y un rechazo DEFINITIVO quedaba como incierto/revisión. Ahora un código numérico documentado de
+     * validación de request en cualquier posición cierra el intento como failed (sin crear pago, sin reintento automático).
+     */
+    public function test_a_400_with_a_documented_numeric_validation_code_in_cause_marks_the_attempt_failed(array $body, string $expectedCode): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response($body, 400, ['x-request-id' => 'req-2072'])]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        try {
+            (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+            $this->fail('Se esperaba RuntimeException.');
+        } catch (RuntimeException) {
+        }
+
+        Http::assertSentCount(1); // un único POST: nunca un reintento automático
+        $order = PaymentOrder::sole();
+        $this->assertSame('failed', $order->status);
+        $this->assertNull($order->submission_status);
+        $this->assertNull($order->provider_order_id);
+        $this->assertSame('http_400', $order->provider_status);
+        $this->assertSame(0, $recharge->fresh()->status === 'approved' ? 1 : 0, 'nunca paid/approved');
+
+        // El log conserva SOLO los códigos (escalares cortos), nunca el body.
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('log')
+            ->withArgs(fn (string $level, string $message, array $context) => $message === '[MercadoPago] Error al crear el pago.'
+                && in_array($expectedCode, $context['codigos'] ?? [], true)
+                && ! array_key_exists('body', $context))
+            ->once();
+    }
+
+    public static function documentedNumericRequestValidationBodies(): array
+    {
+        return [
+            '2072 en cause (forma real de MP)' => [[
+                'message' => 'Invalid value for transaction_amount', 'error' => 'bad_request', 'status' => 400,
+                'cause' => [['code' => 2072, 'description' => 'Invalid value for transaction_amount', 'data' => '00-00']],
+            ], '2072'],
+            '2072 como string' => [['error' => 'bad_request', 'cause' => [['code' => '2072']]], '2072'],
+            '4037 Invalid transaction_amount' => [['error' => 'bad_request', 'cause' => [['code' => 4037]]], '4037'],
+            'varios códigos, uno documentado' => [['error' => 'bad_request', 'cause' => [['code' => 9999], ['code' => 2072]]], '2072'],
+        ];
+    }
+
+    /**
+     * @dataProvider ambiguousFailedCreationBodies
+     *
+     * Lo AMBIGUO sigue incierto (mismo intento, misma key, sin failed): un 400 sin código documentado de validación
+     * de request, un 400 con códigos de cuenta/integración, y los errores de transporte/servidor.
+     */
+    public function test_ambiguous_creation_failures_stay_uncertain(int $status, array $body): void
+    {
+        Http::fake(['api.mercadopago.com/v1/payments' => Http::response($body, $status)]);
+
+        [, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+
+        try {
+            (new MercadoPagoPaymentProvider())->createPaymentAttempt($recharge, $this->cardInstrument());
+            $this->fail('Se esperaba RuntimeException.');
+        } catch (RuntimeException) {
+        }
+
+        Http::assertSentCount(1);
+        $order = PaymentOrder::sole();
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('uncertain', $order->submission_status);
+        $this->assertNull($order->provider_order_id);
+    }
+
+    public static function ambiguousFailedCreationBodies(): array
+    {
+        return [
+            '400 bad_request sin cause' => [400, ['message' => 'Invalid value for transaction_amount', 'error' => 'bad_request']],
+            '400 con cause de código no documentado' => [400, ['error' => 'bad_request', 'cause' => [['code' => 9999]]]],
+            '400 con código de cuenta (2034 usuarios inválidos)' => [400, ['error' => 'bad_request', 'cause' => [['code' => 2034]]]],
+            '400 con cause vacío' => [400, ['error' => 'bad_request', 'cause' => []]],
+            '500 internal_error' => [500, ['message' => 'internal_error']],
+            '429 rate limited' => [429, ['message' => 'usage_quota_exceeded']],
+            '409 idempotency' => [409, ['error' => 'idempotency_key_already_used']],
+        ];
+    }
+
+    /**
      * OBSERVABILITY — confirmado en vivo en el gate Yape TEST real: dos
      * `POST /v1/payments` devolvieron 500 `internal_error` y, sin este
      * header, no había forma de darle a soporte de Mercado Pago un

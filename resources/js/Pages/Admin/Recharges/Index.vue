@@ -99,6 +99,16 @@
                   >
                     Gestionado por Mercado Pago · intento {{ recharge.latest_payment_order?.status ?? 'sin registrar' }}
                   </span>
+                  <div v-if="recharge.status === 'pending' && recharge.payment_method === 'mercadopago' && canCloseRejected(recharge)" class="mt-1 flex justify-end">
+                    <button
+                      type="button"
+                      class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-50"
+                      :disabled="isProcessing(recharge.id)"
+                      @click="openActionModal('closeRejected', recharge)"
+                    >
+                      Cerrar intento rechazado
+                    </button>
+                  </div>
                   <!--
                     H-02: una recarga aprobada por error (p. ej. un número de
                     operación Yape falso que pasó la revisión) no tenía forma de
@@ -256,6 +266,20 @@ const ACTION_CONFIG = {
     minReason: 5,
     reasonPlaceholder: 'Indica el motivo del rechazo',
   },
+  // Incidente 2026-10-06: intento de Mercado Pago en revisión cuya creación fue rechazada de forma terminal.
+  // NO acredita ni reembolsa nada: solo lo cierra como rechazado si Mercado Pago confirma que no existe pago.
+  closeRejected: {
+    title: 'Cerrar intento rechazado',
+    routeName: 'admin.recharges.close-rejected-payment',
+    confirmLabel: 'Cerrar como rechazado',
+    confirmClass: 'bg-slate-800 hover:bg-slate-900',
+    warning: 'Mercado Pago rechazó la creación del pago. MOVA volverá a consultarle ahora: solo si confirma que NO existe ningún pago '
+      + 'el intento se cierra como rechazado (el profesor podrá empezar uno nuevo). No se acredita ni se reembolsa nada. '
+      + 'Si la existencia del pago sigue incierta, no se cambia nada.',
+    requiresReason: true,
+    minReason: 10,
+    reasonPlaceholder: 'Ej.: revisado el incidente; Mercado Pago confirma 0 pagos y la respuesta original fue un 400 terminal',
+  },
   // H-02 — Revertir una recarga YA aprobada.
   //
   // minReason: 10 coincide EXACTAMENTE con la validación del backend
@@ -279,7 +303,15 @@ const ACTION_CONFIG = {
   },
 }
 
-const actionModal = ref(null) // { type: 'approve'|'reject'|'reverse', recharge }
+const actionModal = ref(null) // { type: 'approve'|'reject'|'reverse'|'closeRejected', recharge }
+
+// Solo orienta la UI: el servidor vuelve a comprobar TODAS las condiciones (evidencia persistida, búsqueda remota, ledger).
+function canCloseRejected(recharge) {
+  const order = recharge.latest_payment_order
+  return recharge.status === 'pending' && recharge.payment_method === 'mercadopago' && !!order
+    && order.status === 'pending' && !!order.review_reason && !order.review_resolved_at
+    && !order.provider_order_id && order.creation_http_status === 400
+}
 const actionReason = ref('')
 const actionError = ref('')
 const submitting = ref(false)

@@ -109,4 +109,14 @@ class RechargeRequestPolicy
     {
         return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
     }
+
+    /**
+     * Cierre administrativo ACOTADO de un intento de Mercado Pago en revisión cuya creación fue rechazada de forma terminal
+     * (ver PaymentReviewResolutionService). Solo admin y solo recargas gestionadas por Mercado Pago; el resto de condiciones
+     * (evidencia persistida, búsqueda remota sin pagos, ledger vacío) las exige el servicio.
+     */
+    public function closeRejectedPayment(User $user, RechargeRequest $recharge): bool
+    {
+        return $user->hasRole('admin') && $recharge->payment_method === 'mercadopago';
+    }
 }

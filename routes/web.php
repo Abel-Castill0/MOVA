@@ -284,6 +284,9 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
         // que la alcanzara. throttle:10,1 igual que approve — es una operación
         // financiera, no una consulta.
         Route::post('/recharges/{recharge}/reverse', [RechargeController::class, 'reverse'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.recharges.reverse');
+        // Incidente 2026-10-06: cierre ACOTADO de un intento de Mercado Pago en revisión cuya creación fue rechazada de forma
+        // terminal y sin pago remoto. MFA sensible: aunque no mueve dinero, cambia el estado financiero de un intento.
+        Route::post('/recharges/{recharge}/close-rejected-payment', [RechargeController::class, 'closeRejectedPayment'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('admin.recharges.close-rejected-payment');
         Route::get('/reviews', [TeacherReviewController::class, 'adminIndex'])->name('admin.reviews');
         Route::post('/reviews/{review}/hide', [TeacherReviewController::class, 'hide'])->middleware('throttle:20,1')->name('admin.reviews.hide');
         Route::post('/reviews/{review}/show', [TeacherReviewController::class, 'showReview'])->middleware('throttle:20,1')->name('admin.reviews.show');

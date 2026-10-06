@@ -260,8 +260,19 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
                     'status' => $response->status(),
                     'categoria' => $category,
                     'error' => $this->safeErrorFromResponse($response),
+                    // Códigos de error (raíz y cause[]), solo escalares cortos — nunca el body.
+                    'codigos' => $this->extractProviderErrorCodes($response),
                     'provider_request_id' => $this->providerRequestId($response),
                 ]);
+
+            // Evidencia persistente de la respuesta NO exitosa (solo escalares): sin esto, tras la reconciliación
+            // nadie puede demostrar si el rechazo original fue terminal (incidente 2026-10-06, recarga 1).
+            $order->update([
+                'creation_http_status' => $response->status(),
+                'creation_error_codes' => substr(implode(',', $this->extractProviderErrorCodes($response)), 0, 191) ?: null,
+                'creation_provider_request_id' => $this->providerRequestId($response),
+                'creation_failed_at' => now(),
+            ]);
 
             if ($category === 'validation_error') {
                 // ÚNICA categoría donde un código de error CONCRETO,
@@ -651,6 +662,26 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
     ];
 
     /**
+     * Códigos NUMÉRICOS de la tabla oficial de errores 400 de «Crear pago» (Payments API,
+     * https://www.mercadopago.com.pe/developers/es/reference/online-payments/checkout-api-payments/create-payment/post,
+     * leída el 2026-10-06) que significan «un atributo del request de ESTE intento es inválido/faltante»:
+     *   2072 Invalid value for transaction_amount · 4000 Token attribute can't be null · 4001 Payment_method_id attribute
+     *   can't be null · 4002/4023 Transaction_amount attribute can't be null · 4003/4024 Transaction_amount attribute must be
+     *   numeric · 4004 Installments attribute can't be null · 4005 Installments attribute must be numeric · 4006 Payer
+     *   attribute is malformed · 4033 Invalid installments · 4037 Invalid transaction_amount · 4050 Payer.email must be a
+     *   valid email.
+     * Llegan en `cause[].code` (el campo raíz `error` suele ser solo «bad_request», que por sí mismo NO identifica nada).
+     * Deliberadamente estrecha: NO incluye errores de cuenta/integración (2034, 2123, 6033…) ni de token/tarjeta, que
+     * pueden depender de otra causa. Un 400 con uno de estos códigos significa que MP validó el request y lo RECHAZÓ sin
+     * crear el pago; cualquier otra cosa sigue siendo incierta.
+     *
+     * @var string[]
+     */
+    private const TERMINAL_400_NUMERIC_CODES = [
+        '2072', '4000', '4001', '4002', '4003', '4004', '4005', '4006', '4023', '4024', '4033', '4037', '4050',
+    ];
+
+    /**
      * HTTP ERROR SEMANTICS: clasifica una respuesta NO exitosa de POST
      * /v1/payments contra semántica oficial documentada (búsqueda MCP
      * "create payment error codes 400 401 409 idempotency" — tabla oficial
@@ -706,11 +737,63 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
         };
     }
 
+    /**
+     * ¿Alguno de estos códigos (de un 400 de creación) es un rechazo terminal de VALIDACIÓN de request documentado?
+     * Misma regla que usa la clasificación en vivo; la reutiliza el cierre administrativo de intentos en revisión.
+     *
+     * @param  list<string>  $codes
+     */
+    public static function areTerminalValidationCodes(array $codes): bool
+    {
+        foreach ($codes as $code) {
+            if (in_array($code, self::TERMINAL_400_CODES, true) || in_array($code, self::TERMINAL_400_NUMERIC_CODES, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function isConfirmedTerminalValidationError(Response $response): bool
     {
-        $code = $this->extractProviderErrorCode($response);
+        return self::areTerminalValidationCodes($this->extractProviderErrorCodes($response));
+    }
 
-        return $code !== null && in_array($code, self::TERMINAL_400_CODES, true);
+    /**
+     * TODOS los códigos de error reconocibles del body (raíz `error`/`code` y cada `cause[].code`/`cause[].error`),
+     * normalizados a string. Solo escalares cortos: sirve tanto para clasificar como para registrar de forma segura
+     * (nunca el body ni mensajes libres). El extractor anterior devolvía solo el PRIMERO y el `error` raíz
+     * («bad_request») ocultaba el código real de `cause[]`.
+     *
+     * @return list<string>
+     */
+    private function extractProviderErrorCodes(Response $response): array
+    {
+        $body = $response->json();
+        if (! is_array($body)) {
+            return [];
+        }
+
+        $codes = [];
+        $push = static function ($value) use (&$codes): void {
+            if ((is_string($value) || is_int($value)) && strlen((string) $value) <= 64) {
+                $codes[] = (string) $value;
+            }
+        };
+
+        foreach (['error', 'code'] as $key) {
+            $push($body[$key] ?? null);
+        }
+
+        foreach ((array) ($body['cause'] ?? []) as $entry) {
+            if (is_array($entry)) {
+                foreach (['code', 'error'] as $key) {
+                    $push($entry[$key] ?? null);
+                }
+            }
+        }
+
+        return array_values(array_unique($codes));
     }
 
     /**

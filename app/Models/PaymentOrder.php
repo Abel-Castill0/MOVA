@@ -34,6 +34,10 @@ class PaymentOrder extends Model
         'compensation_claimed_at',
         'provider_status',
         'provider_status_detail',
+        'creation_http_status',
+        'creation_error_codes',
+        'creation_provider_request_id',
+        'creation_failed_at',
         'three_ds_challenge_url',
         'three_ds_creq',
         'three_ds_expires_at',
@@ -58,6 +62,8 @@ class PaymentOrder extends Model
         'last_verified_at' => 'datetime',
         'review_detected_at' => 'datetime',
         'review_resolved_at' => 'datetime',
+        'creation_http_status' => 'integer',
+        'creation_failed_at' => 'datetime',
     ];
 
     public function rechargeRequest()
