@@ -185,8 +185,13 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
   Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
 - **Cloudinary producción:** pendiente. La pestaña no tiene sesión; el titular debe iniciar sesión para crear la configuración propia.
-- **Mercado Pago, aplicación de producción:** no creada todavía. El panel de desarrolladores exige de nuevo la verificación por
-  SMS/WhatsApp/llamada al teléfono del titular (terminado en 5850) antes de abrir cada aplicación; solo el titular puede aprobarla.
+- **Mercado Pago, aplicación de producción (2026-10-06):** creada la aplicación separada **«MOVA Produccion Payments»**
+  (`4497812261072016`, Checkout API / API de Payments, la que usa el código vía `/v1/payments`; el selector avisa que la API de
+  Payments «será discontinuada pronto» ⇒ riesgo técnico a planificar: migrar a la API de Orders). **Aún sin webhook ni credenciales:**
+  el panel exige reverificar la identidad por SMS/WhatsApp/llamada al teléfono del titular cada pocos minutos al abrir las
+  pantallas de webhooks y credenciales; solo el titular puede aprobarlo, por lo que los pasos sensibles (guardar el webhook
+  productivo, renovar la firma expuesta de la aplicación de staging, cargar credenciales live) se harán todos seguidos justo después
+  de cada verificación. Pagos y webhooks siguen apagados.
 - **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
   pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
