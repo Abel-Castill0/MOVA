@@ -187,26 +187,34 @@ parcheadas y `CLOUDINARY_FOLDER`; **sin migraciones nuevas**. Staging: apps a 0 
   es una sola, así que cada endpoint recibe eventos de ambos entornos (la presencia es solo evidencia y no decide asistencia).
   Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
   Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
-- **Cloudinary producción (2026-10-06, parcial):** plan **gratuito** (uso 0,16 de 25 créditos en 30 días antes de las pruebas; un solo
-  «product environment», límite del plan: no hay un cloud aparte para producción, así que se comparte el cloud de staging `wbdr8w7n`).
-  Creada la clave API propia `mova-produccion` (la secreta se copió por el portapapeles de la página al secreto de Azure
-  `cloudinary-url`, sin mostrarse ni escribirse en consola; el archivo temporal se borró) y `CLOUDINARY_URL` (secretref) +
-  `CLOUDINARY_FOLDER=mova-prod/avatars` quedaron en los tres roles. **La prueba de subida sintética FALLÓ**: `NotAllowed … missing permission`,
-  porque la clave se creó con el rol de mínimo privilegio «Media Library User», que no puede subir ni borrar sin permisos de carpeta.
-  Ampliar el rol (p. ej. «Master Admin», igual que la clave de staging) es una concesión de permisos que el control de seguridad de la sesión
-  bloqueó; **la debe hacer el titular**: Cloudinary → Settings → API Keys → `mova-produccion` → «More actions» → «Assign Roles» → «Master Admin» →
-  «Update». Luego se repite la prueba (subir, leer por HTTPS, borrar; sin copia local). **Cloudinary de producción NO está verificado.**
-  Cambio de código: `CLOUDINARY_FOLDER` (carpeta de avatares por entorno, validada; por defecto `mova/avatars`) para que los `user-{id}` de
-  staging y producción no se pisen en el cloud compartido (commit `ea3cb58`; **aún no desplegado** en la imagen de producción).
+- **Cloudinary producción (2026-10-06, verificado):** plan **gratuito** (un solo «product environment»: producción comparte el cloud de staging;
+  uso 0,16 de 25 créditos en 30 días antes de las pruebas). Clave API propia `mova-produccion` (la secreta pasó del portapapeles de la página al secreto
+  de Azure `cloudinary-url` sin mostrarse; archivo temporal borrado), `CLOUDINARY_URL` (secretref) y `CLOUDINARY_FOLDER=mova-prod/avatars` en los tres
+  roles; imagen desplegada con la carpeta configurable (`CloudinaryService::avatarFolder()`, commit `ea3cb58`, validada). **Rol:** con «Media Library User»
+  la subida falló (`NotAllowed`); el titular asignó **Master Admin** (confirmado en «View Access»: asignación directa) y se repitió la prueba con el servicio
+  real de MOVA en producción: subida a `https://res.cloudinary.com/…/mova-prod/avatars/user-<id>` (carpeta de producción), lectura HTTPS `200 image/png`,
+  sin copia en disco local, el asset **existía** (Admin API) y tras `deleteAvatar` **ya no existe**. Además se ejercitaron `ProfileController::updateAvatar` y
+  `removeAvatar` reales sobre un usuario temporal dentro de una transacción revertida: `avatar_url` apunta al CDN de producción, el asset se crea y al quitarlo
+  `avatar_url` queda nulo y el asset desaparece (0 filas residuales). **Límite:** no se probó la pantalla de perfil con navegador en producción (requiere una
+  cuenta verificada). **Hardening opcional (no aplicado):** el panel solo ofrece los roles globales «Master Admin» y «Media Library User»; una clave con
+  «Media Library User» + rol de carpeta «Manager» sobre `mova-prod` requeriría asignarlo en la biblioteca de medios y volver a probar subir/borrar; mientras
+  tanto la clave de producción tiene el mismo alcance que la de staging.
 - **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago de producción (se mostró al copiarla; regenerar antes de habilitar webhooks; la de staging ya se renovó); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
   pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
   (5) la credencial histórica del incidente F-26 (MySQL de Railway en el historial de git), que sigue abierta y separada.
-- **Datos legales (`LEGAL_PROVIDER_DATA_MISSING`):** la alerta significa que el **Libro de Reclamaciones (Indecopi)** y las páginas legales no
-  pueden mostrar los datos del proveedor: `HealthCheck` (solo en producción) exige `LEGAL_BUSINESS_NAME` (razón social), `LEGAL_RUC` y
-  `LEGAL_ADDRESS` (domicilio), que `ComplaintController`/`LegalController` leen de `config/legal.php`; si faltan, el formulario muestra
-  «pendiente». Opcional: `LEGAL_SUPPORT_EMAIL` (hoy `m0v4class@gmail.com`) y `LEGAL_COMPLAINT_RESPONSE_DAYS` (15). `apps.bicepparam` acepta
-  `MOVA_LEGAL_*`. **Solo el titular puede aportar los valores reales**; no se rellenan con datos ficticios y la alerta sigue abierta.
+- **Datos legales (`LEGAL_PROVIDER_DATA_MISSING`, resuelta el 2026-10-06):** la alerta significa que el Libro de Reclamaciones (Indecopi) y la Política de
+  Privacidad no pueden mostrar los datos del proveedor: `HealthCheck` (solo producción) exige `LEGAL_BUSINESS_NAME` (razón social/titular), `LEGAL_RUC` y
+  `LEGAL_ADDRESS` (domicilio), leídos por `ComplaintController`/`LegalController` de `config/legal.php`. El titular los aportó; **se contrastaron con el
+  Padrón Reducido RUC oficial de SUNAT** (descarga en streaming, sin guardarlo, sin buscadores de terceros ni captcha): el RUC figura `ACTIVO / HABIDO`, el
+  nombre del titular coincide con el registrado y la vía y el número del domicilio coinciden (el distrito no figura en el padrón reducido y se toma de lo
+  declarado por el titular). Valores cargados como variables de entorno de los tres roles (no son secretos pero **no se versionan ni se copian a la
+  documentación**) y persistidos para futuros despliegues en `infra/azure/production.local.env` (ignorado por git; `apps.bicepparam` los lee como
+  `MOVA_LEGAL_*`). **Verificado en producción:** `/libro-de-reclamaciones` y `/privacidad` muestran nombre, RUC y domicilio completos; `mova:health-check --json`
+  ya **no** incluye `LEGAL_PROVIDER_DATA_MISSING` (solo `SETTLEMENT_DRY_RUN_IN_PRODUCTION`, intencional). **Plazo del Libro de Reclamaciones:** MOVA muestra
+  15 días hábiles (`LEGAL_COMPLAINT_RESPONSE_DAYS`), igual que el Reglamento vigente según Indecopi (D.S. 101-2022-PCM: 15 días hábiles no prorrogables;
+  una propuesta de solución suspende 5 días hábiles). Esto **no** equivale a aprobación legal del conjunto de términos y políticas: siguen abiertas las
+  decisiones de menores/ANPD, reembolsos, asistencia, etc.
 - **Sandbox de Mercado Pago, repetido el 2026-10-06** (`scripts/sandbox-smoke.sh payments`, credenciales de PRUEBA, BD QA local, backend de MOVA):
   `approved` ⇒ orden `paid`, conciliación `paid → paid`, 1 depósito, 5 créditos, webhook firmado ×1 y repetición ⇒ 200/200 sin duplicar;
   `rejected` ⇒ orden `failed`, 0 depósitos, 0 créditos, 200/200. La firma (correcta/incorrecta), duplicados y conciliación también están en

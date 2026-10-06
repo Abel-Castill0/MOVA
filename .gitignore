@@ -44,3 +44,6 @@ qa/auth/
 
 # Output compilado de `az bicep build` (infra/azure) — nunca versionar
 /infra/azure/main.json
+
+# Valores locales de despliegue de producción (datos del titular; nunca versionar)
+/infra/azure/*.local.env
