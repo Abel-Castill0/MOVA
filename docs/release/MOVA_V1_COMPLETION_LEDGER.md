@@ -51,13 +51,10 @@ sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 f
 (+9 tests, verificados en SQLite y MySQL) y un repaso completo de SQLite: 1401 tests / 5476 assertions, 0 failures.
 Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
 
-**Despliegue final (2026-10-05):** imagen `mova@sha256:c2b396e24f93bd204e4e3c9140a455bf9c20a6ae7ada66c5c1265a9e00d97c9c`
-(construida del commit `783138e`; `master` publicado en `0c01259`, con solo tests y documentación posteriores). GitHub
-Actions sobre `0c01259`: `CI` en `success`.
-Producción: `movap-web--0000004`, `movap-worker--0000004`, `movap-scheduler--0000004` (`/readyz` ready; las revisiones
-2–4 solo añadieron variables/secretos de configuración, misma imagen).
-Staging: `mova-web--0000038`, `mova-worker--0000024`, `mova-scheduler--0000017` (`/readyz` ready; checkout de
-Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
+**Despliegue vigente (2026-10-06):** imagen `mova@sha256:892ec1cda81a3b202b9356592fb02598fa17d11d28ada600b4b76dcc4d731924`
+(`release-20261006-afada71`, construida del árbol validado; CI de `afada71` completo en `success`). Producción: `movap-web--0000013`,
+`movap-worker--0000012`, `movap-scheduler--0000012` (`/readyz` ready). Cambios respecto a la imagen anterior: dependencias de Vue/source-map-js
+parcheadas y `CLOUDINARY_FOLDER`; **sin migraciones nuevas**. Staging: apps a 0 réplicas sin base de datos (ver runbook §1b).
 
 ### Matriz por función
 
@@ -164,6 +161,10 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   access token, public key, application id y collector id **live** de la aplicación nueva, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`
   y `MERCADOPAGO_CHECKOUT_ALLOWLIST` solo con la cuenta del titular; (5) recién entonces habilitar webhooks/pagos y hacer un único
   cobro real mínimo + reembolso aprobados por el titular. El valor expuesto sigue cargado en Azure pero inerte; se reemplaza en el paso 3.
+- **Correo, prueba posterior al despliegue (2026-10-06):** se registró UNA cuenta de padre con `abelwuarthon3@gmail.com` (autorizado por el titular) con
+  una contraseña aleatoria descartada; el sitio redirigió a `/verify-email` y los logs de producción no muestran errores de SMTP. **La recepción en esa
+  bandeja la debe confirmar el titular** (yo no puedo leerla); la cuenta queda **sin verificar** en producción (1 usuario) y se verifica/recupera
+  con el enlace del correo y «Olvidé mi contraseña».
 - **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
   produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
   (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
