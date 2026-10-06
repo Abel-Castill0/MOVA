@@ -185,6 +185,44 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
   Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
 - **Cloudinary producción:** pendiente. La pestaña no tiene sesión; el titular debe iniciar sesión para crear la configuración propia.
+- **Mercado Pago, aplicaciones separadas (2026-10-06):** aplicación de **producción** «MOVA Produccion Payments»
+  (`4497812261072016`, API de Payments, la que usa el código vía `/v1/payments`; el panel avisa que esa API «será discontinuada
+  pronto» ⇒ riesgo técnico a planificar: migrar a la API de Orders) y aplicación de **staging/sandbox** «MOVA Recarga de Creditos
+  Payments» (`6583217782927097`). Hecho: (1) webhook productivo `https://movaeduca.me/api/webhooks/mercadopago` (evento Pagos) guardado
+  en la aplicación de producción, que generó su **propia clave de firma**; se cargó en `mercadopago-webhook-secret` de los tres
+  roles de producción (reemplaza a la clave anterior, que era la de la aplicación de staging) y el archivo temporal se borró;
+  (2) en la aplicación de staging se quitó la URL de `movaeduca.me` (ahora solo apunta a staging) y se **renovó su clave de firma**
+  (la expuesta ya no es válida en ningún entorno); la nueva se cargó en los secretos de staging y en el `.env` local ignorado.
+  Las firmas de ambos entornos quedan **aisladas**. La clave de la aplicación de producción se mostró un instante en pantalla al
+  copiarla (la interfaz solo la entrega así): regenerarla justo antes de habilitar webhooks. No pude releer la configuración guardada
+  de producción porque el panel volvió a pedir verificación de identidad; la prueba de que se guardó es que generó la clave.
+  **Credenciales live: no activadas.** La pantalla «Credenciales de producción» pide industria («Educación / Capacitación»), sitio
+  web (`https://movaeduca.me`) y consentimiento; el control de seguridad de la sesión bloqueó el clic de «Activar credenciales de
+  producción» y no se eludió: el titular debe activarlas o autorizarlo. Pagos y webhooks siguen apagados
+  (`MERCADOPAGO_WEBHOOKS_ENABLED=false`, `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`).
+- **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
+  produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
+  (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
+  de un padre en `https://movaeduca.me` → correo de verificación recibido → verificación (aterriza en `/dashboard`) →
+  correo «su cuenta está lista» → solicitud de recuperación → correo recibido → nueva contraseña → ingreso con ella. Tres
+  correos al mismo buzón, ninguno masivo. El usuario de prueba y sus filas se eliminaron de producción después (0 usuarios).
+  Defecto encontrado y corregido: producción no tenía `APP_NAME`, por lo que los correos mostraban el logo y el nombre
+  «Laravel»; ahora `APP_NAME=MOVA` (revisión 0000006, y en `apps.bicep`). Pendiente: el correo usa el remitente de Gmail
+  (`m0v4class@gmail.com`); SPF/DKIM/DMARC de un remitente propio del dominio siguen siendo decisión del titular, y Gmail
+  limita el envío (≈ 500/día). La alerta `MAIL_MAILER_NON_DELIVERING` debe cerrarse en el siguiente health-check.
+- **JaaS producción (2026-10-06):** creada una **clave API propia de producción** en la app JaaS existente (plan Developer gratuito;
+  clave `…/eb14cb`, RSA 2048, distinta de la de staging `…/ef42bd`). La clave privada se descargó una sola vez, se cargó como
+  secreto `jaas-private-key` en los tres roles (verificado por huella: la del contenedor coincide con la del archivo, sin mostrar
+  el valor) y el archivo local se sobrescribió y borró. Variables: `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY`;
+  `JAAS_WEBHOOKS_ENABLED=false`. **No hay reunión real probada en producción** (solo configuración + validez de la clave); la
+  alerta `JAAS_NOT_CONFIGURED` debe cerrarse en el siguiente health-check. **Límite del plan gratuito: 25 usuarios activos al mes
+  para toda la app** (staging y producción comparten cupo; 8 ya usados); más usuarios exigirían un plan de pago (Basic US$ 99/mes,
+  exceso US$ 0,99 por usuario), **no autorizado ni comprado**. El webhook de presencia de producción
+  (`https://movaeduca.me/api/webhooks/jaas`, JOINED/LEFT, su propia clave de firma) se añade en JaaS al activar reuniones: la app
+  es una sola, así que cada endpoint recibe eventos de ambos entornos (la presencia es solo evidencia y no decide asistencia).
+  Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
+  Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
+- **Cloudinary producción:** pendiente. La pestaña no tiene sesión; el titular debe iniciar sesión para crear la configuración propia.
 - **Mercado Pago, aplicación de producción (2026-10-06):** creada la aplicación separada **«MOVA Produccion Payments»**
   (`4497812261072016`, Checkout API / API de Payments, la que usa el código vía `/v1/payments`; el selector avisa que la API de
   Payments «será discontinuada pronto» ⇒ riesgo técnico a planificar: migrar a la API de Orders). **Aún sin webhook ni credenciales:**
@@ -192,7 +230,7 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   pantallas de webhooks y credenciales; solo el titular puede aprobarlo, por lo que los pasos sensibles (guardar el webhook
   productivo, renovar la firma expuesta de la aplicación de staging, cargar credenciales live) se harán todos seguidos justo después
   de cada verificación. Pagos y webhooks siguen apagados.
-- **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
+- **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago de producción (se mostró al copiarla; regenerar antes de habilitar webhooks; la de staging ya se renovó); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
   pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
   (5) la credencial histórica del incidente F-26 (MySQL de Railway en el historial de git), que sigue abierta y separada.

@@ -97,16 +97,17 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 | Cuenta admin | (se crea sin contraseña conocida) | — | Recuperar contraseña por correo y activar MFA |
 
 **Rotar antes de activar integraciones live (estado 2026-10-06):**
-1. Clave de firma del webhook de Mercado Pago: es **una sola por aplicación** (modo de prueba y productivo coinciden, o sea
-   compartida con staging) y se mostró en la interfaz: regenerar en el panel y actualizar `mercadopago-webhook-secret` en los
-   3 roles de producción y el secreto de staging. Hoy está inactiva (`MERCADOPAGO_WEBHOOKS_ENABLED=false`).
+1. Clave de firma del webhook de Mercado Pago **de producción** (aplicación `4497812261072016`): ya es distinta de la de staging
+   (aplicación `6583217782927097`, renovada el 2026-10-06), pero se mostró un instante al copiarla: regenerar con «Restablecer firma
+   secreta» → «Redefinir clave» y actualizar `mercadopago-webhook-secret` en los 3 roles justo antes de habilitar
+   `MERCADOPAGO_WEBHOOKS_ENABLED`. El panel pide reverificar la identidad por SMS cada pocos minutos: hacer todos los pasos seguidos.
 2. DSN de Sentry de producción (`sentry-laravel-dsn`): pasó por un archivo temporal local ya eliminado; rotación opcional.
 3. Token de acceso y clave pública live de Mercado Pago, contraseña de aplicación de correo, clave API de JaaS y
    `CLOUDINARY_URL` de producción: cargarlos al crearlos, nunca por el chat.
 4. Credencial histórica del incidente F-26 (MySQL de Railway en el historial de git): sigue abierta y separada.
 
-Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción;
-excepción conocida y pendiente: la clave de firma del webhook de Mercado Pago, única por aplicación).
+Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción; la firma del
+webhook de Mercado Pago ya está aislada con una aplicación por entorno).
 Tras cargar cada grupo: nueva revisión de los tres roles, `/readyz`, y el smoke de la tabla.
 
 ## 5b. Crear el administrador (cuando el titular elija el correo)
