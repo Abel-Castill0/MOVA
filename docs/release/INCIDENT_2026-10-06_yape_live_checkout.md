@@ -45,3 +45,9 @@ Prueba dirigida: `npm run check:checkout-poll` (verificado que falla con el comp
 - El intento 1 queda **en revisión segura**; no existe ruta canónica de resolución manual, así que no se tocó la base. Para repetir la prueba hace falta resolver esa revisión con una
   herramienta administrativa auditada (decisión pendiente) y definir el importe de la nueva prueba tras entender el rechazo 2072.
 - Flags live y despliegue sin cambios.
+
+## Cierre del intento 1 (2026-10-06 06:02 UTC, acción admin con MFA)
+Verificado en producción tras el cierre: intento 1 `failed` (`submission_status` nulo, sin ID de proveedor, `review_resolved_at` fijado, evidencia `creation_http_status=400`, códigos `2072`), recarga 1 `pending` (sin cambios),
+ledger 0 filas, saldo 0/0, 0 webhooks, 0 trabajos fallidos, incidencia `payment_order:1:review` resuelta con autor y nota («HTTP 400, códigos 2072; búsqueda remota por referencia sin pagos»). Ningún crédito, cobro ni reembolso.
+La evidencia del intento 1 se registró con `mova:attest-payment-rejection` (código 2072 deducido del mensaje del log, no observado en `cause[]`); el cierre volvió a consultar a Mercado Pago (0 pagos).
+**Pendiente:** aclarar con soporte de Mercado Pago por qué se rechazó el importe de S/ 1,00 (citar `x-request-id` d1b5e205-5c79-40a8-87d5-c9222e72cd1d) antes de cualquier nuevo pago live; no se asume ningún importe alternativo.
