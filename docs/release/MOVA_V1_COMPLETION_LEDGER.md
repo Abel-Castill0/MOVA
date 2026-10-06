@@ -115,19 +115,28 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   `SETTLEMENT_DRY_RUN_IN_PRODUCTION`, `MAIL_MAILER_NON_DELIVERING` (ya resuelta por la configuración SMTP),
   `LEGAL_PROVIDER_DATA_MISSING`, `JAAS_NOT_CONFIGURED`. Confirman que el monitor detecta
   los huecos reales; cada una desaparece al cerrar su causa.
-- **Costo y crédito (Azure for Students, 2026-10-06):** crédito restante **US$ 86**, vence **14/09/2027** (≈ 11,3 meses
-  ⇒ gasto sostenible ≈ **US$ 7,6/mes**); previsión del portal US$ 19,22/mes. Gasto real (API de Cost Management):
-  septiembre ≈ US$ 12,3 (solo staging); octubre 1–5 ≈ US$ 2,23 (Container Registry 0,78; IP pública del entorno 0,57;
-  Container Apps 0,80; DNS 0,08; MySQL 0). El portal **aún no incluye** el MySQL de producción ni las réplicas siempre
-  activas de `movap-*` (retraso de facturación 24–48 h), así que el 19,22 es un piso; mi estimación con producción
-  completa es ≈ US$ 30–38/mes (MySQL de producción ≈ 16, porque la capa gratuita cubre un solo servidor y ya la usa el de
-  staging; `movap-*` ≈ 8–10). **A ese ritmo el crédito alcanza ≈ 2,5–3 meses, no hasta septiembre de 2027**; al agotarse,
-  la suscripción Student se deshabilita (no hay cargo a tarjeta). Ahorro aplicado: staging `worker` y `scheduler` a 0
-  réplicas (≈ US$ 3/mes; staging no tiene tráfico; revertir con `az containerapp update --min-replicas 1`). No se añadió
-  ningún recurso. Presupuesto `mova-monthly-20` creado (US$ 20/mes; correo al 50 % y 80 % reales y al 100 % previsto;
-  **informa, no limita el gasto**). Decisión del titular: pasar a plan de pago antes de ~dic-2026, o recortar (apagar el
-  staging por completo ahorra ≈ US$ 7–10/mes) aceptando menos disponibilidad. Actualizar esta cifra con la facturación real
-  de producción en cuanto aparezca.
+- **Costo y crédito (Azure for Students, lectura del 2026-10-06):** crédito **US$ 86 de 100**, vence **14/09/2027**
+  (344 días ⇒ gasto sostenible ≈ **US$ 7,6/mes**); previsión del portal US$ 19,22/mes. Gasto real (API de Cost Management):
+  septiembre ≈ US$ 12,3 (solo staging); octubre 1–5 = US$ 2,23, de los que Container Registry 0,78, IP pública del entorno
+  0,57, Container Apps 0,80 (scheduler 0,36, web 0,28, worker 0,16), DNS 0,08, MySQL 0 (la capa gratuita cubre el servidor de
+  staging). La facturación llega con 24–48 h de retraso: **producción (creada el 5/oct) aún no aparece**, por eso el portal
+  subestima. Modelo con precios de lista de la región (México Central) y uso medido de las réplicas (≈ 0,004 vCPU y
+  ≈ 140 MiB de media, es decir facturación mayormente «idle»): MySQL B1ms 0,0187 US$/h ≈ 13,7 + 32 GB a 0,1265 ≈ 4,1 =
+  **≈ 17,7/mes por servidor** (el de producción no entra en la capa gratuita porque la usa staging); Container Apps de
+  producción (3 réplicas pequeñas) ≈ 12–18 netos tras la cuota gratuita; ACR Basic ≈ 5,1; IP pública ≈ 3,5; DNS ≈ 0,5.
+  **Total ≈ US$ 39–45/mes** (≈ 26–31 si el MySQL de staging se elimina y su capa gratuita pasa a producción). **A US$ 42/mes el
+  crédito alcanza ≈ 2 meses (hasta ≈ inicios de diciembre de 2026); a US$ 28/mes ≈ 3 meses; nunca hasta septiembre de
+  2027.** Al agotarse, la suscripción Student se deshabilita (sin cargo a tarjeta). Ahorros aplicados (sin indisponibilidad):
+  staging `worker` y `scheduler` a 0 réplicas (≈ US$ 3–6/mes) y `movap-web` de 0,5 vCPU/1 GiB a 0,25 vCPU/0,5 GiB
+  (≈ US$ 6/mes bruto; uso medido 186 MiB como máximo; sigue con 1–2 réplicas y salud correcta; volver a 0,5/1 si el tráfico
+  lo pide). **Efecto en staging:** sin `worker` no se procesan colas (correos de staging, trabajos de pagos/webhooks en
+  segundo plano) y sin `scheduler` no corren los comandos programados (recordatorios, expiración de solicitudes,
+  health-check); la web de staging sigue sirviendo y `/readyz` no depende de ellos; revertir con
+  `az containerapp update -n mova-worker|mova-scheduler --min-replicas 1`. **No aplicados (requieren tu decisión):** eliminar
+  el MySQL de staging (−13,7/mes; destruye datos QA sintéticos; se recrea con el IaC y migraciones), detenerlo (Azure lo
+  reinicia solo a los 7 días), fusionar worker y scheduler en una réplica (−≈ 6/mes, cambio de código), apagar staging por
+  completo. Presupuesto `mova-monthly-20` (US$ 20/mes; alertas de correo al 50 % y 80 % reales y 100 % previsto) **informa,
+  no limita**; con estos importes se superará. No se cambió a pago por uso ni se creó ningún recurso.
 - **Sentry:** proyecto propio `mova-production`, DSN propio cargado como secreto `sentry-laravel-dsn` en los tres roles.
   El archivo temporal local que lo contuvo se sobrescribió y se eliminó; el valor no aparece en el repositorio, la
   documentación ni los logs. Todavía no hay evento sintético de producción.
@@ -137,11 +146,17 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   en Namecheap figura con un nombre y un correo distintos de los del titular de este proyecto; no se cambian más
   registros hasta que el titular confirme que la cuenta es la autorizada.
 - **Mercado Pago producción:** webhook de modo productivo registrado (`https://movaeduca.me/api/webhooks/mercadopago`,
-  evento Pagos). **La clave de firma es una sola por aplicación** (la de modo de prueba y la productiva coinciden), así
-  que está compartida con staging, y se mostró en la interfaz al copiarla: se considera **potencialmente expuesta**. Está
-  cargada como secreto `mercadopago-webhook-secret` pero **inactiva**: `MERCADOPAGO_WEBHOOKS_ENABLED=false`,
-  `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`. Hay que regenerarla en el panel (y actualizarla en staging) **antes** de
-  habilitar el webhook. Ningún cobro es posible.
+  evento Pagos), **inactivo** (`MERCADOPAGO_WEBHOOKS_ENABLED=false`, `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`;
+  ningún cobro posible). La documentación oficial indica que la clave secreta es **exclusiva de la aplicación** (no de la URL
+  ni del modo; no caduca, renovarla es recomendado), lo que coincide con lo observado: la de prueba y la productiva son la
+  misma, compartida con staging, y se mostró en la interfaz al copiarla ⇒ **potencialmente expuesta**. Cambio mínimo para
+  aislarlas: crear una **segunda aplicación de Mercado Pago solo para producción** (credenciales, clave y webhook propios) y
+  dejar la actual como sandbox de staging. Plan de renovación: (1) crear la aplicación de producción; (2) en la actual,
+  quitar la URL productiva y renovar la clave (actualizar el secreto de staging); (3) en la nueva, registrar
+  `https://movaeduca.me/api/webhooks/mercadopago` y cargar su clave en `mercadopago-webhook-secret` (los 3 roles); (4) cargar
+  access token, public key, application id y collector id **live** de la aplicación nueva, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`
+  y `MERCADOPAGO_CHECKOUT_ALLOWLIST` solo con la cuenta del titular; (5) recién entonces habilitar webhooks/pagos y hacer un único
+  cobro real mínimo + reembolso aprobados por el titular. El valor expuesto sigue cargado en Azure pero inerte; se reemplaza en el paso 3.
 - **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
   produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
   (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
@@ -152,9 +167,12 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   «Laravel»; ahora `APP_NAME=MOVA` (revisión 0000006, y en `apps.bicep`). Pendiente: el correo usa el remitente de Gmail
   (`m0v4class@gmail.com`); SPF/DKIM/DMARC de un remitente propio del dominio siguen siendo decisión del titular, y Gmail
   limita el envío (≈ 500/día). La alerta `MAIL_MAILER_NON_DELIVERING` debe cerrarse en el siguiente health-check.
-- **JaaS / Cloudinary producción:** no configurados. JaaS: plan **JaaS Dev (25 MAU, US$ 0)** con una sola app compartida
-  con staging (8 MAU ya consumidos por las pruebas); producción necesita clave API propia y decidir plan (25 MAU solo
-  sirve de piloto). Cloudinary: sin sesión abierta en el navegador.
+- **JaaS / Cloudinary producción:** no configurados (alerta `JAAS_NOT_CONFIGURED` abierta). JaaS: una sola app y una sola clave
+  API (la de staging); el plan **Developer** (US$ 0, 25 usuarios activos/mes, 8 ya usados) es el único sin costo; los de pago son
+  Basic US$ 99/mes (300 usuarios), Standard US$ 499, Business US$ 999, y exceso US$ 0,99 por usuario activo (precios públicos de
+  8x8): **no se compra nada**. Preparado: se puede añadir una clave API propia de producción en la misma app, pero la clave
+  privada solo se muestra al descargarla (requiere tu autorización de descarga), y el webhook de la app entrega a todos los
+  entornos. Cloudinary: sin sesión en el navegador; producción necesita su propio `CLOUDINARY_URL`.
 - **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
   pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
@@ -171,7 +189,7 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 |---|---|---|
 | Credenciales live y de producción (MP live, SMTP, JaaS, Cloudinary, Sentry) | Cargarlas por `az containerapp secret set` (runbook §5), distintas de las de staging | Producción sin correo, reuniones, avatares ni pagos: no se hace el cutover |
 | Titularidad de `movaeduca.me` en Namecheap | Confirmar que el registrante que figura es la persona autorizada (o añadir/transferir contacto) | No se tocan más registros DNS; el dominio ya sirve producción |
-| Entorno ACA propio y plan de pago | Pasar a una suscripción de pago y mover `movap-*` antes de ~dic-2026 | Producción comparte entorno con staging y el crédito (US$ 86) se agota en ≈ 2,5–3 meses |
+| Entorno ACA propio y plan de pago | Pasar a una suscripción de pago y mover `movap-*` antes de ~dic-2026 | Producción comparte entorno con staging y el crédito (US$ 86) se agota en ≈ 2–3 meses (≈ US$ 26–45/mes según se elimine o no el MySQL de staging) |
 | Reembolsos/deuda por saldo negativo, quién inicia devoluciones | Reembolso manual desde el panel de Mercado Pago + reversión de ledger; saldo negativo = bloqueo de cuenta | Sin política, un contracargo deja saldo negativo sin dueño |
 | Pago padre → profesor | Definir el modelo (marketplace vs. créditos prepagos por familia) antes de prometerlo | No debe anunciarse |
 | Liquidación `live`, asistencia/disputas, clases recurrentes, verificación documental, consentimiento de menores/ANPD/transferencia internacional | Validación legal primero; mantener `dry_run` y verificación manual | Gate legal abierto: no se declara producción «lista» |

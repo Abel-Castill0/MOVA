@@ -25,14 +25,13 @@ compartida* pese a su nombre. Consecuencias: (1) la IP de ingreso es la misma qu
 crear un entorno ACA propio para producción y mover `movap-*` (IaC ya parametrizado: `MOVA_PREFIX`,
 `MOVA_APP_NAME_PREFIX`, `MOVA_MYSQL_SERVER_NAME`, `MOVA_LOCATION`).
 
-**Costo y crédito (lectura del 2026-10-06):** crédito restante US$ 86, vence 14/09/2027 ⇒ gasto sostenible ≈ US$ 7,6/mes.
-Gasto real: septiembre ≈ US$ 12,3 (solo staging); octubre 1–5 ≈ US$ 2,23. Previsión del portal US$ 19,22/mes, que **aún no
-incluye** el MySQL de producción ni las réplicas siempre activas de `movap-*`. Estimación con producción completa
-≈ US$ 30–38/mes (MySQL de producción ≈ 16; `movap-*` ≈ 8–10; ACR ≈ 5; IP pública del entorno ≈ 3,5; staging ≈ 3–5).
-Con eso el crédito alcanza ≈ 2,5–3 meses; al agotarse la suscripción Student se deshabilita. Medir con la API de Cost
-Management (`az rest` → `Microsoft.CostManagement/query`, agrupando por `ResourceId`) cuando la facturación de producción
-aparezca. Ahorro aplicado: staging `worker`/`scheduler` a 0 réplicas (`az containerapp update --min-replicas 1` para volver).
-Presupuesto `mova-monthly-20` (US$ 20/mes) con alertas al 50 %/80 % reales y 100 % previsto: informa, no limita el gasto.
+**Costo y crédito (lectura del 2026-10-06):** US$ 86 de 100, vence 14/09/2027 (sostenible ≈ US$ 7,6/mes). Gasto real hasta
+el 5/oct: US$ 2,23 (la facturación de producción llega con 24–48 h de retraso). Modelo con precios de lista y uso medido:
+MySQL ≈ 17,7/mes por servidor (B1ms 0,0187 US$/h + 32 GB), Container Apps de producción ≈ 12–18, ACR ≈ 5,1, IP pública ≈ 3,5,
+DNS ≈ 0,5 ⇒ **≈ US$ 39–45/mes (≈ 26–31 sin el MySQL de staging)** ⇒ el crédito dura ≈ 2–3 meses. Medir con `az rest` →
+`Microsoft.CostManagement/query` (cuerpo en archivo, cabecera `Content-Type: application/json`, agrupar por `ResourceId`) cuando
+aparezca producción. Aplicado: staging `worker`/`scheduler` a 0 réplicas (sin colas ni tareas programadas en staging; revertir con
+`--min-replicas 1`) y `movap-web` a 0,25 vCPU/0,5 GiB. Presupuesto `mova-monthly-20`: solo informa.
 
 ## 2. Despliegue (procedimiento reproducible)
 
@@ -107,6 +106,18 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 Regla de oro de rotación: **cada entorno con credenciales distintas** (staging nunca comparte clave con producción;
 excepción conocida y pendiente: la clave de firma del webhook de Mercado Pago, única por aplicación).
 Tras cargar cada grupo: nueva revisión de los tres roles, `/readyz`, y el smoke de la tabla.
+
+## 5b. Crear el administrador (cuando el titular elija el correo)
+
+Usar un buzón real del titular, sin alias `+` ni dominios de prueba (el comando rechaza `*.test`, `example.*`). Con la imagen de
+producción, desde un Job manual o `az containerapp exec -n movap-web`:
+
+```
+php artisan mova:create-admin <correo-del-titular> --name="<Nombre>"
+```
+
+Crea la cuenta verificada con contraseña aleatoria desconocida; el titular usa «Olvidé mi contraseña» (correo ya operativo) y el
+primer ingreso al panel exige configurar MFA. No ejecutar ningún seeder en producción.
 
 ## 6. Gates de lanzamiento pendientes (no técnicos)
 
