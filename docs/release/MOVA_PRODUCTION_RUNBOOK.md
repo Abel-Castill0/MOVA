@@ -35,6 +35,17 @@ aparezca producción. Aplicado: staging `worker`/`scheduler` a 0 réplicas (sin 
 reinicia a los 7 días ⇒ detenerlo de nuevo con `az mysql flexible-server stop -g mova-prod-rg -n mova-mysql-splisbj6ldoqw`, o arrancarlo con
 `start` para probar staging).
 
+## 1b. Staging sin base de datos (eliminada el 2026-10-06) y cómo recuperarla
+
+Se eliminó el MySQL de staging (`mova-mysql-splisbj6ldoqw`; datos 100 % sintéticos y recreables) para conservar el crédito de Azure.
+Las apps `mova-web|worker|scheduler` siguen definidas (a 0 réplicas) y conservan sus secretos (`db-password` de `mova_app`, firma
+de Mercado Pago de la aplicación de staging, etc.). Respaldo: `storage/app/staging-export-2026-10-06.json.gz` (JSON por tabla, local e
+ignorado por git). Para recrear staging: (1) crear un servidor MySQL 8.4 B1ms privado en `snet-mysql` con el módulo `modules/mysql.bicep`
+(o `main.bicep`, que pide `MOVA_MYSQL_ADMIN_PASSWORD` nuevo) y la zona privada `mova.private.mysql.database.azure.com`; (2) con un Job
+manual crear la base `mova` y el usuario `mova_app` con la contraseña del secreto `db-password` de staging; (3) `php artisan migrate --force`
+y, **solo en staging**, `db:seed --class=LocalTestDataSeeder` (o importar el JSON del respaldo); (4) `az containerapp update -n mova-worker|mova-scheduler
+--min-replicas 1`. No usar nunca esos seeders en producción.
+
 ## 2. Despliegue (procedimiento reproducible)
 
 0. Variables de aplicación imprescindibles: `APP_NAME=MOVA` (sin él los correos salen con la marca «Laravel»).

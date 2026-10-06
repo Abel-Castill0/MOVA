@@ -111,9 +111,9 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   ni `LocalTestDataSeeder`). **Límite de la evidencia:** el contenedor no registra accesos HTTP, por lo que ningún log
   prueba la ausencia de `POST /login` en esa ventana; lo verificado es que la cuenta nunca verificó su correo, que no
   quedó sesión autenticada ni token, y que ya no existe. Corregido en código: `RoleSeeder` solo crea roles fuera de local/testing; `DatabaseSeeder` y `LocalTestDataSeeder` abortan en producción; nuevo `mova:create-admin` (contraseña desconocida + MFA). No se ejecutarán más seeders en producción.
-- **Alertas operativas de producción (4 críticas, esperadas al 2026-10-06 antes de configurar el correo):**
-  `SETTLEMENT_DRY_RUN_IN_PRODUCTION`, `MAIL_MAILER_NON_DELIVERING` (ya resuelta por la configuración SMTP),
-  `LEGAL_PROVIDER_DATA_MISSING`, `JAAS_NOT_CONFIGURED`. Confirman que el monitor detecta
+- **Alertas operativas de producción (estado 2026-10-06 02:00 UTC):** `MAIL_MAILER_NON_DELIVERING` y `JAAS_NOT_CONFIGURED` **resueltas**
+  por el monitor tras configurar SMTP y JaaS (evidencia del estado efectivo); siguen **abiertas** `SETTLEMENT_DRY_RUN_IN_PRODUCTION`
+  (intencional hasta decisión del titular) y `LEGAL_PROVIDER_DATA_MISSING` (faltan razón social/RUC/domicilio). Confirman que el monitor detecta
   los huecos reales; cada una desaparece al cerrar su causa.
 - **Costo y crédito (Azure for Students, lectura del 2026-10-06):** crédito **US$ 86 de 100**, vence **14/09/2027**
   (344 días ⇒ gasto sostenible ≈ **US$ 7,6/mes**); previsión del portal US$ 19,22/mes. Gasto real (API de Cost Management):
@@ -135,11 +135,13 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   `az containerapp update -n mova-worker|mova-scheduler --min-replicas 1`. **No aplicados (requieren tu decisión):** eliminar
   el MySQL de staging (−13,7/mes; destruye datos QA sintéticos; se recrea con el IaC y migraciones), detenerlo (Azure lo
   reinicia solo a los 7 días), fusionar worker y scheduler en una réplica (−≈ 6/mes, cambio de código), apagar staging por
-  completo. **Aplicado el 2026-10-06 (reversible):** MySQL de **staging detenido** (`az mysql flexible-server stop`), lo que deja la capa
-  gratuita de cómputo para el servidor de producción (≈ −13,7/mes ⇒ ≈ US$ 26–31/mes ⇒ runway ≈ 3 meses, hasta ≈ inicios de enero
-  de 2027). Azure **reinicia solo** un servidor detenido a los 7 días: volver a detenerlo antes de ese plazo o eliminarlo (decisión
-  abierta); para usar staging: `az mysql flexible-server start`. Staging queda sin base ⇒ sin pruebas de Mercado Pago sandbox hasta
-  arrancarlo. Dato del día 5/oct: US$ 0,94 (≈ 4 h de producción y del servidor del simulacro de restauración); el 6/oct aún no
+  completo. **Aplicado el 2026-10-06:** MySQL de **staging eliminado** (`mova-mysql-splisbj6ldoqw`) tras comprobar que sus 25 usuarios (cuentas
+  `@mova.test`, `example.*` y alias de prueba) y 756 filas eran datos sintéticos de QA/sandbox, tras verificar con una firma de
+  webhook que staging ya validaba la firma renovada (firma correcta pasa la validación, firma errónea ⇒ 401) y tras guardar un
+  **respaldo utilizable**: `storage/app/staging-export-2026-10-06.json.gz` (ignorado por git; 37 tablas, 681 filas, 102 migraciones,
+  28 KB; sin sesiones/caché/colas). Esto cede la capa gratuita de cómputo al servidor de producción (≈ −13,7/mes ⇒ ≈ US$ 26–31/mes ⇒
+  runway ≈ 3 meses, hasta ≈ inicios de enero de 2027). **Recuperar staging:** ver runbook §1b. Staging queda sin base: no hay pruebas de
+  Mercado Pago sandbox hasta recrearlo. Dato del día 5/oct: US$ 0,94 (≈ 4 h de producción y del servidor del simulacro de restauración); el 6/oct aún no
   se factura. Presupuesto `mova-monthly-20` (US$ 20/mes; alertas de correo al 50 % y 80 % reales y 100 % previsto) **informa,
   no limita**; con estos importes se superará. No se cambió a pago por uso ni se creó ningún recurso.
 - **Sentry:** proyecto propio `mova-production`, DSN propio cargado como secreto `sentry-laravel-dsn` en los tres roles.
@@ -162,6 +164,54 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   access token, public key, application id y collector id **live** de la aplicación nueva, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`
   y `MERCADOPAGO_CHECKOUT_ALLOWLIST` solo con la cuenta del titular; (5) recién entonces habilitar webhooks/pagos y hacer un único
   cobro real mínimo + reembolso aprobados por el titular. El valor expuesto sigue cargado en Azure pero inerte; se reemplaza en el paso 3.
+- **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
+  produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
+  (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
+  de un padre en `https://movaeduca.me` → correo de verificación recibido → verificación (aterriza en `/dashboard`) →
+  correo «su cuenta está lista» → solicitud de recuperación → correo recibido → nueva contraseña → ingreso con ella. Tres
+  correos al mismo buzón, ninguno masivo. El usuario de prueba y sus filas se eliminaron de producción después (0 usuarios).
+  Defecto encontrado y corregido: producción no tenía `APP_NAME`, por lo que los correos mostraban el logo y el nombre
+  «Laravel»; ahora `APP_NAME=MOVA` (revisión 0000006, y en `apps.bicep`). Pendiente: el correo usa el remitente de Gmail
+  (`m0v4class@gmail.com`); SPF/DKIM/DMARC de un remitente propio del dominio siguen siendo decisión del titular, y Gmail
+  limita el envío (≈ 500/día). La alerta `MAIL_MAILER_NON_DELIVERING` debe cerrarse en el siguiente health-check.
+- **JaaS producción (2026-10-06):** creada una **clave API propia de producción** en la app JaaS existente (plan Developer gratuito;
+  clave `…/eb14cb`, RSA 2048, distinta de la de staging `…/ef42bd`). La clave privada se descargó una sola vez, se cargó como
+  secreto `jaas-private-key` en los tres roles (verificado por huella: la del contenedor coincide con la del archivo, sin mostrar
+  el valor) y el archivo local se sobrescribió y borró. Variables: `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY`;
+  `JAAS_WEBHOOKS_ENABLED=false`. **Prueba controlada 2026-10-06** (fuera de MOVA, sin datos reales): dos JWT de vida corta firmados por el contenedor de producción entraron a una sala efímera de JaaS con la clave de producción; docente y familia sintéticos entraron, se vieron entre sí y se vio la salida (sin errores de JWT) ⇒ la clave de producción **funciona**. **Sigue sin probarse** el flujo de la aplicación en producción (sala de una clase real, permisos y webhook de presencia: webhooks apagados); la
+  alerta `JAAS_NOT_CONFIGURED` debe cerrarse en el siguiente health-check (consumió ≈ 2 usuarios activos del cupo gratuito). **Límite del plan gratuito: 25 usuarios activos al mes
+  para toda la app** (staging y producción comparten cupo; 8 ya usados); más usuarios exigirían un plan de pago (Basic US$ 99/mes,
+  exceso US$ 0,99 por usuario), **no autorizado ni comprado**. El webhook de presencia de producción
+  (`https://movaeduca.me/api/webhooks/jaas`, JOINED/LEFT, su propia clave de firma) se añade en JaaS al activar reuniones: la app
+  es una sola, así que cada endpoint recibe eventos de ambos entornos (la presencia es solo evidencia y no decide asistencia).
+  Incidente menor del proceso: una limpieza mía borró la primera copia descargada antes de cargarla (no se aplicó nada en
+  Azure); se volvió a descargar desde el mismo diálogo y se verificó por huella.
+- **Cloudinary producción:** pendiente. La pestaña sigue sin sesión (redirige al sitio público); el titular debe iniciar sesión para crear la
+  configuración propia (`CLOUDINARY_URL`) y entonces se cargará en Azure y se probará con una carga/borrado sintético.
+- **Mercado Pago, aplicaciones separadas (2026-10-06):** aplicación de **producción** «MOVA Produccion Payments»
+  (`4497812261072016`, API de Payments, la que usa el código vía `/v1/payments`; el panel avisa que esa API «será discontinuada
+  pronto» ⇒ riesgo técnico a planificar: migrar a la API de Orders) y aplicación de **staging/sandbox** «MOVA Recarga de Creditos
+  Payments» (`6583217782927097`). Hecho: (1) webhook productivo `https://movaeduca.me/api/webhooks/mercadopago` (evento Pagos) guardado
+  en la aplicación de producción, que generó su **propia clave de firma**; se cargó en `mercadopago-webhook-secret` de los tres
+  roles de producción (reemplaza a la clave anterior, que era la de la aplicación de staging) y el archivo temporal se borró;
+  (2) en la aplicación de staging se quitó la URL de `movaeduca.me` (ahora solo apunta a staging) y se **renovó su clave de firma**
+  (la expuesta ya no es válida en ningún entorno); la nueva se cargó en los secretos de staging y en el `.env` local ignorado.
+  Las firmas de ambos entornos quedan **aisladas**. La clave de la aplicación de producción se mostró un instante en pantalla al
+  copiarla (la interfaz solo la entrega así): regenerarla justo antes de habilitar webhooks. No pude releer la configuración guardada
+  de producción porque el panel volvió a pedir verificación de identidad; la prueba de que se guardó es que generó la clave.
+  **Credenciales live (2026-10-06):** activadas en la aplicación de producción (industria «Educación / Capacitación», sitio
+  `https://movaeduca.me`, consentimiento estándar del formulario) y cargadas **solo en Azure producción** sin mostrarlas: secreto
+  `mercadopago-access-token` + `MERCADOPAGO_ACCESS_TOKEN` (secretref), `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_APPLICATION_ID`,
+  `MERCADOPAGO_EXPECTED_COLLECTOR_ID` y `MERCADOPAGO_EXPECTED_LIVE_MODE=true` en los tres roles (comprobado solo presencia/formato:
+  el token tiene el formato `APP_USR-…` de producción y el identificador del cobrador sale de él). **No se hizo ninguna llamada
+  live ni cobro**; `MERCADOPAGO_BASE_URL` por defecto, `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`,
+  `MERCADOPAGO_WEBHOOKS_ENABLED=false`. La firma del webhook de producción **se renovó** (Redefinir clave) y se recargó en los tres
+  roles; los valores nunca se imprimieron (la interfaz del panel los muestra un instante al copiarlos). **Los pagos de producción NO
+  están verificados ni habilitados**: faltan el checkout restringido a una cuenta del titular (`MERCADOPAGO_CHECKOUT_ALLOWLIST`), una
+  cuenta docente del titular en producción (necesita su correo), el pago de prueba mínimo que **solo el titular puede teclear** (datos
+  de tarjeta) y su reembolso. **Migración a Orders:** la documentación oficial indica que la API de Payments sigue funcionando y solo
+  recibe correcciones de seguridad/estabilidad, **sin fecha de discontinuación publicada**; la ruta oficial es Checkout API vía
+  Orders (`/v1/orders`). Queda como trabajo técnico pendiente, a planificar tras la puesta en marcha (no se hace de forma especulativa).
 - **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
   produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
   (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
@@ -238,7 +288,10 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   `mova:health-check` marca `LEGAL_PROVIDER_DATA_MISSING` (los aporta el titular; no se inventan).
 - **Cobertura V1 añadida:** interruptor de control parental, alta de perfil docente y bandeja de notificaciones
   (`ParentSettingsAndTeacherSetupTest`, 7 tests). PHPUnit SQLite sobre el árbol final: **1408 tests / 5513 assertions,
-  0 failures, 7 skips**. CI de `0c01259`: `success`.
+  0 failures, 7 skips**. CI de `0c01259`: `success`. CI de `bce18dc` **falló** en `npm audit --omit=dev --audit-level=high` (vue/@vue/server-renderer
+  ≤ 3.5.41 y source-map-js ≤ 1.2.1, 3 avisos high); corregido con `npm update vue source-map-js` (vue 3.5.43, source-map-js 1.2.2 y sus
+  dependencias en rango; sin ignorar avisos): `npm audit` 0 vulnerabilidades, `npm ci` + `npm run build` + `check:*` OK y CI de `215bdbf`
+  **completo en `success`** (`composer`, `frontend`, `sqlite`, `mysql`, `e2e`).
 
 ### Decisiones pendientes del titular (con recomendación)
 
