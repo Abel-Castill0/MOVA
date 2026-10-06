@@ -7,6 +7,7 @@ use App\Models\RechargeRequest;
 use App\Models\User;
 use App\Notifications\NewRechargeRequestNotification;
 use App\Support\CheckoutAllowlist;
+use App\Support\CreditPackages;
 use App\Support\OperationNumberNormalizer;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class CreditController extends Controller
             // S/ 2.00" con el valor escrito a mano en la plantilla: si alguien
             // ajustaba config/credits.php, esa línea mentía al profesor
             // justo en la pantalla donde decide comprar.
-            'packages' => collect(config('credits.packages'))
+            'packages' => collect($this->mercadoPagoCheckoutEnabled() ? CreditPackages::forCheckout(auth()->user()) : config('credits.packages'))
                 ->map(fn (array $package, string $code) => ['code' => $code] + $package + [
                     'price_per_credit' => $package['credits'] > 0
                         ? number_format((float) $package['amount_pen'] / $package['credits'], 2, '.', '')

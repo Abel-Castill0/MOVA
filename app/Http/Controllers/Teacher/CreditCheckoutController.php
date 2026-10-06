@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
 use App\Support\CheckoutAllowlist;
+use App\Support\CreditPackages;
 use App\Models\RechargeRequest;
 use App\Payment\Contracts\CardPaymentInstrument;
 use App\Payment\Contracts\PaymentProviderContract;
@@ -82,7 +83,7 @@ class CreditCheckoutController extends Controller
             'El pago automático no está disponible por ahora.'
         );
 
-        $packages = config('credits.packages');
+        $packages = CreditPackages::forCheckout($request->user());
 
         $data = $request->validate([
             'package_code' => ['required', 'string', Rule::in(array_keys($packages))],

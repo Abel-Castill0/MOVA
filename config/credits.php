@@ -29,6 +29,18 @@ return [
         ],
     ],
 
+    // Paquete de VERIFICACIÓN de cobro (1 sol): permite la única prueba de pago real del lanzamiento con la cuenta del
+    // propietario. Apagado por defecto y, aun encendido, solo se ofrece si el checkout está restringido por
+    // MERCADOPAGO_CHECKOUT_ALLOWLIST y el usuario figura en ella (ver App\Support\CreditPackages). Se reembolsa por el proveedor
+    // y el reembolso confirmado revierte el crédito en el ledger.
+    'verification_package' => [
+        'enabled' => (bool) env('CREDITS_VERIFICATION_PACKAGE_ENABLED', false),
+        'code' => 'verificacion',
+        'name' => 'Verificación de cobro',
+        'credits' => 1,
+        'amount_pen' => '1.00',
+    ],
+
     'payment_methods' => [
         'yape' => 'Yape',
         'transfer' => 'Transferencia bancaria',
