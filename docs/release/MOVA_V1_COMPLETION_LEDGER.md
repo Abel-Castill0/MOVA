@@ -45,7 +45,7 @@ correo SMTP real, Cloudinary, JaaS (webhook de presencia firmado, verificado con
 Mercado Pago live: credenciales cargadas, `PAYMENTS_ENABLED=true`, checkout acotado por lista de acceso (solo la cuenta de prueba del propietario); **sin cobros a terceros**.
 El único intento live (recarga 1, Yape S/ 1) fue rechazado por Mercado Pago (HTTP 400, código 2072): `PaymentOrder#1 = failed`, alerta cerrada, ledger con 0 filas,
 0 alertas abiertas. La causa del 2072 solo la puede aclarar su soporte (`MERCADOPAGO_SUPPORT_CASE_2072.md`); no se reintenta ni se cambia el importe por conjetura.
-Revisiones activas: `movap-web--0000019`, `movap-worker--0000017`, `movap-scheduler--0000017`. Decisiones legales/negocio: definitivas para V1, **sin abogado**
+Revisiones activas: `movap-web--0000020`, `movap-worker--0000018`, `movap-scheduler--0000018`. Decisiones legales/negocio: definitivas para V1, **sin abogado**
 (`MOVA_V1_DECISIONS.md`); la inscripción ante la ANPD es un trámite administrativo del titular que no bloquea el uso. Este bloque **sustituye** cualquier estado
 anterior del ledger que lo contradiga (los bloques históricos de abajo que digan «sin JaaS/Cloudinary de producción», «pagos fake/apagados» o «REQUIRES_OWNER_INPUT legal» están superados).
 
@@ -56,10 +56,11 @@ sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 f
 (+9 tests, verificados en SQLite y MySQL) y un repaso completo de SQLite: 1401 tests / 5476 assertions, 0 failures.
 Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
 
-**Despliegue vigente (2026-10-06):** imagen `mova@sha256:369419fb00326f3cf1c66c84324c302916c530e490b51e246c19a076e45722ed`
-(`release-20261006-13ea6e3`; CI de `13ea6e3` completo en `success`). Producción: `movap-web--0000016`, `movap-worker--0000015`,
-`movap-scheduler--0000015` (`/readyz` ready). Cambios respecto a la imagen anterior: paquete de verificación de cobro (S/ 1, solo propietario);
-**sin migraciones nuevas**. Staging: apps a 0 réplicas sin base de datos (ver runbook §1b).
+**Despliegue vigente (2026-10-06):** imagen `mova@sha256:30f12e94eae48f08eadf4fcebb8d0f7872e09411c0e6c7a7ade8167ccb5b04d0`
+(`release-20261006-cc4e5fe`; CI de `cc4e5fe` en `success`). Producción: `movap-web--0000020`, `movap-worker--0000018`,
+`movap-scheduler--0000018` (`/readyz` 200). Cambios respecto a la imagen anterior (`33fca28`): Términos §5 (reembolso de créditos no usados a 7 días),
+Privacidad §11 (conservación) y versiones legales `2026-10-06` (verificado: `config('legal.versions.terms')` y bundle público); **sin migraciones nuevas**.
+Staging: apps a 0 réplicas sin base de datos (ver runbook §1b).
 
 ### Matriz por función
 
