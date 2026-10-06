@@ -38,11 +38,16 @@ criterio lo exige, evidencia en vivo del entorno real).
   deliberadas al siguiente timestep TOTP del admin QA, anti-replay). No es
   evidencia `LIVE_STAGING` ni `PRODUCTION_LIVE`.
 
-## Estado actual (2026-10-05, cierre de la ronda de lanzamiento)
+## Estado actual (2026-10-06, verificado en producción)
 
-**No se declara «100 % terminado».** Producción Azure existe, está sana, aislada en datos y **atiende
-`https://movaeduca.me` con TLS válido** (2026-10-06), con **correo SMTP real verificado**, pero **sin JaaS/Cloudinary de producción y sin
-cobros live** (pagos `fake`/apagados). Este bloque **sustituye** cualquier estado anterior del ledger que lo contradiga.
+**No se declara «100 % terminado»: falta una prueba live de cobro.** Producción Azure atiende `https://movaeduca.me` (TLS válido, `/readyz` 200) con
+correo SMTP real, Cloudinary, JaaS (webhook de presencia firmado, verificado con reunión sintética) y Sentry (evento de producción recibido) operativos.
+Mercado Pago live: credenciales cargadas, `PAYMENTS_ENABLED=true`, checkout acotado por lista de acceso (solo la cuenta de prueba del propietario); **sin cobros a terceros**.
+El único intento live (recarga 1, Yape S/ 1) fue rechazado por Mercado Pago (HTTP 400, código 2072): `PaymentOrder#1 = failed`, alerta cerrada, ledger con 0 filas,
+0 alertas abiertas. La causa del 2072 solo la puede aclarar su soporte (`MERCADOPAGO_SUPPORT_CASE_2072.md`); no se reintenta ni se cambia el importe por conjetura.
+Revisiones activas: `movap-web--0000019`, `movap-worker--0000017`, `movap-scheduler--0000017`. Decisiones legales/negocio: definitivas para V1, **sin abogado**
+(`MOVA_V1_DECISIONS.md`); la inscripción ante la ANPD es un trámite administrativo del titular que no bloquea el uso. Este bloque **sustituye** cualquier estado
+anterior del ledger que lo contradiga (los bloques históricos de abajo que digan «sin JaaS/Cloudinary de producción», «pagos fake/apagados» o «REQUIRES_OWNER_INPUT legal» están superados).
 
 **Evidencia de código sobre el árbol definitivo (`LOCAL_TEST`, PHP 8.3.35):** `composer audit`/`npm audit`
 sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 failures, 7 skips; PHPUnit MySQL 8.4
@@ -163,7 +168,7 @@ Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes 
 - **Estado de lanzamiento controlado (2026-10-06, tras delegación del propietario):** (1) **Administrador creado** en producción con `mova:create-admin`
   (contraseña desconocida; el titular la fija con «Olvidé mi contraseña» y activa MFA). (2) **Decisiones de negocio/legales adoptadas** por delegación y
   documentadas con fuentes oficiales en `docs/release/MOVA_V1_DECISIONS.md` (menores/ANPD, reembolsos, asistencia, recurrencia, verificación docente,
-  modelo de pago, liquidación): requieren **revisión legal** antes de promocionar el servicio. (3) **Liquidación automática en `live`**
+  modelo de pago, liquidación): son definitivas para V1 (el titular decidió operar sin abogado). (3) **Liquidación automática en `live`**
   (`LESSON_SETTLEMENT_MODE=live`): solo mueve el ledger interno (consume créditos reservados a los 7 días), sin dinero real; revertible a `dry_run`.
   (4) **Credenciales live de Mercado Pago verificadas en lectura** (sin cobro): `GET /users/me` con el token de producción ⇒ 200, el cobrador coincide con
   `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, sitio `MPE`, cuenta activa; `payment_methods` incluye `yape` y `visa`. (5) **Checkout live abierto SOLO a la cuenta de
@@ -735,11 +740,11 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P0-SETTLEMENT | P0 | Dinero | BLOCKED_EXTERNAL |
 | C-P0-DB-CREDENTIAL | P0 | Seguridad | BLOCKED_EXTERNAL |
 | C-P0-LEGAL-TRUTH | P0 | Texto/código legal | VERIFIED |
-| C-P0-LEGAL-APPROVAL | P0 | Aprobación legal externa | REQUIRES_OWNER_INPUT |
+| C-P0-LEGAL-APPROVAL | P0 | Aprobación legal externa | DECIDED_BY_OWNER_DELEGATION |
 | C-P0-MINOR-CONSENT-NEW | P0 | Registro nuevo de menores | VERIFIED |
-| C-P0-MINOR-CONSENT-HISTORICAL | P0 | Alumnos anteriores | REQUIRES_OWNER_INPUT |
-| C-P0-ANPD-REGISTRATION | P0 | Legal | REQUIRES_OWNER_INPUT |
-| C-P0-TRANSBORDER | P0 | Legal | REQUIRES_OWNER_INPUT |
+| C-P0-MINOR-CONSENT-HISTORICAL | P0 | Alumnos anteriores | NOT_APPLICABLE_EVIDENCED |
+| C-P0-ANPD-REGISTRATION | P0 | Legal | OWNER_ADMIN_PROCEDURE |
+| C-P0-TRANSBORDER | P0 | Legal | OWNER_ADMIN_PROCEDURE |
 | C-P1-TEACHER-PROFILE-SCORE | P1 | Producto | VERIFIED |
 | C-P1-TEACHER-ONBOARDING | P1 | Producto | VERIFIED |
 | C-P1-PHONE-VERIFICATION | P1 | Integraciones | BLOCKED_EXTERNAL |
@@ -759,9 +764,9 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P2-QA-PAYMENTS | P2 | QA | OPEN |
 | C-P1-RECOMMENDATIONS | P1 | Producto | IMPLEMENTED_NOT_VERIFIED |
 | C-P1-TEACHER-AVAILABILITY | P1 | Producto | IMPLEMENTED_NOT_VERIFIED |
-| C-P1-ATTENDANCE-DISPUTES | P1 | Producto / operación | REQUIRES_OWNER_INPUT |
-| C-P1-RECURRING-MENTORSHIP | P1 | Producto | REQUIRES_OWNER_INPUT |
-| C-P1-TEACHER-VERIFICATION | P1 | Producto / legal | REQUIRES_OWNER_INPUT |
+| C-P1-ATTENDANCE-DISPUTES | P1 | Producto / operación | DECIDED_BY_OWNER_DELEGATION |
+| C-P1-RECURRING-MENTORSHIP | P1 | Producto | DECIDED_BY_OWNER_DELEGATION |
+| C-P1-TEACHER-VERIFICATION | P1 | Producto / legal | DECIDED_BY_OWNER_DELEGATION |
 
 _(El detalle de cada ID, abajo, es la única fuente del estado final.)_
 
@@ -794,9 +799,9 @@ cierre · commit · tests · evidencia en vivo · notas.
 
 ### C-P0-LEGAL-APPROVAL
 - **Severidad / dominio:** P0 · Legal externo.
-- **Evidencia `CODE`:** los documentos describen el flujo implementado; no hay `OWNER_CONFIRMATION` de asesoría legal, datos formales del titular ni aprobación de versiones efectivas.
-- **Estado:** `REQUIRES_OWNER_INPUT`.
-- **Criterio de cierre:** titular/asesor valida texto, identidad del proveedor, excepciones de reaceptación y versiones finales; registra su decisión antes de publicar.
+- **Evidencia `CODE`:** los documentos describen el flujo implementado; datos del proveedor `LEGAL_*` verificados y cargados; versiones `2026-10-06` (Términos §5 reembolso a 7 días, Privacidad §11 conservación) decididas por delegación del titular, que **opta por no contratar abogado**.
+- **Estado:** `DECIDED_BY_OWNER_DELEGATION` (sin revisión externa; revisable con datos reales).
+- **Criterio de cierre:** cumplido con la decisión documentada en `MOVA_V1_DECISIONS.md`.
 - **Evidencia `PRODUCTION_LIVE`:** pendiente. La aprobación de textos no sustituye trámites ANPD o flujo transfronterizo.
 
 ### C-P0-MINOR-CONSENT-NEW
@@ -811,8 +816,8 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P0-MINOR-CONSENT-HISTORICAL
 - **Severidad / dominio:** P0 · Menores / legal externo.
 - **Evidencia `CODE`:** la migración no hace backfill y `student_data_consents` solo registra consentimientos nuevos. No existe evidencia de consentimiento específico por alumno histórico.
-- **Estado:** `REQUIRES_OWNER_INPUT`.
-- **Criterio de cierre:** titular/asesor define tratamiento de alumnos anteriores y reúne consentimiento válido por alumno cuando corresponda, sin inferirlo de otras acciones; evidencia documentada antes del cutover.
+- **Estado:** `NOT_APPLICABLE_EVIDENCED` (2026-10-06): la producción empezó vacía; hoy hay 1 alumno y 1 consentimiento registrado (1/1, consulta de solo lectura). No existen alumnos históricos sin consentimiento.
+- **Criterio de cierre:** cumplido; si en el futuro se importaran alumnos, deben registrar consentimiento por alumno antes de usarse.
 - **Evidencia `OWNER_CONFIRMATION` / `PRODUCTION_LIVE`:** pendiente.
 
 ### C-P1-TEACHER-PROFILE-SCORE
@@ -956,17 +961,17 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P0-ANPD-REGISTRATION
 - **Severidad / dominio:** P0 · Legal (Perú, Ley 29733).
 - **Evidencia:** MOVA trata datos personales, incluidos datos de menores, en bancos de datos propios; no hay en el repo constancia de inscripción de bancos de datos ante la autoridad (ANPD).
-- **Estado:** `REQUIRES_OWNER_INPUT` (trámite del titular con asesoría legal).
-- **Criterio de cierre:** constancia de inscripción (o dictamen legal de que no aplica) archivada por el titular; la Política de Privacidad referencia lo que corresponda.
+- **Estado:** `OWNER_ADMIN_PROCEDURE` (trámite gratuito en línea que exige identificación del titular; no bloquea el uso técnico; datos preparados en `MOVA_V1_DECISIONS.md` §2).
+- **Criterio de cierre:** constancia de inscripción archivada por el titular; la Política de Privacidad referencia lo que corresponda.
 - **Commit / tests:** — ; no aplica prueba de código.
 - **Evidencia en vivo:** no aportada.
-- **Notas:** requiere decisión y gestión del titular con asesoría legal.
+- **Notas:** gestión del titular sin asesoría externa; datos del formulario ya preparados.
 
 ### C-P0-TRANSBORDER
 - **Severidad / dominio:** P0 · Legal (flujo transfronterizo).
 - **Evidencia `STATIC_IAC` / `LIVE_STAGING` / `CODE`:** la plantilla selecciona Azure `mexicocentral`; las tres Container Apps de staging se consultaron en `mova-prod-rg`. Hay nombres de configuración de Gmail, JaaS, Cloudinary, Sentry y Mercado Pago en distintos roles; presencia no demuestra transmisión real ni ubicación final de datos. Google OAuth, Meta y Pusher no tenían nombres de credenciales en ese inventario. En C1 la Política pasa a describir proveedores de modo condicional.
-- **Estado:** `REQUIRES_OWNER_INPUT` (comunicación/gestión formal del flujo transfronterizo según la norma peruana; validación legal del texto).
-- **Criterio de cierre:** gestión formal del titular completada y el texto de Privacidad validado por asesoría legal.
+- **Estado:** `OWNER_ADMIN_PROCEDURE` (la comunicación del flujo transfronterizo se incorpora a la inscripción del banco de datos; texto de Privacidad publicado y definitivo para V1).
+- **Criterio de cierre:** gestión formal del titular completada.
 - **Commit / tests:** `2a1b62f` (divulgación de proveedores); SQLite/MySQL y build pasaron, gestión legal externa pendiente.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** el cambio de texto no sustituye la gestión formal.
@@ -1064,7 +1069,7 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P1-ATTENDANCE-DISPUTES
 - **Severidad / dominio:** P1 · Producto / operación.
 - **Evidencia `CODE` (2026-10-04):** no existe código de asistencia, ausencia ni disputa. `JaasService` solo emite JWT de sala; emitir un enlace **no** prueba presencia. Controles actuales: confirmación/reporte del padre y del profesor, Libro de Reclamaciones, y acciones de admin con MFA (`cancel`, `force-complete`, `force-refund`), más la gracia previa a la liquidación.
-- **Estado:** `REQUIRES_OWNER_INPUT`. **Fuera del alcance de código de esta fase.**
+- **Estado:** `DECIDED_BY_OWNER_DELEGATION` (2026-10-06, `MOVA_V1_DECISIONS.md` §4: sin automatismos de sanción; la evidencia de presencia JaaS se guarda y el admin resuelve manualmente). El texto siguiente es histórico.
 - **Motivo:** cualquier consecuencia (reembolso, consumo de crédito, penalización, plazos) es política de negocio que no está definida; evidencia fiable de presencia exige configurar webhooks de JaaS (externo, no verificado). Implementar el registro sin esas reglas sería inventar política.
 - **Decisiones necesarias:** (1) plazo para reportar un problema; (2) qué ocurre con el crédito si el profesor no asiste y si el alumno no asiste; (3) si un reporte retiene la liquidación automática; (4) fuente de presencia aceptada (declaración de las partes, webhooks de JaaS o ambas).
 - **Evidencia en vivo:** no aportada.
@@ -1072,14 +1077,14 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P1-RECURRING-MENTORSHIP
 - **Severidad / dominio:** P1 · Producto.
 - **Evidencia `CODE` (2026-10-04):** "acompañamiento continuo" es un indicador (`class_requests.is_mentorship`) y un contador de cupos del profesor (`mentorship_slots_total/taken`, liberado al cancelar). No existen series de clases, recurrencia ni reserva de créditos para varias clases.
-- **Estado:** `REQUIRES_OWNER_INPUT`. **Fuera del alcance de código de esta fase.**
+- **Estado:** `DECIDED_BY_OWNER_DELEGATION` (2026-10-06, `MOVA_V1_DECISIONS.md` §5: no hay clases recurrentes en V1). El texto siguiente es histórico.
 - **Motivo:** una recurrencia reservaría créditos de varias clases futuras y cambiaría la reserva, el settlement y la cancelación; faltan reglas (frecuencia, duración, qué pasa al cancelar una serie, cobro). No se presenta como implementada: la interfaz no debe prometer agendado recurrente automático.
 - **Evidencia en vivo:** no aportada.
 
 ### C-P1-TEACHER-VERIFICATION
 - **Severidad / dominio:** P1 · Producto / legal.
 - **Evidencia `CODE` (2026-10-04):** "verificado" significa que un admin aprobó el perfil (`is_verified`, con `reviewed_by/at`, MFA reciente); no se recopila ni almacena ningún documento (DNI, títulos, antecedentes).
-- **Estado:** `REQUIRES_OWNER_INPUT`. **Verificación documental fuera del alcance de código.**
+- **Estado:** `DECIDED_BY_OWNER_DELEGATION` (2026-10-06, `MOVA_V1_DECISIONS.md` §6: «verificado» = revisión manual del admin con DNI, formación y antecedentes; sin almacenar documentos en la plataforma). El texto siguiente es histórico.
 - **Motivo:** recopilar documentos sensibles exige política aprobada (qué se pide, base legal, retención, quién accede, cifrado). Hasta que el titular defina el alcance de "profesor verificado", los textos públicos no deben sugerir verificación documental.
 - **Decisiones necesarias:** criterios exactos de verificación; si habrá documentos, cuáles y cómo se custodian; texto aprobado de la insignia.
 - **Evidencia en vivo:** no aportada.

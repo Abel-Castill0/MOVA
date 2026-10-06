@@ -1,9 +1,9 @@
 # MOVA V1 — Registro de decisiones de negocio y legales (2026-10-06)
 
 > **Estado:** decisiones **adoptadas por delegación expresa del propietario** (2026-10-06: «tú toma la mejor decisión, investiga a profundidad»).
-> Son las opciones más conservadoras y reversibles que respaldan las fuentes oficiales consultadas. **No sustituyen asesoría legal**:
-> lo marcado «revisión legal» debe validarlo un abogado peruano antes de promocionar el servicio a menores. Cada decisión indica qué ya
-> está implementado, qué es solo política operativa y qué acción externa queda (siempre del propietario).
+> Son las opciones más conservadoras y reversibles que respaldan las fuentes oficiales consultadas. **El propietario decidió operar sin abogado**
+> (2026-10-06): estas decisiones son definitivas para V1 y no dependen de una revisión externa; los textos publicados las reflejan. Cada decisión
+> indica qué ya está implementado, qué es solo política operativa y qué trámite administrativo queda (siempre del propietario).
 
 ## 1. Datos de menores y consentimiento (Ley 29733 y D.S. 016-2024-JUS)
 
@@ -16,7 +16,7 @@
   Política de Privacidad, con versión y fecha de aceptación (`legal_acceptances`). No se ofrecen obsequios ni beneficios a cambio del consentimiento.
 - **Ya implementado:** autorización parental en el alta del alumno, reaceptación al cambiar la versión legal, control parental (aprobación del padre
   de cada solicitud), IA y WhatsApp apagados (la política declara que no se envían datos a IA; `LEGAL_PRIVACY_AI_MISMATCH` lo vigila).
-- **Revisión legal:** redacción final del texto de consentimiento y de la Política de Privacidad.
+- **Texto:** el consentimiento y la Política de Privacidad vigentes (versión 2026-10-06) son los definitivos de V1; se revisan con datos reales de uso.
 
 ## 2. Registro ante la ANPD y flujo transfronterizo
 
@@ -28,8 +28,23 @@
   JWT; sin correo ni teléfono), Gmail SMTP (correos transaccionales), Mercado Pago (cobro de créditos del profesor, no de menores).
 - **Encargados/destinos a declarar:** Azure (México Central, base de datos y aplicación), Cloudinary (EE. UU., fotos de perfil), Sentry (errores),
   8x8/JaaS (reuniones), Google (correo), Mercado Pago (pagos).
-- **Acción del titular (no automatizable):** el trámite exige tu identificación ante la ANPD (portal del Ministerio de Justicia / Mesa de partes
-  digital). Revisión legal recomendada.
+- **Trámite del titular (gratuito, en línea, no automatizable):** inscribir el banco de datos y comunicar el flujo transfronterizo exige la identificación
+  del titular ante la ANPD (gob.pe). Los datos para completarlo están en la tabla de abajo. Es una obligación administrativa del titular; **no impide
+  usar la aplicación**, pero conviene hacerlo antes de promocionarla a escala.
+- **Plazo de conservación (decidido):** datos de cuenta mientras esté activa; cuenta eliminada ⇒ anonimizada; cuentas inactivas > 2 años pueden anonimizarse;
+  registros de pagos/créditos hasta 5 años (obligaciones contables y tributarias); Libro de Reclamaciones al menos 2 años. Publicado en Privacidad §11.
+
+| Campo | Contenido para el formulario de la ANPD |
+|---|---|
+| Titular | Los datos `LEGAL_*` ya cargados (razón social/RUC/domicilio) |
+| Banco de datos | Usuarios de MOVA: padres/apoderados, profesores y alumnos menores registrados por su apoderado |
+| Finalidad | Gestión de cuentas, agenda y realización de clases en línea, reportes de clase, créditos y pagos de profesores, atención de reclamos |
+| Categorías | Identificación y contacto, foto opcional, datos del alumno (nombre, grado, necesidades que ingresa el apoderado), reportes de clase, registros de aceptación legal, pagos de profesores vía Mercado Pago (MOVA no guarda tarjeta ni código Yape) |
+| Menores | Siempre con consentimiento del padre/madre/apoderado |
+| Destinatarios/encargados | Microsoft Azure (México Central), Google (correo), 8x8/JaaS (videollamadas), Cloudinary (fotos), Mercado Pago (cobros), Sentry (errores sin identificadores) |
+| Transfronterizo | Cloudinary, 8x8/JaaS, Google, Sentry (comunicar a la Dirección General de Transparencia, Acceso a la Información Pública y Protección de Datos Personales) |
+| Seguridad | TLS, contraseñas cifradas, MFA de administrador, roles, ledger inmutable, copias de la base (14 días), secretos fuera del código |
+| Derechos ARCO | Correo de soporte publicado en la Política de Privacidad (`LEGAL_SUPPORT_EMAIL`) |
 
 ## 3. Reembolsos, desistimiento, contracargos y saldo negativo
 
@@ -37,13 +52,14 @@
   reembolsar un pago hasta **180 días** tras su aprobación, y ante un **contracargo** el importe queda retenido y, si se da por válido, se descuenta al vendedor
   (la resolución puede tardar hasta 6 meses).
 - **Decisión de política:**
-  1. **Créditos no usados:** reembolsables íntegros a pedido del profesor dentro de **7 días** desde la compra (más generoso que el mínimo a verificar con el
-     abogado) y siempre que no se hayan consumido ni reservado; después, no reembolsables salvo error de MOVA. Créditos consumidos (clases dadas): no se reembolsan.
+  1. **Créditos no usados:** reembolsables íntegros a pedido del profesor dentro de **7 días** desde la compra (opción más protectora del consumidor, elegida
+     frente a «no reembolsable» porque una exclusión total es la más expuesta ante la Ley 29571 y el costo operativo es bajo) y siempre que no se hayan consumido ni
+     reservado; después, no reembolsables salvo error de MOVA. Créditos consumidos (clases dadas): no se reembolsan.
   2. **Quién inicia:** solo un administrador, desde el panel de Mercado Pago (reembolso por el proveedor); el webhook de reembolso **revierte el crédito en el
      ledger** (ya implementado, un único `reversal`).
   3. **Contracargo/saldo negativo:** si un reembolso o contracargo deja el saldo del profesor sin respaldo (créditos ya gastados), el profesor queda **restringido
      para nuevas reservas** hasta regularizar (recargar o resolver), con revisión manual del administrador; **nunca se borra ni edita el ledger** (append-only).
-  4. **Lenguaje al usuario:** la política se publica en Términos antes de habilitar el cobro público (pendiente de redacción final por el abogado).
+  4. **Lenguaje al usuario:** **publicada en Términos §5 (versión 2026-10-06)**; quien ya aceptó la versión anterior debe reaceptar (flujo existente).
 - **Implementado:** reversión por reembolso/contracargo confirmado y reversión manual de admin. **Pendiente de código (post-lanzamiento):** el bloqueo
   automático por saldo negativo (hoy es revisión manual del administrador).
 
@@ -64,9 +80,9 @@
 ## 6. Verificación de profesores
 
 - **Decisión:** el profesor aparece como «verificado» (`is_verified`) **solo tras revisión manual del administrador** de: DNI, evidencia de formación/experiencia y
-  declaración de antecedentes (se recomienda exigir certificado de antecedentes penales/policiales vigente por tratarse de trabajo con menores). Sin `is_verified` no recibe solicitudes.
+  declaración de antecedentes (**se exige** certificado de antecedentes penales/policiales vigente por tratarse de trabajo con menores). Sin `is_verified` no recibe solicitudes.
 - **Implementado:** bandera `is_verified` y filtro de elegibilidad; **pendiente** (operativo): checklist y custodia de documentos del admin — esos documentos son datos personales
-  y quedan bajo el banco de datos del punto 2. Revisión legal sobre el requisito de antecedentes.
+  y quedan bajo el banco de datos del punto 2.
 
 ## 7. Modelo de pago entre padres y profesores
 
@@ -86,8 +102,9 @@
 
 ## 9. Pagos (Mercado Pago / Yape)
 
-- **Estado:** credenciales live cargadas; Yape es el método principal (checkout Yape). El cobro público **sigue cerrado** hasta cerrar la prueba live mínima de S/ 1
-  del propietario con reembolso, y hasta que los Términos publiquen la política de reembolsos (punto 3).
+- **Estado:** credenciales live cargadas; Yape es el método principal (checkout Yape). La política de reembolsos ya está publicada (punto 3). El cobro público
+  **sigue cerrado** únicamente hasta completar la prueba live mínima del propietario con reembolso; el primer intento (S/ 1, Yape) fue rechazado por Mercado Pago
+  con HTTP 400/2072 y la causa solo la puede aclarar su soporte (caso preparado en `MERCADOPAGO_SUPPORT_CASE_2072.md`).
 - **Migración a Orders:** la API de Payments sigue operativa (solo correcciones de seguridad/estabilidad, sin fecha de retiro publicada): trabajo técnico posterior.
 
 ## Fuentes consultadas

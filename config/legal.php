@@ -10,9 +10,11 @@ return [
     // 2026-09-29 (C1): texto alineado con el runtime real — IA desactivada,
     // minimización pre-aceptación, consentimiento por alumno, pagos de
     // créditos, proveedores/transferencia internacional, cookies, re-aceptación.
+    // 2026-10-06: Términos §5 (reembolso de créditos no usados a 7 días) y
+    // Privacidad §11 (plazos de conservación) alineados con DECISIONS.
     'versions' => [
-        'terms'   => env('LEGAL_TERMS_VERSION', '2026-09-29'),
-        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-09-29'),
+        'terms'   => env('LEGAL_TERMS_VERSION', '2026-10-06'),
+        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-10-06'),
     ],
 
     // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al

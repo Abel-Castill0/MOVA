@@ -106,7 +106,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">11. Conservación y eliminación</h2>
-          <p class="text-slate-600 leading-relaxed">Conservamos tus datos mientras tu cuenta esté activa. Puedes eliminar tu cuenta desde tu perfil. Si la cuenta tiene historial de clases o de créditos, en lugar de borrarse se anonimiza: se eliminan tu nombre, correo, teléfono y foto, y se conservan solo los registros necesarios para la integridad de ese historial. Las hojas del Libro de Reclamaciones se conservan aunque elimines tu cuenta.</p>
+          <p class="text-slate-600 leading-relaxed">Conservamos tus datos mientras tu cuenta esté activa. Puedes eliminar tu cuenta desde tu perfil. Si la cuenta tiene historial de clases o de créditos, en lugar de borrarse se anonimiza: se eliminan tu nombre, correo, teléfono y foto, y se conservan solo los registros necesarios para la integridad de ese historial. Las hojas del Libro de Reclamaciones se conservan aunque elimines tu cuenta. Los registros de pagos y créditos (sin tus datos de contacto una vez anonimizada la cuenta) se conservan hasta 5 años por obligaciones contables y tributarias, y las hojas del Libro de Reclamaciones, al menos 2 años; vencidos esos plazos se eliminan. Si tu cuenta permanece sin actividad por más de 2 años, podemos anonimizarla.</p>
         </section>
 
         <section>
