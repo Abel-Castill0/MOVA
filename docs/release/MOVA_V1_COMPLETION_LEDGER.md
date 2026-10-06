@@ -41,7 +41,7 @@ criterio lo exige, evidencia en vivo del entorno real).
 ## Estado actual (2026-10-05, cierre de la ronda de lanzamiento)
 
 **No se declara «100 % terminado».** Producción Azure existe, está sana, aislada en datos y **atiende
-`https://movaeduca.me` con TLS válido** (2026-10-06), pero **sin correo, sin JaaS/Cloudinary de producción y sin
+`https://movaeduca.me` con TLS válido** (2026-10-06), con **correo SMTP real verificado**, pero **sin JaaS/Cloudinary de producción y sin
 cobros live** (pagos `fake`/apagados). Este bloque **sustituye** cualquier estado anterior del ledger que lo contradiga.
 
 **Evidencia de código sobre el árbol definitivo (`LOCAL_TEST`, PHP 8.3.35):** `composer audit`/`npm audit`
@@ -63,7 +63,7 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
 
 | Función | Implementada | LOCAL_TEST | LIVE_STAGING | PRODUCTION_LIVE | Pendiente exacto |
 |---|---|---|---|---|---|
-| Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Registro → verificación → recuperación → ingreso probados con correo real (un buzón alias) | No (correo `array`; el registro público no puede verificarse) | Credenciales SMTP de producción; crear admin con `mova:create-admin` |
+| Registro, verificación, recuperación de contraseña, perfiles | Sí | PHPUnit + E2E | Registro → verificación → recuperación → ingreso probados con correo real (un buzón alias) | **Sí, 2026-10-06**: registro, verificación, correo de bienvenida, recuperación y reingreso en `https://movaeduca.me` con un buzón de prueba; usuario eliminado después | Crear el admin con `mova:create-admin` (necesita el correo del titular) |
 | Disponibilidad semanal, búsqueda y recomendaciones | Sí | PHPUnit + E2E (3) | Desplegado; migraciones aplicadas | Migraciones aplicadas, sin datos | Prueba con docentes reales |
 | Solicitud y reserva de clases | Sí | E2E «flujo de 8 pasos» | Sin re-verificar en esta ronda | No | Verificación en producción tras cutover |
 | Clases JaaS (sala, permisos, ventana, reconexión) | Sí | 11 E2E con script simulado | **Reunión real** docente+padre (escritorio y móvil), salida/reingreso | No (sin credenciales) | Credenciales JaaS de producción; prueba humana de audio/video |
@@ -111,8 +111,9 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   ni `LocalTestDataSeeder`). **Límite de la evidencia:** el contenedor no registra accesos HTTP, por lo que ningún log
   prueba la ausencia de `POST /login` en esa ventana; lo verificado es que la cuenta nunca verificó su correo, que no
   quedó sesión autenticada ni token, y que ya no existe. Corregido en código: `RoleSeeder` solo crea roles fuera de local/testing; `DatabaseSeeder` y `LocalTestDataSeeder` abortan en producción; nuevo `mova:create-admin` (contraseña desconocida + MFA). No se ejecutarán más seeders en producción.
-- **Alertas operativas de producción (4 críticas, esperadas):** `SETTLEMENT_DRY_RUN_IN_PRODUCTION`,
-  `MAIL_MAILER_NON_DELIVERING`, `LEGAL_PROVIDER_DATA_MISSING`, `JAAS_NOT_CONFIGURED`. Confirman que el monitor detecta
+- **Alertas operativas de producción (4 críticas, esperadas al 2026-10-06 antes de configurar el correo):**
+  `SETTLEMENT_DRY_RUN_IN_PRODUCTION`, `MAIL_MAILER_NON_DELIVERING` (ya resuelta por la configuración SMTP),
+  `LEGAL_PROVIDER_DATA_MISSING`, `JAAS_NOT_CONFIGURED`. Confirman que el monitor detecta
   los huecos reales; cada una desaparece al cerrar su causa.
 - **Costo y crédito (Azure for Students, 2026-10-06):** crédito restante **US$ 86**, vence **14/09/2027** (≈ 11,3 meses
   ⇒ gasto sostenible ≈ **US$ 7,6/mes**); previsión del portal US$ 19,22/mes. Gasto real (API de Cost Management):
@@ -141,15 +142,22 @@ Mercado Pago cerrado a todos, sandbox). Sin migraciones nuevas en esta imagen.
   cargada como secreto `mercadopago-webhook-secret` pero **inactiva**: `MERCADOPAGO_WEBHOOKS_ENABLED=false`,
   `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`. Hay que regenerarla en el panel (y actualizarla en staging) **antes** de
   habilitar el webhook. Ningún cobro es posible.
-- **Correo de producción:** bloqueado. Google exige un desafío de **llave de acceso (passkey)** para crear la contraseña
-  de aplicación de la cuenta de correo del proyecto; solo el titular puede aprobarlo. Staging sí funciona con correo real
-  (registro, verificación y recuperación probados).
+- **Correo de producción (verificado el 2026-10-06):** SMTP de Gmail con una contraseña de aplicación propia («MOVA
+  produccion», distinta de la de staging), cargada como secretos `mail-username`/`mail-password` en los tres roles
+  (el valor pasó por un archivo temporal ya eliminado; no se mostró). Prueba única con un buzón alias de prueba: registro
+  de un padre en `https://movaeduca.me` → correo de verificación recibido → verificación (aterriza en `/dashboard`) →
+  correo «su cuenta está lista» → solicitud de recuperación → correo recibido → nueva contraseña → ingreso con ella. Tres
+  correos al mismo buzón, ninguno masivo. El usuario de prueba y sus filas se eliminaron de producción después (0 usuarios).
+  Defecto encontrado y corregido: producción no tenía `APP_NAME`, por lo que los correos mostraban el logo y el nombre
+  «Laravel»; ahora `APP_NAME=MOVA` (revisión 0000006, y en `apps.bicep`). Pendiente: el correo usa el remitente de Gmail
+  (`m0v4class@gmail.com`); SPF/DKIM/DMARC de un remitente propio del dominio siguen siendo decisión del titular, y Gmail
+  limita el envío (≈ 500/día). La alerta `MAIL_MAILER_NON_DELIVERING` debe cerrarse en el siguiente health-check.
 - **JaaS / Cloudinary producción:** no configurados. JaaS: plan **JaaS Dev (25 MAU, US$ 0)** con una sola app compartida
   con staging (8 MAU ya consumidos por las pruebas); producción necesita clave API propia y decidir plan (25 MAU solo
   sirve de piloto). Cloudinary: sin sesión abierta en el navegador.
 - **Lista de rotación antes de activar integraciones live:** (1) clave de firma de Mercado Pago (expuesta); (2) DSN de
   Sentry de producción (pasó por un archivo temporal ya eliminado; rotación opcional pero recomendable); (3) token y clave
-  pública live de Mercado Pago; (4) contraseña de aplicación de correo, JaaS y Cloudinary de producción al crearlas;
+  pública live de Mercado Pago; (4) la contraseña de aplicación de correo de producción (ya cargada; rotar si se sospecha exposición), y JaaS y Cloudinary de producción al crearlas;
   (5) la credencial histórica del incidente F-26 (MySQL de Railway en el historial de git), que sigue abierta y separada.
 - **Datos legales:** `apps.bicepparam` acepta `MOVA_LEGAL_BUSINESS_NAME/RUC/ADDRESS/SUPPORT_EMAIL`; sin ellos
   `mova:health-check` marca `LEGAL_PROVIDER_DATA_MISSING` (los aporta el titular; no se inventan).

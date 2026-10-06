@@ -1,6 +1,6 @@
 # MOVA — Runbook de producción (Azure)
 
-> Estado (2026-10-06): producción **sana y sirviendo `https://movaeduca.me` con TLS, pero sin correo ni integraciones live**. Este documento no
+> Estado (2026-10-06): producción **sana y sirviendo `https://movaeduca.me` con TLS, pero con correo real verificado, sin integraciones live**. Este documento no
 > contiene secretos: solo nombres, destinos y procedimientos. Estados según el ledger
 > (`LOCAL_TEST` / `LIVE_STAGING` / `PRODUCTION_LIVE`): lo descrito aquí como «construido» es `PRODUCTION_LIVE`
 > **solo para infraestructura y salud**; ninguna integración externa está activa en producción.
@@ -36,6 +36,7 @@ Presupuesto `mova-monthly-20` (US$ 20/mes) con alertas al 50 %/80 % reales y 100
 
 ## 2. Despliegue (procedimiento reproducible)
 
+0. Variables de aplicación imprescindibles: `APP_NAME=MOVA` (sin él los correos salen con la marca «Laravel»).
 1. Construir la imagen del árbol validado y subirla al ACR; usar siempre el **digest** (`mova@sha256:…`).
 2. Variables de shell (no versionadas) y `apps.bicepparam`:
    `MOVA_CONTAINER_IMAGE`, `MOVA_PREFIX=mova`, `MOVA_APP_NAME_PREFIX=movap`, `MOVA_MYSQL_SERVER_NAME`,
@@ -86,7 +87,7 @@ variable de entorno `secretref:` en **cada** rol que la use (web, worker, schedu
 | Integración | Variables / secretos (nombres exactos) | Dónde se obtienen | Prueba posterior |
 |---|---|---|---|
 | Mercado Pago **live** (webhook productivo ya registrado y `MERCADOPAGO_WEBHOOK_SECRET` cargado en los 3 roles; faltan las credenciales live) | `MERCADOPAGO_ACCESS_TOKEN` (secreto), `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`, `MERCADOPAGO_WEBHOOK_SECRET` (secreto), `MERCADOPAGO_WEBHOOKS_ENABLED`, `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED`, `MERCADOPAGO_CHECKOUT_ALLOWLIST` | Panel MP Developers → credenciales de **producción** de la app; Webhooks → modo productivo con `https://movaeduca.me/api/webhooks/mercadopago` | Con allowlist = cuenta del propietario: un cobro real mínimo + reembolso, solo con importe aprobado por el propietario |
-| Correo | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME` (secreto), `MAIL_PASSWORD` (secreto), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Proveedor SMTP / contraseña de aplicación de Gmail | Registro + verificación + recuperación a un buzón propio |
+| Correo (**cargado y verificado 2026-10-06**; contraseña de aplicación «MOVA produccion») | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME` (secreto `mail-username`), `MAIL_PASSWORD` (secreto `mail-password`), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Proveedor SMTP / contraseña de aplicación de Gmail | Registro + verificación + recuperación a un buzón propio |
 | JaaS | `JAAS_APP_ID`, `JAAS_KEY_ID`, `JAAS_PRIVATE_KEY` (secreto, base64 PEM en una línea), `JAAS_WEBHOOKS_ENABLED`, `JAAS_WEBHOOK_SIGNING_SECRET` (secreto) | Consola JaaS: API key propia de producción; Webhooks → `https://movaeduca.me/api/webhooks/jaas` | Reunión de dos participantes + eventos de presencia |
 | Cloudinary | `CLOUDINARY_URL` (secreto) | Cloud/API key propios de producción | Subida y borrado de un avatar sintético |
 | Sentry | `SENTRY_LARAVEL_DSN` (secreto), `SENTRY_ENVIRONMENT=production` | Proyecto propio de producción (recomendado) | Un evento sintético con entorno `production` |

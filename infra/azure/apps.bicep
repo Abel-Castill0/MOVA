@@ -105,6 +105,7 @@ var effectiveAppUrl = empty(appUrl) ? 'https://${appNamePrefix}-web.${envRef.pro
 var sharedEnv = union(
   appConfig,
   {
+    APP_NAME: 'MOVA'
     APP_ENV: 'production'
     APP_DEBUG: 'false'
     APP_URL: effectiveAppUrl
