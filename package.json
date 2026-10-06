@@ -8,6 +8,7 @@
         "check:title": "node scripts/check-app-title-fallback.mjs",
         "check:chatbot-escape": "node scripts/check-chatbot-escape.mjs",
         "check:movi-availability": "node scripts/check-movi-availability-status.mjs",
+        "check:checkout-poll": "node scripts/check-checkout-poll.mjs",
         "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
         "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1"
     },

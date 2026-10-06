@@ -154,13 +154,26 @@
         </div>
 
         <!-- Verificando / pendiente / incierto: NUNCA se muestra como "falló", nunca invita a pagar de nuevo -->
-        <div v-else-if="isVerifying" class="flex flex-col items-center gap-3 py-4 text-center">
+        <div v-else-if="isVerifying && pollExhausted" class="flex flex-col items-center gap-3 py-4 text-center" role="status" aria-live="polite">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600" aria-hidden="true">
+            <Icon name="info" :size="24" />
+          </span>
+          <p class="font-bold text-slate-900">No pudimos confirmar tu pago todavía</p>
+          <p class="text-sm text-slate-500">
+            Mercado Pago aún no nos confirma si el pago se aprobó o no. <strong>No vuelvas a pagar</strong>: si ya aprobaste el pago en Yape,
+            se acreditará solo cuando se confirme; si no se completó, no se te habrá cobrado.
+          </p>
+          <SecondaryButton type="button" class="mt-1" @click="consultAgain">Consultar estado</SecondaryButton>
+          <Link :href="route('teacher.credits.index')" class="text-xs text-slate-400 underline">Volver a Mis créditos</Link>
+        </div>
+
+        <div v-else-if="isVerifying" class="flex flex-col items-center gap-3 py-4 text-center" role="status" aria-live="polite">
           <svg class="h-8 w-8 motion-safe:animate-spin text-brand-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
           <p class="font-semibold text-slate-900">{{ statusMessage }}</p>
-          <p class="text-xs text-slate-400">Esto puede tardar hasta un minuto.</p>
+          <p class="text-xs text-slate-400">Esto puede tardar hasta {{ pollBudgetText }}.</p>
         </div>
 
         <!-- Aprobado -->
@@ -203,6 +216,7 @@ import { createYapeToken } from '@/lib/mercadoPagoYape'
 import { mountCardPaymentBrick, unmountCardPaymentBrick } from '@/lib/mercadoPagoCard'
 import { preloadMercadoPagoSdk } from '@/lib/mercadoPago'
 import { clearChallenge, renderChallenge, watchChallengeCompletion } from '@/lib/mercadoPagoChallenge'
+import { pollBudgetLabel, pollIntervalMs, pollOutcome } from '@/lib/checkoutPolling'
 
 const props = defineProps({
   recharge: { type: Object, required: true },
@@ -246,37 +260,15 @@ const brickReady = ref(false)
 // reaccionar a sus cambios, solo el código de esta función.
 let cardController = null
 
-// 3DS CHALLENGE: el Challenge de Mercado Pago tiene una ventana oficial de
-// ~5 minutos (ver documentación "Integrate 3DS") — el presupuesto anterior
-// (40 intentos, ~4 min) alcanzaba de sobra para Yape pero se quedaba corto
-// para dejar completar un Challenge de tarjeta entero. Subido a 46 intentos
-// y un cuarto escalón (~320s totales) — nunca infinito, solo con margen
-// suficiente para el caso nuevo; no cambia el comportamiento de Yape (que
-// casi siempre resuelve en los primeros escalones).
-const MAX_POLL_ATTEMPTS = 46
-// POLLING QUALITY (MOVA Yape Checkout Pre-Card Hardening): backoff
-// progresivo por escalones — la mayoría de los pagos Yape se resuelven en
-// los primeros segundos, así que empieza agresivo (3s) y se relaja según
-// pasa el tiempo sin resolverse, en vez de martillar el mismo intervalo
-// fijo durante los ~2 minutos completos de presupuesto.
-const POLL_INTERVAL_STEPS = [
-  { afterAttempt: 0, ms: 3000 },
-  { afterAttempt: 10, ms: 5000 },
-  { afterAttempt: 20, ms: 8000 },
-  { afterAttempt: 30, ms: 10000 },
-]
+// Presupuesto y backoff del polling: ver resources/js/lib/checkoutPolling.js (módulo compartido y probado aparte
+// por scripts/check-checkout-poll.mjs; el plazo que se muestra sale de esos mismos números).
+const pollBudgetText = pollBudgetLabel()
 let pollTimer = null
 let pollAttempts = 0
+// true cuando se agotó el presupuesto de consultas y el pago SIGUE sin resolverse: no es aprobado ni fallido (sigue
+// incierto en el servidor) — la interfaz deja de girar y pide no volver a pagar (ver consultAgain()).
+const pollExhausted = ref(false)
 let pollingActive = false // intención de seguir sondeando; independiente de si HAY un timer vivo ahora mismo (puede estar en pausa por document.hidden)
-
-function currentPollIntervalMs() {
-  let ms = POLL_INTERVAL_STEPS[0].ms
-  for (const step of POLL_INTERVAL_STEPS) {
-    if (pollAttempts >= step.afterAttempt) ms = step.ms
-  }
-
-  return ms
-}
 
 const isBusy = computed(() => phase.value === 'tokenizing' || phase.value === 'submitting')
 // 3DS CHALLENGE: subconjunto de 'pending' — su v-else-if debe evaluarse
@@ -553,6 +545,7 @@ watch(showChallenge, async (show) => {
 function startPolling() {
   stopPolling()
   pollAttempts = 0
+  pollExhausted.value = false
   pollingActive = true
   scheduleNextPoll()
 }
@@ -570,16 +563,17 @@ function stopPolling() {
 // vuelo si uno tarda más de lo esperado en responder.
 function scheduleNextPoll() {
   if (!pollingActive || document.hidden) return // pausado; visibilitychange lo reanuda
-  pollTimer = window.setTimeout(runPoll, currentPollIntervalMs())
+  pollTimer = window.setTimeout(runPoll, pollIntervalMs(pollAttempts))
 }
 
 async function runPoll() {
-  pollAttempts += 1
-  if (pollAttempts > MAX_POLL_ATTEMPTS) {
-    stopPolling()
+  if (pollOutcome(pollAttempts) === 'exhausted') {
+    markPollExhausted()
 
     return
   }
+
+  pollAttempts += 1
 
   try {
     // STATUS SEMANTICS (MOVA Yape Final Pre-Card Gate): el polling llama a
@@ -593,7 +587,26 @@ async function runPoll() {
     // nunca se traduce a un estado de error).
   }
 
+  // Último poll permitido y el pago sigue sin resolverse: salir de "girando" YA, sin esperar otro intervalo.
+  if (pollingActive && pollOutcome(pollAttempts) === 'exhausted' && isVerifying.value) {
+    markPollExhausted()
+
+    return
+  }
+
   scheduleNextPoll()
+}
+
+// Agotado el presupuesto: se detiene el polling, NO se cambia status (ni aprobado ni fallido: no hay evidencia) y se
+// muestra un aviso claro de "no pudimos confirmar todavía" que prohíbe volver a pagar.
+function markPollExhausted() {
+  stopPolling()
+  if (isVerifying.value) pollExhausted.value = true
+}
+
+// Consulta segura bajo demanda: refresh() solo RECONCILIA el intento existente contra Mercado Pago, nunca crea un pago.
+function consultAgain() {
+  startPolling()
 }
 
 // Pestaña en segundo plano: pausa el polling (nada que ganar gastando

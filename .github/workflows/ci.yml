@@ -51,6 +51,7 @@ jobs:
       # Movi no afirma disponibilidad no verificada y la home solo lo monta
       # cuando el backend lo declara disponible (C-P2-CI-MOVI).
       - run: npm run check:movi-availability
+      - run: npm run check:checkout-poll
       - uses: actions/upload-artifact@v4
         with:
           name: vite-build
