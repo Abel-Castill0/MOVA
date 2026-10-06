@@ -104,6 +104,8 @@ return [
     // {APP_URL}/auth/google/callback
     'cloudinary' => [
         'cloud_url' => env('CLOUDINARY_URL'),
+        // Carpeta de avatares por entorno (cloud compartido en el plan gratuito).
+        'folder' => env('CLOUDINARY_FOLDER', 'mova/avatars'),
     ],
 
     'google' => [

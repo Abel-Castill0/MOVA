@@ -58,7 +58,7 @@ class CloudinaryService
             // entonces isConfigured()==true no garantizaría que un
             // `new UploadApi()` sin argumentos tenga credenciales reales.
             $result = ($this->uploadApi ?? new UploadApi(config('services.cloudinary.cloud_url')))->upload($file->getRealPath(), [
-                'folder' => 'mova/avatars',
+                'folder' => self::avatarFolder(),
                 'public_id' => "user-{$userId}",
                 'overwrite' => true,
                 'transformation' => [
@@ -109,6 +109,19 @@ class CloudinaryService
 
     public static function avatarPublicId(int $userId): string
     {
-        return "mova/avatars/user-{$userId}";
+        return self::avatarFolder()."/user-{$userId}";
+    }
+
+    /**
+     * Carpeta de los avatares. El plan gratuito de Cloudinary solo permite un
+     * "product environment", así que staging y producción comparten cloud:
+     * cada entorno fija su propia carpeta (CLOUDINARY_FOLDER) para que los
+     * `user-{id}` de uno no pisen los del otro. Valor no seguro ⇒ por defecto.
+     */
+    public static function avatarFolder(): string
+    {
+        $folder = trim((string) config('services.cloudinary.folder'), '/');
+
+        return preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$#', $folder) === 1 ? $folder : 'mova/avatars';
     }
 }

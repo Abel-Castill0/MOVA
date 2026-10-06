@@ -213,4 +213,19 @@ class CloudinaryServiceTest extends TestCase
         Storage::disk('public')->assertMissing('avatars/user-7.jpg');
         Storage::disk('public')->assertExists('avatars/user-70.jpg');
     }
+
+    public function test_avatar_folder_is_configurable_per_environment_and_rejects_unsafe_values(): void
+    {
+        $this->assertSame('mova/avatars', CloudinaryService::avatarFolder());
+        $this->assertSame('mova/avatars/user-3', CloudinaryService::avatarPublicId(3));
+
+        config(['services.cloudinary.folder' => 'mova-prod/avatars']);
+        $this->assertSame('mova-prod/avatars', CloudinaryService::avatarFolder());
+        $this->assertSame('mova-prod/avatars/user-3', CloudinaryService::avatarPublicId(3));
+
+        foreach (['../etc', 'a b', 'mova//x', '', 'mova/<script>'] as $bad) {
+            config(['services.cloudinary.folder' => $bad]);
+            $this->assertSame('mova/avatars', CloudinaryService::avatarFolder(), "valor inseguro aceptado: {$bad}");
+        }
+    }
 }
