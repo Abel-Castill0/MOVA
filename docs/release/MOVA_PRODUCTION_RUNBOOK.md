@@ -130,6 +130,17 @@ template**, así que solo conserva lo que el template define. Reglas: (1) para p
 `set -a; . infra/azure/production.local.env; set +a` (datos legales del titular, archivo local **ignorado por git**; `apps.bicepparam` los toma como
 `MOVA_LEGAL_*`) y volver a aplicar las integraciones listadas en §5 (los secretos viven en la app y se mantienen mientras exista el nombre del secreto).
 
+## 5c. Prueba live mínima (S/ 1) y reembolso
+
+Estado: cuenta docente de prueba del propietario con checkout live restringido (allowlist) y paquete «Verificación de cobro» (S/ 1,00).
+1. El titular restablece la contraseña de la cuenta docente de prueba («Olvidé mi contraseña»), inicia sesión → **Mis créditos** → paquete
+   «Verificación de cobro» → paga con **Yape** (su teléfono y el código de su app; MOVA nunca ve esos datos) y espera «acreditado».
+2. Comprobar: orden `paid`, un depósito, 1 crédito, un solo webhook procesado (sin duplicados), importe 1,00 PEN.
+3. **Reembolso** desde el panel de Mercado Pago (Actividad → el pago → Devolver dinero) o por API; el webhook de reembolso debe producir **un** `reversal` y
+   dejar el saldo de la cuenta de prueba en 0. Registrar comisión retenida.
+4. Cerrar: `PAYMENTS_ENABLED=false`, `MERCADOPAGO_WEBHOOKS_ENABLED=false`, `CREDITS_VERIFICATION_PACKAGE_ENABLED=false` (o dejar el checkout público solo cuando la
+   política de reembolsos esté publicada y se vacíe `MERCADOPAGO_CHECKOUT_ALLOWLIST`). Nunca más de una prueba.
+
 ## 5b. Crear el administrador (cuando el titular elija el correo)
 
 Usar un buzón real del titular, sin alias `+` ni dominios de prueba (el comando rechaza `*.test`, `example.*`). Con la imagen de

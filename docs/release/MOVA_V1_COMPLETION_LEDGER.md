@@ -51,10 +51,10 @@ sin avisos, `npm run build` OK; PHPUnit SQLite 1395 tests / 5456 assertions, 0 f
 (+9 tests, verificados en SQLite y MySQL) y un repaso completo de SQLite: 1401 tests / 5476 assertions, 0 failures.
 Mercado Pago, Cloudinary, Sentry, SMTP y JaaS reales: ver las rondas siguientes (`LIVE_STAGING`, solo sandbox/prueba).
 
-**Despliegue vigente (2026-10-06):** imagen `mova@sha256:892ec1cda81a3b202b9356592fb02598fa17d11d28ada600b4b76dcc4d731924`
-(`release-20261006-afada71`, construida del árbol validado; CI de `afada71` completo en `success`). Producción: `movap-web--0000013`,
-`movap-worker--0000012`, `movap-scheduler--0000012` (`/readyz` ready). Cambios respecto a la imagen anterior: dependencias de Vue/source-map-js
-parcheadas y `CLOUDINARY_FOLDER`; **sin migraciones nuevas**. Staging: apps a 0 réplicas sin base de datos (ver runbook §1b).
+**Despliegue vigente (2026-10-06):** imagen `mova@sha256:369419fb00326f3cf1c66c84324c302916c530e490b51e246c19a076e45722ed`
+(`release-20261006-13ea6e3`; CI de `13ea6e3` completo en `success`). Producción: `movap-web--0000016`, `movap-worker--0000015`,
+`movap-scheduler--0000015` (`/readyz` ready). Cambios respecto a la imagen anterior: paquete de verificación de cobro (S/ 1, solo propietario);
+**sin migraciones nuevas**. Staging: apps a 0 réplicas sin base de datos (ver runbook §1b).
 
 ### Matriz por función
 
@@ -149,18 +149,30 @@ parcheadas y `CLOUDINARY_FOLDER`; **sin migraciones nuevas**. Staging: apps a 0 
   no existen. Enlacé el apex con certificado gestionado en `movap-web`. **Titularidad:** el registrante de `movaeduca.me`
   en Namecheap figura con un nombre y un correo distintos de los del titular de este proyecto; no se cambian más
   registros hasta que el titular confirme que la cuenta es la autorizada.
-- **Mercado Pago producción:** webhook de modo productivo registrado (`https://movaeduca.me/api/webhooks/mercadopago`,
-  evento Pagos), **inactivo** (`MERCADOPAGO_WEBHOOKS_ENABLED=false`, `PAYMENT_PROVIDER=fake`, `PAYMENTS_ENABLED=false`;
-  ningún cobro posible). La documentación oficial indica que la clave secreta es **exclusiva de la aplicación** (no de la URL
-  ni del modo; no caduca, renovarla es recomendado), lo que coincide con lo observado: la de prueba y la productiva son la
-  misma, compartida con staging, y se mostró en la interfaz al copiarla ⇒ **potencialmente expuesta**. Cambio mínimo para
-  aislarlas: crear una **segunda aplicación de Mercado Pago solo para producción** (credenciales, clave y webhook propios) y
-  dejar la actual como sandbox de staging. Plan de renovación: (1) crear la aplicación de producción; (2) en la actual,
-  quitar la URL productiva y renovar la clave (actualizar el secreto de staging); (3) en la nueva, registrar
-  `https://movaeduca.me/api/webhooks/mercadopago` y cargar su clave en `mercadopago-webhook-secret` (los 3 roles); (4) cargar
-  access token, public key, application id y collector id **live** de la aplicación nueva, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`
-  y `MERCADOPAGO_CHECKOUT_ALLOWLIST` solo con la cuenta del titular; (5) recién entonces habilitar webhooks/pagos y hacer un único
-  cobro real mínimo + reembolso aprobados por el titular. El valor expuesto sigue cargado en Azure pero inerte; se reemplaza en el paso 3.
+- **Mercado Pago, aplicaciones separadas (2026-10-06):** aplicación de **producción** «MOVA Produccion Payments» (`4497812261072016`, API de Payments, la que usa
+  el código vía `/v1/payments`) y aplicación de **staging/sandbox** «MOVA Recarga de Creditos Payments» (`6583217782927097`). La documentación oficial indica que la
+  clave de firma del webhook es **exclusiva de cada aplicación**, por eso se separaron: (1) webhook productivo `https://movaeduca.me/api/webhooks/mercadopago` (evento
+  Pagos) en la aplicación de producción, con su **propia clave de firma, renovada («Redefinir clave») y cargada** en `mercadopago-webhook-secret` de los tres roles; (2) en la
+  aplicación de staging se quitó la URL de `movaeduca.me` y se renovó su clave (la expuesta ya no vale en ningún entorno; la nueva está en los secretos de staging y en el `.env`
+  local ignorado). Las claves se copian del panel sin escribirse en consola, aunque la interfaz las muestra un instante: regenerar la de producción otra vez antes de abrir el
+  cobro al público. **Credenciales live:** activadas en la aplicación de producción (industria «Educación / Capacitación», sitio `https://movaeduca.me`, consentimiento estándar
+  del formulario) y cargadas solo en Azure producción sin mostrarlas (`mercadopago-access-token` + `MERCADOPAGO_ACCESS_TOKEN` secretref, `MERCADOPAGO_PUBLIC_KEY`,
+  `MERCADOPAGO_APPLICATION_ID`, `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, `MERCADOPAGO_EXPECTED_LIVE_MODE=true`). **Migración a Orders:** la API de Payments sigue operativa (solo
+  correcciones de seguridad/estabilidad, **sin fecha de discontinuación publicada**; el panel avisa «será discontinuada pronto»); la ruta oficial es Checkout API vía Orders
+  (`/v1/orders`): trabajo técnico pendiente tras el lanzamiento, no especulativo.
+- **Estado de lanzamiento controlado (2026-10-06, tras delegación del propietario):** (1) **Administrador creado** en producción con `mova:create-admin`
+  (contraseña desconocida; el titular la fija con «Olvidé mi contraseña» y activa MFA). (2) **Decisiones de negocio/legales adoptadas** por delegación y
+  documentadas con fuentes oficiales en `docs/release/MOVA_V1_DECISIONS.md` (menores/ANPD, reembolsos, asistencia, recurrencia, verificación docente,
+  modelo de pago, liquidación): requieren **revisión legal** antes de promocionar el servicio. (3) **Liquidación automática en `live`**
+  (`LESSON_SETTLEMENT_MODE=live`): solo mueve el ledger interno (consume créditos reservados a los 7 días), sin dinero real; revertible a `dry_run`.
+  (4) **Credenciales live de Mercado Pago verificadas en lectura** (sin cobro): `GET /users/me` con el token de producción ⇒ 200, el cobrador coincide con
+  `MERCADOPAGO_EXPECTED_COLLECTOR_ID`, sitio `MPE`, cuenta activa; `payment_methods` incluye `yape` y `visa`. (5) **Checkout live abierto SOLO a la cuenta de
+  prueba del propietario**: `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true`, `MERCADOPAGO_WEBHOOKS_ENABLED=true`,
+  `MERCADOPAGO_CHECKOUT_ALLOWLIST=<cuenta docente de prueba>` y `CREDITS_VERIFICATION_PACKAGE_ENABLED=true` (paquete «Verificación de cobro», 1 crédito por
+  **S/ 1,00**, solo visible para esa cuenta; con allowlist vacía nunca aparece). El webhook rechaza firmas incorrectas (401) y la página `/teacher/credits`
+  de esa cuenta muestra el paquete y Yape. **El pago live NO está probado todavía**: depende de que el titular pague el sol (Yape) y de su reembolso
+  (ver «Prueba live mínima» en el runbook); hasta entonces los pagos live **no** se declaran funcionando. Antes de abrir el cobro al público: vaciar la
+  allowlist, apagar `CREDITS_VERIFICATION_PACKAGE_ENABLED` y publicar la política de reembolsos en los Términos.
 - **Correo, prueba posterior al despliegue (2026-10-06):** se registró UNA cuenta de padre con `abelwuarthon3@gmail.com` (autorizado por el titular) con
   una contraseña aleatoria descartada; el sitio redirigió a `/verify-email` y los logs de producción no muestran errores de SMTP. **La recepción en esa
   bandeja la debe confirmar el titular** (yo no puedo leerla); la cuenta queda **sin verificar** en producción (1 usuario) y se verifica/recupera
