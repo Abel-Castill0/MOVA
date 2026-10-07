@@ -24,6 +24,13 @@ class ChatbotEndpointTest extends TestCase
 
     private const KEY = 'test-fake-gemini-key-SHOULD-NEVER-LEAK';
 
+    // Estas pruebas cubren el modo proveedor externo; el modo local tiene su propio archivo (MoviLocalAssistantTest).
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Config::set('chatbot.provider', 'gemini');
+    }
+
     private function enable(): void
     {
         Config::set('chatbot.enabled', true);

@@ -58,14 +58,14 @@ const submit = () => {
         <div class="hidden lg:flex lg:w-[46%] xl:w-[45%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1B64CC] via-[#1350A5] to-[#09306E] p-6 xl:p-9 2xl:p-12">
             <!-- Capas decorativas de fondo -->
             <img
-                src="/images/brand/forgot-password-blue-shapes-opt.png"
+                src="/images/brand/forgot-password-blue-shapes-opt.webp"
                 alt=""
                 class="absolute inset-0 w-full h-full object-cover object-center opacity-30 mix-blend-screen pointer-events-none z-0"
                 loading="eager"
                 decoding="async"
             />
             <img
-                src="/images/brand/forgot-password-light-bubbles-opt.png"
+                src="/images/brand/forgot-password-light-bubbles-opt.webp"
                 alt=""
                 class="absolute -top-10 -right-10 w-96 h-auto opacity-20 mix-blend-screen pointer-events-none z-0 blur-sm"
                 loading="eager"
@@ -93,7 +93,7 @@ const submit = () => {
 
                     <!-- Badge Reporte Naranja (Esquina superior derecha de la ventana, ligeramente superpuesto) -->
                     <img
-                        src="/images/brand/forgot-password-report-opt.png"
+                        src="/images/brand/forgot-password-report-opt.webp"
                         alt="Reporte"
                         class="absolute -top-3.5 xl:-top-4 right-[1%] xl:right-[2%] w-[26%] xl:w-[27%] h-auto object-contain z-20 drop-shadow-md pointer-events-none"
                         loading="eager"
@@ -102,7 +102,7 @@ const submit = () => {
 
                     <!-- Widget Analytics (Lateral izquierdo de la ventana) -->
                     <img
-                        src="/images/brand/forgot-password-analytics-opt.png"
+                        src="/images/brand/forgot-password-analytics-opt.webp"
                         alt=""
                         class="absolute -left-6 xl:-left-8 top-[34%] xl:top-[35%] w-[14%] xl:w-[15%] h-auto object-contain z-20 drop-shadow-lg pointer-events-none"
                         loading="eager"
@@ -111,7 +111,7 @@ const submit = () => {
 
                     <!-- Widget Video (Lateral inferior derecho de la ventana) -->
                     <img
-                        src="/images/brand/forgot-password-video-widget-opt.png"
+                        src="/images/brand/forgot-password-video-widget-opt.webp"
                         alt=""
                         class="absolute -right-6 xl:-right-7 bottom-[11%] xl:bottom-[12%] w-[26%] xl:w-[27%] h-auto object-contain z-20 drop-shadow-lg pointer-events-none"
                         loading="eager"
@@ -120,7 +120,7 @@ const submit = () => {
 
                     <!-- Ventana principal con videollamada -->
                     <img
-                        src="/images/brand/forgot-password-videocall-window-opt.png"
+                        src="/images/brand/forgot-password-videocall-window-opt.webp"
                         alt="Videollamada con profesores particulares"
                         class="w-full h-auto object-contain z-10 drop-shadow-2xl block"
                         loading="eager"
@@ -156,7 +156,7 @@ const submit = () => {
         <div class="flex-1 flex flex-col justify-between p-4 sm:p-6 lg:p-8 xl:p-10 min-h-screen lg:min-h-0 lg:overflow-y-auto relative bg-[#F8FAFC] overflow-x-hidden select-text">
             <!-- Decoraciones sutiles de fondo en panel derecho -->
             <img
-                src="/images/brand/forgot-password-light-bubbles-opt.png"
+                src="/images/brand/forgot-password-light-bubbles-opt.webp"
                 alt=""
                 class="hidden lg:block absolute -top-16 -right-16 w-80 h-auto opacity-35 pointer-events-none blur-sm z-0 select-none"
             />
@@ -179,7 +179,7 @@ const submit = () => {
                     <div class="relative flex justify-center items-center mb-4 sm:mb-5 select-none">
                         <div class="absolute w-28 h-28 rounded-full bg-blue-100/60 blur-xl pointer-events-none"></div>
                         <img
-                            src="/images/brand/forgot-password-email-lock-opt.png"
+                            src="/images/brand/forgot-password-email-lock-opt.webp"
                             alt="Recuperación de contraseña"
                             class="relative z-10 w-28 sm:w-32 xl:w-36 h-auto object-contain drop-shadow-sm select-none pointer-events-none"
                             loading="eager"
@@ -220,7 +220,7 @@ const submit = () => {
                                 Correo electrónico
                             </label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
@@ -234,7 +234,7 @@ const submit = () => {
                                     autocomplete="email"
                                     placeholder="tu@correo.com"
                                     aria-describedby="email-error"
-                                    class="w-full h-[50px] sm:h-[52px] pl-11 pr-4 rounded-xl border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 bg-white transition-all duration-150 hover:border-slate-300 focus:border-[#1B60C4] focus:ring-2 focus:ring-[#1B60C4]/20 focus:outline-none"
+                                    class="w-full h-[50px] sm:h-[52px] pl-11 pr-4 rounded-xl border border-slate-200 text-slate-900 text-sm placeholder:text-slate-500 bg-white transition-all duration-150 hover:border-slate-300 focus:border-[#1B60C4] focus:ring-2 focus:ring-[#1B60C4]/20 focus:outline-none"
                                     :class="{ 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-500/20': form.errors.email }"
                                 />
                             </div>
@@ -285,7 +285,7 @@ const submit = () => {
             </main>
 
             <!-- Footer con enlaces legales reales -->
-            <footer class="pt-3 pb-2 text-center text-xs text-slate-400 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10 select-none">
+            <footer class="pt-3 pb-2 text-center text-xs text-slate-500 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10 select-none">
                 <Link :href="route('legal.terms')" class="hover:text-slate-600 transition-colors">Términos y Condiciones</Link>
                 <span class="text-slate-300">|</span>
                 <Link :href="route('legal.privacy')" class="hover:text-slate-600 transition-colors">Política de Privacidad</Link>

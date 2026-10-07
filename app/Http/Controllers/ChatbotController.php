@@ -28,7 +28,10 @@ class ChatbotController extends Controller
             'history.*.text'   => ['required_with:history', 'string', 'max:'.$maxChars],
         ]);
 
-        $result = $chatbotService->reply($validated['message'], $validated['history'] ?? []);
+        $user = $request->user();
+        $role = $user?->hasRole('teacher') ? 'teacher' : ($user ? 'parent' : null);
+
+        $result = $chatbotService->reply($validated['message'], $validated['history'] ?? [], $role);
 
         if ($result['ok']) {
             return response()->json(['ok' => true, 'reply' => $result['reply']]);

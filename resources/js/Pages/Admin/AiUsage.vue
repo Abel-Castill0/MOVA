@@ -14,22 +14,22 @@
       <!-- Limits info -->
       <div class="grid sm:grid-cols-2 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 p-4">
-          <p class="text-xs text-slate-400 mb-1">Límite diario</p>
+          <p class="text-xs text-slate-500 mb-1">Límite diario</p>
           <p class="text-2xl font-black text-slate-800">
-            {{ todaySuccess }} <span class="text-slate-400 text-lg font-normal">/ {{ limits.daily }}</span>
+            {{ todaySuccess }} <span class="text-slate-500 text-lg font-normal">/ {{ limits.daily }}</span>
           </p>
-          <p class="text-xs text-slate-400 mt-1">llamadas exitosas hoy</p>
+          <p class="text-xs text-slate-500 mt-1">llamadas exitosas hoy</p>
           <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div :class="['h-full rounded-full transition-all', dailyPct > 90 ? 'bg-red-500' : dailyPct > 70 ? 'bg-amber-400' : 'bg-emerald-500']"
               :style="{ width: dailyPct + '%' }" />
           </div>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4">
-          <p class="text-xs text-slate-400 mb-1">Límite mensual</p>
+          <p class="text-xs text-slate-500 mb-1">Límite mensual</p>
           <p class="text-2xl font-black text-slate-800">
-            {{ monthSuccess }} <span class="text-slate-400 text-lg font-normal">/ {{ limits.monthly }}</span>
+            {{ monthSuccess }} <span class="text-slate-500 text-lg font-normal">/ {{ limits.monthly }}</span>
           </p>
-          <p class="text-xs text-slate-400 mt-1">llamadas exitosas este mes</p>
+          <p class="text-xs text-slate-500 mt-1">llamadas exitosas este mes</p>
           <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div :class="['h-full rounded-full transition-all', monthlyPct > 90 ? 'bg-red-500' : monthlyPct > 70 ? 'bg-amber-400' : 'bg-emerald-500']"
               :style="{ width: monthlyPct + '%' }" />
@@ -43,7 +43,7 @@
         <div class="flex flex-wrap gap-4">
           <div v-for="s in statuses" :key="s.key" class="text-center">
             <p :class="['text-xl font-black', s.color]">{{ statsToday[s.key] ?? 0 }}</p>
-            <p class="text-xs text-slate-400">{{ s.label }}</p>
+            <p class="text-xs text-slate-500">{{ s.label }}</p>
           </div>
         </div>
       </div>
@@ -54,7 +54,7 @@
         <div class="flex flex-wrap gap-4">
           <div v-for="s in statuses" :key="s.key" class="text-center">
             <p :class="['text-xl font-black', s.color]">{{ statsMonth[s.key] ?? 0 }}</p>
-            <p class="text-xs text-slate-400">{{ s.label }}</p>
+            <p class="text-xs text-slate-500">{{ s.label }}</p>
           </div>
         </div>
       </div>
@@ -62,7 +62,7 @@
       <!-- Recent logs -->
       <div>
         <h3 class="text-sm font-bold text-slate-700 mb-2">Últimos registros</h3>
-        <div v-if="!recent.length" class="bg-white rounded-xl border border-gray-200 p-8 text-center text-slate-400 text-sm">
+        <div v-if="!recent.length" class="bg-white rounded-xl border border-gray-200 p-8 text-center text-slate-500 text-sm">
           Sin registros aún.
         </div>
         <div v-else class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
@@ -71,7 +71,7 @@
               {{ r.status }}
             </span>
             <span class="text-slate-600 flex-1">{{ r.provider }}/{{ r.model }}</span>
-            <span v-if="r.total_tokens" class="text-xs text-slate-400">{{ r.total_tokens }} tok</span>
+            <span v-if="r.total_tokens" class="text-xs text-slate-500">{{ r.total_tokens }} tok</span>
             <span v-if="r.error_type" class="text-xs text-orange-500">{{ r.error_type }}</span>
             <span class="text-xs text-slate-300 ml-auto">{{ fmtDate(r.created_at) }}</span>
           </div>
@@ -96,7 +96,7 @@ const statuses = [
   { key: 'success',  label: 'Exitosas',  color: 'text-emerald-600' },
   { key: 'fallback', label: 'Fallback',  color: 'text-amber-500' },
   { key: 'error',    label: 'Error',     color: 'text-red-500' },
-  { key: 'skipped',  label: 'Omitidas',  color: 'text-slate-400' },
+  { key: 'skipped',  label: 'Omitidas',  color: 'text-slate-500' },
 ]
 
 const statsToday    = computed(() => props.stats_today ?? {})

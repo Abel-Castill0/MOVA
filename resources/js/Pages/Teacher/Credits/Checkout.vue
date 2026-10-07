@@ -23,7 +23,7 @@
             <dt class="font-semibold text-slate-700">Total a pagar</dt>
             <dd class="text-2xl font-black text-slate-900">{{ currency }} {{ money(recharge.amount_pen) }}</dd>
           </div>
-          <div class="flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center justify-between text-xs text-slate-500">
             <dt>Saldo actual</dt>
             <dd>{{ teacherProfile.credits_available }} créditos disponibles</dd>
           </div>
@@ -110,7 +110,7 @@
             {{ busyLabel }}
           </PrimaryButton>
 
-          <p class="flex items-start gap-1.5 text-xs text-slate-400">
+          <p class="flex items-start gap-1.5 text-xs text-slate-500">
             <Icon name="secure-payment" :size="14" class="mt-0.5 flex-shrink-0" />
             Pago procesado directamente por Mercado Pago. MOVA nunca ve ni guarda tu código Yape.
           </p>
@@ -136,7 +136,7 @@
 
           <InputError :message="submitError" />
 
-          <p class="flex items-start gap-1.5 text-xs text-slate-400">
+          <p class="flex items-start gap-1.5 text-xs text-slate-500">
             <Icon name="secure-payment" :size="14" class="mt-0.5 flex-shrink-0" />
             Pago procesado directamente por Mercado Pago. MOVA nunca ve ni guarda el número completo, CVV ni fecha de tu tarjeta.
           </p>
@@ -149,7 +149,7 @@
              verdad sigue viniendo de refresh()/status()). -->
         <div v-else-if="showChallenge" class="flex flex-col gap-3 py-2 text-center">
           <p class="font-semibold text-slate-900">{{ statusMessage }}</p>
-          <p class="text-xs text-slate-400">No cierres ni actualices esta pantalla mientras completas la verificación.</p>
+          <p class="text-xs text-slate-500">No cierres ni actualices esta pantalla mientras completas la verificación.</p>
           <div ref="challengeContainer" class="overflow-hidden rounded-xl border border-gray-100" />
         </div>
 
@@ -164,7 +164,7 @@
             se acreditará solo cuando se confirme; si no se completó, no se te habrá cobrado.
           </p>
           <SecondaryButton type="button" class="mt-1" @click="consultAgain">Consultar estado</SecondaryButton>
-          <Link :href="route('teacher.credits.index')" class="text-xs text-slate-400 underline">Volver a Mis créditos</Link>
+          <Link :href="route('teacher.credits.index')" class="text-xs text-slate-500 underline">Volver a Mis créditos</Link>
         </div>
 
         <div v-else-if="isVerifying" class="flex flex-col items-center gap-3 py-4 text-center" role="status" aria-live="polite">
@@ -173,7 +173,7 @@
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
           <p class="font-semibold text-slate-900">{{ statusMessage }}</p>
-          <p class="text-xs text-slate-400">Esto puede tardar hasta {{ pollBudgetText }}.</p>
+          <p class="text-xs text-slate-500">Esto puede tardar hasta {{ pollBudgetText }}.</p>
         </div>
 
         <!-- Aprobado -->

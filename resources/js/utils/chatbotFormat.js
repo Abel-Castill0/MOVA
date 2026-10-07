@@ -15,6 +15,11 @@ const ACTIONS = [
   [/\[Crear cuenta\]/gi, '/register', 'bg-blue-600 hover:bg-blue-700', 'Crear cuenta'],
   [/\[Solicitar Clase\]/gi, '/class-requests/create', 'bg-amber-500 hover:bg-amber-600', 'Solicitar Clase'],
   [/\[Voluntariado\]/gi, '/invitacion/profesor', 'bg-emerald-600 hover:bg-emerald-700', 'Voluntariado'],
+  [/\[Ver profesores\]/gi, '/marketplace', 'bg-sky-600 hover:bg-sky-700', 'Ver profesores'],
+  [/\[Recuperar contraseña\]/gi, '/forgot-password', 'bg-slate-700 hover:bg-slate-800', 'Recuperar contraseña'],
+  [/\[Libro de Reclamaciones\]/gi, '/libro-de-reclamaciones', 'bg-slate-700 hover:bg-slate-800', 'Libro de Reclamaciones'],
+  [/\[Privacidad\]/gi, '/privacidad', 'bg-slate-700 hover:bg-slate-800', 'Política de Privacidad'],
+  [/\[Mis créditos\]/gi, '/teacher/credits', 'bg-blue-600 hover:bg-blue-700', 'Mis créditos'],
 ]
 
 export function escapeHtml(raw) {

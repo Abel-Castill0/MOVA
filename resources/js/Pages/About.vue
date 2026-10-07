@@ -30,12 +30,12 @@
     </section>
 
     <!-- Stats -->
-    <section class="py-16 bg-white">
+    <section v-if="showStats" class="py-16 bg-white">
       <div class="max-w-5xl mx-auto px-4">
         <div class="grid grid-cols-3 gap-8 text-center">
           <div v-for="stat in computedStats" :key="stat.label" class="p-6">
             <p class="text-5xl font-black text-brand-700">{{ stat.value }}</p>
-            <p class="text-slate-500 mt-2 font-medium">{{ stat.label }}</p>
+            <p class="text-slate-600 mt-2 font-medium">{{ stat.label }}</p>
           </div>
         </div>
       </div>
@@ -50,7 +50,9 @@
         <div class="grid md:grid-cols-3 gap-8">
           <div v-for="item in mvv" :key="item.title"
             class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <div class="text-4xl mb-5">{{ item.icon }}</div>
+            <div class="w-12 h-12 mb-5 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+              <component :is="item.icon" class="w-6 h-6" :stroke-width="1.8" aria-hidden="true" />
+            </div>
             <h3 class="text-xl font-bold text-brand-900 mb-3">{{ item.title }}</h3>
             <p class="text-slate-500 text-sm leading-relaxed">{{ item.desc }}</p>
           </div>
@@ -119,19 +121,23 @@ import { computed } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
 import LandingFooter from '@/Components/LandingFooter.vue'
+import { Target, Telescope, Gem } from 'lucide-vue-next'
 
 const props = defineProps({ stats: Object })
+
+// Las cifras solo se muestran cuando son lo bastante grandes para generar confianza (con 2 clases dictadas restan credibilidad).
+const showStats = computed(() => (props.stats?.classes ?? 0) >= 10 && (props.stats?.teachers ?? 0) >= 5)
 
 const computedStats = computed(() => [
   { value: props.stats?.teachers ?? '—', label: 'Profesores verificados' },
   { value: props.stats?.classes  ?? '—', label: 'Clases impartidas' },
-  { value: props.stats?.students ?? '—', label: 'Familias satisfechas' },
+  { value: props.stats?.students ?? '—', label: 'Familias en MOVA' },
 ])
 
 const mvv = [
-  { icon: '🎯', title: 'Misión', desc: 'Conectar a cada estudiante con el profesor perfecto a través de clases personalizadas en línea, accesibles desde cualquier lugar del mundo.' },
-  { icon: '🔭', title: 'Visión', desc: 'Ser la plataforma líder de educación personalizada en español, donde la calidad docente no tenga fronteras geográficas.' },
-  { icon: '💎', title: 'Valores', desc: 'Calidad, transparencia y accesibilidad. Creemos que la educación de calidad es un derecho, no un privilegio.' },
+  { icon: Target, title: 'Misión', desc: 'Conectar a cada estudiante con el profesor perfecto a través de clases personalizadas en línea, accesibles desde cualquier lugar del mundo.' },
+  { icon: Telescope, title: 'Visión', desc: 'Ser la plataforma líder de educación personalizada en español, donde la calidad docente no tenga fronteras geográficas.' },
+  { icon: Gem, title: 'Valores', desc: 'Calidad, transparencia y accesibilidad. Creemos que la educación de calidad es un derecho, no un privilegio.' },
 ]
 
 const founders = [

@@ -132,11 +132,8 @@
           v-if="!teacher.reviews?.length"
           title="Profesor nuevo en MOVA"
           description="Aún no tiene reseñas. ¡Sé el primero en calificarlo!"
-        >
-          <template #icon>
-            <Icon name="reviews" :size="32" :stroke-width="1.5" class="text-amber-400" />
-          </template>
-        </EmptyState>
+          mascot="feliz"
+        />
 
         <div v-else class="space-y-3">
           <div v-if="teacher.avg_rating" class="bg-amber-50 border border-amber-100 rounded-elevated p-4 flex items-center gap-4">

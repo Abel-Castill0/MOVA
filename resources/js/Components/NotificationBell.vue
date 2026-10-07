@@ -16,12 +16,12 @@
         <button v-if="unread > 0" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
       </div>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
-        <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-400">Sin notificaciones</div>
+        <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
         <div v-for="n in notifications" :key="n.id"
           @click="markOne(n.id)"
           :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">{{ fmtDate(n.created_at) }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">{{ fmtDate(n.created_at) }}</p>
         </div>
       </div>
     </div>

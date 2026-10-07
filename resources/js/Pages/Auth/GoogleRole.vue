@@ -60,7 +60,7 @@
         {{ form.processing ? 'Creando tu cuenta…' : 'Crear mi cuenta' }}
       </button>
 
-      <p class="text-center text-xs text-slate-400">
+      <p class="text-center text-xs text-slate-500">
         ¿No eres tú?
         <Link :href="route('login')" class="text-brand-600 hover:underline">Volver al inicio de sesión</Link>.
       </p>

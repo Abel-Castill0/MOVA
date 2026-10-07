@@ -13,7 +13,7 @@
       </div>
 
       <div v-if="!complaints.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay hojas con ese filtro</p>
+        <p class="text-gray-500 text-sm">No hay hojas con ese filtro</p>
       </div>
 
       <article v-for="c in complaints.data" :key="c.id" class="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -25,14 +25,14 @@
               {{ c.status === 'open' ? `Abierta · vence ${dueDate(c.created_at)}` : 'Respondida' }}
             </span>
           </div>
-          <time class="text-xs text-slate-400" :datetime="c.created_at">{{ fmt(c.created_at) }}</time>
+          <time class="text-xs text-slate-500" :datetime="c.created_at">{{ fmt(c.created_at) }}</time>
         </header>
 
         <dl class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          <div><dt class="inline text-slate-400">Consumidor: </dt><dd class="inline text-slate-800">{{ c.consumer_name }} ({{ c.document_type }} {{ c.document_number }})</dd></div>
-          <div><dt class="inline text-slate-400">Contacto: </dt><dd class="inline text-slate-800 break-all">{{ c.email }}<template v-if="c.phone"> · {{ c.phone }}</template></dd></div>
-          <div v-if="c.is_minor"><dt class="inline text-slate-400">Apoderado: </dt><dd class="inline text-slate-800">{{ c.guardian_name }}</dd></div>
-          <div><dt class="inline text-slate-400">Bien: </dt><dd class="inline text-slate-800">{{ c.good_type }} — {{ c.good_description }}<template v-if="c.amount"> (S/ {{ c.amount }})</template></dd></div>
+          <div><dt class="inline text-slate-500">Consumidor: </dt><dd class="inline text-slate-800">{{ c.consumer_name }} ({{ c.document_type }} {{ c.document_number }})</dd></div>
+          <div><dt class="inline text-slate-500">Contacto: </dt><dd class="inline text-slate-800 break-all">{{ c.email }}<template v-if="c.phone"> · {{ c.phone }}</template></dd></div>
+          <div v-if="c.is_minor"><dt class="inline text-slate-500">Apoderado: </dt><dd class="inline text-slate-800">{{ c.guardian_name }}</dd></div>
+          <div><dt class="inline text-slate-500">Bien: </dt><dd class="inline text-slate-800">{{ c.good_type }} — {{ c.good_description }}<template v-if="c.amount"> (S/ {{ c.amount }})</template></dd></div>
         </dl>
         <p class="text-sm text-slate-700 whitespace-pre-line"><strong>Detalle:</strong> {{ c.detail }}</p>
         <p class="text-sm text-slate-700 whitespace-pre-line"><strong>Pedido:</strong> {{ c.consumer_request }}</p>

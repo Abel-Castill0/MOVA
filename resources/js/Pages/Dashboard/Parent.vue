@@ -7,7 +7,7 @@
            ══════════════════════════════════════════════ -->
       <section class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#17469E] via-[#1F5AA6] to-[#2563EB] text-white shadow-lg shadow-brand-800/15 px-6 py-6 sm:px-8 sm:py-7">
         <!-- Decoración de fondo azul (asset oficial) -->
-        <img src="/images/brand/parent-hero-decoration.png" alt="" aria-hidden="true"
+        <img src="/images/brand/parent-hero-decoration.webp" alt="" aria-hidden="true"
           class="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none opacity-35 mix-blend-screen" />
 
         <div class="relative z-10 flex items-center justify-between gap-6">
@@ -20,7 +20,7 @@
 
           <!-- Lado derecho: Composición con ilustración oficial del niño con laptop y texto destacado -->
           <div class="hidden sm:flex items-end gap-3 lg:gap-5 flex-shrink-0">
-            <img src="/images/brand/parent-hero-child.png" alt="Estudiante MOVA con laptop"
+            <img src="/images/brand/parent-hero-child.webp" alt="Estudiante MOVA con laptop"
               class="h-28 sm:h-32 md:h-36 lg:h-40 max-h-full w-auto object-contain select-none pointer-events-none drop-shadow-md self-end" />
             <div class="hidden lg:flex flex-col text-right select-none pr-1 max-w-[170px]">
               <span class="text-sm font-semibold text-white/95 leading-snug">Grandes aprendizajes también empiezan</span>
@@ -61,7 +61,7 @@
           <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
         </div>
         <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-500 hover:text-slate-600 transition-colors">
           <Icon name="close" :size="16" />
         </button>
       </div>
@@ -112,7 +112,7 @@
                 <Icon name="requests" :size="16" />
               </div>
               <Link :href="route('class-requests.index')" aria-label="Ver solicitudes"
-                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-brand-600 group-hover:bg-blue-50 transition-colors">
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-brand-600 group-hover:bg-blue-50 transition-colors">
                 <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
@@ -127,7 +127,7 @@
                 <Icon name="flash-success" :size="16" />
               </div>
               <Link :href="route('parent.lessons')" aria-label="Ver clases completadas"
-                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition-colors">
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition-colors">
                 <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
@@ -142,7 +142,7 @@
                 <Icon name="classes" :size="16" />
               </div>
               <Link :href="route('parent.lessons')" aria-label="Ver próximas clases"
-                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-sky-600 group-hover:bg-sky-50 transition-colors">
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-sky-600 group-hover:bg-sky-50 transition-colors">
                 <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
@@ -163,7 +163,7 @@
                 <Icon name="reviews" :size="16" />
               </div>
               <Link :href="route('parent.reports')" aria-label="Ver calificaciones"
-                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
+                class="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
                 <Icon name="arrow-right" :size="11" />
               </Link>
             </div>
@@ -195,7 +195,7 @@
                 <ol class="divide-y divide-gray-50">
                   <li v-for="l in upcoming.slice(0, 2)" :key="l.id"
                     class="reveal-item py-3 first:pt-0 last:pb-0 flex flex-col gap-2">
-                    <div class="flex items-start justify-between gap-2 min-w-0">
+                    <div class="flex flex-col gap-2.5 min-w-0">
                       <div class="flex items-start gap-2.5 min-w-0">
                         <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ring-2 ring-white ring-offset-1"
                           :class="dotColor(l.status)"></span>
@@ -207,21 +207,21 @@
                           <p class="text-xs text-slate-500 mt-0.5 truncate">
                             {{ l.student?.first_name }} · Prof. {{ l.teacher_profile?.user?.name }}
                           </p>
-                          <p class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                            <Icon name="classes" :size="11" /> {{ fmtDate(l.start_time) }}
+                          <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                            <Icon name="classes" :size="12" /> {{ fmtDate(l.start_time) }}
                           </p>
                         </div>
                       </div>
 
-                      <!-- Acciones compactas y sutiles -->
-                      <div class="flex-shrink-0">
+                      <!-- La acción vive bajo el detalle de la clase (a ancho completo): al lado comprimía el título y lo truncaba. -->
+                      <div class="pl-5">
                         <ConfirmPaymentAction v-if="l.status === 'scheduled'" :lesson="l" :paying-id="payingId"
-                          :payment-error-id="paymentErrorId" :payment-error="paymentError" @pay="confirmPayment" />
+                          :payment-error-id="paymentErrorId" :payment-error="paymentError" align="left" @pay="confirmPayment" />
                         <button v-else-if="l.status === 'paid' && canJoinJitsi(l)" @click="openJitsi(l)"
                           class="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 active:scale-95 transition-all shadow-xs">
                           <Icon name="join-room" :size="12" /> Unirse
                         </button>
-                        <p v-else-if="l.status === 'paid'" class="text-[11px] text-slate-400 text-right">Sala cerrada</p>
+                        <p v-else-if="l.status === 'paid'" class="text-xs text-slate-500">Sala cerrada</p>
                         <Link v-else-if="l.status === 'pending_parent_confirmation'" :href="route('reviews.create', l.id)"
                           class="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white text-xs font-bold rounded-lg hover:bg-yellow-600 active:scale-95 transition-all shadow-xs">
                           <Icon name="reviews" :size="12" /> Calificar
@@ -234,9 +234,7 @@
 
               <!-- Empty state compacto -->
               <div v-else class="py-6 text-center">
-                <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto mb-2">
-                  <Icon name="classes" :size="22" />
-                </div>
+                <div class="flex justify-center mb-1" aria-hidden="true"><MoviMascot pose="lee" :size="84" /></div>
                 <h4 class="font-bold text-slate-900 text-sm">No hay clases próximas</h4>
                 <p class="text-xs text-slate-500 mt-0.5 mb-3.5 max-w-xs mx-auto">Cuando tengas clases agendadas, las verás aquí.</p>
                 <Link :href="route('marketplace')"
@@ -270,7 +268,7 @@
 
                   <!-- Bloque Tema -->
                   <div class="bg-slate-50 rounded-xl p-3 border border-slate-100/80">
-                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <Icon name="topic" :size="12" /> Tema
                     </p>
                     <p class="text-sm text-slate-800 line-clamp-2 leading-snug">{{ last_report.topic_covered }}</p>
@@ -278,7 +276,7 @@
 
                   <!-- Bloque Desempeño -->
                   <div class="bg-slate-50 rounded-xl p-3 border border-slate-100/80">
-                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <Icon name="reviews" :size="12" /> Desempeño
                     </p>
                     <p class="text-sm text-slate-800 line-clamp-2 leading-snug">{{ last_report.student_performance }}</p>
@@ -296,7 +294,7 @@
 
               <!-- Empty state si no hay reportes -->
               <div v-else class="py-6 text-center">
-                <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto mb-2">
+                <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500 mx-auto mb-2">
                   <Icon name="my-reports" :size="22" />
                 </div>
                 <h4 class="font-bold text-slate-900 text-sm">Sin reportes aún</h4>
@@ -331,7 +329,7 @@
                     </div>
                     <div class="min-w-0">
                       <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">{{ s.first_name }} {{ s.last_name }}</p>
-                      <p class="text-[11px] text-slate-400 capitalize truncate">{{ s.grade_level ?? 'Sin nivel' }}</p>
+                      <p class="text-[11px] text-slate-500 capitalize truncate">{{ s.grade_level ?? 'Sin nivel' }}</p>
                     </div>
                   </div>
                   <!-- Botón Ver detalle minimalista -->
@@ -407,6 +405,7 @@ import StatusBadge from '@/Components/StatusBadge.vue'
 import JitsiModal from '@/Components/JitsiModal.vue'
 import ConfirmPaymentAction from '@/Components/Lessons/ConfirmPaymentAction.vue'
 import Icon from '@/Components/Icon.vue'
+import MoviMascot from '@/Components/MoviMascot.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { canJoinJitsi } from '@/utils/lessonJoin'

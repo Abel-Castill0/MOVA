@@ -87,7 +87,9 @@ export APP_ENV=local
 export DB_CONNECTION=sqlite
 export DB_DATABASE=/app/storage/logs/phase2b-e2e.sqlite
 export DATABASE_URL=
-export APP_URL=http://127.0.0.1:8012
+# QA_PREVIEW=1 (uso manual de UI, ver docs): el server escucha igual en 8012 dentro del container, pero las URLs que genera
+# Laravel usan QA_APP_URL (puerto publicado en el host) para que el navegador del host cargue los assets.
+export APP_URL="${QA_APP_URL:-http://127.0.0.1:8012}"
 export BASE_URL="$APP_URL"
 export SESSION_DRIVER=file
 export SESSION_COOKIE=mova_phase2b_qa
@@ -137,10 +139,12 @@ composer install --no-interaction --prefer-dist
 # producción), así que se instalan aquí, en el primer arranque, y persisten
 # entre corridas siguientes. `playwright install` es idempotente — se llama
 # siempre, pero no vuelve a descargar nada si el cache ya tiene el browser.
-if [ ! -x qa/node_modules/.bin/playwright ]; then
+if [ "${QA_PREVIEW:-0}" != "1" ] && [ ! -x qa/node_modules/.bin/playwright ]; then
     npm ci --prefix qa
 fi
-npx --prefix qa playwright install --with-deps chromium
+if [ "${QA_PREVIEW:-0}" != "1" ]; then
+    npx --prefix qa playwright install --with-deps chromium
+fi
 
 rm -f "$DB_DATABASE"
 touch "$DB_DATABASE"
@@ -169,7 +173,7 @@ trap cleanup EXIT
 
 ready=0
 for _ in $(seq 1 30); do
-    if curl -sf -o /dev/null "$APP_URL/login"; then
+    if curl -sf -o /dev/null "http://127.0.0.1:8012/login"; then
         ready=1
         break
     fi
@@ -178,6 +182,11 @@ done
 if [ "$ready" -ne 1 ]; then
     echo "ABORT: qa/stabilization-server.php no respondió en $APP_URL tras 30s." >&2
     exit 1
+fi
+
+if [ "${QA_PREVIEW:-0}" = "1" ]; then
+    echo "PREVIEW listo en $APP_URL (Ctrl+C o docker stop para terminar)"
+    sleep infinity
 fi
 
 cd qa

@@ -177,15 +177,27 @@
 
         <h1 class="text-base font-bold text-slate-900 flex-1 truncate">{{ title }}</h1>
 
-        <div class="lg:hidden flex items-center gap-2 flex-shrink-0 bg-slate-100/70 border border-slate-200/50 py-1 px-2.5 rounded-2xl">
+        <!-- Movi vive en la cabecera (no flota sobre los botones de acción de cada pantalla). -->
+        <button
+          v-if="$page.props.movi?.enabled"
+          type="button"
+          class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-colors hover:border-brand-300 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-300/60 active:scale-95"
+          aria-label="Abrir chat con Movi"
+          title="Pregúntale a Movi"
+          @click="moviOpen = true"
+        >
+          <MoviMascot pose="saluda" :size="30" />
+        </button>
+
+        <div class="lg:hidden flex items-center gap-2 flex-shrink-0 bg-slate-100/70 border border-slate-200/50 py-1 px-1 sm:px-2.5 rounded-2xl">
           <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
             class="w-7 h-7 rounded-xl object-cover ring-1 ring-white" width="28" height="28" />
           <div v-else class="w-7 h-7 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0 shadow-2xs">
             {{ user?.name?.charAt(0)?.toUpperCase() }}
           </div>
-          <div class="min-w-0 leading-tight">
+          <div class="hidden sm:block min-w-0 leading-tight">
             <p class="text-xs font-bold text-slate-800 max-w-[5rem] truncate">{{ user?.name }}</p>
-            <p class="text-[10px] text-slate-400 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
+            <p class="text-[10px] text-slate-500 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
           </div>
         </div>
 
@@ -221,6 +233,8 @@
         <slot />
       </main>
     </div>
+
+    <ChatbotWidget v-if="$page.props.movi?.enabled" v-model="moviOpen" :floating="false" />
   </div>
 </template>
 
@@ -228,9 +242,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import NotificationBell from '@/Components/NotificationBell.vue'
+import ChatbotWidget from '@/Components/ChatbotWidget.vue'
+import MoviMascot from '@/Components/MoviMascot.vue'
 import MovaLogo from '@/Components/MovaLogo.vue'
 import Icon from '@/Components/Icon.vue'
 import { roleLabel } from '@/utils/roleLabels'
+
+const moviOpen = ref(false)
 
 const props = defineProps({
   title: String,

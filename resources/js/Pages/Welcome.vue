@@ -180,16 +180,16 @@
         </div>
 
         <!-- Evidencia de plataforma con líneas divisorias laterales (Desktop only) -->
-        <div class="hero-reveal hidden md:flex items-center justify-center gap-4 w-full max-w-lg mx-auto mb-8">
+        <div class="hero-reveal flex items-center justify-center gap-4 w-full max-w-lg mx-auto mb-8">
           <div class="h-px flex-1 bg-gradient-to-r from-transparent via-white/20 to-white/30"></div>
-          <p class="text-xs sm:text-sm text-white/70 whitespace-nowrap">
+          <p class="text-center text-xs sm:text-sm text-white/80 sm:whitespace-nowrap">
             Cada profesor pasa por verificación antes de dictar su primera clase.
           </p>
           <div class="h-px flex-1 bg-gradient-to-l from-transparent via-white/20 to-white/30"></div>
         </div>
 
         <!-- Estadísticas en columnas verticales separadas por divisores (Desktop) -->
-        <div class="hero-reveal hidden md:flex items-center justify-center gap-6 sm:gap-10">
+        <div v-if="showStats" class="hero-reveal hidden md:flex items-center justify-center gap-6 sm:gap-10">
           <div class="flex flex-col items-center">
             <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ stats.teachers }}</span>
             <span class="text-xs sm:text-sm text-white/60 mt-1">profesores</span>
@@ -212,7 +212,7 @@
         </div>
 
         <!-- Estadísticas Mobile: Tarjeta Frosted Glass tal cual la imagen -->
-        <div class="hero-reveal md:hidden w-full max-w-[325px] mx-auto bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-3.5 shadow-xl">
+        <div v-if="showStats" class="hero-reveal md:hidden w-full max-w-[325px] mx-auto bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-3.5 shadow-xl">
           <div class="grid grid-cols-4 items-center text-center divide-x divide-white/15">
             <div class="flex flex-col items-center px-1">
               <span class="text-xl font-black text-white tabular-nums leading-none">{{ stats.teachers }}</span>
@@ -290,24 +290,17 @@
                  class="absolute bottom-full left-1/2 -translate-x-1/2 w-48 h-48 pointer-events-none z-10 overflow-hidden">
               <div class="w-full h-full transition-transform duration-500 ease-out flex items-end justify-center"
                    :class="squirrelVisible ? 'translate-y-0' : 'translate-y-full'">
-                <!-- Pose final de la secuencia ya versionada (el .webm original
-                     nunca se subió al repo y daba 404). Se monta recién en el
-                     primer hover para no descargarla si nadie la ve. -->
-                <img
-                  v-if="squirrelShown"
-                  src="/images/ardilla-sinfondo-graduada/ardillagraduada_000031.png"
-                  alt=""
-                  decoding="async"
-                  class="w-full object-contain"
-                />
+                <!-- Movi celebra al pasar el cursor (secuencia animada WebP; con movimiento reducido se muestra la pose final). Se monta
+                     recién en el primer hover para no descargarla si nadie la ve. -->
+                <MoviMascot v-if="squirrelShown" pose="celebra" :animated="true" :size="176" />
               </div>
             </div>
 
             <div class="absolute -top-4 left-8 w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-brand-600/30">
               {{ i + 1 }}
             </div>
-            <div class="w-14 h-14 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center mb-5 transition-colors text-2xl">
-              {{ step.icon }}
+            <div class="w-14 h-14 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center mb-5 transition-colors text-brand-600">
+              <component :is="step.icon" class="w-6 h-6" :stroke-width="1.9" aria-hidden="true" />
             </div>
             <h3 class="text-xl font-bold text-brand-900 mb-2">{{ step.title }}</h3>
             <p class="text-slate-500 text-sm leading-relaxed">{{ step.desc }}</p>
@@ -376,185 +369,30 @@
     </section>
 
     <!-- ── Materias ────────────────────────────────────────────────────── -->
-    <section id="materias" class="pt-1.5 sm:pt-2 pb-10 bg-[#E5EEFB] relative overflow-hidden reveal-group scroll-mt-16 sm:scroll-mt-20">
-      <!-- Flecha ascendente y estrellas de crecimiento (Derecha superior) -->
-      <div class="absolute top-2 right-2 sm:right-8 lg:right-16 w-44 sm:w-60 lg:w-64 h-32 pointer-events-none select-none z-0 opacity-80">
-        <svg class="w-full h-full" viewBox="0 0 320 160" fill="none">
-          <defs>
-            <linearGradient id="growthArrowGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#93C5FD" stop-opacity="0.2" />
-              <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.8" />
-              <stop offset="100%" stop-color="#FFFFFF" stop-opacity="1" />
-            </linearGradient>
-            <filter id="arrowGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-          </defs>
-          <path d="M 15 145 C 80 145, 150 115, 220 72 C 260 50, 285 28, 304 16"
-                stroke="url(#growthArrowGrad)" stroke-width="3" stroke-linecap="round" filter="url(#arrowGlow)" />
-          <path d="M 284 15 L 305 16 L 304 37"
-                stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="115" cy="125" r="3" fill="#FFFFFF" opacity="0.9" />
-          <circle cx="205" cy="82" r="3.5" fill="#FEF08A" opacity="0.9" filter="url(#arrowGlow)" />
-          <circle cx="260" cy="50" r="3" fill="#FFFFFF" opacity="0.9" />
-        </svg>
-        <span class="absolute top-4 right-16 text-amber-300 text-base animate-pulse">✦</span>
-        <span class="absolute top-14 right-36 text-amber-200 text-xs">✦</span>
-      </div>
-
-      <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- ── Cabecera ────────────────────────────────────────────────── -->
-        <div class="reveal-item text-center mb-4 sm:mb-4.5">
-          <!-- Chip Superior -->
-          <div class="inline-flex items-center gap-2 px-3.5 py-0.5 rounded-full bg-white/70 border border-blue-200/60 shadow-xs backdrop-blur-md mb-1.5 text-[10px] font-bold tracking-widest text-blue-600/90 uppercase">
-            <span>Aprende</span>
-            <span class="text-blue-300">•</span>
-            <span>Explora</span>
-            <span class="text-blue-300">•</span>
-            <span>Crece</span>
-          </div>
-
-          <!-- Título Principal -->
-          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight text-balance">
-            Materias <span class="text-blue-600">disponibles</span>
+    <section id="materias" class="py-16 sm:py-20 bg-[#E5EEFB] reveal-group scroll-mt-16 sm:scroll-mt-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="reveal-item text-center max-w-2xl mx-auto mb-8 sm:mb-10">
+          <h2 class="text-3xl sm:text-4xl font-black text-brand-900 tracking-tight text-balance">
+            Materias <span class="text-brand-600">disponibles</span>
           </h2>
-
-          <!-- Subtítulo -->
-          <p class="text-slate-600 text-xs sm:text-sm max-w-xl mx-auto mt-1 font-normal leading-relaxed text-pretty">
-            Empieza hoy y descubre nuevas áreas que seguirán creciendo contigo.
+          <p class="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed text-pretty">
+            Elige la materia y el nivel que tu hijo necesita reforzar. Iremos sumando nuevas áreas con el tiempo.
           </p>
-
-          <!-- 3 Beneficios con iconos -->
-          <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mt-2.5">
-            <div class="inline-flex items-center gap-1.5 text-xs sm:text-xs font-semibold text-slate-700">
-              <span class="text-sm sm:text-base">📘</span>
-              <span>Aprende a tu ritmo</span>
-            </div>
-            <div class="inline-flex items-center gap-1.5 text-xs sm:text-xs font-semibold text-slate-700">
-              <span class="text-sm sm:text-base">📊</span>
-              <span>Explora nuevas áreas</span>
-            </div>
-            <div class="inline-flex items-center gap-1.5 text-xs sm:text-xs font-semibold text-slate-700">
-              <span class="text-sm sm:text-base">⭐</span>
-              <span>Un futuro con más oportunidades</span>
-            </div>
-          </div>
         </div>
 
-        <!-- ── Cuadrícula de Materias Activas ───────────────────────────── -->
-        <div class="reveal-item grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        <div class="reveal-item grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <Link v-for="s in subjects" :key="s.id"
             :href="`/class-requests/create?subject_id=${s.id}`"
-            class="group bg-white/95 hover:bg-white backdrop-blur-md rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5 sm:gap-3 shadow-xs hover:shadow-lg hover:shadow-blue-500/10 border border-white/80 hover:border-blue-200 transition-all duration-300 hover:-translate-y-0.5">
-
-            <!-- Contenedor del Icono con fondo pastel -->
-            <div :class="['w-10 h-10 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-2xs flex-shrink-0 transition-transform duration-300 group-hover:scale-105', subjectIcon(s.name).bg]">
-              <span v-if="subjectIcon(s.name).type === 'text'" class="font-black text-xs tracking-tight">{{ subjectIcon(s.name).val }}</span>
-              <span v-else>{{ subjectIcon(s.name).val }}</span>
-            </div>
-
-            <!-- Nombre y Nivel -->
-            <div class="min-w-0 flex-1">
-              <p class="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
-                {{ s.name }}
-              </p>
-              <div class="mt-0.5">
-                <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-full inline-block capitalize', levelBadge(s.level)]">
-                  {{ s.level }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Botón circular flecha derecha -->
-            <div class="w-5 h-5 rounded-full bg-blue-50/80 group-hover:bg-blue-600 text-blue-500 group-hover:text-white flex items-center justify-center transition-all duration-200 flex-shrink-0 ml-auto shadow-2xs">
-              <svg class="w-3 h-3 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
+            class="group bg-white rounded-2xl p-4 flex items-center gap-4 border border-white shadow-sm hover:shadow-lg hover:shadow-brand-900/10 hover:border-brand-200 transition-all duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-300/60">
+            <span :class="['w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0', subjectIcon(s.name).bg]">
+              <component :is="subjectIcon(s.name).icon" class="w-6 h-6" :stroke-width="1.8" aria-hidden="true" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-base font-bold text-slate-900 group-hover:text-brand-700 transition-colors">{{ s.name }}</span>
+              <span :class="['mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full capitalize', levelBadge(s.level)]">{{ s.level }}</span>
+            </span>
+            <ChevronRight class="w-5 h-5 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true" />
           </Link>
-        </div>
-
-        <!-- ── Tarjeta Frosted Glass: ¡Esto es solo el comienzo! ──────────── -->
-        <div class="reveal-item mt-4 sm:mt-4.5 max-w-5xl mx-auto relative rounded-3xl bg-white/75 backdrop-blur-2xl border border-white/90 shadow-lg shadow-blue-500/5 p-3.5 sm:py-4 sm:px-7 text-center overflow-hidden">
-
-          <!-- Trayectoria de vuelo punteada SVG -->
-          <svg class="absolute inset-0 w-full h-full pointer-events-none select-none z-0" viewBox="0 0 900 320" fill="none" preserveAspectRatio="none">
-            <path d="M 80 180 C 150 180, 210 130, 190 105 C 170 80, 130 130, 210 180 C 350 250, 580 250, 700 170 C 740 145, 770 160, 755 180 C 735 200, 700 170, 740 135 L 775 110"
-                  stroke="#93C5FD" stroke-width="2" stroke-dasharray="6 6" fill="none" opacity="0.75" />
-          </svg>
-
-          <!-- Estrellas flotantes dentro de la tarjeta -->
-          <span class="absolute top-1/3 left-6 sm:left-12 text-amber-400 text-lg sm:text-xl pointer-events-none select-none animate-pulse">✦</span>
-          <span class="absolute bottom-1/3 right-8 sm:right-16 text-amber-300 text-sm sm:text-base pointer-events-none select-none">✦</span>
-
-          <!-- Avión de papel 3D azul -->
-          <div class="absolute top-2.5 sm:top-3 right-4 sm:right-7 pointer-events-none select-none z-10 transform -rotate-12 hover:rotate-0 transition-transform">
-            <svg class="w-9 sm:w-11 h-9 sm:h-11 drop-shadow-md" viewBox="0 0 100 100" fill="none">
-              <polygon points="10,48 90,15 48,88 44,58" fill="#3B82F6" />
-              <polygon points="44,58 90,15 48,88" fill="#2563EB" />
-              <polygon points="10,48 90,15 44,58" fill="#60A5FA" />
-              <polygon points="44,58 48,88 62,64" fill="#1D4ED8" />
-            </svg>
-          </div>
-
-          <!-- Contenido de la Tarjeta -->
-          <div class="relative z-10">
-            <!-- Chip superior -->
-            <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-100/90 border border-blue-200/80 text-blue-700 font-bold text-[11px] shadow-xs mb-1.5">
-              <span class="text-amber-400">✨</span>
-              <span>Nuevas materias próximamente</span>
-            </div>
-
-            <!-- Título de la tarjeta -->
-            <h3 class="text-lg sm:text-xl lg:text-2xl font-black text-slate-900 tracking-tight">
-              ¡Esto es solo el comienzo!
-            </h3>
-
-            <!-- Párrafo explicativo -->
-            <p class="text-slate-500 text-xs sm:text-xs max-w-xl mx-auto mt-0.5 leading-relaxed font-normal">
-              Seguimos trabajando para traerte más materias y nuevas áreas de conocimiento.<br class="hidden sm:inline" />
-              Muy pronto tendrás aún más opciones para seguir aprendiendo y alcanzar tus metas.
-            </p>
-
-            <!-- 5 Tarjetas Placeholder de materias por venir (Ocultas en celular) -->
-            <div class="hidden sm:grid sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 mt-3.5 sm:mt-4">
-              <div class="bg-white/60 hover:bg-white/80 backdrop-blur-md rounded-2xl py-2 sm:py-2.5 px-2.5 flex flex-col items-center justify-center gap-1 border border-white/80 shadow-xs transition-all duration-200 hover:-translate-y-0.5 select-none">
-                <div class="w-8 h-8 rounded-lg bg-blue-50/80 flex items-center justify-center text-base sm:text-lg text-blue-500 shadow-2xs">
-                  🧪
-                </div>
-                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-500">Muy pronto</span>
-              </div>
-
-              <div class="bg-white/60 hover:bg-white/80 backdrop-blur-md rounded-2xl py-2 sm:py-2.5 px-2.5 flex flex-col items-center justify-center gap-1 border border-white/80 shadow-xs transition-all duration-200 hover:-translate-y-0.5 select-none">
-                <div class="w-8 h-8 rounded-lg bg-blue-50/80 flex items-center justify-center text-base sm:text-lg text-blue-500 shadow-2xs">
-                  🎨
-                </div>
-                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-500">Muy pronto</span>
-              </div>
-
-              <div class="bg-white/60 hover:bg-white/80 backdrop-blur-md rounded-2xl py-2 sm:py-2.5 px-2.5 flex flex-col items-center justify-center gap-1 border border-white/80 shadow-xs transition-all duration-200 hover:-translate-y-0.5 select-none">
-                <div class="w-8 h-8 rounded-lg bg-blue-50/80 flex items-center justify-center text-base sm:text-lg text-blue-500 shadow-2xs">
-                  🌍
-                </div>
-                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-500">Muy pronto</span>
-              </div>
-
-              <div class="bg-white/60 hover:bg-white/80 backdrop-blur-md rounded-2xl py-2 sm:py-2.5 px-2.5 flex flex-col items-center justify-center gap-1 border border-white/80 shadow-xs transition-all duration-200 hover:-translate-y-0.5 select-none">
-                <div class="w-8 h-8 rounded-lg bg-blue-50/80 flex items-center justify-center text-base sm:text-lg text-blue-500 shadow-2xs">
-                  👥
-                </div>
-                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-500">Muy pronto</span>
-              </div>
-
-              <div class="bg-white/60 hover:bg-white/80 backdrop-blur-md rounded-2xl py-2 sm:py-2.5 px-2.5 flex flex-col items-center justify-center gap-1 border border-white/80 shadow-xs transition-all duration-200 hover:-translate-y-0.5 select-none">
-                <div class="w-8 h-8 rounded-lg bg-blue-50/80 flex items-center justify-center text-sm sm:text-base text-blue-500 font-black shadow-2xs tracking-widest">
-                  •••
-                </div>
-                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-500">Muy pronto</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -566,8 +404,8 @@
           <div class="max-w-2xl">
             <!-- Chip / Badge de categoría -->
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100/90 border border-blue-200/80 text-blue-700 text-xs font-bold mb-2.5 shadow-2xs">
-              <span class="text-amber-500">⭐</span>
-              <span>Docentes certificados</span>
+              <BadgeCheck class="w-4 h-4 text-brand-600" aria-hidden="true" />
+              <span>Profesores verificados</span>
             </div>
 
             <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black text-brand-900 tracking-tight leading-tight">
@@ -575,13 +413,13 @@
             </h2>
 
             <p class="text-slate-600 text-xs sm:text-base mt-2 leading-relaxed font-normal">
-              Aprende con docentes particulares expertos, evaluados pedagógicamente y con experiencia comprobada en clases en vivo.
+              Aprende con profesores particulares cuya identidad, formación y antecedentes revisa el equipo de MOVA, en clases en vivo.
             </p>
 
             <!-- Badges de confianza en móvil y escritorio (llenan el ancho equilibradamente) -->
             <div class="flex items-center gap-2 mt-3.5 flex-wrap">
               <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 border border-blue-100/80 text-[11px] font-semibold text-slate-700 shadow-2xs">
-                <span class="text-emerald-500 font-bold">✓</span> Validación pedagógica
+                <Check class="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" /> Identidad y antecedentes revisados
               </span>
               <!-- Solo con valoraciones REALES (avg_rating de reseñas visibles de
                    los profesores destacados) — nunca una cifra fija inventada. -->
@@ -663,9 +501,9 @@
         <div class="reveal-item text-center mb-16">
           <h2 class="text-4xl font-black text-white text-balance">Lo que dicen nuestros usuarios</h2>
         </div>
-        <div class="grid md:grid-cols-3 gap-6">
+        <div class="flex flex-wrap justify-center gap-6">
           <div v-for="(t, i) in testimonials" :key="i"
-            class="reveal-item bg-white/10 rounded-2xl p-6 border border-white/10 shadow-lg shadow-black/10">
+            class="reveal-item w-full md:w-[calc(33.333%-1rem)] bg-white/10 rounded-2xl p-6 border border-white/10 shadow-lg shadow-black/10">
             <div class="flex gap-0.5 mb-4">
               <span v-for="i in 5" :key="i" class="text-accent-400">★</span>
             </div>
@@ -676,7 +514,7 @@
               </div>
               <div>
                 <p class="text-white font-semibold text-sm">{{ t.name }}</p>
-                <p class="text-white/50 text-xs">Padre/madre de familia</p>
+                <p class="text-white/70 text-xs">Padre/madre de familia</p>
               </div>
             </div>
           </div>
@@ -726,6 +564,9 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
 import LandingFooter from '@/Components/LandingFooter.vue'
 import ChatbotWidget from '@/Components/ChatbotWidget.vue'
+import MoviMascot from '@/Components/MoviMascot.vue'
+import { subjectIcon } from '@/utils/subjectIcon'
+import { Search, UserCheck, Video, ChevronRight, BadgeCheck, Check } from 'lucide-vue-next'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import 'swiper/css/navigation'
@@ -756,10 +597,13 @@ const isTeacher = computed(() => (user.value?.roles ?? []).includes('teacher'))
 
 const isChatOpen = ref(false)
 
+// Cifras solo cuando hay volumen que transmite confianza; con pocos datos se muestra la promesa de verificación.
+const showStats = computed(() => (props.stats?.completed ?? 0) >= 10 && (props.stats?.teachers ?? 0) >= 5)
+
 const steps = [
-  { icon: '🔍', title: 'Solicita tu clase', desc: 'Elige la materia y el nivel que necesitas. Nuestro sistema encuentra los mejores profesores disponibles para ti.' },
-  { icon: '🧑‍🏫', title: 'Un experto acepta', desc: 'Un profesor verificado revisará tu solicitud y propondrá un horario que se adapte a tu disponibilidad.' },
-  { icon: '🎓', title: 'Aprende en vivo', desc: 'Conéctate por videollamada y aprende de manera personalizada, con ejercicios y seguimiento en tiempo real.' },
+  { icon: Search, title: 'Solicita tu clase', desc: 'Elige la materia y el nivel que necesitas. Nuestro sistema encuentra los mejores profesores disponibles para ti.' },
+  { icon: UserCheck, title: 'Un experto acepta', desc: 'Un profesor verificado revisará tu solicitud y propondrá un horario que se adapte a tu disponibilidad.' },
+  { icon: Video, title: 'Aprende en vivo', desc: 'Conéctate por videollamada y aprende de manera personalizada, con ejercicios y seguimiento en tiempo real.' },
 ]
 
 const squirrelShown = ref(false)
@@ -772,27 +616,6 @@ function playSquirrel() {
 
 function stopSquirrel() {
   squirrelVisible.value = false
-}
-
-function subjectEmoji(name) {
-  const map = { 'Matemáticas': '📐', 'Física': '⚡', 'Química': '🧪', 'Inglés': '🇬🇧', 'Francés': '🇫🇷', 'Programación': '💻', 'Historia': '📜', 'Biología': '🔬', 'Música': '🎵', 'Arte': '🎨', 'Economía': '📊', 'Derecho': '⚖️', 'Contabilidad': '🧮', 'Cálculo': '∫', 'Estadística': '📈' }
-  return Object.entries(map).find(([k]) => name.includes(k))?.[1] ?? '📚'
-}
-
-function subjectIcon(name) {
-  const n = name || ''
-  if (n.includes('Ciencias')) return { type: 'emoji', val: '🍃', bg: 'bg-emerald-50 text-emerald-500' }
-  if (n.includes('Física')) return { type: 'emoji', val: '⚡', bg: 'bg-orange-50 text-orange-500' }
-  if (n.includes('Inglés')) return { type: 'text', val: 'GB', bg: 'bg-blue-50 text-blue-600' }
-  if (n.includes('Lengua')) return { type: 'emoji', val: '📖', bg: 'bg-fuchsia-50 text-fuchsia-600' }
-  if (n.includes('Matemáticas') || n.includes('Cálculo')) return { type: 'emoji', val: '📐', bg: 'bg-blue-50 text-blue-600' }
-  if (n.includes('Programación')) return { type: 'emoji', val: '💻', bg: 'bg-sky-50 text-sky-600' }
-  if (n.includes('Química')) return { type: 'emoji', val: '🧪', bg: 'bg-cyan-50 text-cyan-600' }
-  if (n.includes('Historia')) return { type: 'emoji', val: '📜', bg: 'bg-amber-50 text-amber-600' }
-  if (n.includes('Biología')) return { type: 'emoji', val: '🔬', bg: 'bg-emerald-50 text-emerald-600' }
-  if (n.includes('Música')) return { type: 'emoji', val: '🎵', bg: 'bg-violet-50 text-violet-600' }
-  if (n.includes('Arte')) return { type: 'emoji', val: '🎨', bg: 'bg-pink-50 text-pink-600' }
-  return { type: 'emoji', val: '📚', bg: 'bg-blue-50 text-blue-600' }
 }
 
 function levelColor(level) {

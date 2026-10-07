@@ -7,7 +7,7 @@
         selected.includes(slot.value)
           ? 'bg-brand-50/90 border-brand-600 text-brand-900 shadow-sm ring-2 ring-brand-500/10'
           : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60 shadow-2xs']">
-      <Icon :name="slot.icon" :size="18" class="flex-shrink-0" :class="selected.includes(slot.value) ? 'text-brand-600' : 'text-slate-400'" />
+      <Icon :name="slot.icon" :size="18" class="flex-shrink-0" :class="selected.includes(slot.value) ? 'text-brand-600' : 'text-slate-500'" />
       <span class="truncate">{{ slot.label }}</span>
     </button>
   </div>

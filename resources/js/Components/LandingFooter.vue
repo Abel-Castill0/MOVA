@@ -12,8 +12,7 @@
           <p class="text-slate-400 text-sm leading-relaxed mb-4">
             Plataforma educativa creada por dos socios apasionados por la educación. Conectamos estudiantes con los mejores profesores particulares para aprender en vivo por videollamada.
           </p>
-          <p class="text-slate-500 text-xs mb-4">Fundada por Abel Castillo & Elias Paz</p>
-          <p class="text-slate-500 text-xs mt-1">Próximamente en redes sociales.</p>
+          <p class="text-slate-300 text-xs mb-4">Fundada por Abel Castillo & Elias Paz</p>
         </div>
 
         <!-- Quick links -->
@@ -56,11 +55,11 @@
       </div>
 
       <div class="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-        <p class="text-sm text-slate-500">© {{ year }} MOVA · Abel Castillo & Elias Paz · Todos los derechos reservados.</p>
+        <p class="text-sm text-slate-300">© {{ year }} MOVA · Abel Castillo & Elias Paz · Todos los derechos reservados.</p>
         <div class="flex items-center gap-4">
-          <a href="/privacidad" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Política de Privacidad</a>
-          <a href="/terminos" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Términos y Condiciones</a>
-          <a href="/libro-de-reclamaciones" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">Libro de Reclamaciones</a>
+          <a href="/privacidad" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Política de Privacidad</a>
+          <a href="/terminos" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Términos y Condiciones</a>
+          <a href="/libro-de-reclamaciones" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Libro de Reclamaciones</a>
         </div>
       </div>
     </div>

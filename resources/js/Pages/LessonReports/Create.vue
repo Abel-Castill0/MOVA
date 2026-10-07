@@ -32,7 +32,7 @@
         <!-- Topic -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Tema trabajado <span class="text-red-500">*</span></label>
-          <p class="text-xs text-slate-400">Ej: Fracciones equivalentes, análisis de texto narrativo, derivadas</p>
+          <p class="text-xs text-slate-500">Ej: Fracciones equivalentes, análisis de texto narrativo, derivadas</p>
           <textarea
             v-model="form.topic_covered"
             rows="2"
@@ -46,7 +46,7 @@
         <!-- Performance -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Desempeño del alumno <span class="text-red-500">*</span></label>
-          <p class="text-xs text-slate-400">Ej: Participó activamente, logró resolver los ejercicios con poca ayuda</p>
+          <p class="text-xs text-slate-500">Ej: Participó activamente, logró resolver los ejercicios con poca ayuda</p>
           <textarea
             v-model="form.student_performance"
             rows="2"
@@ -60,7 +60,7 @@
         <!-- Difficulties -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Dificultades detectadas</label>
-          <p class="text-xs text-slate-400">Ej: Confunde multiplicación con suma, le cuesta leer en voz alta</p>
+          <p class="text-xs text-slate-500">Ej: Confunde multiplicación con suma, le cuesta leer en voz alta</p>
           <textarea
             v-model="form.difficulties_detected"
             rows="2"
@@ -72,7 +72,7 @@
         <!-- Homework -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Tarea o práctica recomendada</label>
-          <p class="text-xs text-slate-400">Ej: Ejercicios 3–8 del libro p.45, leer 10 min diarios</p>
+          <p class="text-xs text-slate-500">Ej: Ejercicios 3–8 del libro p.45, leer 10 min diarios</p>
           <textarea
             v-model="form.homework_assigned"
             rows="2"
@@ -84,7 +84,7 @@
         <!-- Recommendation -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Mensaje para el padre</label>
-          <p class="text-xs text-slate-400">Ej: Está mejorando mucho, sigan reforzando en casa con ejemplos prácticos</p>
+          <p class="text-xs text-slate-500">Ej: Está mejorando mucho, sigan reforzando en casa con ejemplos prácticos</p>
           <textarea
             v-model="form.teacher_recommendation"
             rows="2"
@@ -96,7 +96,7 @@
         <!-- Next step -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
           <label class="block text-sm font-semibold text-slate-900">Próximo paso</label>
-          <p class="text-xs text-slate-400">Ej: En la próxima clase veremos ecuaciones de segundo grado</p>
+          <p class="text-xs text-slate-500">Ej: En la próxima clase veremos ecuaciones de segundo grado</p>
           <textarea
             v-model="form.next_step"
             rows="2"

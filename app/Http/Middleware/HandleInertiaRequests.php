@@ -32,6 +32,10 @@ class HandleInertiaRequests extends Middleware
             'support' => [
                 'email' => config('legal.support_email'),
             ],
+            // Movi (asistente de ayuda): los layouts montan el widget solo si puede responder de verdad.
+            'movi' => [
+                'enabled' => fn () => \App\Services\ChatbotService::isAvailable(),
+            ],
             'auth' => [
                 'user' => $request->user() ? [
                     'id'               => $request->user()->id,

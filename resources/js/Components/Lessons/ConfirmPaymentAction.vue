@@ -1,12 +1,12 @@
 <template>
-  <div v-if="hasClassEnded(lesson)" class="text-right">
+  <div v-if="hasClassEnded(lesson)" :class="alignLeft ? 'text-left' : 'text-right'">
     <BaseButton v-if="!askingConfirm" variant="primary" size="sm" :disabled="payingId === lesson.id" @click="askingConfirm = true">
       <Icon name="check" :size="16" /> Ya pagué
     </BaseButton>
 
     <div v-else>
       <p class="text-xs font-medium text-ink mb-2">¿Confirmas que la clase fue pagada?</p>
-      <div class="flex gap-2 justify-end">
+      <div :class="['flex gap-2', alignLeft ? 'justify-start' : 'justify-end']">
         <BaseButton variant="secondary" size="sm" :disabled="payingId === lesson.id" @click="askingConfirm = false">
           Cancelar
         </BaseButton>
@@ -14,12 +14,12 @@
           Confirmar pago
         </BaseButton>
       </div>
-      <p v-if="paymentErrorId === lesson.id" role="alert" class="text-xs text-danger-text mt-2 max-w-[14rem] ml-auto">
+      <p v-if="paymentErrorId === lesson.id" role="alert" class="text-xs text-danger-text mt-2 max-w-[14rem]" :class="alignLeft ? '' : 'ml-auto'">
         {{ paymentError }}
       </p>
     </div>
   </div>
-  <p v-else class="text-xs text-ink-subtle text-right max-w-[10rem]">
+  <p v-else class="text-xs text-ink-muted max-w-[14rem]" :class="alignLeft ? 'text-left' : 'text-right'">
     Podrás confirmar el pago cuando la clase finalice.
   </p>
 </template>
@@ -40,16 +40,19 @@
  * Usado por ParentLessonCard.vue y Dashboard/Parent.vue (dos veces) — antes
  * cada uno tenía su propio botón "Ya pagué" duplicado.
  */
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import BaseButton from '@/Components/BaseButton.vue'
 import Icon from '@/Components/Icon.vue'
 
-defineProps({
+const props = defineProps({
   lesson: { type: Object, required: true },
   payingId: { type: [Number, String], default: null },
   paymentErrorId: { type: [Number, String], default: null },
   paymentError: { type: String, default: '' },
+  // 'left' cuando la acción va apilada bajo el detalle (dashboard); 'right' junto al contenido (tarjeta de clase).
+  align: { type: String, default: 'right' },
 })
+const alignLeft = computed(() => props.align === 'left')
 defineEmits(['pay'])
 
 const askingConfirm = ref(false)

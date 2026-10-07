@@ -120,19 +120,19 @@
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
             <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">✅</div>
             <p class="font-bold text-slate-900">Verificar profesores</p>
-            <p class="text-sm text-slate-400 mt-0.5">{{ stats.pending_teachers }} pendientes</p>
+            <p class="text-sm text-slate-500 mt-0.5">{{ stats.pending_teachers }} pendientes</p>
           </Link>
           <Link :href="route('admin.users')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
             <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">👥</div>
             <p class="font-bold text-slate-900">Gestionar usuarios</p>
-            <p class="text-sm text-slate-400 mt-0.5">{{ stats.users }} usuarios en total</p>
+            <p class="text-sm text-slate-500 mt-0.5">{{ stats.users }} usuarios en total</p>
           </Link>
           <Link :href="route('marketplace')"
             class="group bg-white border border-gray-100 rounded-2xl p-5 hover:border-brand-300 hover:shadow-lg transition-all">
             <div class="w-11 h-11 bg-brand-50 group-hover:bg-brand-100 rounded-xl flex items-center justify-center text-xl mb-3 transition-colors">🏪</div>
             <p class="font-bold text-slate-900">Ver marketplace</p>
-            <p class="text-sm text-slate-400 mt-0.5">Explora la plataforma</p>
+            <p class="text-sm text-slate-500 mt-0.5">Explora la plataforma</p>
           </Link>
         </div>
       </div>
@@ -154,7 +154,7 @@
                     </div>
                     <div class="min-w-0">
                       <p class="text-sm font-semibold text-slate-900 truncate">{{ u.name }}</p>
-                      <p class="text-xs text-slate-400 truncate">{{ u.email }}</p>
+                      <p class="text-xs text-slate-500 truncate">{{ u.email }}</p>
                     </div>
                   </div>
                 </td>

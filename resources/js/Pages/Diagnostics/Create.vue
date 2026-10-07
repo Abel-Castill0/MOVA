@@ -213,7 +213,7 @@ function optionClass(active) {
 function primaryClass(enabled) {
   return [
     'w-full rounded-xl py-3.5 text-sm font-bold transition-colors',
-    enabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'cursor-not-allowed bg-gray-100 text-gray-400',
+    enabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'cursor-not-allowed bg-gray-100 text-gray-500',
   ]
 }
 

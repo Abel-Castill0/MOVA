@@ -7,7 +7,7 @@
            ══════════════════════════════════════════════ -->
       <section class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#B43403] via-[#EA580C] to-[#F97316] text-white shadow-lg shadow-orange-900/15 px-6 py-5 sm:px-8 sm:py-6">
         <!-- Decoración de fondo naranja (asset oficial) -->
-        <img src="/images/brand/teacher-hero-decoration.png" alt="" aria-hidden="true"
+        <img src="/images/brand/teacher-hero-decoration.webp" alt="" aria-hidden="true"
           class="absolute inset-0 w-full h-full object-cover object-right pointer-events-none select-none opacity-30 mix-blend-screen" />
 
         <div class="relative z-10 flex items-center justify-between gap-6">
@@ -30,7 +30,7 @@
                 <path d="M 5 5 Q 30 5 38 18 M 32 18 L 38 18 L 38 12" />
               </svg>
             </div>
-            <img src="/images/brand/teacher-hero-education.png" alt="Libros y herramientas educativas"
+            <img src="/images/brand/teacher-hero-education.webp" alt="Libros y herramientas educativas"
               class="h-24 sm:h-28 md:h-32 max-h-full w-auto object-contain select-none pointer-events-none drop-shadow-md self-end" />
           </div>
         </div>
@@ -67,7 +67,7 @@
           <p class="text-sm text-slate-500 mt-0.5">Las acciones (pago/reporte) estarán disponibles cuando finalice el horario programado.</p>
         </div>
         <button @click="postClassLessonId = null" type="button" aria-label="Cerrar aviso"
-          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors">
+          class="flex-shrink-0 self-start sm:self-auto px-2 py-2 text-slate-500 hover:text-slate-600 transition-colors">
           <Icon name="close" :size="16" />
         </button>
       </div>
@@ -83,13 +83,13 @@
               <Icon name="classes" :size="20" />
             </div>
             <Link :href="route('teacher.lessons')" aria-label="Ver todas mis clases"
-              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
               <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
           <p class="text-2xl sm:text-3xl font-black text-slate-900 tabular-nums">{{ upcoming.length }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Clases próximas</p>
-          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
+          <p class="text-xs text-slate-500 mt-0.5 leading-snug truncate">
             <template v-if="upcoming.length === 0">Tienes 0 clases programadas</template>
             <template v-else-if="upcoming.length === 1">Tienes 1 clase agendada</template>
             <template v-else>Tienes {{ upcoming.length }} clases agendadas</template>
@@ -103,13 +103,13 @@
               <Icon name="requests" :size="20" />
             </div>
             <Link :href="route('teacher.requests')" aria-label="Ver solicitudes"
-              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-orange-600 group-hover:bg-orange-50 transition-colors">
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-orange-600 group-hover:bg-orange-50 transition-colors">
               <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
           <p class="text-2xl sm:text-3xl font-black text-orange-600 tabular-nums">{{ pending_requests }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Solicitudes abiertas</p>
-          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
+          <p class="text-xs text-slate-500 mt-0.5 leading-snug truncate">
             <template v-if="pending_requests === 0">Tienes 0 solicitudes pendientes</template>
             <template v-else-if="pending_requests === 1">Tienes 1 solicitud pendiente</template>
             <template v-else>Tienes {{ pending_requests }} solicitudes pendientes</template>
@@ -124,13 +124,13 @@
               <Icon name="my-reports" :size="20" />
             </div>
             <Link :href="route('teacher.lessons')" aria-label="Ver reportes"
-              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-green-50 transition-colors">
+              class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 group-hover:bg-green-50 transition-colors">
               <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
           <p class="text-2xl sm:text-3xl font-black tabular-nums" :class="pending_reports > 0 ? 'text-red-500' : 'text-slate-900'">{{ pending_reports }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Reportes pendientes</p>
-          <p class="text-xs text-slate-400 mt-0.5 leading-snug truncate">
+          <p class="text-xs text-slate-500 mt-0.5 leading-snug truncate">
             <template v-if="pending_reports === 0">No tienes reportes pendientes</template>
             <template v-else-if="pending_reports === 1">Tienes 1 reporte por completar</template>
             <template v-else>Tienes {{ pending_reports }} reportes por completar</template>
@@ -158,7 +158,7 @@
             <Icon name="arrow-right" :size="14" />
           </Link>
           <button @click="showPhoneBanner = false" type="button" aria-label="Cerrar aviso"
-            class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-orange-100/50 transition-colors">
+            class="p-2 text-slate-500 hover:text-slate-600 rounded-lg hover:bg-orange-100/50 transition-colors">
             <Icon name="close" :size="16" />
           </button>
         </div>
@@ -230,7 +230,7 @@
             <div class="max-h-[190px] overflow-y-auto divide-y divide-gray-50 flex-1">
               <!-- Esta semana -->
               <div v-if="upcomingThisWeek.length" class="px-5 pt-3 pb-1 bg-slate-50/40">
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Icon name="classes" :size="12" /> Esta semana
                 </p>
               </div>
@@ -242,7 +242,7 @@
                   </div>
                   <div class="min-w-0">
                     <p class="font-semibold text-slate-900 truncate text-sm">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                    <p class="text-xs text-slate-400 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
                   </div>
                 </div>
                 <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
@@ -254,7 +254,7 @@
               <!-- Pasadas -->
               <template v-if="upcomingPast.length">
                 <div class="px-5 pt-3 pb-1 bg-slate-50/40 border-t border-gray-50">
-                  <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Icon name="topic" :size="12" /> Pasadas
                   </p>
                 </div>
@@ -266,7 +266,7 @@
                     </div>
                     <div class="min-w-0">
                       <p class="font-semibold text-slate-700 truncate text-sm">{{ l.class_request?.subject?.name ?? 'Clase' }}</p>
-                      <p class="text-xs text-slate-400 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
+                      <p class="text-xs text-slate-500 mt-0.5 truncate">{{ l.student?.first_name }} {{ l.student?.last_name }} · {{ fmtDate(l.start_time) }}</p>
                     </div>
                   </div>
                   <Link v-if="l.status === 'paid'" :href="route('lesson-reports.create', l.id)"
@@ -280,10 +280,10 @@
 
           <!-- Empty state -->
           <div v-else class="px-6 py-8 text-center flex-1 flex flex-col items-center justify-center">
-            <img src="/images/brand/dashboard-empty-calendar.png" alt="Calendario"
+            <img src="/images/brand/dashboard-empty-calendar.webp" alt="Calendario"
               class="w-16 h-16 sm:w-20 sm:h-20 object-contain mx-auto mb-2 drop-shadow-sm select-none" />
             <p class="font-bold text-slate-900 text-sm">No tienes clases próximas</p>
-            <p class="text-xs text-slate-400 mt-0.5 mb-3 leading-relaxed">Cuando tengas clases agendadas, aparecerán aquí.</p>
+            <p class="text-xs text-slate-500 mt-0.5 mb-3 leading-relaxed">Cuando tengas clases agendadas, aparecerán aquí.</p>
             <Link :href="route('teacher.requests')"
               class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-orange-600 text-xs sm:text-sm font-bold rounded-xl hover:bg-orange-50/80 transition-colors border border-orange-200 shadow-2xs">
               <Icon name="requests" :size="14" /> Explorar solicitudes
@@ -304,7 +304,7 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-semibold text-slate-900 text-sm truncate">Solicitudes</p>
-                  <p class="text-xs text-slate-400 truncate">{{ pending_requests }} abiertas</p>
+                  <p class="text-xs text-slate-500 truncate">{{ pending_requests }} abiertas</p>
                 </div>
               </div>
               <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-orange-500 flex-shrink-0 transition-colors" />
@@ -319,7 +319,7 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-semibold text-slate-900 text-sm truncate">Mis ofertas</p>
-                  <p class="text-xs text-slate-400 truncate">Tarifa y cupos</p>
+                  <p class="text-xs text-slate-500 truncate">Tarifa y cupos</p>
                 </div>
               </div>
               <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
@@ -334,7 +334,7 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-semibold text-slate-900 text-sm truncate">Recargar créditos</p>
-                  <p class="text-xs text-slate-400 truncate">Yape / Plin</p>
+                  <p class="text-xs text-slate-500 truncate">Yape / Plin</p>
                 </div>
               </div>
               <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-emerald-500 flex-shrink-0 transition-colors" />
@@ -349,7 +349,7 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-semibold text-slate-900 text-sm truncate">Mi perfil</p>
-                  <p class="text-xs text-slate-400 truncate">Tu información</p>
+                  <p class="text-xs text-slate-500 truncate">Tu información</p>
                 </div>
               </div>
               <Icon name="arrow-right" :size="15" class="text-slate-300 group-hover:text-purple-500 flex-shrink-0 transition-colors" />

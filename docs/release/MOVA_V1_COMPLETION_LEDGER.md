@@ -750,7 +750,7 @@ tener mitigación aceptada por el titular; `P2` deuda que no bloquea.
 | C-P1-TEACHER-ONBOARDING | P1 | Producto | VERIFIED |
 | C-P1-PHONE-VERIFICATION | P1 | Integraciones | BLOCKED_EXTERNAL |
 | C-P1-GOOGLE-OAUTH | P1 | Auth | BLOCKED_EXTERNAL |
-| C-P1-MOVI | P1 | Producto / IA | BLOCKED_EXTERNAL |
+| C-P1-MOVI | P1 | Producto | IMPLEMENTED_LOCAL (activar con CHATBOT_ENABLED=true) |
 | C-P1-MERCADOPAGO | P1 | Dinero | BLOCKED_EXTERNAL |
 | C-P1-LEGAL-REACCEPTANCE | P1 | Legal | VERIFIED |
 | C-P1-JITSI-MEDIA | P1 | Integraciones | IMPLEMENTED_NOT_VERIFIED |
@@ -860,8 +860,8 @@ cierre · commit · tests · evidencia en vivo · notas.
 ### C-P1-MOVI
 - **Severidad / dominio:** P1 · Producto / IA.
 - **Evidencia:** `ChatbotService::isAvailable` condiciona widget y endpoint; verificación estática corregida y añadida a CI.
-- **Estado:** `BLOCKED_EXTERNAL` (verdad de UI implementada; servicio real pendiente).
-- **Criterio de cierre:** tests y checks verdes; activación intencional, política revisada, conversación QA segura en entorno definitivo.
+- **Estado:** `IMPLEMENTED_LOCAL` (2026-10-06): Movi responde con conocimiento propio de MOVA en el servidor (`MoviKnowledgeBase`, `CHATBOT_PROVIDER=local`, por defecto): sin clave, sin costo por mensaje y sin enviar texto a terceros; Gemini queda como modo opcional (`CHATBOT_PROVIDER=gemini`) y sigue exigiendo clave, techo diario y Política de Privacidad que lo declare (`LEGAL_PRIVACY_AI_MISMATCH` solo aplica a ese modo). Privacidad §5 (versión `2026-10-06.2`) describe a Movi tal como es.
+- **Criterio de cierre:** tests y checks verdes (`MoviLocalAssistantTest`: 49 casos incl. 35 formulaciones naturales y tareas escolares nunca resueltas; XSS Playwright); activar en producción con `CHATBOT_ENABLED=true` y verificar una conversación.
 - **Commit / tests:** `824bdd3`, `1f5588d`, `f141d6f` (router QA); `WelcomeMoviAvailabilityTest`, `check:movi-availability`, SQLite/MySQL, build y Playwright XSS pasaron; Gemini real pendiente.
 - **Evidencia en vivo:** no aportada.
 - **Notas:** Gemini/IA no se activó en C1.

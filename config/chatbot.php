@@ -6,16 +6,21 @@ return [
     | Movi Chatbot Configuration
     |--------------------------------------------------------------------------
     |
-    | Asistente Movi sobre Google Gemini API (generativelanguage). APAGADO por
-    | defecto: un endpoint público que gasta cuota de un proveedor externo
-    | solo se enciende por decisión explícita de despliegue, nunca por
-    | omisión de una variable.
+    | Asistente Movi. Dos modos (CHATBOT_PROVIDER):
+    |   - 'local'  (por defecto): respuestas preparadas por MOVA en nuestro propio
+    |              servidor (App\Services\MoviKnowledgeBase). No es IA generativa
+    |              ni envía nada a terceros: sin clave, sin costo por mensaje.
+    |   - 'gemini': Google Gemini API (generativelanguage). Envía lo que el usuario
+    |              escribe a un proveedor externo: exige clave, techo diario y que la
+    |              Política de Privacidad lo declare (ver HealthCheck).
+    | APAGADO por defecto (CHATBOT_ENABLED): un endpoint público solo se enciende
+    | por decisión explícita de despliegue, nunca por omisión de una variable.
     |
     */
 
     'enabled' => (bool) env('CHATBOT_ENABLED', false),
 
-    'provider' => env('CHATBOT_PROVIDER', 'gemini'),
+    'provider' => env('CHATBOT_PROVIDER', 'local'),
 
     'gemini' => [
         // Clave dedicada al chatbot. Nunca se devuelve al navegador ni se

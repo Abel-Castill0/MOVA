@@ -16,7 +16,7 @@
       </div>
 
       <div v-if="!requests.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay solicitudes con ese filtro</p>
+        <p class="text-gray-500 text-sm">No hay solicitudes con ese filtro</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -33,11 +33,11 @@
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="r in requests.data" :key="r.id" class="hover:bg-gray-50">
-              <td class="px-4 py-3 text-gray-400">#{{ r.id }}</td>
+              <td class="px-4 py-3 text-gray-500">#{{ r.id }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ r.subject?.name ?? '—' }}</td>
               <td class="px-4 py-3">
                 <p class="text-gray-700">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
-                <p class="text-xs text-gray-400">{{ r.student?.parent?.name ?? '—' }}</p>
+                <p class="text-xs text-gray-500">{{ r.student?.parent?.name ?? '—' }}</p>
               </td>
               <td class="px-4 py-3 text-gray-600 text-xs">
                 {{ r.class_offer?.teacher_profile?.user?.name ?? r.lesson?.teacher_profile?.user?.name ?? 'Sin asignar' }}

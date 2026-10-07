@@ -24,7 +24,7 @@
             <div>
               <p class="font-semibold text-slate-900">{{ s.full_name }}</p>
               <p class="text-sm text-slate-500 capitalize">{{ s.grade_level }}</p>
-              <p v-if="s.school" class="text-xs text-slate-400 mt-1">{{ s.school }}</p>
+              <p v-if="s.school" class="text-xs text-slate-500 mt-1">{{ s.school }}</p>
             </div>
             <div class="flex gap-1">
               <Link :href="route('students.edit', s.id)"

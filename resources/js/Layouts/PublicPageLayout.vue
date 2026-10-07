@@ -42,12 +42,15 @@
       <span class="text-gray-300">·</span>
       <span>© {{ year }} MOVA. Todos los derechos reservados.</span>
     </footer>
+
+    <ChatbotWidget v-if="$page.props.movi?.enabled" />
   </div>
 </template>
 
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
+import ChatbotWidget from '@/Components/ChatbotWidget.vue'
 
 defineProps({ title: String })
 const year = new Date().getFullYear()

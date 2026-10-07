@@ -64,11 +64,8 @@
         v-if="!teachers.data?.length"
         title="Aún no hay profesores verificados"
         description="Vuelve pronto — estamos verificando a los primeros profesores de MOVA."
-      >
-        <template #icon>
-          <Icon name="teachers" :size="40" :stroke-width="1.5" class="text-ink-subtle" />
-        </template>
-      </EmptyState>
+        mascot="lee"
+      />
 
       <!-- Grid of teachers -->
       <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -81,7 +81,7 @@ function removeAvatar() {
           </button>
           <p v-if="form.recentlySuccessful" class="text-sm text-green-600 font-medium">Guardada ✓</p>
         </div>
-        <p class="mt-2 text-xs text-slate-400">JPG, PNG o WEBP. Máximo 4 MB.</p>
+        <p class="mt-2 text-xs text-slate-500">JPG, PNG o WEBP. Máximo 4 MB.</p>
         <p v-if="form.errors.avatar" class="mt-1 text-xs text-red-500">{{ form.errors.avatar }}</p>
       </div>
     </form>

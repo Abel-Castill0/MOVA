@@ -33,7 +33,7 @@
         </div>
 
         <div v-else-if="lesson.status !== 'scheduled'" class="flex-shrink-0 text-center px-4 py-3 bg-slate-50 rounded-xl">
-          <p class="text-sm text-slate-400 capitalize">{{ statusStyle(lesson.status).label }}</p>
+          <p class="text-sm text-slate-500 capitalize">{{ statusStyle(lesson.status).label }}</p>
         </div>
       </div>
 
@@ -69,7 +69,7 @@
         </template>
 
         <template v-else-if="lesson.status === 'scheduled'">
-          <span class="text-xs text-slate-400">Pendiente de confirmación de pago</span>
+          <span class="text-xs text-slate-500">Pendiente de confirmación de pago</span>
           <div class="flex gap-2">
             <button @click="$emit('reschedule', lesson)"
               class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">

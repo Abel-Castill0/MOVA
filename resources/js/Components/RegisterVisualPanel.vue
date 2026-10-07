@@ -2,7 +2,7 @@
   <div class="hidden lg:flex lg:w-[47%] xl:w-[48%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1B64CC] via-[#1350A5] to-[#09306E] p-6 xl:p-8 2xl:p-10 select-none">
     <!-- Capa de textura decorativa de fondo exclusiva del registro (sutil y no dominante) -->
     <img
-      src="/images/brand/register-blue-decoration.png"
+      src="/images/brand/register-blue-decoration.webp"
       alt=""
       class="absolute inset-0 w-full h-full object-cover object-center opacity-[0.16] pointer-events-none z-0"
       loading="eager"
@@ -34,7 +34,7 @@
       <div class="relative w-[78%] min-w-[340px] max-w-[470px] xl:max-w-[550px] 2xl:max-w-[630px]">
         <!-- 1. Nota manuscrita: 'Tu próxima oportunidad te espera' (Blanca, discreta y alineada con Imagen B) -->
         <img
-          src="/images/brand/register-opportunity-note.png"
+          src="/images/brand/register-opportunity-note.webp"
           alt="Tu próxima oportunidad te espera"
           class="absolute -top-[14%] xl:-top-[15%] left-[9%] xl:left-[10%] w-[26%] xl:w-[27%] -rotate-[6deg] h-auto object-contain z-20 pointer-events-none drop-shadow-sm brightness-0 invert opacity-95"
           loading="eager"
@@ -43,7 +43,7 @@
 
         <!-- 2. Card flotante: 'Aprende a tu ritmo' -->
         <img
-          src="/images/brand/register-feature-learn.png"
+          src="/images/brand/register-feature-learn.webp"
           alt="Aprende a tu ritmo"
           class="absolute top-[31%] xl:top-[32%] -left-[5%] xl:-left-[6%] w-[25%] xl:w-[26%] h-auto object-contain z-20 drop-shadow-md pointer-events-none"
           loading="eager"
@@ -52,7 +52,7 @@
 
         <!-- 3. Card flotante: 'Profesores verificados' -->
         <img
-          src="/images/brand/register-feature-verified.png"
+          src="/images/brand/register-feature-verified.webp"
           alt="Profesores verificados"
           class="absolute -top-[5%] xl:-top-[6%] right-[3%] xl:right-[4%] w-[27%] xl:w-[28%] h-auto object-contain z-20 drop-shadow-md pointer-events-none"
           loading="eager"
@@ -61,7 +61,7 @@
 
         <!-- 4. Planta sobre libros: en la base inferior izquierda de la laptop -->
         <img
-          src="/images/brand/register-plant-books.png"
+          src="/images/brand/register-plant-books.webp"
           alt=""
           class="absolute -left-[3%] xl:-left-[4%] -bottom-[2%] xl:-bottom-[3%] w-[31%] xl:w-[32%] h-auto object-contain z-30 drop-shadow-lg pointer-events-none"
           loading="eager"
@@ -70,7 +70,7 @@
 
         <!-- 5. Laptop con videollamada interactiva (foco visual principal, elemento base del contenedor) -->
         <img
-          src="/images/brand/register-laptop-videocall.png"
+          src="/images/brand/register-laptop-videocall.webp"
           alt="Clases particulares en vivo"
           class="w-full h-auto object-contain z-10 drop-shadow-2xl block"
           loading="eager"

@@ -140,7 +140,7 @@ function submit() {
               <h2 class="text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight">Crear cuenta</h2>
               <p class="text-xs sm:text-sm text-slate-500 mt-1 font-normal">Únete a MOVA en unos minutos.</p>
             </div>
-            <span class="text-xs font-bold tracking-wider uppercase text-slate-400 mt-1 whitespace-nowrap">
+            <span class="text-xs font-bold tracking-wider uppercase text-slate-500 mt-1 whitespace-nowrap">
               PASO {{ step }} DE {{ totalSteps }}
             </span>
           </div>
@@ -178,7 +178,7 @@ function submit() {
               <!-- Divisor -->
               <div class="my-4 sm:my-5 flex items-center gap-3">
                 <div class="h-px flex-1 bg-slate-200" />
-                <span class="text-xs font-medium text-slate-400 whitespace-nowrap">o completa el formulario</span>
+                <span class="text-xs font-medium text-slate-500 whitespace-nowrap">o completa el formulario</span>
                 <div class="h-px flex-1 bg-slate-200" />
               </div>
               </template>
@@ -208,7 +208,7 @@ function submit() {
                     class="relative rounded-xl p-3 sm:p-3.5 text-left transition-all duration-150 flex items-start gap-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                     :class="form.role === 'parent' ? 'border-2 border-[#1B60C4] bg-[#EEF4FF] shadow-sm' : 'border border-slate-200 bg-white hover:border-slate-300'"
                   >
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'parent' ? 'text-[#1B60C4]' : 'text-slate-400'">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'parent' ? 'text-[#1B60C4]' : 'text-slate-500'">
                       <Icon name="role-parent" :size="20" />
                     </div>
                     <div class="min-w-0 flex-1">
@@ -231,7 +231,7 @@ function submit() {
                     class="relative rounded-xl p-3 sm:p-3.5 text-left transition-all duration-150 flex items-start gap-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                     :class="form.role === 'teacher' ? 'border-2 border-[#1B60C4] bg-[#EEF4FF] shadow-sm' : 'border border-slate-200 bg-white hover:border-slate-300'"
                   >
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'teacher' ? 'text-[#1B60C4]' : 'text-slate-400'">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'teacher' ? 'text-[#1B60C4]' : 'text-slate-500'">
                       <Icon name="role-teacher" :size="20" />
                     </div>
                     <div class="min-w-0 flex-1">
@@ -280,7 +280,7 @@ function submit() {
               <div>
                 <label for="name" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Nombre completo</label>
                 <div class="relative">
-                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
                     <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
@@ -293,7 +293,7 @@ function submit() {
                     autofocus
                     autocomplete="name"
                     placeholder="Tu nombre completo"
-                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                     :class="{ 'border-rose-400 bg-rose-50/30': form.errors.name }"
                   />
                 </div>
@@ -328,7 +328,7 @@ function submit() {
               <div>
                 <label for="email" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Correo electrónico</label>
                 <div class="relative">
-                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
                     <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
@@ -340,7 +340,7 @@ function submit() {
                     required
                     autocomplete="username"
                     placeholder="tu@correo.com"
-                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                     :class="{ 'border-rose-400 bg-rose-50/30': form.errors.email }"
                   />
                 </div>
@@ -348,9 +348,9 @@ function submit() {
               </div>
 
               <div>
-                <label for="phone" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Teléfono o WhatsApp <span class="text-slate-400 font-normal">(opcional)</span></label>
+                <label for="phone" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Teléfono o WhatsApp <span class="text-slate-500 font-normal">(opcional)</span></label>
                 <div class="relative">
-                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
                     <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
@@ -360,7 +360,7 @@ function submit() {
                     v-model="form.phone"
                     type="tel"
                     placeholder="987654321 o +51987654321"
-                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-4 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                     :class="{ 'border-rose-400 bg-rose-50/30': form.errors.phone }"
                   />
                 </div>
@@ -397,7 +397,7 @@ function submit() {
                   v-model="subjectDraft"
                   type="text"
                   placeholder="Ej: Robótica, Álgebra, Python"
-                  class="flex-1 h-[46px] px-3.5 rounded-xl border border-slate-200 text-slate-900 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                  class="flex-1 h-[46px] px-3.5 rounded-xl border border-slate-200 text-slate-900 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                   @keydown.enter.prevent="addSubject"
                 />
                 <button type="button" @click="addSubject" class="px-4 h-[46px] rounded-xl bg-[#1B60C4] text-white text-sm font-bold hover:bg-[#154FA6] transition-colors">
@@ -446,7 +446,7 @@ function submit() {
               <div>
                 <label for="password" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Contraseña</label>
                 <div class="relative">
-                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
                     <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
@@ -458,14 +458,14 @@ function submit() {
                     required
                     autocomplete="new-password"
                     placeholder="Contraseña"
-                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-11 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-11 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                     :class="{ 'border-rose-400 bg-rose-50/30': form.errors.password }"
                   />
                   <button
                     type="button"
                     @click="showPassword = !showPassword"
                     :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
                   >
                     <svg v-if="showPassword" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -482,7 +482,7 @@ function submit() {
               <div>
                 <label for="password_confirmation" class="block text-xs sm:text-[13px] font-semibold text-slate-800 mb-1">Confirmar contraseña</label>
                 <div class="relative">
-                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
                     <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
@@ -493,14 +493,14 @@ function submit() {
                     v-model="form.password_confirmation"
                     required
                     placeholder="Repite tu contraseña"
-                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-11 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                    class="w-full h-[46px] sm:h-[48px] pl-10 pr-11 rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                     :class="{ 'border-rose-400 bg-rose-50/30': form.password_confirmation && form.password !== form.password_confirmation }"
                   />
                   <button
                     type="button"
                     @click="showConfirmPassword = !showConfirmPassword"
                     :aria-label="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
                   >
                     <svg v-if="showConfirmPassword" class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -580,7 +580,7 @@ function submit() {
 
 
       <!-- Footer inferior del panel derecho -->
-      <footer class="pt-3 pb-2 text-center text-xs text-slate-400 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10">
+      <footer class="pt-3 pb-2 text-center text-xs text-slate-500 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10">
         <Link :href="route('legal.terms')" class="hover:text-slate-600 transition-colors">Términos y Condiciones</Link>
         <span class="text-slate-300">|</span>
         <Link :href="route('legal.privacy')" class="hover:text-slate-600 transition-colors">Política de Privacidad</Link>

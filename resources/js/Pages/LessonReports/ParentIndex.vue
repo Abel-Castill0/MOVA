@@ -16,7 +16,7 @@
       <div v-if="!reports.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
         <div class="text-5xl mb-3">📋</div>
         <p class="font-bold text-slate-800 text-base">Aún no hay reportes</p>
-        <p class="text-slate-400 text-sm mt-1">Los reportes aparecerán aquí después de cada clase.</p>
+        <p class="text-slate-500 text-sm mt-1">Los reportes aparecerán aquí después de cada clase.</p>
         <Link :href="route('class-requests.create')" class="inline-block mt-4 px-6 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 shadow-sm shadow-brand-600/20 transition-all">
           Solicitar una clase →
         </Link>
@@ -45,8 +45,8 @@
                   </span>
 
                   <!-- Fecha de la clase -->
-                  <span class="text-xs font-medium text-slate-400 flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span class="text-xs font-medium text-slate-500 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     {{ fmtDate(r.start_time) }}

@@ -61,7 +61,7 @@
                   ? 'bg-brand-600 text-white border-brand-600 shadow-md shadow-brand-600/25'
                   : 'bg-white text-slate-600 border-gray-200 hover:border-brand-300 hover:text-brand-700']">
               <span>{{ opt.label }}</span>
-              <span :class="['text-[11px] font-normal', form.duration_minutes === opt.value ? 'text-brand-100' : 'text-slate-400']">
+              <span :class="['text-[11px] font-normal', form.duration_minutes === opt.value ? 'text-brand-100' : 'text-slate-500']">
                 {{ creditsFor(opt.value) }} crédito{{ creditsFor(opt.value) === 1 ? '' : 's' }}
               </span>
             </button>

@@ -14,7 +14,7 @@
           class="flex items-center gap-2">
           <input type="time" :value="slot.start" @change="updateSlot(day.key, idx, 'start', $event.target.value)"
             class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-28 focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-          <span class="text-slate-400 text-xs">a</span>
+          <span class="text-slate-500 text-xs">a</span>
           <input type="time" :value="slot.end" @change="updateSlot(day.key, idx, 'end', $event.target.value)"
             class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm w-28 focus:ring-2 focus:ring-brand-500 focus:outline-none" />
           <button type="button" @click="removeSlot(day.key, idx)"

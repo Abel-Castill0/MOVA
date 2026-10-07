@@ -20,7 +20,7 @@
       </div>
 
       <div v-if="!requests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
-        <p class="text-slate-400">Sin solicitudes</p>
+        <p class="text-slate-500">Sin solicitudes</p>
       </div>
 
       <div v-else class="space-y-3.5">
@@ -33,7 +33,7 @@
                 <StatusBadge :status="r.status" />
               </div>
               <p class="text-sm text-slate-500">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
-              <p class="text-sm text-slate-400 mt-1 line-clamp-2 break-words">{{ r.help_needed }}</p>
+              <p class="text-sm text-slate-500 mt-1 line-clamp-2 break-words">{{ r.help_needed }}</p>
               <p v-if="r.class_offer" class="text-xs text-brand-600 mt-1">
                 Prof. {{ r.class_offer?.teacher_profile?.user?.name }}
               </p>

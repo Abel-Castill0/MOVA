@@ -163,7 +163,7 @@
         <!-- COLUMNA IZQUIERDA: REJILLA DE TARJETAS -->
         <div class="flex-1 min-w-0">
           <div v-if="!filteredRequests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
-            <div class="text-4xl mb-2.5">🔍</div>
+            <Search class="w-10 h-10 mx-auto mb-2.5 text-slate-400" :stroke-width="1.6" aria-hidden="true" />
             <p class="font-bold text-slate-800 text-base">No se encontraron solicitudes</p>
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
               {{ verificationPending ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.' : 'Prueba cambiando los términos de búsqueda o filtros.' }}
@@ -241,7 +241,7 @@
 
                   <!-- Urgencia -->
                   <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[11px] font-bold', urgencyLevel(r).badgeClass]">
-                    <span>{{ urgencyLevel(r).icon }}</span>
+                    <Icon :name="urgencyLevel(r).icon" :size="12" />
                     <span>{{ urgencyLevel(r).label }}</span>
                   </span>
                 </div>
@@ -346,7 +346,7 @@
             <div class="rounded-2xl bg-gradient-to-br from-blue-50/90 via-blue-50/50 to-indigo-50/40 border border-blue-200/90 p-3 xl:p-3.5 shadow-2xs">
               <div class="flex items-center gap-2 mb-1.5">
                 <div class="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs shadow-xs shrink-0">
-                  🎯
+                  <Icon name="target" :size="14" />
                 </div>
                 <h4 class="text-xs font-bold text-blue-950 uppercase tracking-wider">
                   Objetivo de aprendizaje
@@ -389,7 +389,7 @@
             <!-- Disponibilidad / Urgencia -->
             <div :class="['rounded-2xl p-2.5 xl:p-3 border flex items-center gap-2.5 xl:gap-3 shadow-2xs transition-colors', urgencyLevel(selectedRequest).boxClass]">
               <div :class="['w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black shadow-2xs border', urgencyLevel(selectedRequest).iconBoxClass]">
-                {{ urgencyLevel(selectedRequest).icon }}
+                <Icon :name="urgencyLevel(selectedRequest).icon" :size="18" />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-1">
@@ -410,7 +410,7 @@
             <div class="rounded-2xl bg-slate-50/90 border border-slate-200/90 p-3 xl:p-3.5 shadow-2xs">
               <div class="flex items-center gap-2 mb-1.5">
                 <div class="w-6 h-6 rounded-lg bg-slate-200/80 text-slate-700 flex items-center justify-center text-xs shadow-2xs shrink-0">
-                  💬
+                  <Icon name="help-needed" :size="14" />
                 </div>
                 <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
                   Mensaje del alumno
@@ -569,7 +569,7 @@
                 <div class="rounded-2xl bg-gradient-to-br from-blue-50/90 via-blue-50/50 to-indigo-50/40 border border-blue-200/90 p-3.5 shadow-2xs">
                   <div class="flex items-center gap-2 mb-1.5">
                     <div class="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs shadow-xs shrink-0">
-                      🎯
+                      <Icon name="target" :size="14" />
                     </div>
                     <h4 class="text-xs font-bold text-blue-950 uppercase tracking-wider">
                       Objetivo de aprendizaje
@@ -612,7 +612,7 @@
                 <!-- Disponibilidad / Urgencia Box -->
                 <div :class="['rounded-2xl p-3 border flex items-center gap-3 shadow-2xs transition-colors', urgencyLevel(selectedRequest).boxClass]">
                   <div :class="['w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black shadow-2xs border', urgencyLevel(selectedRequest).iconBoxClass]">
-                    {{ urgencyLevel(selectedRequest).icon }}
+                    <Icon :name="urgencyLevel(selectedRequest).icon" :size="18" />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center justify-between gap-1">
@@ -633,7 +633,7 @@
                 <div class="rounded-2xl bg-slate-50/90 border border-slate-200/90 p-3.5 shadow-2xs">
                   <div class="flex items-center gap-2 mb-1.5">
                     <div class="w-6 h-6 rounded-lg bg-slate-200/80 text-slate-700 flex items-center justify-center text-xs shadow-2xs shrink-0">
-                      💬
+                      <Icon name="help-needed" :size="14" />
                     </div>
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
                       Mensaje del alumno
@@ -865,6 +865,7 @@ import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Icon from '@/Components/Icon.vue'
+import { Search } from 'lucide-vue-next'
 
 const props = defineProps({
   requests:           { type: Array, default: () => [] },
@@ -1035,7 +1036,7 @@ function urgencyLevel(r) {
     return {
       label: 'Baja',
       timeText: 'Flexible',
-      icon: '📅',
+      icon: 'classes',
       badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold',
       boxClass: 'bg-emerald-50/90 border-emerald-200/90',
       iconBoxClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -1054,7 +1055,7 @@ function urgencyLevel(r) {
       return {
         label: 'Alta',
         timeText: 'Esta semana',
-        icon: '⚡',
+        icon: 'warning',
         badgeClass: 'bg-red-100 text-red-700 border-red-300 font-extrabold',
         boxClass: 'bg-red-50/90 border-red-200/90',
         iconBoxClass: 'bg-red-100 text-red-600 border-red-200',
@@ -1066,7 +1067,7 @@ function urgencyLevel(r) {
       return {
         label: 'Media',
         timeText: 'Próxima semana',
-        icon: '📅',
+        icon: 'classes',
         badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-extrabold',
         boxClass: 'bg-amber-50/90 border-amber-200/90',
         iconBoxClass: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -1078,7 +1079,7 @@ function urgencyLevel(r) {
       return {
         label: 'Baja',
         timeText: 'Flexible',
-        icon: '📅',
+        icon: 'classes',
         badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold',
         boxClass: 'bg-emerald-50/90 border-emerald-200/90',
         iconBoxClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -1093,7 +1094,7 @@ function urgencyLevel(r) {
     return {
       label: 'Alta',
       timeText: 'Esta semana',
-      icon: '⚡',
+      icon: 'warning',
       badgeClass: 'bg-red-100 text-red-700 border-red-300 font-extrabold',
       boxClass: 'bg-red-50/90 border-red-200/90',
       iconBoxClass: 'bg-red-100 text-red-600 border-red-200',
@@ -1107,7 +1108,7 @@ function urgencyLevel(r) {
     return {
       label: 'Media',
       timeText: 'Próxima semana',
-      icon: '📅',
+      icon: 'classes',
       badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-extrabold',
       boxClass: 'bg-amber-50/90 border-amber-200/90',
       iconBoxClass: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -1120,7 +1121,7 @@ function urgencyLevel(r) {
   return {
     label: 'Baja',
     timeText: 'Flexible',
-    icon: '📅',
+    icon: 'classes',
     badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold',
     boxClass: 'bg-emerald-50/90 border-emerald-200/90',
     iconBoxClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',

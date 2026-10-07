@@ -249,7 +249,9 @@
                       ]"
                     >
                       <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="text-lg sm:text-xl flex-shrink-0 leading-none" aria-hidden="true">{{ subjectEmoji(s.name) }}</span>
+                        <span :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', subjectIcon(s.name).bg]" aria-hidden="true">
+                          <component :is="subjectIcon(s.name).icon" class="w-[18px] h-[18px]" :stroke-width="1.9" />
+                        </span>
                         <span class="text-xs sm:text-sm font-bold truncate leading-tight">{{ s.name }}</span>
                       </div>
                       <div :class="[
@@ -314,11 +316,11 @@
 
                   <!-- Feedback del código -->
                   <div v-if="codeLookup.status === 'found'" class="mt-3 p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold flex items-center gap-2.5">
-                    <div class="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold flex-shrink-0">✓</div>
+                    <div class="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold flex-shrink-0"><Icon name="check" :size="14" :stroke-width="3" /></div>
                     <span>Código verificado · Se enviará directamente a: <strong class="text-slate-900 font-bold">{{ codeLookup.name }}</strong></span>
                   </div>
                   <div v-else-if="codeLookup.status === 'not-found'" class="mt-3 p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-200 text-rose-800 text-xs sm:text-sm font-semibold flex items-center gap-2.5">
-                    <div class="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center font-bold flex-shrink-0">✕</div>
+                    <div class="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center font-bold flex-shrink-0"><Icon name="close" :size="14" :stroke-width="3" /></div>
                     <span>Código no encontrado. Verifica las 6 letras o continúa sin código.</span>
                   </div>
                   <InputError :message="form.errors.teacher_referral_code" class="mt-1 text-rose-500 text-xs" />
@@ -385,7 +387,7 @@
                     <div>
                       <div class="flex items-center justify-between mb-3">
                         <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-2xl shadow-xs">
-                          🎯
+                          <Icon name="target" :size="22" class="text-amber-600" />
                         </div>
                         <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                           Puntual
@@ -417,7 +419,7 @@
                     <div>
                       <div class="flex items-center justify-between mb-3">
                         <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-50 border border-brand-200 flex items-center justify-center text-2xl shadow-xs">
-                          ⭐
+                          <Icon name="reviews" :size="22" class="text-brand-600" />
                         </div>
                         <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Recomendado
@@ -574,7 +576,6 @@
                 >
                   <Icon v-if="!form.processing" name="send" :size="20" class="text-white drop-shadow-sm" />
                   <span>{{ form.processing ? 'Enviando solicitud...' : 'Enviar solicitud' }}</span>
-                  <span v-if="!form.processing" class="text-lg" aria-hidden="true">🚀</span>
                 </button>
 
                 <button
@@ -603,6 +604,7 @@ import TimeSlotPicker from '@/Components/TimeSlotPicker.vue'
 import Icon from '@/Components/Icon.vue'
 import InputError from '@/Components/InputError.vue'
 import { timeSlotLabel } from '@/utils/timeSlots'
+import { subjectIcon } from '@/utils/subjectIcon'
 
 // ── Props ───────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -688,22 +690,6 @@ const recipientSummary = computed(() => {
 })
 
 const preferredTimesSummary = computed(() => form.preferred_times.map(timeSlotLabel).join(', '))
-
-function subjectEmoji(name) {
-  if (!name) return '📚'
-  const lower = name.toLowerCase()
-  if (lower.includes('matemática') || lower.includes('matematica') || lower.includes('algebra') || lower.includes('geometr')) return '📐'
-  if (lower.includes('física') || lower.includes('fisica')) return '⚡'
-  if (lower.includes('química') || lower.includes('quimica')) return '🧪'
-  if (lower.includes('natural') || lower.includes('ciencia') || lower.includes('biolog')) return '🍃'
-  if (lower.includes('inglés') || lower.includes('ingles') || lower.includes('english')) return '🇬🇧'
-  if (lower.includes('lengua') || lower.includes('comunic') || lower.includes('literat') || lower.includes('español')) return '📖'
-  if (lower.includes('program') || lower.includes('comput') || lower.includes('sistem')) return '💻'
-  if (lower.includes('histor') || lower.includes('social')) return '🏛️'
-  if (lower.includes('filoso') || lower.includes('psicol')) return '🧠'
-  if (lower.includes('arte') || lower.includes('músic') || lower.includes('music')) return '🎨'
-  return '📚'
-}
 
 // ── Lookup de código ───────────────────────────────────────────────────────
 const referralCodeInput = ref(props.prefillReferralCode ?? '')

@@ -23,7 +23,7 @@
       <div v-if="!lessons.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
         <div class="text-5xl mb-3">📅</div>
         <p class="font-bold text-slate-800 text-base">No hay clases registradas</p>
-        <p class="text-slate-400 text-sm mt-1">Envía tu primera solicitud y un profesor te contactará.</p>
+        <p class="text-slate-500 text-sm mt-1">Envía tu primera solicitud y un profesor te contactará.</p>
         <Link :href="route('class-requests.create')" class="inline-block mt-4 px-6 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 shadow-sm shadow-brand-600/20 transition-all">
           Solicitar una clase →
         </Link>
@@ -37,14 +37,14 @@
           <div>
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-base font-bold text-slate-900">📅 Esta semana</h3>
-              <span class="text-sm text-slate-400">{{ thisWeek.length }}</span>
+              <span class="text-sm text-slate-500">{{ thisWeek.length }}</span>
             </div>
             <div v-if="thisWeek.length" class="space-y-3">
               <ParentLessonCard v-for="l in thisWeek" :key="l.id" :lesson="l"
                 :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
                 @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
             </div>
-            <div v-else class="bg-white rounded-3xl border border-gray-100 py-8 text-center text-slate-400 shadow-2xs">
+            <div v-else class="bg-white rounded-3xl border border-gray-100 py-8 text-center text-slate-500 shadow-2xs">
               <p class="text-sm">No tienes clases esta semana.</p>
             </div>
           </div>
@@ -53,14 +53,14 @@
           <div>
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-base font-bold text-slate-900">📚 Clases pasadas</h3>
-              <span class="text-sm text-slate-400">{{ past.length }}</span>
+              <span class="text-sm text-slate-500">{{ past.length }}</span>
             </div>
             <div v-if="past.length" class="space-y-3">
               <ParentLessonCard v-for="l in past" :key="l.id" :lesson="l"
                 :paying-id="payingId" :payment-error-id="paymentErrorId" :payment-error="paymentError"
                 @join="openJitsi" @pay="confirmPayment" @reschedule="openReschedule" @cancel="openCancel" />
             </div>
-            <div v-else class="bg-white rounded-3xl border border-gray-100 py-8 text-center text-slate-400 shadow-2xs">
+            <div v-else class="bg-white rounded-3xl border border-gray-100 py-8 text-center text-slate-500 shadow-2xs">
               <p class="text-sm">Aún no hay clases pasadas.</p>
             </div>
           </div>

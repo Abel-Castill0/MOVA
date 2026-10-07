@@ -16,7 +16,7 @@
     <!-- La imagen (≈0,5 MB) solo se monta con puntero fino: en táctil ni se descarga. -->
     <img
       v-if="enabled"
-      src="/images/brand/Plumon-rojo.png"
+      src="/images/brand/Plumon-rojo.webp"
       alt=""
       draggable="false"
       class="marker-cursor-img"

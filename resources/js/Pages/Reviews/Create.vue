@@ -24,19 +24,19 @@
               ★
             </button>
           </div>
-          <p class="text-xs text-slate-400 mt-1">{{ ratingLabel }}</p>
+          <p class="text-xs text-slate-500 mt-1">{{ ratingLabel }}</p>
           <p v-if="errors.rating" class="text-xs text-red-500 mt-1">{{ errors.rating }}</p>
         </div>
 
         <!-- Comment -->
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">
-            Comentario <span class="text-slate-400 font-normal">(opcional)</span>
+            Comentario <span class="text-slate-500 font-normal">(opcional)</span>
           </label>
           <textarea v-model="form.comment" rows="4" maxlength="1000"
             placeholder="¿Cómo fue la clase? ¿El profesor explicó bien? ¿Lo recomendarías?"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
-          <p class="text-xs text-slate-400 text-right mt-0.5">{{ form.comment.length }}/1000</p>
+          <p class="text-xs text-slate-500 text-right mt-0.5">{{ form.comment.length }}/1000</p>
         </div>
 
         <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
@@ -52,7 +52,7 @@
             :class="['flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors',
               form.rating && !submitting
                 ? 'bg-brand-600 text-white hover:bg-brand-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed']">
+                : 'bg-gray-100 text-gray-500 cursor-not-allowed']">
             {{ submitting ? 'Enviando...' : 'Enviar reseña' }}
           </button>
         </div>

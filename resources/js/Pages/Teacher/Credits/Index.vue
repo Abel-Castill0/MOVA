@@ -96,7 +96,34 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table v-if="activeTab === 'transactions'" class="min-w-full divide-y divide-gray-100 text-sm">
+          <!-- Móvil: lista apilada (una tabla de 4-5 columnas no cabe en 360px y aplastaba la descripción). -->
+          <ul v-if="activeTab === 'transactions'" class="divide-y divide-gray-100 md:hidden">
+            <li v-if="!creditTransactions.length" class="px-4 py-8 text-center text-sm text-slate-500">Aún no tienes movimientos de créditos.</li>
+            <li v-for="transaction in creditTransactions" :key="transaction.id" class="flex items-start justify-between gap-3 px-4 py-3">
+              <div class="min-w-0">
+                <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
+                <p class="mt-1.5 break-words text-sm text-slate-700">{{ transaction.description }}</p>
+                <p v-if="transactionDetail(transaction.type)" class="mt-0.5 text-xs text-rose-600">{{ transactionDetail(transaction.type) }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ fmtDate(transaction.created_at) }}</p>
+              </div>
+              <p class="shrink-0 text-base font-bold tabular-nums text-slate-900">{{ transaction.amount }}</p>
+            </li>
+          </ul>
+          <ul v-else class="divide-y divide-gray-100 md:hidden">
+            <li v-if="!rechargeRequests.length" class="px-4 py-8 text-center text-sm text-slate-500">Aún no has enviado solicitudes de recarga.</li>
+            <li v-for="request in rechargeRequests" :key="request.id" class="flex items-start justify-between gap-3 px-4 py-3">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</p>
+                <p class="mt-0.5 text-xs text-slate-600">Operación {{ request.operation_number }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ fmtDate(request.created_at) }}</p>
+              </div>
+              <div class="flex shrink-0 flex-col items-end gap-1.5">
+                <p class="text-sm font-bold tabular-nums text-slate-900">S/ {{ money(request.amount_pen) }}</p>
+                <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(request.status).color]">{{ rechargeStatusStyle(request.status).label }}</span>
+              </div>
+            </li>
+          </ul>
+          <table v-if="activeTab === 'transactions'" class="hidden min-w-full divide-y divide-gray-100 text-sm md:table">
             <thead class="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th class="px-4 py-3">Fecha</th>
@@ -125,7 +152,7 @@
             </tbody>
           </table>
 
-          <table v-else class="min-w-full divide-y divide-gray-100 text-sm">
+          <table v-else class="hidden min-w-full divide-y divide-gray-100 text-sm md:table">
             <thead class="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
               <tr>
                 <th class="px-4 py-3">Fecha</th>
@@ -161,7 +188,7 @@
             <h3 class="text-lg font-black text-slate-900">Recargar paquete {{ selectedPackage?.name }}</h3>
             <p class="mt-1 text-sm text-slate-500">Realiza el pago exacto y registra el número de operación.</p>
           </div>
-          <button type="button" class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" @click="closeRecharge">
+          <button type="button" class="rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-600 transition-colors" @click="closeRecharge">
             <span class="sr-only">Cerrar</span>
             <Icon name="close" :size="18" aria-hidden="true" />
           </button>

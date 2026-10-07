@@ -1,6 +1,9 @@
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
+import { usePage } from '@inertiajs/vue3'
+import Icon from '@/Components/Icon.vue'
+import MoviMascot from '@/Components/MoviMascot.vue'
 import { formatMessageText } from '@/utils/chatbotFormat.js'
 
 const props = defineProps({
@@ -8,9 +11,14 @@ const props = defineProps({
     type: Boolean,
     default: undefined,
   },
+  // false cuando el lanzador vive en otra parte (cabecera de la app): evita un botón flotante sobre acciones primarias.
+  floating: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])
+
+const page = usePage()
+const supportEmail = computed(() => page.props.support?.email ?? '')
 
 const internalOpen = ref(false)
 
@@ -35,23 +43,16 @@ const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
 
-// Lista de mensajes con estado interactivo
-const messages = ref([
-  {
-    id: 1,
-    sender: 'bot',
-    text: '¡Hola! 👋 Soy **Movi**, tu asistente inteligente en MOVA 🐿️. ¿En qué te puedo ayudar hoy?',
-    time: 'Ahora',
-    isWelcome: true,
-  },
-])
+const WELCOME = 'Hola, soy **Movi**, el asistente de MOVA. Te ayudo a pedir una clase, entender los créditos o resolver dudas de tu cuenta. ¿Qué necesitas?'
 
-// Preguntas sugeridas interactivas
+const messages = ref([{ id: 1, sender: 'bot', text: WELCOME, time: '', isWelcome: true }])
+
+// Preguntas sugeridas: cada una es una consulta real que Movi sabe responder.
 const suggestions = [
-  { label: '🔍 ¿Cómo busco un profesor?', prompt: '¿Cómo busco un profesor para mi nivel?' },
-  { label: '💳 ¿Cómo funcionan los créditos?', prompt: '¿Cómo funciona el sistema de créditos en MOVA?' },
-  { label: '🎁 ¿Cómo pido mi primera clase?', prompt: '¿Cómo puedo agendar mi primera clase?' },
-  { label: '👨‍🏫 ¿Cómo ser profesor en MOVA?', prompt: 'Quiero enseñar en MOVA, ¿qué requisitos necesito?' },
+  { icon: 'teachers', label: 'Cómo pedir una clase', prompt: '¿Cómo pido una clase para mi hijo?' },
+  { icon: 'credits', label: 'Créditos y precios', prompt: '¿Cómo funcionan los créditos en MOVA?' },
+  { icon: 'verified-badge', label: 'Profesores verificados', prompt: '¿Los profesores son verificados y seguros?' },
+  { icon: 'topic', label: 'Quiero ser profesor', prompt: 'Quiero enseñar en MOVA, ¿qué requisitos necesito?' },
 ]
 
 function scrollToBottom() {
@@ -67,12 +68,17 @@ function scrollToBottom() {
 const launcherRef = ref(null)
 const dialogRef = ref(null)
 
+let lastFocused = null
+
 watch(isOpen, (open) => {
   if (open) {
+    lastFocused = document.activeElement
+    nudgeVisible.value = false
     scrollToBottom()
     nextTick(() => dialogRef.value?.querySelector('#movi-chat-input')?.focus())
   } else {
-    nextTick(() => launcherRef.value?.focus())
+    // Devuelve el foco a quien abrió el chat (lanzador flotante o botón de la cabecera).
+    nextTick(() => (launcherRef.value ?? lastFocused)?.focus?.())
   }
 })
 
@@ -93,17 +99,35 @@ function trapFocus(event) {
 }
 
 function restartChat() {
-  messages.value = [
-    {
-      id: Date.now(),
-      sender: 'bot',
-      text: '¡Conversación reiniciada! 👋 Soy **Movi**, tu asistente inteligente en MOVA 🐿️. ¿En qué te puedo orientar hoy?',
-      time: getCurrentTime(),
-      isWelcome: true,
-    },
-  ]
+  messages.value = [{ id: Date.now(), sender: 'bot', text: WELCOME, time: getCurrentTime(), isWelcome: true }]
   scrollToBottom()
 }
+
+// Aviso discreto junto al lanzador: una sola vez por sesión del navegador, sin tapar nada ni repetirse.
+const nudgeVisible = ref(false)
+let nudgeTimer = null
+let nudgeHideTimer = null
+
+onMounted(() => {
+  let seen = false
+  try {
+    seen = sessionStorage.getItem('movi-nudge') === '1'
+  } catch {
+    seen = true
+  }
+  if (seen) return
+  nudgeTimer = setTimeout(() => {
+    if (isOpen.value) return
+    nudgeVisible.value = true
+    try { sessionStorage.setItem('movi-nudge', '1') } catch { /* sin almacenamiento: se muestra sin recordar */ }
+    nudgeHideTimer = setTimeout(() => { nudgeVisible.value = false }, 9000)
+  }, 7000)
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(nudgeTimer)
+  clearTimeout(nudgeHideTimer)
+})
 
 // Escape + formato seguro vive en utils/chatbotFormat.js (probado aparte).
 
@@ -111,49 +135,30 @@ async function sendUserPrompt(promptText) {
   if (!promptText || !promptText.trim() || isTyping.value) return
 
   const userText = promptText.trim()
-  messages.value.push({
-    id: Date.now(),
-    sender: 'user',
-    text: userText,
-    time: getCurrentTime(),
-  })
+  messages.value.push({ id: Date.now(), sender: 'user', text: userText, time: getCurrentTime() })
   inputMessage.value = ''
-  scrollToBottom()
-
   isTyping.value = true
   scrollToBottom()
 
   try {
-    // Historial previo para contexto conversacional (hasta 8 mensajes anteriores)
-    // Los avisos de error locales nunca viajan como contexto al proveedor.
+    // Historial previo para contexto conversacional (hasta 8 mensajes anteriores).
+    // Los avisos de error locales nunca viajan como contexto.
     const historyPayload = messages.value
       .slice(0, -1)
-      .filter(m => !m.isError)
+      .filter((m) => !m.isError)
       .slice(-8)
-      .map(m => ({
-        sender: m.sender,
-        text: m.text,
-      }))
+      .map((m) => ({ sender: m.sender, text: m.text }))
 
-    const response = await axios.post('/chatbot/message', {
-      message: userText,
-      history: historyPayload,
-    })
+    const response = await axios.post('/chatbot/message', { message: userText, history: historyPayload })
 
     const replyText = response.data?.ok && response.data?.reply
       ? response.data.reply
       : 'Movi tuvo una dificultad para responder. Por favor, reintenta tu pregunta en unos segundos.'
 
-    messages.value.push({
-      id: Date.now() + 1,
-      sender: 'bot',
-      text: replyText,
-      time: getCurrentTime(),
-    })
+    messages.value.push({ id: Date.now() + 1, sender: 'bot', text: replyText, time: getCurrentTime() })
   } catch (err) {
-    // 429 = límite de uso (por minuto o techo diario); 503 = no disponible
-    // (mensaje neutral del servidor, sin detalles de configuración). Nunca
-    // se muestra el cuerpo crudo de otros errores.
+    // 429 = límite de uso; 503 = no disponible (mensaje neutral del servidor, sin
+    // detalles de configuración). Nunca se muestra el cuerpo crudo de otros errores.
     const status = err.response?.status
     let errorMsg = 'Tuve una pequeña dificultad para responder en este instante. Por favor reintenta tu pregunta.'
     if (status === 429) {
@@ -163,13 +168,7 @@ async function sendUserPrompt(promptText) {
     } else if (status === 422) {
       errorMsg = 'Tu mensaje es demasiado largo. Intenta con una pregunta más corta.'
     }
-    messages.value.push({
-      id: Date.now() + 1,
-      sender: 'bot',
-      text: errorMsg,
-      time: getCurrentTime(),
-      isError: true,
-    })
+    messages.value.push({ id: Date.now() + 1, sender: 'bot', text: errorMsg, time: getCurrentTime(), isError: true })
   } finally {
     isTyping.value = false
     scrollToBottom()
@@ -182,268 +181,194 @@ function handleSend() {
 }
 
 function getCurrentTime() {
-  const now = new Date()
-  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
 <template>
-  <div class="chatbot-wrapper">
-    <!-- ── Mascota Ardilla Chatbot SIEMPRE FIJA en la esquina inferior derecha ── -->
+  <div class="movi-widget">
+    <!-- Lanzador: botón circular con Movi. Discreto en móvil, sin tapar contenido; el aviso aparece una sola vez. -->
     <div
-      class="fixed bottom-0 right-2 sm:right-4 md:right-6 lg:right-8 z-40 select-none group cursor-pointer transition-all duration-300"
-      :class="isOpen ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 scale-100'"
-      ref="launcherRef"
-      @click="toggleChat"
-      role="button"
-      tabindex="0"
-      :aria-expanded="isOpen"
-      aria-label="Abrir chat con Movi"
-      @keydown.enter="toggleChat"
-      @keydown.space.prevent="toggleChat"
+      v-if="floating"
+      class="fixed z-30 flex items-center gap-3 transition duration-200 ease-out"
+      :class="isOpen ? 'pointer-events-none translate-y-2 opacity-0' : 'opacity-100'"
+      style="right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom))"
     >
-      <!-- Tooltip flotante interactivo en hover -->
-      <div class="absolute -top-10 right-6 sm:right-1/2 sm:translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-30 transform group-hover:-translate-y-1">
-        <div class="px-3 py-1 bg-white/95 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold rounded-full shadow-lg border border-sky-300/60 dark:border-slate-700 flex items-center gap-1.5 backdrop-blur-md">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>¡Pregúntale a Movi!</span>
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0 translate-x-2"
+        leave-active-class="transition duration-200 ease-in"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="nudgeVisible && !isOpen"
+          class="hidden sm:flex max-w-[15rem] items-center gap-2 rounded-2xl border border-line bg-surface-raised px-3.5 py-2 text-sm font-semibold text-ink shadow-lg"
+          role="status"
+        >
+          ¿Dudas? Pregúntale a Movi
         </div>
-      </div>
+      </Transition>
 
-      <!-- Contenedor responsive con transición al pasar el cursor -->
-      <div class="relative w-28 sm:w-36 md:w-44 lg:w-48 xl:w-52 transition-transform duration-300 ease-out group-hover:scale-105 active:scale-95">
-        <!-- Ardilla 1: Leyendo libro (estado default) -->
-        <img
-          src="/images/brand/ardillachatbot1.png"
-          alt="Movi Chatbot - Asistente MOVA"
-          class="w-full h-auto object-contain transition-opacity duration-200 pointer-events-none drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)] group-hover:opacity-0"
-          draggable="false"
-        />
-        <!-- Ardilla 2: Saludando con burbuja (estado hover) -->
-        <img
-          src="/images/brand/ardillachatbot2.png"
-          alt="Movi Chatbot - Asistente MOVA Saludo"
-          class="absolute inset-0 w-full h-auto object-contain transition-opacity duration-200 pointer-events-none drop-shadow-[0_14px_30px_rgba(37,99,235,0.4)] opacity-0 group-hover:opacity-100"
-          draggable="false"
-        />
-      </div>
+      <button
+        ref="launcherRef"
+        type="button"
+        class="group relative flex h-16 w-16 items-center justify-center rounded-full border border-line bg-surface-raised shadow-lg shadow-brand-900/15 transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-focus-ring/60 active:scale-95 motion-reduce:transition-none"
+        :aria-expanded="isOpen"
+        aria-label="Abrir chat con Movi"
+        @click="toggleChat"
+      >
+        <MoviMascot pose="saluda" :size="52" class="transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none" />
+      </button>
     </div>
 
-    <!-- ── Ventana de Chat Flotante (En la esquina derecha abajo, encima de la ardilla) ── -->
+    <!-- Ventana de chat: hoja inferior en móvil, tarjeta flotante desde sm. -->
     <Transition
-      enter-active-class="transition duration-300 cubic-bezier(0.16, 1, 0.3, 1)"
-      enter-from-class="opacity-0 translate-y-6 scale-95 origin-bottom-right"
-      enter-to-class="opacity-100 translate-y-0 scale-100 origin-bottom-right"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100 translate-y-0 scale-100 origin-bottom-right"
-      leave-to-class="opacity-0 translate-y-4 scale-95 origin-bottom-right"
+      enter-active-class="transition duration-250 ease-out motion-reduce:transition-none"
+      enter-from-class="opacity-0 translate-y-6"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-4"
     >
       <div
         v-if="isOpen"
-        class="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 md:bottom-6 md:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[400px] md:w-[415px] h-[580px] max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-[0_20px_60px_rgba(2,24,64,0.45)] border-2 border-slate-600 dark:border-slate-600 overflow-hidden font-sans select-text"
         ref="dialogRef"
+        class="fixed inset-x-0 bottom-0 z-40 flex h-[min(82dvh,640px)] flex-col overflow-hidden rounded-t-3xl border border-line bg-surface font-sans shadow-2xl shadow-brand-950/30 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[600px] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[400px] sm:rounded-3xl"
         role="dialog"
         aria-label="Ventana de chat con Movi"
         aria-modal="true"
         @keydown.esc="closeChat"
         @keydown.tab="trapFocus"
       >
-        <!-- ── Encabezado de la ventana de chat ────────────────────────── -->
-        <header class="relative px-5 py-3.5 bg-gradient-to-r from-[#021840] via-[#073D91] to-[#0D409A] text-white flex items-center justify-between shadow-md select-none">
-          <!-- Ambient subtle glow -->
-          <div class="absolute -right-8 -top-8 w-28 h-28 bg-sky-400/20 rounded-full blur-xl pointer-events-none"></div>
-
-          <div class="flex items-center gap-3 relative z-10">
-            <!-- Avatar Movi con indicador de estado -->
-            <div class="relative w-11 h-11 rounded-full bg-white/10 p-0.5 border border-white/20 shadow-inner flex items-center justify-center flex-shrink-0">
-              <img
-                src="/images/brand/ardillachatbot2.png"
-                alt="Avatar Movi"
-                class="w-full h-full object-contain rounded-full"
-              />
-              <span class="absolute bottom-0 right-0 w-3 h-3 bg-slate-300 border-2 border-[#073D91] rounded-full" title="Asistente educativo"></span>
-            </div>
-
-            <div>
-              <div class="flex items-center gap-2">
-                <h2 class="font-extrabold text-base tracking-tight text-white leading-tight">Movi</h2>
-                <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-amber-400/20 text-amber-300 border border-amber-400/40 rounded-full">
-                  IA MOVA
-                </span>
-              </div>
-              <p class="text-xs text-sky-200/90 font-medium flex items-center gap-1.5 mt-0.5">
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                Asistente educativo
-              </p>
+        <header class="flex items-center justify-between gap-3 bg-brand-800 px-4 py-3 text-white">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/95">
+              <MoviMascot pose="saluda" :size="38" />
+            </span>
+            <div class="min-w-0">
+              <h2 class="text-base font-extrabold leading-tight">Movi</h2>
+              <p class="text-xs font-medium text-brand-100">Asistente virtual de MOVA</p>
             </div>
           </div>
 
-          <!-- Acciones del Header -->
-          <div class="flex items-center gap-1 relative z-10">
-            <!-- Botón reiniciar conversación -->
+          <div class="flex items-center gap-1">
             <button
               type="button"
-              @click="restartChat"
-              class="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-95"
+              class="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               title="Reiniciar chat"
               aria-label="Reiniciar conversación"
+              @click="restartChat"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <Icon name="flexible" :size="18" />
             </button>
-
-            <!-- Botón cerrar chat -->
             <button
               type="button"
-              @click="closeChat"
-              class="p-2 text-white/80 hover:text-white hover:bg-white/15 rounded-full transition-colors active:scale-95"
+              class="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               title="Cerrar chat"
               aria-label="Cerrar chat"
+              @click="closeChat"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <Icon name="close" :size="20" />
             </button>
           </div>
         </header>
 
-        <!-- ── Contenedor de Mensajes ──────────────────────────────────── -->
-        <main
+        <div
           ref="messagesContainer"
-          class="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 bg-slate-50/80 dark:bg-slate-900/60 scroll-smooth"
+          class="flex-1 space-y-4 overflow-y-auto bg-canvas px-4 py-4"
+          role="log"
+          aria-live="polite"
+          aria-label="Conversación con Movi"
         >
-          <!-- Badge de fecha / aviso del asistente -->
-          <div class="flex justify-center select-none my-1">
-            <span class="px-3 py-1 bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-semibold rounded-full border border-slate-300/40 dark:border-slate-700/60 shadow-2xs">
-              Asistente Educativo Virtual • MOVA
-            </span>
-          </div>
-
-          <!-- Render de Mensajes -->
           <div
             v-for="msg in messages"
             :key="msg.id"
             class="flex flex-col"
             :class="msg.sender === 'user' ? 'items-end' : 'items-start'"
           >
-            <div class="flex items-end gap-2 max-w-[85%]" :class="msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'">
-              <!-- Avatar pequeño para el bot -->
-              <div
+            <div class="flex max-w-[88%] items-end gap-2" :class="msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'">
+              <span
                 v-if="msg.sender === 'bot'"
-                class="w-7 h-7 rounded-full bg-brand-100 dark:bg-slate-800 border border-brand-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0 mb-1"
+                class="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface"
               >
-                <img
-                  src="/images/brand/ardillachatbot2.png"
-                  alt="Movi"
-                  class="w-5 h-5 object-contain"
-                />
-              </div>
+                <MoviMascot pose="saluda" :size="22" />
+              </span>
 
-              <!-- Burbuja de mensaje -->
               <div
-                class="px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all"
-                :class="[
-                  msg.sender === 'user'
-                    ? 'bg-gradient-to-r from-blue-600 to-[#0D409A] text-white rounded-br-xs shadow-blue-500/10'
-                    : (msg.isError
-                        ? 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 rounded-bl-xs border border-red-200 dark:border-red-800 shadow-xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-xs border border-slate-200/70 dark:border-slate-700/60 shadow-slate-200/50')
-                ]"
+                class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                :class="msg.sender === 'user'
+                  ? 'rounded-br-md bg-brand-600 text-white'
+                  : msg.isError
+                    ? 'rounded-bl-md border border-danger-border bg-danger-bg text-danger-text'
+                    : 'rounded-bl-md border border-line bg-surface text-ink'"
               >
                 <div class="whitespace-pre-line break-words" v-html="formatMessageText(msg.text)"></div>
               </div>
             </div>
 
-            <!-- Timestamp y estado -->
             <div
-              class="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 mt-1 px-1"
-              :class="msg.sender === 'user' ? 'justify-end pr-1' : 'justify-start pl-9'"
+              v-if="msg.time"
+              class="mt-1 px-1 text-[11px] text-ink-muted"
+              :class="msg.sender === 'user' ? 'pr-1' : 'pl-10'"
             >
-              <span>{{ msg.time }}</span>
-              <span v-if="msg.sender === 'user'" class="text-blue-500 font-bold" title="Enviado">✓✓</span>
+              {{ msg.time }}
             </div>
 
-            <!-- Chips de preguntas sugeridas (debajo del mensaje de bienvenida) -->
-            <div
-              v-if="msg.isWelcome"
-              class="mt-3.5 pl-9 pr-2 space-y-2 select-none w-full"
-            >
-              <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Preguntas sugeridas:
-              </p>
-              <div class="flex flex-wrap gap-1.5">
+            <div v-if="msg.isWelcome" class="mt-3 w-full pl-10 pr-1">
+              <p class="mb-2 text-xs font-semibold text-ink-muted">Puedo ayudarte con:</p>
+              <div class="flex flex-wrap gap-2">
                 <button
-                  v-for="(chip, index) in suggestions"
-                  :key="index"
+                  v-for="chip in suggestions"
+                  :key="chip.label"
                   type="button"
+                  class="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 py-1.5 text-left text-xs font-semibold text-ink transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring/70 active:scale-[0.98] motion-reduce:transition-none"
                   @click="sendUserPrompt(chip.prompt)"
-                  class="text-xs px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-2xs transition-all hover:scale-[1.02] active:scale-95 text-left font-medium"
                 >
+                  <Icon :name="chip.icon" :size="14" />
                   {{ chip.label }}
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Indicador de que el bot está escribiendo -->
-          <div v-if="isTyping" class="flex items-end gap-2 items-start pl-0">
-            <div class="w-7 h-7 rounded-full bg-brand-100 dark:bg-slate-800 border border-brand-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
-              <img src="/images/brand/ardillachatbot2.png" alt="Movi" class="w-5 h-5 object-contain" />
-            </div>
-            <div class="px-3.5 py-2.5 bg-white dark:bg-slate-800 rounded-2xl rounded-bl-xs border border-slate-200/70 dark:border-slate-700/60 shadow-xs flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0ms"></span>
-              <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 150ms"></span>
-              <span class="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 300ms"></span>
+          <div v-if="isTyping" class="flex items-end gap-2" role="status" aria-label="Movi está escribiendo">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface">
+              <MoviMascot pose="lee" :size="22" />
+            </span>
+            <div class="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3">
+              <span class="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-bounce" style="animation-delay: 0ms"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-bounce" style="animation-delay: 150ms"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-bounce" style="animation-delay: 300ms"></span>
             </div>
           </div>
-        </main>
+        </div>
 
-        <!-- ── Pie de Entrada de Mensaje ────────────────────────────────── -->
-        <footer class="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 select-none">
-          <form @submit.prevent="handleSend" class="flex items-center gap-2">
-            <!-- Campo de texto -->
-            <div class="relative flex-1">
-              <label for="movi-chat-input" class="sr-only">Escribe tu consulta a Movi</label>
-              <input
-                id="movi-chat-input"
-                v-model="inputMessage"
-                type="text"
-                maxlength="1000"
-                autocomplete="off"
-                placeholder="Escribe tu consulta a Movi..."
-                class="w-full pl-3.5 pr-9 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm rounded-full border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-850 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-400"
-              />
-              <!-- Ícono sutil de ayuda / clip -->
-              <button
-                type="button"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1"
-                title="Escribe cualquier duda académica o de MOVA"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Botón de enviar -->
+        <footer class="border-t border-line bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <form class="flex items-center gap-2" @submit.prevent="handleSend">
+            <label for="movi-chat-input" class="sr-only">Escribe tu consulta a Movi</label>
+            <input
+              id="movi-chat-input"
+              v-model="inputMessage"
+              type="text"
+              maxlength="1000"
+              autocomplete="off"
+              enterkeyhint="send"
+              placeholder="Escribe tu consulta…"
+              class="min-w-0 flex-1 rounded-full border border-line-strong bg-canvas px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-focus-ring/40"
+            />
             <button
               type="submit"
               :disabled="!inputMessage.trim() || isTyping"
-              class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-[#0D409A] text-white flex items-center justify-center shadow-md hover:shadow-blue-500/30 transition-all disabled:opacity-45 disabled:cursor-not-allowed hover:scale-105 active:scale-95 flex-shrink-0"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring/70 disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="Enviar mensaje"
             >
-              <svg class="w-4 h-4 -mr-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3 21l18-9L3 3l3 9zm0 0h9" />
-              </svg>
+              <Icon name="send" :size="17" />
             </button>
           </form>
-
-          <div class="mt-2 text-center">
-            <p class="text-[10px] text-slate-400 dark:text-slate-500">
-              Movi puede cometer errores. Considera verificar la información importante.
-            </p>
-          </div>
+          <p class="mt-2 text-center text-[11px] leading-snug text-ink-muted">
+            Movi responde con información de MOVA y no resuelve tareas.
+            <template v-if="supportEmail">Para casos personales escribe a {{ supportEmail }}.</template>
+          </p>
         </footer>
       </div>
     </Transition>

@@ -4,13 +4,13 @@
 
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-black text-slate-900">Reportes enviados</h2>
-        <span class="text-sm text-slate-400">{{ reports.length }} en total</span>
+        <span class="text-sm text-slate-500">{{ reports.length }} en total</span>
       </div>
 
       <div v-if="!reports.length" class="text-center py-16 bg-white rounded-2xl border border-gray-100">
         <div class="text-5xl mb-3">📝</div>
         <p class="font-semibold text-slate-700">Aún no has enviado reportes</p>
-        <p class="text-slate-400 text-sm mt-1">Después de cada clase completada, podrás enviar un reporte al padre.</p>
+        <p class="text-slate-500 text-sm mt-1">Después de cada clase completada, podrás enviar un reporte al padre.</p>
         <Link :href="route('teacher.lessons')" class="inline-block mt-4 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors">
           Ver mis clases →
         </Link>
@@ -22,7 +22,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
               <span class="px-2 py-0.5 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg">{{ r.subject }}</span>
-              <span class="text-xs text-slate-400">{{ fmtDate(r.start_time) }}</span>
+              <span class="text-xs text-slate-500">{{ fmtDate(r.start_time) }}</span>
             </div>
             <p class="text-sm font-semibold text-slate-900">{{ r.student_name }}</p>
             <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ r.topic_covered }}</p>

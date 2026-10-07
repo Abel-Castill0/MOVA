@@ -62,7 +62,7 @@
 
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">5. Inteligencia artificial</h2>
-          <p class="text-slate-600 leading-relaxed">Actualmente MOVA <strong class="text-slate-800">no envía datos a servicios de inteligencia artificial</strong>. La plataforma incluye dos funciones opcionales que están desactivadas: el asistente Movi y el enriquecimiento automático del diagnóstico académico. Antes de activar cualquiera de ellas publicaremos una nueva versión de esta política que indique el proveedor y los datos que se envían, y te pediremos aceptarla.</p>
+          <p class="text-slate-600 leading-relaxed">Actualmente MOVA <strong class="text-slate-800">no envía datos a servicios de inteligencia artificial</strong>. El asistente Movi responde con textos preparados por MOVA que se procesan en nuestros propios servidores: no es inteligencia artificial generativa, no envía lo que escribes a terceros y no guardamos las conversaciones (evita escribir datos personales en el chat). El enriquecimiento automático del diagnóstico académico está desactivado. Antes de activar cualquier función que use un proveedor de inteligencia artificial publicaremos una nueva versión de esta política que indique el proveedor y los datos que se envían, y te pediremos aceptarla.</p>
         </section>
 
         <section>

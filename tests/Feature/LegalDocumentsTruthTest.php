@@ -64,11 +64,19 @@ class LegalDocumentsTruthTest extends TestCase
     {
         $this->app['env'] = 'production';
 
-        config(['chatbot.enabled' => true, 'diagnostic.ai_enabled' => false]);
+        config(['chatbot.enabled' => true, 'chatbot.provider' => 'gemini', 'diagnostic.ai_enabled' => false]);
         $this->artisan('mova:health-check')->expectsOutputToContain('LEGAL_PRIVACY_AI_MISMATCH');
 
         config(['chatbot.enabled' => false, 'diagnostic.ai_enabled' => true]);
         $this->artisan('mova:health-check')->expectsOutputToContain('LEGAL_PRIVACY_AI_MISMATCH');
+    }
+
+    public function test_local_movi_does_not_trigger_the_ai_privacy_mismatch(): void
+    {
+        $this->app['env'] = 'production';
+        config(['chatbot.enabled' => true, 'chatbot.provider' => 'local', 'diagnostic.ai_enabled' => false]);
+
+        $this->artisan('mova:health-check')->doesntExpectOutputToContain('LEGAL_PRIVACY_AI_MISMATCH');
     }
 
     public function test_health_check_is_quiet_about_ai_when_it_is_off(): void

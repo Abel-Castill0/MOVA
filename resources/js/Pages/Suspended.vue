@@ -15,7 +15,7 @@
       </a>
       <div class="pt-4 border-t border-gray-100">
         <Link :href="route('logout')" method="post" as="button"
-          class="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+          class="text-sm text-gray-500 hover:text-gray-600 transition-colors">
           Cerrar sesión
         </Link>
       </div>

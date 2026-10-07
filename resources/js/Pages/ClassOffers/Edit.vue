@@ -26,8 +26,8 @@
         <div class="border border-gray-100 rounded-xl overflow-hidden">
           <button type="button" @click="showAvailability = !showAvailability"
             class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors">
-            <span>🗓 Disponibilidad horaria <span class="text-xs text-slate-400 font-normal">(opcional)</span></span>
-            <span class="text-slate-400 text-xs">{{ showAvailability ? '▲ ocultar' : '▼ ver' }}</span>
+            <span>🗓 Disponibilidad horaria <span class="text-xs text-slate-500 font-normal">(opcional)</span></span>
+            <span class="text-slate-500 text-xs">{{ showAvailability ? '▲ ocultar' : '▼ ver' }}</span>
           </button>
           <div v-if="showAvailability" class="p-4">
             <AvailabilityPicker v-model="form.availability_schedule" /><InputError class="mt-1" :message="form.errors.availability_schedule" />

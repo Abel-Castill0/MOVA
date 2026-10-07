@@ -14,7 +14,7 @@ return [
     // Privacidad §11 (plazos de conservación) alineados con DECISIONS.
     'versions' => [
         'terms'   => env('LEGAL_TERMS_VERSION', '2026-10-06'),
-        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-10-06'),
+        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-10-06.2'),
     ],
 
     // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al

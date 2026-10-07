@@ -10,7 +10,7 @@
       </svg>
       <h2 id="availability-title" class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Mi disponibilidad semanal</h2>
     </div>
-    <p class="text-[11px] text-slate-400 ml-6">
+    <p class="text-[11px] text-slate-500 ml-6">
       Indica en qué franjas sueles poder dar clases. Horarios en hora de Lima (UTC−5).
       Sirve para recomendarte a las familias; no bloquea ni reserva ninguna clase.
     </p>
@@ -22,7 +22,7 @@
         <span class="w-24 flex-shrink-0 text-xs font-semibold text-slate-700 pt-2">{{ day.label }}</span>
 
         <div class="flex-1 space-y-2">
-          <p v-if="!slotsOf(day.value).length" class="text-xs text-slate-400 pt-2">Sin franjas</p>
+          <p v-if="!slotsOf(day.value).length" class="text-xs text-slate-500 pt-2">Sin franjas</p>
 
           <div v-for="{ slot, index } in slotsOf(day.value)" :key="index">
             <div class="flex flex-wrap items-center gap-2">
@@ -35,7 +35,7 @@
                 required
                 class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
               />
-              <span class="text-xs text-slate-400" aria-hidden="true">a</span>
+              <span class="text-xs text-slate-500" aria-hidden="true">a</span>
               <label class="sr-only" :for="`end-${index}`">Fin, {{ day.label }}</label>
               <input
                 :id="`end-${index}`"
@@ -72,7 +72,7 @@
     </ul>
 
     <div class="flex items-center justify-between gap-3 mt-3.5">
-      <p class="text-[11px] text-slate-400">{{ form.slots.length }} de {{ maxSlots }} franjas</p>
+      <p class="text-[11px] text-slate-500">{{ form.slots.length }} de {{ maxSlots }} franjas</p>
       <button
         type="submit"
         :disabled="form.processing"

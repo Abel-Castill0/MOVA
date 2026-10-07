@@ -43,14 +43,28 @@ class ChatbotService
      */
     public static function isAvailable(): bool
     {
-        return (bool) config('chatbot.enabled', false)
-            && filled(config('chatbot.gemini.api_key'));
+        if (! (bool) config('chatbot.enabled', false)) {
+            return false;
+        }
+
+        // El modo local no depende de ningún proveedor externo: solo el modo Gemini exige clave.
+        return self::usesLocalAnswers() || filled(config('chatbot.gemini.api_key'));
     }
 
-    public function reply(string $userMessage, array $history = []): array
+    /** Movi local: respuestas preparadas por MOVA, sin enviar nada a terceros (ver MoviKnowledgeBase). */
+    public static function usesLocalAnswers(): bool
+    {
+        return config('chatbot.provider', 'local') === 'local';
+    }
+
+    public function reply(string $userMessage, array $history = [], ?string $role = null): array
     {
         if (! config('chatbot.enabled', false)) {
             return ['ok' => false, 'reason' => self::UNAVAILABLE];
+        }
+
+        if (self::usesLocalAnswers()) {
+            return ['ok' => true, 'reply' => app(MoviKnowledgeBase::class)->answer($userMessage, $role)['reply']];
         }
 
         $apiKey = config('chatbot.gemini.api_key');

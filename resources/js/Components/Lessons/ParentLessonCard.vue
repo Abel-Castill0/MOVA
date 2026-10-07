@@ -15,7 +15,7 @@
           <p class="text-sm text-slate-500">
             <span class="font-medium">Profesor:</span> {{ lesson.teacher_profile?.user?.name }}
             <span v-if="lesson.teacher_profile?.referral_code"
-              class="ml-1 text-xs font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded"
+              class="ml-1 text-xs font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded"
               title="Pega este código en tu próxima solicitud para volver a elegir a este profesor">{{ lesson.teacher_profile.referral_code }}</span>
           </p>
           <p class="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
@@ -46,7 +46,7 @@
         </div>
 
         <div v-else-if="lesson.status !== 'scheduled'" class="flex-shrink-0 px-4 py-3 bg-slate-50 rounded-xl text-center">
-          <p class="text-sm text-slate-400">{{ statusStyle(lesson.status).label }}</p>
+          <p class="text-sm text-slate-500">{{ statusStyle(lesson.status).label }}</p>
         </div>
       </div>
 
@@ -65,7 +65,7 @@
             <span class="text-xs text-slate-500 block">Plin</span>
             <span class="font-semibold text-slate-800 select-all">{{ lesson.teacher_profile.plin_number }}</span>
           </div>
-          <p v-if="!lesson.teacher_profile?.yape_number && !lesson.teacher_profile?.plin_number" class="text-xs text-slate-400">
+          <p v-if="!lesson.teacher_profile?.yape_number && !lesson.teacher_profile?.plin_number" class="text-xs text-slate-500">
             El profesor aún no registró un número de Yape/Plin.
           </p>
         </div>

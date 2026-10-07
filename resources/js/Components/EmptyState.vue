@@ -7,15 +7,22 @@
  * contenido (texto, emoji existente, o un <Icon> de Lucide una vez migrado
  * en la Fase 3) — este componente no fuerza esa dependencia todavía.
  */
+import MoviMascot from '@/Components/MoviMascot.vue'
+
+// `mascot`: pose de Movi ('lee' | 'saluda' | 'feliz' | 'celebra') para estados vacíos que invitan a actuar.
 defineProps({
   title: { type: String, required: true },
   description: { type: String, default: null },
+  mascot: { type: String, default: null },
 })
 </script>
 
 <template>
   <div class="bg-surface rounded-elevated border border-line py-16 px-6 text-center">
-    <div v-if="$slots.icon" class="mb-4 flex justify-center" aria-hidden="true">
+    <div v-if="mascot" class="mb-3 flex justify-center" aria-hidden="true">
+      <MoviMascot :pose="mascot" :size="104" />
+    </div>
+    <div v-else-if="$slots.icon" class="mb-4 flex justify-center" aria-hidden="true">
       <slot name="icon" />
     </div>
     <p class="text-lg font-bold text-ink mb-1">{{ title }}</p>

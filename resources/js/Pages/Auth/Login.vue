@@ -70,7 +70,7 @@ const submit = () => {
         <div class="hidden lg:flex lg:w-[46%] xl:w-[45%] relative flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1B64CC] via-[#1350A5] to-[#09306E] p-6 xl:p-9 2xl:p-12 select-none">
             <!-- Capa de textura decorativa de fondo -->
             <img
-                src="/images/brand/login-blue-decoration.png"
+                src="/images/brand/login-blue-decoration.webp"
                 alt=""
                 class="absolute inset-0 w-full h-full object-cover object-right-top opacity-30 mix-blend-screen pointer-events-none z-0"
                 loading="eager"
@@ -118,7 +118,7 @@ const submit = () => {
                     <div class="relative w-full max-w-[340px] xl:max-w-[390px] 2xl:max-w-[430px]">
                         <!-- Badge Reporte Naranja (anclado a la esquina superior derecha de la pantalla de la laptop) -->
                         <img
-                            src="/images/brand/login-report-badge-opt.png"
+                            src="/images/brand/login-report-badge-opt.webp"
                             alt="Reporte"
                             class="absolute -top-3.5 right-[16%] xl:right-[15%] w-[23%] h-auto object-contain z-20 drop-shadow-md pointer-events-none"
                             loading="eager"
@@ -127,7 +127,7 @@ const submit = () => {
 
                         <!-- Libros + Planta (en la base izquierda de la laptop) -->
                         <img
-                            src="/images/brand/login-books-plant-opt.png"
+                            src="/images/brand/login-books-plant-opt.webp"
                             alt=""
                             class="absolute -left-3 xl:-left-5 bottom-0 w-[27%] h-auto object-contain z-20 drop-shadow-lg pointer-events-none"
                             loading="eager"
@@ -136,7 +136,7 @@ const submit = () => {
 
                         <!-- Laptop con videollamada (ilustración principal) -->
                         <img
-                            src="/images/brand/login-videocall-laptop-opt.png"
+                            src="/images/brand/login-videocall-laptop-opt.webp"
                             alt="Clases por videollamada"
                             class="w-full h-auto object-contain z-10 drop-shadow-2xl block"
                             loading="eager"
@@ -210,7 +210,7 @@ const submit = () => {
                     <!-- Divisor -->
                     <div class="my-5 flex items-center gap-3">
                         <div class="h-px flex-1 bg-slate-200"></div>
-                        <span class="text-xs font-medium text-slate-400">o con tu correo</span>
+                        <span class="text-xs font-medium text-slate-500">o con tu correo</span>
                         <div class="h-px flex-1 bg-slate-200"></div>
                     </div>
                     </template>
@@ -229,7 +229,7 @@ const submit = () => {
                                 required
                                 autofocus
                                 autocomplete="username"
-                                class="w-full h-[50px] sm:h-[52px] px-4 rounded-xl bg-[#EEF3FA] border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                                class="w-full h-[50px] sm:h-[52px] px-4 rounded-xl bg-[#EEF3FA] border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                                 :class="{ 'border-rose-400 bg-rose-50/40': form.errors.email }"
                             />
                             <InputError class="mt-1.5" :message="form.errors.email" />
@@ -247,14 +247,14 @@ const submit = () => {
                                     v-model="form.password"
                                     required
                                     autocomplete="current-password"
-                                    class="w-full h-[50px] sm:h-[52px] pl-4 pr-12 rounded-xl bg-[#EEF3FA] border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-400 transition-all duration-150 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                                    class="w-full h-[50px] sm:h-[52px] pl-4 pr-12 rounded-xl bg-[#EEF3FA] border border-slate-200/90 text-slate-900 text-sm placeholder:text-slate-500 transition-all duration-150 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
                                     :class="{ 'border-rose-400 bg-rose-50/40': form.errors.password }"
                                 />
                                 <button
                                     type="button"
                                     @click="showPassword = !showPassword"
                                     :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-                                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 rounded-lg transition-colors"
                                 >
                                     <!-- Ojo abierto / cerrado con estilo exacto -->
                                     <svg v-if="showPassword" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -317,7 +317,7 @@ const submit = () => {
             </main>
 
             <!-- Footer con enlaces legales reales -->
-            <footer class="pt-3 pb-2 text-center text-xs text-slate-400 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10">
+            <footer class="pt-3 pb-2 text-center text-xs text-slate-500 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 relative z-10">
                 <Link :href="route('legal.terms')" class="hover:text-slate-600 transition-colors">Términos y Condiciones</Link>
                 <span class="text-slate-300">|</span>
                 <Link :href="route('legal.privacy')" class="hover:text-slate-600 transition-colors">Política de Privacidad</Link>

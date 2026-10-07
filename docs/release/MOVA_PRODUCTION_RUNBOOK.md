@@ -153,8 +153,22 @@ php artisan mova:create-admin <correo-del-titular> --name="<Nombre>"
 Crea la cuenta verificada con contraseña aleatoria desconocida; el titular usa «Olvidé mi contraseña» (correo ya operativo) y el
 primer ingreso al panel exige configurar MFA. No ejecutar ningún seeder en producción.
 
-## 6. Gates de lanzamiento pendientes (no técnicos)
+## 6. Pendientes de lanzamiento
 
-Consentimiento de menores y tratamiento/transmisión internacional de datos (ANPD), reglas de asistencia/disputas,
-clases recurrentes, verificación documental de profesores y política de reembolsos/deuda: decisiones del
-propietario/legal. No se declara producción «100 % lista» sin ellas.
+Las decisiones de negocio y legales están **adoptadas y documentadas** (`MOVA_V1_DECISIONS.md`; el titular decidió operar sin abogado).
+Quedan solo: (1) la prueba live de cobro (S/ mínimo del propietario + reembolso) a la espera de la respuesta de Mercado Pago sobre el
+rechazo 2072 (`MERCADOPAGO_SUPPORT_CASE_2072.md`) y (2) el trámite administrativo del titular ante la ANPD (inscripción del banco de datos
+y comunicación del flujo transfronterizo; datos preparados en DECISIONS §2). No se declara producción «100 % lista» sin la prueba de cobro.
+
+## 7. Movi (asistente) y activos de marca
+
+- Movi **local** (por defecto): `CHATBOT_ENABLED=true` basta; `CHATBOT_PROVIDER=local` no necesita clave ni envía datos fuera. Para
+  apagarlo: `CHATBOT_ENABLED=false` (el widget desaparece solo, el prop compartido `movi.enabled` lo decide).
+- Imágenes de marca: solo WebP (`public/images/mascot`, `public/images/brand`). No volver a subir PNG de cientos de KB; los originales
+  de la mascota están en el historial de git (commit `131b5ed` de la rama `Elias-rama`).
+
+## 8. Vista previa de la interfaz con datos sintéticos
+
+`QA_PREVIEW=1 QA_APP_URL=http://127.0.0.1:8013 docker compose -f docker-compose.qa.yml run -d --name mova_ui_preview -p 8013:8012 -e QA_PREVIEW=1 -e QA_APP_URL=http://127.0.0.1:8013 -e CHATBOT_ENABLED=true e2e_qa`
+levanta la app con la base SQLite de QA (cuentas `padre@mova.test`, `profesor@mova.test`, contraseña de QA) en `http://127.0.0.1:8013`
+para revisar la UI; `docker rm -f mova_ui_preview` la apaga. Nunca apunta a producción.

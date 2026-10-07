@@ -21,7 +21,7 @@
               · {{ lesson.student_name }}
               · {{ fmtDate(lesson.start_time) }}
             </p>
-            <p v-if="lesson.teacher_name" class="text-xs text-slate-400 mt-0.5">Prof. {{ lesson.teacher_name }}</p>
+            <p v-if="lesson.teacher_name" class="text-xs text-slate-500 mt-0.5">Prof. {{ lesson.teacher_name }}</p>
           </div>
         </div>
       </div>
@@ -36,7 +36,7 @@
         <ReportField v-if="report.next_step" label="Próximo paso" :value="report.next_step" icon="🎯" />
       </div>
 
-      <p v-if="report.sent_to_parent_at" class="text-xs text-slate-400 text-center">
+      <p v-if="report.sent_to_parent_at" class="text-xs text-slate-500 text-center">
         Enviado al padre el {{ fmtDateFull(report.sent_to_parent_at) }}
       </p>
 

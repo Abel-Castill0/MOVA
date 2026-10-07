@@ -88,7 +88,7 @@
         </form>
       </div>
 
-      <p class="mt-4 text-center text-xs text-gray-400">
+      <p class="mt-4 text-center text-xs text-gray-500">
         Puedes verificar tu número más tarde desde tu perfil.
         <Link :href="route('dashboard')" class="text-brand-500 hover:underline">Omitir por ahora</Link>
       </p>
