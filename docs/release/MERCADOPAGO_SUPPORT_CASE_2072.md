@@ -30,6 +30,20 @@ Con su respuesta haré una única prueba controlada de pago con reembolso inmedi
 - Payload (sin token ni datos personales): `transaction_amount: 1` (numérico), `description`, `external_reference` del intento, `capture: true`, `binary_mode: false`, `payer.email`, `payment_method_id: "yape"`, `installments: 1`, `token` (Yape).
 - Qué se pide: causa exacta del 2072, mínimo efectivo de Yape para la cuenta, condición de habilitación de Yape y confirmación de que una única prueba controlada (importe indicado por ellos, cuenta del titular, reembolso inmediato) es válida.
 
+## Mensaje listo para pegar: habilitación de Yape (2026-10-19)
+
+> El panel de Mercado Pago **no se pudo operar desde esta sesión**: no hay un navegador de Chrome conectado a Claude y un navegador propio no tendría tu sesión ni tu 2FA. Estos pasos los hace el titular.
+
+**Dónde:** Mercado Pago → Tus integraciones → (aplicación de producción) → Soporte/Contacto, o el formulario de integradores de Perú. Antes de pedir nada, revisa en el panel si existe una opción de habilitar Yape para la aplicación (Medios de pago / Configuración de la cuenta): si existe, actívala y prueba con la cuenta de prueba (una sola transacción mínima, con reembolso).
+
+**Asunto:** Habilitación de Yape en Checkout API Payments (Perú) — HTTP 400 «Invalid value for transaction_amount» (2072) con S/ 1
+
+**Mensaje:**
+
+Hola. Integro Checkout API Payments (`POST /v1/payments`) en producción (Perú, sitio MPE, moneda PEN). Mi intento de pago con Yape por `transaction_amount=1` del 6 de octubre de 2026, 04:42:43 UTC, recibió HTTP 400 «Invalid value for transaction_amount» (código 2072), `x-request-id: d1b5e205-5c79-40a8-87d5-c9222e72cd1d`. `GET /v1/payment_methods` muestra Yape como `active` con mínimo S/ 1 y máximo S/ 2000, y la búsqueda por `external_reference` no devuelve ningún pago (no hubo cobro).
+
+Necesito saber: (1) si mi cuenta/aplicación de cobro requiere una habilitación específica de Yape y cómo solicitarla; (2) qué validación produjo el 2072; (3) si el payload (`transaction_amount` numérico, `payment_method_id: "yape"`, `installments: 1`, `token` de `mp.yape`, `payer.email`, `external_reference`, `capture: true`) debe cambiar en algún campo. Application ID y collector ID: [completar desde el panel]. Haré una única prueba controlada con reembolso inmediato en cuanto me confirmen.
+
 ## Antes de enviar (checklist del titular)
 
 1. Abrir el panel de Mercado Pago Developers con la cuenta titular y copiar *Application ID* y *collector ID* al formulario.

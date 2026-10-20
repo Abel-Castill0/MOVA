@@ -77,6 +77,17 @@ Objetivo: bajar de ≈ US$ 23–26/mes sin romper pagos ni liquidación. Estado 
 
 **Resumen del ahorro.** Acciones ya aplicadas: ahorro adicional ≈ **US$ 0/mes** (el cómputo de staging y el sobredimensionado del web ya estaban cubiertos; el IaC corregido evita un aumento futuro). Ahorro **disponible con aprobación**: Job cron del scheduler ≈ US$ 4,5–10 y/o contenedor único worker+scheduler ≈ US$ 3,8; combinados se estiman ≈ US$ 12–17/mes frente a ≈ US$ 23–26 actuales. Costos fijos que no se pueden recortar sin cambiar de arquitectura: ACR ≈ 5, IP pública ≈ 3,7, web ≈ 3,7, DNS ≈ 0,5.
 
+## Implementación de las opciones 2c y 2d (4.ª ronda, 2026-10-19) — escritas, NO desplegadas
+
+| Opción | Dónde | Cómo activarla | Estado |
+|---|---|---|---|
+| 2c · Scheduler como Job cron | `infra/azure/modules/container-job.bicep` + `apps.bicep` (`schedulerAsJob`, `schedulerCron`) | `deployScheduler=true`, `schedulerAsJob=true`; mutuamente excluyente con la app del scheduler y con 2d (así nunca hay dos planificadores) | Compila; default `false` (sin cambio en producción) |
+| 2d · Worker + scheduler en un contenedor | `apps.bicep` (`combineWorkerScheduler`) | `deployWorker=true`, `combineWorkerScheduler=true`; usa `bash` + `wait -n`: si un proceso termina, el contenedor sale con 1 y se reinicia | Compila; default `false`; requiere comprobar que `bash` existe en la imagen y la memoria con 0,5 GiB |
+
+**Sobre la frecuencia pedida (cada 15 min):** el cron mínimo de Container Apps es 1 minuto y el valor por defecto se deja en `* * * * *`, porque cambiarlo a 15 minutos retrasaría los recordatorios y haría que el latido (`mova:heartbeat`) pareciera caído; eso es un cambio de comportamiento (código), no de infraestructura.
+
+**Bloqueo de la prueba en staging:** staging no tiene base de datos (eliminada el 2026-10-06 para ahorrar crédito) y **no se debe apuntar un Job de prueba a la base de producción**. Para medir costo y fiabilidad hay que recrear un MySQL B1ms de staging (Runbook §1b): ≈ US$ 0,6/día fuera de la capa gratuita (esta ya cubre el servidor de producción), es decir ≈ US$ 1–2 por una prueba de 48 h. **Decisión del titular:** autorizar ese gasto, o aceptar el ahorro estimado sin medirlo. Ahorros estimados: 2c ≈ US$ 4,5–10/mes; 2d ≈ US$ 3,8/mes (no acumulables si se elige 2c: el worker queda solo).
+
 ## Otras palancas de ahorro evaluadas (sin aplicar)
 
 | Palanca | Ahorro estimado | Riesgo | Decisión |

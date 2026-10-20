@@ -48,6 +48,15 @@ param deployWeb bool = true
 param deployWorker bool = false
 param deployScheduler bool = false
 
+// ── Opciones de ahorro EXPERIMENTALES (default false = comportamiento actual, sin cambios) ──
+// ISO/IEC 25010: eficiencia de desempeño vs fiabilidad. Ver docs/architecture/06-cost-and-scaling.md.
+@description('EXPERIMENTAL. Ejecuta el scheduler como Container Apps Job cron (en lugar de `schedule:work` always-on). Exige deployScheduler=true; mutuamente excluyente con combineWorkerScheduler.')
+param schedulerAsJob bool = false
+@description('Cron del Job del scheduler (UTC). `* * * * *` conserva la frecuencia por minuto que exigen las tareas actuales.')
+param schedulerCron string = '* * * * *'
+@description('EXPERIMENTAL. Un solo contenedor ejecuta `queue:work` y `schedule:work` (ahorra una app). Exige deployWorker=true; la app del scheduler no se despliega. Un fallo de cualquiera de los dos procesos reinicia el contenedor.')
+param combineWorkerScheduler bool = false
+
 @description('Liquidación programada: dry_run por defecto. live requiere selección explícita del operador en apps.bicepparam y gate de producción aprobado.')
 @allowed(['dry_run', 'live'])
 param settlementMode string = 'dry_run'
@@ -77,6 +86,9 @@ param appKey string
 @secure()
 @description('Otros APP SECRETS (CLOUDINARY_URL, ...) como objeto nombre→valor. Nunca versionar valores.')
 param appSecrets object = {}
+
+@description('Secretos respaldados por Key Vault (NOMBRE_VAR → URI sin versión). Un nombre NO puede estar a la vez aquí y en appSecrets/runtimeSecrets. Ver docs/architecture/07-secrets-keyvault-plan.md y scripts/azure/migrate-secrets-to-keyvault.sh.')
+param keyVaultSecrets object = {}
 
 // ---------------------------------------------------------------------------
 // Recursos de la foundation, referenciados como existing (mismos nombres
@@ -166,6 +178,7 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
     maxReplicas: 2
     env: sharedEnv
     secrets: runtimeSecrets
+    keyVaultSecrets: keyVaultSecrets
   }
 }
 
@@ -184,7 +197,13 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
     // KEDA MySQL ahorraría ≈ US$ 1/mes pero añade un secreto y un punto de fallo: descartado (docs/architecture/06).
     // ISO/IEC 29119 (criterio): tras encolar 100 jobs de prueba, `queue:monitor` llega a 0 pendientes en < 5 min.
     command: ['mova-entrypoint']
-    args: [
+    // combineWorkerScheduler (EXPERIMENTAL): ambos procesos en un contenedor; `wait -n` requiere bash (no dash). Si uno
+    // termina, el contenedor sale con 1 y Container Apps lo reinicia. Probar memoria (0,5 GiB) en staging antes de usarlo.
+    args: combineWorkerScheduler ? [
+      'bash'
+      '-c'
+      'php artisan config:clear && { php artisan schedule:work -v & php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction & wait -n; echo "proceso terminado, reiniciando contenedor" >&2; exit 1; }'
+    ] : [
       'sh'
       '-c'
       'php artisan config:clear && php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction'
@@ -196,6 +215,7 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
     maxReplicas: 1
     env: sharedEnv
     secrets: runtimeSecrets
+    keyVaultSecrets: keyVaultSecrets
   }
 }
 
@@ -207,7 +227,7 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
 // INVARIANTE: exactamente 1 réplica. withoutOverlapping() protege por lock en
 // cache=database, pero dos schedule:work duplicarían despachos de recordatorios
 // y reconciliaciones. NO subir maxReplicas.
-module scheduler 'modules/container-app.bicep' = if (deployScheduler) {
+module scheduler 'modules/container-app.bicep' = if (deployScheduler && !schedulerAsJob && !combineWorkerScheduler) {
   name: '${appNamePrefix}-scheduler'
   params: {
     location: location
@@ -223,6 +243,26 @@ module scheduler 'modules/container-app.bicep' = if (deployScheduler) {
     memory: '0.5Gi'
     minReplicas: 1
     maxReplicas: 1
+    env: sharedEnv
+    secrets: runtimeSecrets
+    keyVaultSecrets: keyVaultSecrets
+  }
+}
+
+// EXPERIMENTAL — alternativa de bajo costo al scheduler always-on (ver docs/architecture/06-cost-and-scaling.md).
+// Mutuamente excluyente con la app del scheduler y con combineWorkerScheduler: así nunca coexisten dos planificadores.
+module schedulerJob 'modules/container-job.bicep' = if (deployScheduler && schedulerAsJob && !combineWorkerScheduler) {
+  name: '${appNamePrefix}-scheduler-job'
+  params: {
+    location: location
+    name: '${appNamePrefix}-scheduler-job'
+    environmentId: envRef.id
+    identityId: identityRef.id
+    registryServer: acrRef.properties.loginServer
+    image: containerImage
+    command: ['mova-entrypoint']
+    args: ['sh', '-c', 'php artisan config:clear && php artisan schedule:run -v']
+    cronExpression: schedulerCron
     env: sharedEnv
     secrets: runtimeSecrets
   }

@@ -79,6 +79,8 @@ Procedimiento (solo lectura sobre producción; el servidor restaurado es aislado
 4. **RPO medido = T − (timestamp del último evento de producción presente en el restaurado con fecha ≤ T)**. Debe ser ≈ 0 para datos confirmados antes de T; además registrar la antigüedad del punto restaurable más reciente que ofrece Azure (`latestRestorableTime` frente a la hora actual) como RPO nominal.
 5. Registrar en el Ledger: fecha, T, resultado, RTO medido (≈ 50 min en la prueba del 2026-10-05) y eliminar el servidor de prueba.
 
+**Fuente y límite (2026-10-19):** la documentación de Azure confirma copias de instantáneas de datos y de los registros de transacciones con restauración a cualquier instante dentro de la retención (CLI: `az mysql flexible-server restore --restore-time`), pero **no se pudo confirmar en la documentación consultada un intervalo fijo de copia de registros ni un RPO numérico**. La afirmación «RPO < 1 hora» queda como **objetivo propuesto**, no como garantía del proveedor, hasta medirlo con el procedimiento de arriba.
+
 **Estado:** pendiente de aprobar el objetivo y de ejecutar la medición.
 
 ## Brechas consolidadas (priorizadas)

@@ -1,6 +1,6 @@
 # 07 · Secretos: estado actual y plan de migración a Key Vault
 
-> Estado: **PROPUESTA, no implementada** · 2026-10-19. Requiere aprobación del titular
+> Estado: **INFRAESTRUCTURA CREADA Y VALIDADA (2026-10-19); migración de valores PENDIENTE del titular** (ver «Ejecución»). Requiere aprobación del titular
 > (nuevo recurso con costo y cambio de RBAC). Mapea a ISO/IEC 27001:2022 A.8.24 y
 > A.5.17 (información de autenticación), ISO/IEC 27017 CLD.12.1.5.
 
@@ -44,3 +44,17 @@
 
 ¿Apruebas crear el Key Vault y migrar en el orden indicado (staging → producción)? Hasta entonces los
 secretos permanecen como secretos de Container Apps, con las reglas de manejo vigentes.
+
+## Ejecución (2026-10-19)
+
+| Paso | Resultado |
+|---|---|
+| Proveedor `Microsoft.KeyVault` | Registrado (estaba `NotRegistered`) |
+| Vault `kv-movap-192f01` (mexicocentral, Standard, RBAC, *soft-delete* 90 d; sin *purge protection* todavía) | Creado en `mova-prod-rg`. URI `https://kv-movap-192f01.vault.azure.net/` |
+| `mova-apps-identity` → **Key Vault Secrets User** (solo lectura de secretos) | Asignado |
+| Titular/operador → **Key Vault Secrets Officer** (para cargar secretos) | Asignado |
+| Prueba del mecanismo en **staging** (`mova-worker`, sin tocar producción): secreto `kvtest` como `keyvaultref` con la identidad + variable `KVTEST=secretref:kvtest` | Revisión `mova-worker--0000027` **Provisioned**; prueba y secreto temporal retirados; el secreto `mova-kv-selftest` (valor `ok`) sigue en el vault y puede borrarse |
+| Soporte en IaC: `modules/container-app.bicep` acepta `keyVaultSecrets` (NOMBRE → URI sin versión) y `apps.bicep` lo expone | Compila (`az bicep build`); sin desplegar |
+| Migración de los 10 secretos de producción (`app-key`, `db-password`, `mercadopago-*`, `mail-*`, `cloudinary-url`, `jaas-*`, `sentry-laravel-dsn`) | **No ejecutada por Claude**: `AGENTS.md` prohíbe consultar valores de secretos de Azure. Script para el titular: `scripts/azure/migrate-secrets-to-keyvault.sh` (`copy` → `switch` → `revert`), sin imprimir valores |
+
+Notas: no existe un `JWT_SECRET` en MOVA (los secretos reales son los 10 listados). Al pasar a referencias, los **mismos nombres** de secreto y de variable se conservan, así que no cambia el entorno de las apps. Orden recomendado del `switch`: scheduler → worker → web, con `/readyz` entre cada paso. Una vez migrado y verificado: borrar los valores en línea, habilitar *purge protection* (irreversible) y activar los registros `AuditEvent` del vault hacia Log Analytics. Costo del vault: despreciable (operaciones ≈ US$ 0,03 por 10 000; sin cargo por secreto estándar).

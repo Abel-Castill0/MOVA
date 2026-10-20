@@ -25,14 +25,25 @@ param env object = {}
 @description('Secretos nombre→valor. Se exponen como env con el mismo nombre vía secretRef.')
 param secrets object = {}
 
+@description('Secretos respaldados por Azure Key Vault: NOMBRE_VAR → URI del secreto (https://<vault>.vault.azure.net/secrets/<nombre>, sin versión). Se resuelven con la identidad administrada (rol Key Vault Secrets User). Sin valor en la plantilla. ISO/IEC 27001:2022 A.8.24 · ISO/IEC 27017 CLD.12.1.5.')
+param keyVaultSecrets object = {}
+
 // Container Apps exige nombres de secreto en minúsculas/guiones.
-var secretItems = [for s in items(secrets): {
+var inlineSecretItems = [for s in items(secrets): {
   name: toLower(replace(s.key, '_', '-'))
   value: s.value
 }]
+var keyVaultSecretItems = [for s in items(keyVaultSecrets): {
+  name: toLower(replace(s.key, '_', '-'))
+  keyVaultUrl: string(s.value)
+  identity: identityId
+}]
+var secretItems = concat(inlineSecretItems, keyVaultSecretItems)
 
 var plainEnvVars = [for e in items(env): { name: e.key, value: string(e.value) }]
-var secretEnvVars = [for s in items(secrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var inlineSecretEnv = [for s in items(secrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var keyVaultSecretEnv = [for s in items(keyVaultSecrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var secretEnvVars = concat(inlineSecretEnv, keyVaultSecretEnv)
 var envVars = concat(plainEnvVars, secretEnvVars)
 
 var probes = externalIngress ? [
