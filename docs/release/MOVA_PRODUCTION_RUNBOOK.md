@@ -35,6 +35,23 @@ aparezca producción. Aplicado: staging `worker`/`scheduler` a 0 réplicas (sin 
 reinicia a los 7 días ⇒ detenerlo de nuevo con `az mysql flexible-server stop -g mova-prod-rg -n mova-mysql-splisbj6ldoqw`, o arrancarlo con
 `start` para probar staging).
 
+## 1c. Escala a cero de worker y scheduler (hallazgo 2026-10-19) — RESUELTO el mismo día
+
+> **Resuelto 2026-10-19 (autorizado por el titular):** `movap-scheduler` y `movap-worker` a `min=max=1` (revisiones `0000021`, `Healthy`, 1 réplica cada una; la revisión previa de cada uno quedó desactivada). Verificado en logs: el scheduler ejecuta `classmate:send-reminders` cada minuto y el worker procesa `WorkerHeartbeatJob`; `/readyz` `ready`. Costo añadido ≈ US$ 3/mes. `movap-web` sigue en min 0 (escala a cero en reposo; arranque en frío en la primera visita). Lo que sigue es el análisis original.
+
+Lectura de solo lectura: `movap-worker` y `movap-scheduler` con `minReplicas=0` y sin reglas de escalado ⇒ **0 réplicas, nada se ejecuta**. Consecuencias mientras siga así:
+no se liquidan clases (aunque el modo sea `live`), no salen recordatorios ni correos en cola, no se reconcilian pagos ni webhooks fallidos de Mercado Pago, no expiran solicitudes ni se actualizan los *heartbeats* del Operations Center. La web sirve, pero el sistema financiero y de notificaciones está detenido.
+
+Costo de restaurar (de la lectura de costos del 2026-10-05, 0,25 vCPU/0,5 GiB): scheduler ≈ US$ 0,36 por 5 días (≈ 2,2/mes) y worker ≈ 0,16 por 5 días (≈ 1,0/mes) ⇒ **≈ US$ 3/mes** en total.
+Comando (modifica el consumo; solo con aprobación del titular):
+
+```bash
+az containerapp update -g mova-prod-rg -n movap-scheduler --min-replicas 1 --max-replicas 1
+az containerapp update -g mova-prod-rg -n movap-worker    --min-replicas 1 --max-replicas 1
+```
+
+Después: verificar réplicas > 0, heartbeats vigentes (`/readyz` o Operations Center) y que `mova:settle-lessons` y `mercadopago:reconcile` corran. Opción de ahorro sin perder funciones críticas: dejar solo el scheduler y que el worker procese bajo demanda es **inviable** (sin KEDA no hay disparo por cola), así que o ambos en 1 o aceptar el sistema detenido.
+
 ## 1b. Staging sin base de datos (eliminada el 2026-10-06) y cómo recuperarla
 
 Se eliminó el MySQL de staging (`mova-mysql-splisbj6ldoqw`; datos 100 % sintéticos y recreables) para conservar el crédito de Azure.

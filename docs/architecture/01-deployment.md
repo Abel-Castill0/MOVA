@@ -7,10 +7,11 @@
 
 | Tema | Estado real | Evidencia |
 |---|---|---|
-| Producción | **Azure Container Apps** sirve `https://movaeduca.me` (apex; `www` → apex 301). Apps `movap-web` (min 1), `movap-worker`, `movap-scheduler` (1 réplica) | Ledger «Estado actual» (2026-10-06/07), `PRODUCTION_LIVE` |
+| Producción | **Azure Container Apps** sirve `https://movaeduca.me` (apex; `www` → apex 301). Apps `movap-web`, `movap-worker`, `movap-scheduler` (worker/scheduler min=max=1; web min 0 hoy, diseño original min 1) | Ledger «Estado actual» (2026-10-06/07), `PRODUCTION_LIVE` |
 | Base de datos | MySQL 8.4 Flexible Server **dedicado** `mova-prod-mysql-8uxzgq` (B1ms, privado, TLS, PITR 14 días, sin HA ni geo-redundancia) | Runbook §1, §3 |
 | Staging | Apps `mova-*` a **0 réplicas** y **sin base de datos** (eliminada el 2026-10-06 para ahorrar crédito; recreable, ver Runbook §1b) | Runbook §1b |
 | Railway | **LEGACY, no operable**: todos los deployments `FAILED` desde julio de 2026; ya no es producción ni rollback | Ledger «Railway (LEGACY)» |
+| Escala (2026-10-19) | Se halló `movap-worker`/`movap-scheduler` en `minReplicas=0` (colas y tareas detenidas); **restaurados a min=max=1 el mismo día**, verificados en logs. `movap-web` sigue en min 0 (frío en reposo) | `az containerapp show`, logs; Runbook §1c |
 | Liquidación | `LESSON_SETTLEMENT_MODE=live` en producción desde 2026-10-06: solo mueve el **ledger interno de créditos** (consume reservas a los 7 días), **no mueve dinero real**. Revertible a `dry_run` | Ledger «Estado de lanzamiento controlado» |
 | Pagos live | Mercado Pago live cargado; checkout abierto **solo** a la cuenta de prueba del propietario (`MERCADOPAGO_CHECKOUT_ALLOWLIST`). Único intento (Yape S/ 1) rechazado con HTTP 400 / 2072; sin cobro | [Incidente](../release/INCIDENT_2026-10-06_yape_live_checkout.md) |
 | Imagen vigente | `mova@sha256:237d93c8…` (`release-20261007-99d873c`) | Ledger «Despliegue vigente» |
