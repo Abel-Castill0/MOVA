@@ -60,8 +60,9 @@
   3. **Contracargo/saldo negativo:** si un reembolso o contracargo deja el saldo del profesor sin respaldo (créditos ya gastados), el profesor queda **restringido
      para nuevas reservas** hasta regularizar (recargar o resolver), con revisión manual del administrador; **nunca se borra ni edita el ledger** (append-only).
   4. **Lenguaje al usuario:** **publicada en Términos §5 (versión 2026-10-06)**; quien ya aceptó la versión anterior debe reaceptar (flujo existente).
-- **Implementado:** reversión por reembolso/contracargo confirmado y reversión manual de admin. **Pendiente de código (post-lanzamiento):** el bloqueo
-  automático por saldo negativo (hoy es revisión manual del administrador).
+- **Implementado:** reversión por reembolso/contracargo confirmado y reversión manual de admin. Un saldo disponible negativo bloquea automáticamente
+  nuevas reservas en `LessonSchedulingService` dentro de la transacción y bajo `lockForUpdate`; no se suspende toda la cuenta ni se modifica el ledger.
+  El administrador conserva la revisión del caso. Cubierto por `MonetizationIntegrityTest::test_negative_credit_balance_blocks_new_reservations_automatically`.
 
 ## 4. Asistencia, ausencias y disputas
 

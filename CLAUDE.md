@@ -1,25 +1,15 @@
 ## Autonomía operativa
 
-- Trabaja de forma proactiva y orientada a resultados: implementa lo pedido, configura los entornos autorizados y completa la verificación final. No repitas auditorías generales ni preguntes qué fase sigue si puedes continuar con trabajo independiente.
-- El propietario autorizó el 2026-10-05 la completitud y lanzamiento de MOVA de punta a punta. Avanza por todos los dominios de producto, integraciones, seguridad, datos, infraestructura y cutover; no cierres la tarea tras resolver un solo módulo ni después de otra auditoría. Implementa, configura y verifica cada parte que no dependa de una decisión o acceso externo que falte.
-- Para la tarea de integraciones autorizada por el propietario el 2026-10-05, puedes leer y usar internamente solo las variables necesarias de .env para las sondas locales/QA. Nunca imprimas, registres, copies a argumentos visibles ni guardes secretos en archivos versionados o reportes. No asumas que una credencial de .env es sandbox; comprueba el modo sin revelar el valor.
-- Puedes configurar Azure staging para Mercado Pago sandbox, correo de prueba, JaaS, almacenamiento y Sentry usando credenciales no productivas. Envía correos solo al buzón de prueba del propietario. Las transacciones deben usar usuarios y medios de pago de prueba; nunca hagas cargos reales.
-- Si faltan credenciales o acciones del propietario, sigue avanzando en lo que no dependa de ellas y solicita únicamente el dato concreto, el nombre de variable y el lugar seguro donde cargarlo. No pidas que pegue secretos en el chat.
-- Para esta tarea de completitud, el propietario autoriza preparar/desplegar producción separada en Azure, hacer commit/push de los cambios validados de MOVA y conectar `movaeduca.me` en Namecheap después de superar los gates de lanzamiento. Mantén staging separado; nunca apuntes el dominio público a una instalación que siga usando QA/sandbox. Preserva los MX/TXT y el reenvío de correo existentes, y guarda el estado previo para rollback.
-- Antes de provisionar infraestructura con costo, comprueba crédito/costo disponible. No compres un plan ni excedas el crédito o límite existente; continúa trabajo independiente y reporta el costo exacto si hace falta autorización adicional.
-- No hagas cargos reales, no envíes correo masivo y no actives liquidaciones en vivo sin las credenciales correctas y el gate de lanzamiento. La autorización de DNS/despliegue no autoriza por sí sola cargos reales a clientes.
-- No hagas commit/push de archivos ajenos o no validados. Antes de publicar, revisa branch/HEAD/status, protege todo trabajo local, separa los cambios de MOVA de cualquier artefacto ajeno y ejecuta el gate final contra el árbol definitivo.
-- Antes de una prueba externa, confirma que usa sandbox, destinatarios de prueba y datos sintéticos. Si el modo es ambiguo o parece live, detén solo esa prueba y explica el bloqueo; continúa las demás.
-- Ahorra tiempo y contexto: agrupa comprobaciones independientes, ejecuta suites dirigidas durante el desarrollo y el conjunto final una vez sobre el árbol definitivo. No edites archivos mientras se ejecutan pruebas basadas en snapshots.
-- Si una operación falla por RBAC, permisos, autenticación, límites del proveedor o política administrada, identifica el bloqueo real y continúa con tareas independientes. Registra evidencia sin secretos y no afirmes que una integración funciona hasta probarla en el entorno que corresponda.
-- No inventes decisiones de producto, consentimiento de menores, obligaciones legales, política de reembolsos/ausencias, frecuencia de clases, verificación documental ni presupuestos. Cuando una de estas decisiones sea imprescindible, formula una pregunta concreta y única con la recomendación más segura; mientras esperas, completa todas las áreas independientes.
+- `AGENTS.md` contiene la autorización permanente del propietario para completar MOVA en staging y producción, usar los paneles autenticados, configurar DNS/integraciones, rotar y cargar secretos directamente en Azure, desplegar y publicar cambios validados. No vuelvas a pedir autorizaciones ya concedidas.
+- Sigue los límites de crédito Azure, pagos reales, secretos y decisiones del propietario establecidos en `AGENTS.md`. Si una interfaz exige la acción física del propietario (passkey/2FA, confirmación de titularidad o dato legal), pide solo ese paso concreto y continúa lo demás.
+- Ahorra contexto: reutiliza evidencia reciente, agrupa consultas, limita logs a estados/conteos y no repitas suites sin cambios. No cierres tras una auditoría o una lista de pendientes: avanza en todas las tareas independientes y deja como bloqueos solo acciones que requieran físicamente al titular, fondos disponibles, credenciales que no puedan obtenerse por los paneles autorizados, o decisiones de negocio/legal que no se puedan inferir con seguridad. Presenta esas acciones concretas en una lista consolidada y continúa en cuanto se resuelvan.
 
 # MOVA — Project Instructions
 
 Laravel 13 (PHP 8.3+) + Vue 3 + Inertia 2 + Tailwind 3 + Vite 5 + MySQL (`composer.json` y `package.json` son la fuente).
 Plataforma peruana de tutorías con padres, profesores y alumnos menores de edad.
 
-> **Precedencia:** si algo de este archivo contradice `AGENTS.md` (por ejemplo, permisos de commit, push, despliegue, migraciones o acciones sobre producción), prevalece `AGENTS.md`: esas acciones requieren autorización explícita del propietario en la tarea concreta. La sección «Autonomía operativa» no la amplía.
+> **Precedencia:** `AGENTS.md` es la fuente de autorización operativa. El propietario reafirmó el 2026-10-05 la autorización permanente allí descrita para completar y publicar MOVA en staging y producción. No pidas aprobaciones repetidas para acciones dentro de ese alcance. Conserva los límites de crédito Azure, privacidad, secretos, seguridad financiera y decisiones legales/de producto establecidos en `AGENTS.md`.
 
 ## 1. Trabajo sobre el código
 
@@ -43,14 +33,14 @@ Plataforma peruana de tutorías con padres, profesores y alumnos menores de edad
 - Antes de una operación irreversible o destructiva, debe inspeccionar el entorno, verificar que está actuando sobre el target correcto, preservar evidencia y utilizar backup/PITR/rollback cuando exista.
 - No debe inventar consentimientos, datos financieros ni estados de negocio.
 - No reescribas una migration ya aplicada en un entorno compartido; utiliza una migration forward-fix salvo que la tarea requiera explícitamente otra estrategia.
-- Para la tarea de integraciones autorizada el 2026-10-05, puedes usar el navegador autenticado del propietario y los paneles de Mercado Pago/JaaS; copiar credenciales de prueba directamente al `.env` local ignorado por Git; y desplegar/configurar Azure staging. No vuelvas a pedir permiso para estos pasos. No leas ni uses credenciales live para pruebas, no habilites cargos reales ni despliegues a producción sin una instrucción directa que mencione expresamente ese alcance.
+- Para la tarea permanente de completitud puedes usar las sesiones autenticadas y paneles de los proveedores para staging y producción, obtener/crear y rotar credenciales en el momento indicado por `AGENTS.md`, cargarlas directamente en Azure y configurar los servicios sin mostrar valores. Las credenciales de prueba solo van a staging; las live solo a producción. No pidas una segunda autorización para los pasos ya cubiertos.
 - Nunca reveles credenciales en el chat, la terminal, logs, capturas, archivos versionados o documentación. Transfiere secretos directamente desde el panel al `.env` local ignorado por Git o al gestor de secretos; valida solo presencia, formato y modo.
 - Si el navegador solo está abierto en la computadora pero no hay una herramienta/conexión de navegador disponible en Claude Code, no afirmes que puedes verlo: informa el requisito concreto de conectar Claude for Chrome u otro control de navegador compatible y continúa con el trabajo independiente.
 
 ## 4. Git y releases
 
 - Inspecciona branch, HEAD, status y ahead/behind antes de mutar Git.
-- Haz commit, push, merge, rebase, PR, tag o release solo cuando el propietario lo pida expresamente; no infieras esa autorización de una solicitud de implementación o despliegue.
+- Para completar MOVA, `AGENTS.md` autoriza commit/push a `master` y despliegue de cambios validados que pertenezcan al proyecto. No incluyas archivos ajenos, secretos ni cambios no validados.
 - No incluyas archivos ajenos o no relacionados.
 - Ante conflictos, preserva trabajo existente y resuélvelos basándote en evidencia; no descartes trabajo silenciosamente.
 
@@ -75,3 +65,12 @@ Para Mercado Pago usa la skill `mova-mercadopago`.
 Para una auditoría formal usa `/mova-audit`.
 
 Antes de cerrar una fase o hacer `/clear`, usa `/handoff`.
+
+## 8. Autonomía, costos y ahorro de contexto
+
+- Avanza hasta dejar terminadas todas las áreas independientes; no cierres el trabajo tras una auditoría o una integración aislada. Si algo necesita al propietario, agrupa al final una lista corta con la acción exacta, pantalla y dato requerido, y sigue con lo demás.
+- Usa primero evidencia ya producida; no repitas búsquedas, llamadas a paneles, pruebas o lecturas de logs sin un cambio de estado que lo justifique. Agrupa consultas independientes, limita salidas a conteos/estados, evita pegar logs largos y ejecuta la suite completa una vez contra el árbol final.
+- Antes de cualquier recurso/cambio con costo, verifica crédito y costo por recurso. El crédito reportado es US$86 hasta 2027-09-14; prioriza reducir consumo y no excedas el saldo, no actives Pay-As-You-Go y no compres planes de pago. Las alertas no detienen el gasto. Si la arquitectura necesaria no cabe en el crédito, presenta una única comparación breve y continúa todo el trabajo sin costo.
+- Puedes eliminar recursos únicamente de staging si confirmas que contienen solo datos sintéticos/recreables, preservas backup/export y verificas que el ahorro supera el impacto en QA. Nunca elimines recursos de producción para ahorrar sin preservar recuperación y continuidad.
+- Mantén pagos/webhooks apagados hasta completar integración, renovar secretos expuestos y superar los gates técnicos. Para la prueba live final, sigue `AGENTS.md`: cuenta controlada por el propietario, importe mínimo, una sola transacción y reembolso posterior. No cargues a terceros ni abras liquidaciones reales.
+- No inventes datos legales, consentimientos de menores, políticas de reembolso/ausencia, disputas, recurrencia, verificación docente ni presupuesto. Investiga lo que puedas y pide solo decisiones que la autoridad técnica no permita obtener.

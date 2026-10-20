@@ -895,6 +895,26 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('open', $request->fresh()->status);
     }
 
+    public function test_negative_credit_balance_blocks_new_reservations_automatically(): void
+    {
+        [$teacher, $profile, $subject] = $this->teacher(-3);
+        [, , $request] = $this->parentRequest($subject, 'open');
+
+        $this->actingAs($teacher)->post(route('lessons.store'), [
+            'class_request_id' => $request->id,
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'duration_minutes' => 60,
+        ])->assertRedirect()->assertSessionHasErrors([
+            'accept' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
+        ]);
+
+        $profile->refresh();
+        $this->assertSame(-3, $profile->credits_available, 'El rechazo no debe alterar ni ocultar la deuda del ledger.');
+        $this->assertSame(0, $profile->credits_reserved);
+        $this->assertDatabaseCount('classes', 0);
+        $this->assertSame('open', $request->fresh()->status);
+    }
+
     /**
      * Pedido explícitamente en revisión: `ClassRequestPolicy::accept()` solo
      * comprueba elegibilidad (verificado, materia/oferta), nunca el
