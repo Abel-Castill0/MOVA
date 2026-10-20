@@ -19,10 +19,12 @@ using './apps.bicep'
 param prefix = readEnvironmentVariable('MOVA_PREFIX', 'mova')
 param location = readEnvironmentVariable('MOVA_LOCATION', 'mexicocentral')
 // Producción: MOVA_APP_NAME_PREFIX=movap, MOVA_MYSQL_SERVER_NAME=<servidor dedicado>, MOVA_WEB_MIN_REPLICAS=1
-// (OBLIGATORIO en producción: sin esta variable el web vuelve a 0 réplicas; arranque en frío medido 22,9 s).
+// (desde 2026-10-19 el default ya es 1; staging debe fijar MOVA_WEB_MIN_REPLICAS=0 de forma explícita).
 param appNamePrefix = readEnvironmentVariable('MOVA_APP_NAME_PREFIX', 'mova')
 param mysqlServerName = readEnvironmentVariable('MOVA_MYSQL_SERVER_NAME', '')
-param webMinReplicas = int(readEnvironmentVariable('MOVA_WEB_MIN_REPLICAS', '0'))
+// ISO/IEC 25010 (fiabilidad, eficiencia temporal): el DEFAULT es 1 (producción, sin arranque en frío: medido 22,9 s).
+// 0 es SOLO para entornos no productivos (staging): exporta MOVA_WEB_MIN_REPLICAS=0 de forma explícita para ahorrar crédito.
+param webMinReplicas = int(readEnvironmentVariable('MOVA_WEB_MIN_REPLICAS', '1'))
 
 var image = readEnvironmentVariable('MOVA_CONTAINER_IMAGE', '')
 param containerImage = empty(image) ? fail('MOVA_CONTAINER_IMAGE requerido: <acr>.azurecr.io/mova@sha256:<digest>') : image

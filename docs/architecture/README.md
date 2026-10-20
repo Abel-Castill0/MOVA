@@ -13,6 +13,7 @@
 | [03-state-machines.md](03-state-machines.md) | Estados de `class_requests`, `classes`, `recharge_requests`, `payment_orders` |
 | [04-flows.md](04-flows.md) | Secuencias: reserva de clase, liquidación, recarga con Mercado Pago, webhooks, diagnóstico |
 | [site/](site/README.md) · [site/index.html](site/index.html) | **Sitio navegable** con los 17 diagramas, tema claro/oscuro y mapeo ISO ([normas](site/normas.md)); se regenera con `python docs/architecture/site/build.py` |
+| [07-secrets-keyvault-plan.md](07-secrets-keyvault-plan.md) | Estado de secretos y plan de migración a Key Vault (sin implementar) |
 | [06-cost-and-scaling.md](06-cost-and-scaling.md) | Costos y escalado de worker/scheduler/web, decisiones con ISO 25010/29119 |
 | [05-claims-verification.md](05-claims-verification.md) | Qué afirmaciones de la auditoría externa del 2026-10-19 son ciertas, falsas u obsoletas |
 

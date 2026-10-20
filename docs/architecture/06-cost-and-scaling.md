@@ -33,6 +33,33 @@ Costo neto del plan: **+ ≈ US$ 1,7/mes** (solo E-1); worker y scheduler vuelve
 US$ 86 hasta 2027-09-14 (≈ US$ 7,9/mes sostenibles) la partida dominante sigue siendo
 MySQL/ACR/IP (Runbook §1), no el cómputo de las apps.
 
+## Reevaluación del scheduler con costos medidos (2026-10-19, 2.ª ronda)
+
+Cost Management (API, acumulado 2026-10-01 → 10-19/20, por recurso; solo lectura):
+
+| Recurso | US$ acumulados | Nota |
+|---|---|---|
+| `movap-scheduler` (producción) | 4,83 | ≈ 7,5/mes prorrateado; ≈ 10/mes si estuvo apagado parte del periodo |
+| `movap-worker` / `movap-web` (producción) | 2,43 / 2,39 | |
+| `mova-scheduler` / `mova-worker` (**staging**, hoy a 0 réplicas) | 7,36 / 7,09 | consumo ya hecho; revisar que no vuelvan a arrancar |
+| ACR + IP pública + DNS privado | 3,14 + 2,27 + 0,34 | |
+| MySQL | 0 | cubierto por la capa gratuita |
+| **Total de los 14 recursos principales** | **≈ 30,9** | frente al crédito de US$ 86 hasta 2027-09-14 |
+
+Las cifras de la comparación externa (always-on ≈ US$ 15,55/mes frente a Job ≈ US$ 0,04/mes) son de **lista y para otro régimen**: 15,55 = 0,25 vCPU × tarifa activa × 30 días **sin** tarifa de reposo ni cuotas gratuitas, y 0,04 corresponde a pocas ejecuciones al día. El cargo medido del scheduler es ≈ US$ 7,5–10/mes.
+
+**Frecuencia real de tareas (`app/Console/Kernel.php`, logs del scheduler):** 2 tareas **cada minuto** (`classmate:send-reminders` ≈ 0,3–0,8 s y el latido `mova:heartbeat` ≈ 50 ms) ⇒ 2 880 ejecuciones/día; cada 5 min `mercadopago:reconcile`; 3 tareas cada hora (`mova:settle-lessons`, `mova:health-check --alert`, `mova:expire-class-requests` al minuto 30); 1 diaria (`mova:reconcile-ledger` 03:10).
+
+| Opción | Costo estimado/mes | Riesgo | ISO 25010 |
+|---|---|---|---|
+| A. `schedule:work` always-on (actual) | ≈ 7,5–10 (medido) | bajo; un solo proceso, locks `withoutOverlapping` | Fiabilidad ✔ · Eficiencia de desempeño ✘ |
+| B. Container App Job `* * * * *` ejecutando `schedule:run` | ≈ 0–3,2: 43 200 ejecuciones × ~10 s × 0,25 vCPU = 108 000 vCPU-s (≈ US$ 2,6) + 216 000 GiB-s (≈ US$ 0,65), menos las cuotas gratuitas mensuales de la suscripción (180 000 vCPU-s y 360 000 GiB-s, compartidas con las demás apps) | arranque de contenedor por minuto (latencia 3–30 s), posibles minutos omitidos o solapados, el latido deja de ser continuo, `/readyz` más frágil | Eficiencia ✔ · Fiabilidad ✘ (media) |
+| C. Híbrido: Job por minuto solo para las 2 tareas por minuto y Job horario para el resto | ≈ igual que B | más piezas que mantener | Mantenibilidad ✘ |
+
+**Decisión (criterio no cumplido):** la propuesta externa exigía una frecuencia **horaria o menor** y la carga real es **por minuto**, así que **no se escribe el módulo Bicep del Job ni se migra**. Ahorro potencial de B: **≈ US$ 4,5–10/mes** (≈ US$ 50–100 hasta 2027-09), a costa de fiabilidad. Antes de decidir, medir la duración real de un `php artisan schedule:run` en el contenedor (arranque + ejecución) y el cargo de uno o dos días del Job de prueba **en staging**. Requiere aprobación del titular.
+
+> **Corrección:** las estimaciones de worker/scheduler de la 1.ª ronda (≈ US$ 1,0 y 2,2/mes, derivadas de la lectura del 2026-10-05) quedan reemplazadas por los valores medidos de esta tabla.
+
 ## Otras palancas de ahorro evaluadas (sin aplicar)
 
 | Palanca | Ahorro estimado | Riesgo | Decisión |

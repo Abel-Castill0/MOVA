@@ -33,11 +33,11 @@ param mysqlServerName string = ''
 // Medido 2026-10-19: con 0 réplicas la primera petición tardó 22,9 s (arranque en frío), igual al plazo de
 // respuesta de los webhooks de Mercado Pago (~22 s). Costo de min=1 a 0,25 vCPU/0,5 GiB ≈ US$ 1,7/mes.
 // ISO/IEC 29119 (criterio): con min=1, `curl /healthz` tras 10 min de inactividad responde < 2 s.
-// OJO: el default es 0 (staging). Un deploy de producción SIN MOVA_WEB_MIN_REPLICAS=1 devuelve el web a 0.
+// El default es 1 (producción). 0 es SOLO para entornos no productivos y debe fijarse explícitamente (MOVA_WEB_MIN_REPLICAS=0).
 @description('Réplicas mínimas del web. 0 en staging (costo); 1 en producción (sin arranque en frío).')
 @minValue(0)
 @maxValue(2)
-param webMinReplicas int = 0
+param webMinReplicas int = 1
 
 @description('Imagen MOVA por digest inmutable: <acr>.azurecr.io/mova@sha256:<digest>. NUNCA latest/prod/stable.')
 @minLength(1)

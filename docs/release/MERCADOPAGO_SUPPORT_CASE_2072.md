@@ -36,6 +36,20 @@ Con su respuesta haré una única prueba controlada de pago con reembolso inmedi
 2. No adjuntar tokens, OTP, teléfonos ni el *access token*.
 3. Después de enviar, registrar en el Ledger la fecha y el número de caso; **no** reintentar cobros live hasta tener respuesta.
 
+## Hipótesis del 2072 (revisado 2026-10-19)
+
+**Descartada: monto mínimo.** La documentación oficial de Mercado Pago Perú y `GET /v1/payment_methods` indican para Yape un mínimo de **S/ 1,00**, y el intento fue de S/ 1,00. No hay evidencia de un mínimo mayor (la cifra «≈15 para tarjetas» no tiene fuente y no aplica a Yape). No se probarán S/ 5, 10 y 20 por esta hipótesis.
+
+**Causas que siguen abiertas (ninguna confirmada; solo soporte puede decidir):**
+
+| # | Hipótesis | A favor / en contra | Cómo se aclara |
+|---|---|---|---|
+| a | **Cuenta de cobro no habilitada para Yape** (aplicación o cuenta sin la habilitación de Yape pese a figurar `active` en `payment_methods`) | `payment_methods` lista Yape activo, pero ese listado es del sitio, no una garantía por cuenta/aplicación | Pregunta 2 del mensaje a soporte (condición de habilitación) |
+| b | **Payload no conforme al endpoint de Yape** (p. ej. `transaction_amount` entero `1` vs decimal `1.00`, campos de `payer`, `installments`, vínculo token–monto) | El payload coincide con el ejemplo de «Crear pago»; el token Yape (`mp.yape`, OTP + celular) se genera en el navegador y podría llevar el monto o el pagador asociados | Pregunta 3 del mensaje (campo o formato específico); comparar con el payload de referencia que entregue soporte |
+| c | **Restricción de moneda/sitio** (el sitio `MPE` fija PEN; una discrepancia de moneda del token, de la cuenta o de la aplicación) | No se envía `currency_id`; la moneda la fija el sitio | Pregunta 1 (qué validación produjo el 2072) |
+
+**Siguiente paso:** enviar el caso (acción del titular). Cualquier prueba live adicional —incluida una con otro importe— requiere respuesta de soporte y autorización expresa del titular (`AGENTS.md`: una sola transacción live, mínima, con reembolso). **Sin cambios en el código de pago.**
+
 ## Evidencia interna (no enviar)
 
 - Intento cerrado en MOVA como rechazado (`PaymentOrder#1 failed`, alerta cerrada); sin movimientos en el ledger; ver `INCIDENT_2026-10-06_yape_live_checkout.md`.
