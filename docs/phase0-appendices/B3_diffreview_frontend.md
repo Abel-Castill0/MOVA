@@ -1,3 +1,5 @@
+> **HISTÓRICO · apéndice de la auditoría Fase 0 (agosto 2026).** No describe el estado actual. Fuente vigente: [`docs/README.md`](../README.md) y el [Ledger](../release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # Auditoría frontend Vue — MOVA (working tree sin commitear)
 
 ## 0. Snapshot

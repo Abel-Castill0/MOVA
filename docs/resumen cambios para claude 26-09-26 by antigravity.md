@@ -1,3 +1,5 @@
+> **HISTÓRICO · resumen de sesión de septiembre de 2026.** No describe el estado actual. Fuente vigente: [`docs/README.md`](README.md) y el [Ledger](release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # 📚 Resumen Cambios para Claude 26-09-26 by Antigravity
 
 Este documento detalla todas las modificaciones, características y optimizaciones de diseño e ingeniería implementadas recientemente en el proyecto **MOVA**, organizadas por módulo.

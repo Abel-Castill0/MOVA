@@ -1,3 +1,5 @@
+> **HISTÓRICO · apéndice de la auditoría Fase 0 (agosto 2026).** No describe el estado actual. Fuente vigente: [`docs/README.md`](../README.md) y el [Ledger](../release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # MOVA — Auditoría de Tests / Documentación / QA-Config
 
 ## (0) Snapshot

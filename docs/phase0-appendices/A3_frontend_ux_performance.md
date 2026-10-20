@@ -1,3 +1,5 @@
+> **HISTÓRICO · apéndice de la auditoría Fase 0 (agosto 2026).** No describe el estado actual. Fuente vigente: [`docs/README.md`](../README.md) y el [Ledger](../release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # MOVA — Fase 0: Auditoría Frontend / UX / UI / Performance
 
 > Generado por lectura directa de código (`resources/js/`), sin ejecutar el build ni interactuar con el navegador salvo donde se indica. No se modificó ningún archivo del proyecto.

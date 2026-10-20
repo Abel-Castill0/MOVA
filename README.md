@@ -14,11 +14,11 @@ MOVA conecta familias con profesores particulares para clases en vivo por videol
 | Autenticación | Laravel Breeze |
 | Roles | Spatie Laravel Permission |
 | Videollamadas | JaaS (8x8 / Jitsi) con JWT por sala |
-| Email | Proveedor según `MAIL_MAILER`; Gmail API documentada para la producción actual, Azure staging usa `array` |
-| Pagos de créditos | Mercado Pago (proveedor automático previsto, apagado por flags) + recarga manual revisada |
+| Email | SMTP (Gmail) en producción; Gmail API soportada; staging usa `array` |
+| Pagos de créditos | Mercado Pago (live acotado a la cuenta de prueba del titular; sin cobros a terceros) + recarga manual revisada. Culqi **no** está implementado |
 | Cola | Laravel Queue |
-| Producción actual | Railway hasta el cutover de dominio |
-| Destino de producción | Azure Container Apps + Azure MySQL (`infra/azure`) |
+| Producción | **Azure Container Apps + Azure MySQL** sirviendo `https://movaeduca.me` (`infra/azure`) |
+| Railway | **Legacy, no operable** (deployments fallidos desde julio de 2026) |
 
 ## Rama De Producción
 
@@ -35,7 +35,7 @@ php artisan migrate
 npm run build
 ```
 
-No ejecutes seeders, migraciones contra producción ni cambios de variables sin autorización explícita.
+No ejecutes seeders ni migraciones contra producción fuera del procedimiento del Runbook.
 
 ## Ejecución Local
 
@@ -78,19 +78,15 @@ npm run qa:production-readonly
 
 ## Infraestructura
 
-Destino de producción: **Azure Container Apps + Azure Database for MySQL**, modelado en `infra/azure` (ver su README). Estado de lanzamiento y gates pendientes: `docs/release/MOVA_V1_COMPLETION_LEDGER.md`.
+Producción: **Azure Container Apps (`movap-web`, `movap-worker`, `movap-scheduler`) + Azure Database for MySQL**, modelada en `infra/azure` y operada con `docs/release/MOVA_PRODUCTION_RUNBOOK.md`. El estado vigente del lanzamiento está en `docs/release/MOVA_V1_COMPLETION_LEDGER.md` (fuente de verdad). Diagramas y flujos: `docs/architecture/`. Índice de toda la documentación: `docs/README.md`.
 
-### Railway (producción actual / rollback)
+- Despliegue **manual** (build por digest → Job de migración revisada → `apps.bicep` → `/healthz` y `/readyz`); no hay workflow de deploy. Las migraciones **no** corren al arrancar.
+- Rollback: `az containerapp revision activate` sobre la revisión anterior.
+- Staging (`mova-*`) está a 0 réplicas y sin base de datos para conservar el crédito de Azure.
 
-Railway sigue como producción actual y rollback hasta el cutover de dominio (C-P1-DOMAIN-CUTOVER). El repositorio mantiene su configuración:
+### Railway (legacy)
 
-- `railway.toml`: servicio web principal.
-- `railway.queue.toml`: worker de cola.
-- `railway.scheduler.toml`: scheduler.
-
-El servicio web usa `/healthz` como healthcheck. El arranque de Railway ejecuta `php artisan migrate --force`; por eso todo deploy debe revisar migraciones antes de publicarse.
-
-No cambies variables Railway ni despliegues sin autorización explícita.
+Railway ya no es producción ni rollback: sus deployments fallan desde julio de 2026. Se conservan `railway.toml`, `railway.queue.toml`, `railway.scheduler.toml` y `docs/DEPLOY_RAILWAY.md` solo como contexto histórico. No ejecutes deploys en Railway.
 
 ## Estructura Principal
 
@@ -110,7 +106,7 @@ qa/tests
 
 - No imprimir secretos ni valores de `.env`.
 - No modificar `.env` real sin autorización.
-- No hacer commit, push ni deploy sin autorización.
+- Commit, push y deploy: solo dentro de la autorización vigente de `AGENTS.md` y con cambios validados.
 - No ejecutar Playwright contra producción sin autorización.
-- No activar IA, WhatsApp, pagos ni correo masivo sin autorización.
+- IA, WhatsApp y liquidaciones reales permanecen apagados; pagos live solo para la cuenta de prueba del titular (ver `AGENTS.md`).
 - Para dinero, créditos y recargas usar transacciones, locks y ledger de auditoría.

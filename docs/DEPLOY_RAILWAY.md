@@ -1,3 +1,5 @@
+> **HISTÓRICO · Railway es LEGACY y no operable (deployments fallidos desde julio de 2026); producción está en Azure.** No describe el estado actual. Fuente vigente: [`docs/README.md`](README.md) y el [Ledger](release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # MOVA — Guía de deploy en Railway
 
 ## Por qué Railway

@@ -1,3 +1,5 @@
+> **HISTÓRICO · apéndice de la auditoría Fase 0 (agosto 2026).** No describe el estado actual. Fuente vigente: [`docs/README.md`](../README.md) y el [Ledger](../release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # MOVA — Auditoría Fase 0: Integraciones Externas
 
 **Fecha de análisis:** 2026-08-26

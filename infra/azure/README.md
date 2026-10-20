@@ -2,7 +2,15 @@
 
 **Fuente de verdad CURRENT:** [MOVA V1 Completion Ledger](../../docs/release/MOVA_V1_COMPLETION_LEDGER.md).
 Este documento describe IaC y procedimientos; una plantilla no demuestra el
-estado desplegado. Consulta de solo lectura de Azure, 2026-09-29:
+estado desplegado.
+
+> **Actualización 2026-10-19:** la lectura de abajo (2026-09-29) describe **staging** y
+> está superada. Producción son las apps `movap-*` (servidor MySQL propio), sirven
+> `https://movaeduca.me` y corren `LESSON_SETTLEMENT_MODE=live` (solo ledger
+> interno) desde 2026-10-06; staging está a 0 réplicas y sin base de datos. Ver
+> Ledger y `docs/release/MOVA_PRODUCTION_RUNBOOK.md`.
+
+Consulta de solo lectura de Azure, 2026-09-29:
 `mova-web`, `mova-worker` y `mova-scheduler` tienen revisiones Healthy en el
 entorno **STAGING** `mova-prod-rg`; web estaba ScaledToZero (min 0), worker
 y scheduler tenían una réplica cada uno, y

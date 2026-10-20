@@ -1,5 +1,7 @@
 # MOVA — Mapa del Sistema
 
+> **Estado (2026-10-19): referencia parcialmente superada.** Escrito el 2026-09-12 a partir del código; útil para rutas, roles y permisos. Sus afirmaciones de despliegue (Railway, `dry_run`, pagos apagados) están superadas por el [Ledger](release/MOVA_V1_COMPLETION_LEDGER.md) y por [`architecture/`](architecture/README.md).
+
 > **Propósito.** Reconstrucción funcional completa de MOVA a partir del **código actual**, no de la
 > documentación previa. Un ingeniero que nunca haya visto el proyecto debería poder leer este
 > documento y entender qué hace el sistema, quién puede hacer qué, y dónde están los bordes.

@@ -1,3 +1,5 @@
+> **HISTÓRICO · apéndice de la auditoría Fase 0 (agosto 2026).** No describe el estado actual. Fuente vigente: [`docs/README.md`](../README.md) y el [Ledger](../release/MOVA_V1_COMPLETION_LEDGER.md).
+
 # MOVA — Fase 0: Modelo de negocio, flujos funcionales y bug hunt
 
 > Generado el 2026-08-26 mediante lectura directa del código real en el working tree
