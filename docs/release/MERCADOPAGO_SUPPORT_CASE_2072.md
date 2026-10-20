@@ -96,3 +96,8 @@ Necesito saber: (1) si mi cuenta/aplicación de cobro requiere una habilitación
 - Código: el flujo OTP/token (`mp.yape().create()` + `payment_method_id: yape`) ya está implementado; no hay endpoint `/platforms/pci/yape` que añadir (ese es el flujo de plataformas, no de Checkout API). Sin cambios de código.
 - Hipótesis (d) (public key y access token de aplicaciones distintas): **sin verificar**. El `.env` local tiene claves TEST; la clave de producción vive en Azure y la comparación con el panel requería leer credenciales en la página, lo que se denegó. Pendiente: comparar en el panel y en Azure los últimos caracteres de la public key.
 - Prueba sandbox de Yape (`111111111` / `123456`): no ejecutada; requiere credenciales TEST de la aplicación de prueba y no se hizo ningún cobro live.
+
+### Hipótesis (d), comprobación parcial (2026-10-20)
+
+- Public key de producción del panel (`MOVA Produccion Payments`, app 4497812261072016) termina en `2df813`; `movap-web` (Azure, `MERCADOPAGO_APPLICATION_ID=4497812261072016`, `EXPECTED_LIVE_MODE=true`) tiene una public key `APP_USR-…2df813`. **Coinciden**: el token Yape se emite con la public key de la aplicación correcta.
+- Pendiente: confirmar que el access token también es de esa aplicación (no se leyó; comprobable con `GET /users/me`/diagnóstico sin imprimir valores). El stack `mova-*` (staging) usa claves TEST y la app 6583217782927097.
