@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitectura MOVA</title>
+<meta name="description" content="Diagramas de arquitectura, datos, estados, flujos y APIs de MOVA con mapeo a normas ISO.">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<script>
+  // Aplica el tema antes de pintar (evita parpadeo). Persistencia en localStorage con try/catch.
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('mova-arch-theme'); } catch (e) {}
+    if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', t === 'dark');
+  })();
+</script>
+<style>
+  html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
+  .navlink.active { background: rgb(99 102 241 / .15); font-weight: 600; }
+  .diagram-out svg { max-width: none; height: auto; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<header class="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+  <div class="flex items-center gap-3">
+    <button id="menu-btn" class="rounded border border-slate-300 px-2 py-1 text-sm lg:hidden dark:border-slate-600" aria-controls="sidebar" aria-expanded="false">Índice</button>
+    <h1 class="text-base font-bold sm:text-lg">MOVA · Arquitectura</h1>
+  </div>
+  <div class="flex items-center gap-2">
+    <a class="text-sm underline" href="#normas">Mapeo ISO</a>
+    <button id="theme-btn" class="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" aria-label="Cambiar tema claro u oscuro">Tema</button>
+  </div>
+</header>
+<div class="mx-auto flex max-w-[1500px]">
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-10 hidden w-72 overflow-y-auto border-r border-slate-200 bg-white px-4 pb-8 pt-16 dark:border-slate-700 dark:bg-slate-900 lg:sticky lg:top-0 lg:block lg:h-screen lg:pt-6">
+    <nav aria-label="Índice de diagramas"><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Despliegue y red</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#deploy-topology">Topología de despliegue en Azure</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#deploy-network">Conexión de red y servicios externos</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#deploy-pipeline">Pipeline CI/CD y despliegue manual</a><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Modelo de datos (ER)</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#er-identity">ER · Identidad y catálogo</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#er-classes">ER · Solicitudes y clases</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#er-finance">ER · Créditos y pagos (ledger)</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#er-ai">ER · Diagnóstico, IA, consentimientos y soporte</a><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Máquinas de estado</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#state-request">Estados de ClassRequest</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#state-lesson">Estados de Lesson (classes.status)</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#state-credits">Ciclo de créditos del profesor</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#state-payment">Estados de PaymentOrder y recarga</a><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Secuencias y flujos</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#seq-booking">Secuencia · Reserva de clase</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#seq-settlement">Flujo · Liquidación de créditos</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#seq-payment">Secuencia · Recarga con Mercado Pago (incluye error 2072)</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#seq-webhook">Secuencia · Webhook y reconciliación</a><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#seq-diagnostic">Flujo · Diagnóstico y recomendación (IA opcional)</a><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Mapa de APIs</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#api-map">Mapa de APIs por dominio</a><p class="mt-5 mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Normas</p><a class="navlink block rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800" href="#normas">Mapeo a normas ISO</a></nav>
+  </aside>
+  <main class="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8">
+    <p class="text-sm text-slate-600 dark:text-slate-300">Estado: CURRENT · derivado del código de <code>master</code> y del Ledger (2026-10-19). Las etiquetas ISO son un <b>mapeo orientativo</b>, no una certificación (ver <a class="underline" href="#normas">Normas ISO</a>). Reconstruir con <code>python docs/architecture/site/build.py</code>.</p>
+    <h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-deploy">Despliegue y red</h2>
+<section id="deploy-topology" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="deploy-topology">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Topología de despliegue en Azure</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="deploy-topology">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Web, worker y scheduler sobre Azure Container Apps (mexicocentral), MySQL privado, ACR por Managed Identity y Log Analytics. Entorno ACA compartido con staging por restricción de la suscripción.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Eficiencia</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.20 · A.8.22 · A.8.31</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO 22301</b> · RTO ≈ 50 min · PITR 14 d</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-deploy-topology" aria-label="Diagrama: Topología de despliegue en Azure"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-deploy-topology">flowchart LR
+    U[Usuarios] -->|HTTPS| DNS[Namecheap DNS<br/>movaeduca.me A → IP de ingreso ACA]
+    DNS --> ING[Ingress ACA<br/>enrutamiento por host]
+    subgraph RG["mova-prod-rg · mexicocentral · único entorno ACA permitido por la suscripción Student"]
+        ING -->|movaeduca.me| WEB[movap-web<br/>min 1 · 0,25 vCPU]
+        ING -.->|staging.movaeduca.me| SWEB[mova-web<br/>0 réplicas]
+        WRK[movap-worker<br/>1 réplica · colas]
+        SCH[movap-scheduler<br/>1 réplica · schedule:work]
+        WEB & WRK & SCH --> MYSQL[(mova-prod-mysql-8uxzgq<br/>MySQL 8.4 · privado · TLS · PITR 14 d)]
+        ACR[ACR · imágenes por digest] -.AcrPull MI.-> WEB & WRK & SCH
+        LOG[Log Analytics 30 d]
+    end
+    WEB & WRK --> MP[Mercado Pago]
+    WEB --> JAAS[JaaS 8x8]
+    WEB & WRK --> MAIL[SMTP Gmail]
+    WEB --> CLD[Cloudinary]
+    WEB & WRK --> SEN[Sentry]
+    MP -- webhook --> WEB
+    JAAS -- webhook presencia --> WEB</script>
+</section>
+<section id="deploy-network" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="deploy-network">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Conexión de red y servicios externos</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="deploy-network">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Flujo entre Container Apps, MySQL en subred delegada sin IP pública, ACR y servicios externos (Mercado Pago, JaaS, SMTP, Cloudinary, Sentry). OpenAI/Gemini y WhatsApp aparecen apagados.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Seguridad · Fiabilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.20 · A.8.21 · A.8.22 · A.5.23</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27701</b> · Flujo transfronterizo (Azure MX, Cloudinary, Sentry)</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 42001</b> · IA externa apagada</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-deploy-network" aria-label="Diagrama: Conexión de red y servicios externos"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-deploy-network">flowchart TB
+    USR["Navegador de padres, profesores y admin"] -->|"HTTPS 443"| DNS["Namecheap DNS<br/>movaeduca.me A · www CNAME · MX/SPF sin tocar"]
+    DNS --> IP["IP pública del entorno ACA<br/>TLS gestionado · www → apex 301"]
+    subgraph AZ["Azure · mexicocentral · mova-prod-rg"]
+        subgraph VNET["VNet 10.20.0.0/16"]
+            subgraph SACA["snet-aca /23 · delegada Microsoft.App/environments"]
+                WEB["movap-web<br/>ingress externo :8080<br/>sondas /healthz /readyz"]
+                WRK["movap-worker<br/>sin ingress"]
+                SCH["movap-scheduler<br/>sin ingress"]
+            end
+            subgraph SDB["snet-mysql-prod /28 · delegada MySQL Flexible"]
+                DB[("MySQL 8.4 · mova-prod-mysql-8uxzgq<br/>sin IP pública · TLS obligatorio<br/>PITR 14 días")]
+            end
+            PDNS["Zona DNS privada<br/>mova.private.mysql.database.azure.com"]
+        end
+        ACR["Azure Container Registry<br/>admin deshabilitado"]
+        MI["Managed Identity<br/>rol AcrPull"]
+        LOG["Log Analytics · 30 días · tope 1 GB/día"]
+    end
+    IP --> WEB
+    WEB -->|"TLS, usuario movap_app"| DB
+    WRK -->|"TLS"| DB
+    SCH -->|"TLS"| DB
+    DB --- PDNS
+    MI -.->|"AcrPull"| ACR
+    ACR -.->|"imagen por digest"| WEB
+    ACR -.-> WRK
+    ACR -.-> SCH
+    WEB & WRK & SCH -.->|"stdout"| LOG
+    subgraph EXT["Servicios externos · salida HTTPS"]
+        MPAG["Mercado Pago API<br/>pagos live · cuenta de prueba"]
+        JAASX["JaaS 8x8<br/>JWT RS256 por sala"]
+        SMTP["SMTP Gmail<br/>correo transaccional"]
+        CLD["Cloudinary<br/>avatares"]
+        SEN["Sentry<br/>send_default_pii=false"]
+        AI["OpenAI / Gemini<br/>APAGADO · Movi usa proveedor local"]
+        WAP["Meta WhatsApp<br/>APAGADO"]
+    end
+    WEB -->|"POST /v1/payments"| MPAG
+    WRK -->|"GET pagos · reconcile"| MPAG
+    MPAG -->|"webhook /api/webhooks/mercadopago"| IP
+    WEB -->|"JWT"| JAASX
+    JAASX -->|"webhook presencia"| IP
+    WRK --> SMTP
+    WEB --> CLD
+    WEB & WRK --> SEN
+    WEB -.->|"desactivado"| AI
+    WRK -.->|"desactivado"| WAP</script>
+</section>
+<section id="deploy-pipeline" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="deploy-pipeline">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Pipeline CI/CD y despliegue manual</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="deploy-pipeline">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">CI automático en GitHub Actions; despliegue manual por digest con Job de migración revisada y rollback por revisión.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Mantenibilidad · Fiabilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.32 · A.8.9</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Pruebas de sistema en CI; gap: sin deploy automatizado</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-deploy-pipeline" aria-label="Diagrama: Pipeline CI/CD y despliegue manual"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-deploy-pipeline">flowchart TB
+    PUSH[push a master / PR] --> CI
+    subgraph CI["GitHub Actions · .github/workflows/ci.yml (automático)"]
+        F[frontend: npm audit, build, check:title,<br/>check:chatbot-escape, check:movi-availability, check:checkout-poll]
+        C[composer: validate, platform, audit]
+        S[phpunit SQLite]
+        M[phpunit MySQL 8.4]
+        E[Playwright e2e]
+    end
+    CI --> OK{verde?}
+    OK -->|no| FIX[corregir]
+    OK -->|sí| MAN
+    subgraph MAN["Despliegue a Azure (MANUAL por el operador; no hay workflow de deploy)"]
+        B[docker build → ACR, referencia por digest]
+        J[Job manual: migrate --force<br/>solo tras revisar migraciones]
+        A[apps.bicep + apps.bicepparam → revisión nueva]
+        V[/healthz · /readyz 200 · smoke/]
+        B --> J --> A --> V
+    end
+    V -->|falla| RB[az containerapp revision activate &lt;anterior&gt;]</script>
+</section><h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-er">Modelo de datos (ER)</h2>
+<section id="er-identity" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="er-identity">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">ER · Identidad y catálogo</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="er-identity">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">users, students (sin cuenta propia), teacher_profiles, subjects y agenda. Roles Spatie; MFA TOTP para admin.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Seguridad · Compatibilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.5.15 · A.5.16 · A.8.5</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27701</b> · Datos de menores: consentimiento parental</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-er-identity" aria-label="Diagrama: ER · Identidad y catálogo"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-er-identity">erDiagram
+    users {
+        bigint id PK
+        string email UK
+        string phone
+        bool parental_control
+        ts email_verified_at
+        ts phone_verified_at
+        ts suspended_at
+        ts whatsapp_opt_in_at
+        text two_factor_secret
+    }
+    students {
+        bigint id PK
+        bigint parent_user_id FK
+        string first_name
+        string last_name
+        date birth_date
+        enum grade_level "primaria,secundaria,universidad"
+        ts deleted_at "soft delete + anonymize"
+    }
+    teacher_profiles {
+        bigint id PK
+        bigint user_id FK
+        decimal hourly_rate
+        bool is_verified
+        int credits_available
+        int credits_reserved
+        int mentorship_slots_total
+        int mentorship_slots_taken
+        string referral_code UK
+    }
+    subjects {
+        bigint id PK
+        string name
+        enum level
+        string normalized_name
+    }
+    teacher_subject {
+        bigint teacher_profile_id FK
+        bigint subject_id FK
+        decimal specific_rate
+    }
+    teacher_availability_slots {
+        bigint teacher_profile_id FK
+        tinyint day_of_week
+        time start_time
+        time end_time
+    }
+    users ||--o{ students : "padre o apoderado"
+    users ||--o| teacher_profiles : "profesor"
+    teacher_profiles ||--o{ teacher_subject : imparte
+    subjects ||--o{ teacher_subject : "es impartida"
+    teacher_profiles ||--o{ teacher_availability_slots : "agenda"</script>
+</section>
+<section id="er-classes" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="er-classes">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">ER · Solicitudes y clases</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="er-classes">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">class_requests, classes (modelo Lesson), eventos, reportes, presencia JaaS y reseñas.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Adecuación funcional · Fiabilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.15 (class_events)</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Nivel: sistema + integración</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-er-classes" aria-label="Diagrama: ER · Solicitudes y clases"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-er-classes">erDiagram
+    class_offers {
+        bigint id PK
+        bigint teacher_profile_id FK
+        bigint subject_id FK
+        string title
+        decimal specific_rate
+        bool is_active
+    }
+    class_requests {
+        bigint id PK
+        bigint student_id FK
+        bigint subject_id FK
+        bigint class_offer_id FK "nullable"
+        bigint teacher_profile_id FK "nullable, codigo de referido"
+        bigint student_diagnostic_id FK
+        string status "ver 03-state-machines"
+        json preferred_times
+        bool is_mentorship
+        datetime counteroffer_time
+        int counteroffer_duration_minutes
+        bigint counteroffer_teacher_profile_id FK
+    }
+    classes {
+        bigint id PK "modelo Lesson"
+        bigint teacher_profile_id FK
+        bigint student_id FK
+        bigint class_request_id FK
+        bigint class_offer_id FK
+        datetime start_time
+        smallint duration_minutes
+        decimal price_frozen_pen
+        string status "string, no enum"
+        string jitsi_room
+        ts credits_settled_at "solo la capa de liquidacion"
+        ts cancelled_at
+        bigint cancelled_by
+    }
+    class_events {
+        bigint id PK
+        bigint lesson_id
+        bigint class_request_id
+        bigint actor_id
+        string event_type
+        json metadata
+    }
+    lesson_reports {
+        bigint id PK
+        bigint lesson_id FK
+        text topic_covered
+        text student_performance
+        ts sent_to_parent_at
+    }
+    lesson_presence_events {
+        bigint id PK
+        bigint lesson_id FK
+        string event_type "PARTICIPANT_JOINED o LEFT"
+        string external_event_id UK
+        ts occurred_at
+    }
+    teacher_reviews {
+        bigint id PK
+        bigint lesson_id UK
+        tinyint rating
+        bool is_visible
+    }
+    class_offers ||--o{ class_requests : origina
+    students ||--o{ class_requests : solicita
+    class_requests ||--o{ classes : acepta
+    classes ||--o{ class_events : audita
+    classes ||--o| lesson_reports : reporta
+    classes ||--o{ lesson_presence_events : "evidencia JaaS"
+    classes ||--o| teacher_reviews : evalua</script>
+</section>
+<section id="er-finance" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="er-finance">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">ER · Créditos y pagos (ledger)</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="er-finance">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ledger append-only con idempotency_key único; payment_orders y payment_webhooks de Mercado Pago.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad funcional</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.3 · A.8.15 · A.8.16</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Concurrencia obligatoria (probes reales)</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO 22301</b> · Reconciliación diaria del ledger</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-er-finance" aria-label="Diagrama: ER · Créditos y pagos (ledger)"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-er-finance">erDiagram
+    credit_transactions {
+        bigint id PK
+        bigint teacher_profile_id FK
+        enum type "deposit,reservation,consumption,refund,reversal"
+        int amount
+        string idempotency_key UK
+        bigint lesson_id FK
+        bigint recharge_request_id FK
+        string reversal_type
+    }
+    recharge_requests {
+        bigint id PK
+        bigint teacher_profile_id FK
+        string package_code "inicio,impulso,..."
+        int credits
+        decimal amount_pen
+        enum status "pending,approved,rejected"
+        string payment_method
+        ts reversed_at
+    }
+    payment_orders {
+        bigint id PK
+        bigint recharge_request_id FK
+        string provider "mercadopago,fake"
+        string provider_order_id
+        enum status "created,pending,paid,failed,expired,cancelled"
+        string submission_status
+        int attempt_number
+        string idempotency_key
+        int recovery_attempts
+        smallint creation_http_status
+        string creation_error_codes
+        ts review_detected_at
+        ts review_resolved_at
+    }
+    payment_webhooks {
+        bigint id PK
+        string provider
+        string event_id "UK con provider"
+        json payload
+        enum status "received,processed,failed"
+        int recovery_attempts
+    }
+    operational_alerts {
+        bigint id PK
+        string alert_key UK
+        string severity
+        ts resolved_at
+    }
+    teacher_profiles ||--o{ credit_transactions : ledger
+    teacher_profiles ||--o{ recharge_requests : recarga
+    recharge_requests ||--o{ payment_orders : intentos
+    classes ||--o{ credit_transactions : "reserva, consumo, refund"
+    recharge_requests ||--o{ credit_transactions : deposito</script>
+</section>
+<section id="er-ai" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="er-ai">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">ER · Diagnóstico, IA, consentimientos y soporte</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="er-ai">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">student_diagnostics, recomendaciones, ai_usage_logs, student_data_consents, legal_acceptances y libro de reclamaciones.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Seguridad · Capacidad de interacción</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27701</b> · Consentimiento por menor · minimización</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 42001</b> · Registro de uso de IA (ai_usage_logs)</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.5.34</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-er-ai" aria-label="Diagrama: ER · Diagnóstico, IA, consentimientos y soporte"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-er-ai">erDiagram
+    student_diagnostics {
+        bigint id PK
+        bigint parent_user_id FK
+        bigint student_id FK
+        enum status "draft,completed,converted"
+        string idempotency_key UK
+        text ai_summary
+        bool ai_used_fallback
+    }
+    diagnostic_recommendations {
+        bigint student_diagnostic_id FK
+        bigint class_offer_id FK
+        bigint teacher_profile_id FK
+        tinyint rank
+        json reasons
+    }
+    ai_usage_logs {
+        bigint user_id
+        string provider
+        string status
+        int total_tokens
+    }
+    student_data_consents {
+        bigint student_id FK
+        bigint parent_user_id FK
+        string statement_version
+        string privacy_version
+        ts accepted_at
+    }
+    legal_acceptances {
+        bigint user_id FK
+        string document
+        string version
+        ts accepted_at
+    }
+    complaints {
+        string code UK
+        string type
+        bool is_minor
+        string status
+    }
+    students ||--o{ student_diagnostics : diagnostica
+    student_diagnostics ||--o{ diagnostic_recommendations : recomienda
+    students ||--o{ student_data_consents : "consentimiento por menor"
+    users ||--o{ legal_acceptances : "append-only"</script>
+</section><h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-states">Máquinas de estado</h2>
+<section id="state-request" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="state-request">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Estados de ClassRequest</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="state-request">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">De pending_parent_approval/open a accepted, counteroffered, teacher_rejected, expired y cancelled.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Adecuación funcional</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Cobertura de transiciones: tests de flujo de solicitud</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-state-request" aria-label="Diagrama: Estados de ClassRequest"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-state-request">stateDiagram-v2
+    [*] --> pending_parent_approval: padre con control parental
+    [*] --> open: padre sin control parental
+    pending_parent_approval --> open: el padre aprueba
+    pending_parent_approval --> rejected: el padre rechaza
+    open --> accepted: profesor acepta (reserva creditos y crea la clase)
+    open --> counteroffered: profesor propone otro horario
+    open --> teacher_rejected: profesor rechaza
+    open --> expired: mova expire-class-requests tras 24 h
+    counteroffered --> accepted: padre acepta la contraoferta
+    counteroffered --> open: padre rechaza la contraoferta
+    accepted --> cancelled: se cancela la clase asociada
+    accepted --> completed
+    rejected --> [*]
+    expired --> [*]
+    teacher_rejected --> [*]
+    cancelled --> [*]
+    completed --> [*]</script>
+</section>
+<section id="state-lesson" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="state-lesson">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Estados de Lesson (classes.status)</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="state-lesson">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">scheduled → paid (declarado por el padre) → pending_parent_confirmation → completed; escalado a needs_admin_review a los 7 días.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Adecuación funcional · Fiabilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Gap: «paid» no es pago verificado (decisión de producto F-11)</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-state-lesson" aria-label="Diagrama: Estados de Lesson (classes.status)"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-state-lesson">stateDiagram-v2
+    [*] --> scheduled: aceptacion de la solicitud
+    scheduled --> paid: el padre DECLARA haber pagado al profesor
+    paid --> pending_parent_confirmation: el profesor sube el reporte
+    pending_parent_confirmation --> completed: confirma el padre, o consumo automatico a los 7 dias
+    scheduled --> needs_admin_review: sin cerrar tras 7 dias
+    paid --> needs_admin_review: sin reporte tras la gracia de 7 dias
+    needs_admin_review --> completed: admin resuelve y consume
+    needs_admin_review --> cancelled: admin cancela y devuelve
+    scheduled --> cancelled: cancelacion, devuelve la reserva
+    paid --> cancelled
+    pending_parent_confirmation --> cancelled
+    completed --> [*]
+    cancelled --> [*]</script>
+</section>
+<section id="state-credits" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="state-credits">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Ciclo de créditos del profesor</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="state-credits">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">deposit → disponible → reservation → consumption/refund; reversal puede dejar saldo negativo, que bloquea nuevas reservas.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad funcional</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · MonetizationIntegrityTest (saldo negativo, concurrencia)</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-state-credits" aria-label="Diagrama: Ciclo de créditos del profesor"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-state-credits">flowchart LR
+    D[deposit<br/>recarga aprobada] -->|suma| A[credits_available]
+    A -->|reservation<br/>acepta la clase| R[credits_reserved]
+    R -->|consumption<br/>clase liquidada| X[consumido]
+    R -->|refund<br/>clase cancelada| A
+    A -.->|reversal<br/>reembolso o contracargo| N[puede quedar negativo]
+    N -.->|bloquea nuevas reservas| A</script>
+</section>
+<section id="state-payment" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="state-payment">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Estados de PaymentOrder y recarga</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="state-payment">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">created → pending → paid/failed/expired/cancelled. Incierto nunca se vuelve éxito ni rechazo sin evidencia.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.15 · A.8.16</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Gap: sandbox/live fuera de CI</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-state-payment" aria-label="Diagrama: Estados de PaymentOrder y recarga"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-state-payment">stateDiagram-v2
+    [*] --> created: PaymentOrder
+    created --> pending: POST de pago aceptado por Mercado Pago
+    created --> failed: rechazo terminal documentado (p. ej. HTTP 400 codigo 2072)
+    pending --> paid: webhook firmado o consulta confirman approved
+    pending --> failed
+    pending --> expired
+    pending --> cancelled
+    pending --> pending: resultado incierto, revision y recuperacion
+    paid --> [*]: RechargeRequest approved y deposit en el ledger
+    failed --> [*]</script>
+</section><h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-seq">Secuencias y flujos</h2>
+<section id="seq-booking" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="seq-booking">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Secuencia · Reserva de clase</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="seq-booking">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Aceptación con locks (alumno, usuario y perfil del profesor), conflicto de horario y reserva de créditos en una transacción.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Eficiencia</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Concurrencia: accept-lesson (8 procesos)</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.28</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-seq-booking" aria-label="Diagrama: Secuencia · Reserva de clase"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-seq-booking">sequenceDiagram
+    autonumber
+    actor P as Padre
+    actor T as Profesor
+    participant W as MOVA (Laravel)
+    participant DB as MySQL
+    P->>W: crear solicitud (alumno, materia, horarios, codigo opcional)
+    W->>DB: class_requests status open o pending_parent_approval
+    W-->>T: notificacion (campana, correo)
+    T->>W: aceptar (horario y duracion)
+    W->>DB: BEGIN
+    W->>DB: lock del alumno y del User y TeacherProfile del profesor
+    W->>DB: conflicto de horario? profesor verificado y no suspendido?
+    alt credits_available < creditos necesarios (incluye saldo negativo)
+        W->>DB: ROLLBACK
+        W-->>T: error accept, creditos insuficientes
+    else suficiente
+        W->>DB: INSERT classes status scheduled, price_frozen_pen, sala JaaS
+        W->>DB: available menos N, reserved mas N
+        W->>DB: INSERT credit_transactions reservation (idempotency_key lesson:ID:reservation)
+        W->>DB: class_requests.status accepted
+        W->>DB: COMMIT
+        W-->>P: ClassConfirmed (correo y campana)
+    end</script>
+</section>
+<section id="seq-settlement" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="seq-settlement">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Flujo · Liquidación de créditos</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="seq-settlement">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">mova:settle-lessons cada hora: consume con reporte, escala sin reporte; modo live solo mueve el ledger interno.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad funcional</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Dry-run con safe_to_enable</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO 22301</b> · Recuperación tras parada del scheduler</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-seq-settlement" aria-label="Diagrama: Flujo · Liquidación de créditos"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-seq-settlement">flowchart TD
+    A[classes.status = scheduled] --> B[Padre declara pago al profesor<br/>status = paid]
+    B --> C[Profesor sube LessonReport<br/>status = pending_parent_confirmation]
+    C --> D{¿Padre confirma / reseña?}
+    D -->|sí| E[LessonSettlementService::consume]
+    D -->|no, pasan 7 días| F{mova:settle-lessons<br/>cada hora}
+    F -->|LESSON_SETTLEMENT_MODE=live| E
+    F -->|dry_run| G[solo simula y registra]
+    F -->|sin reporte o sin cerrar 7 días| H[needs_admin_review<br/>decide un admin]
+    H --> E
+    H --> I[refund: devuelve la reserva]
+    E --> J[INSERT credit_transactions consumption<br/>UNIQUE idempotency_key<br/>reserved menos N, status completed]
+    J --> K[LessonSettledNotification]</script>
+</section>
+<section id="seq-payment" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="seq-payment">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Secuencia · Recarga con Mercado Pago (incluye error 2072)</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="seq-payment">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Creación del intento, ramas de rechazo terminal (HTTP 400 / 2072) e incertidumbre, y confirmación por webhook. Caso 2072 abierto con el proveedor.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.24 · A.8.5</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Gap: sin contract test contra sandbox en CI</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO 22301</b> · Rollback: cierre administrativo auditado</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-seq-payment" aria-label="Diagrama: Secuencia · Recarga con Mercado Pago (incluye error 2072)"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-seq-payment">sequenceDiagram
+    autonumber
+    actor T as Profesor
+    participant W as MOVA
+    participant MP as Mercado Pago
+    participant DB as MySQL
+    T->>W: elegir paquete (inicio, impulso, ...) y metodo (tarjeta o Yape)
+    W->>W: validar allowlist, montos y paquetes en el servidor
+    W->>DB: recharge_requests pending + payment_orders created (idempotency_key)
+    W->>MP: POST /v1/payments (token, external_reference del intento)
+    alt 201 aceptado
+        MP-->>W: payment id, status
+        W->>DB: payment_orders pending o paid
+    else 400 con codigo documentado de validacion (p. ej. 2072)
+        MP-->>W: error
+        W->>DB: payment_orders failed + creation_http_status y codigos (sin reintento automatico)
+        W-->>T: pago rechazado, sin cobro
+    else 409, 429, 5xx, red o 400 ambiguo
+        W->>DB: payment_orders pending en revision (incierto)
+        W->>MP: buscar por external_reference (recuperacion)
+    end
+    MP-)W: POST /api/webhooks/mercadopago (firma HMAC)
+    W->>W: verificar firma y modo live esperado
+    W->>DB: INSERT payment_webhooks (UNIQUE provider+event_id)
+    W->>MP: GET del pago (fuente de verdad)
+    W->>DB: BEGIN, lock, payment_orders paid, recharge approved
+    W->>DB: INSERT credit_transactions deposit (idempotente)
+    W->>DB: COMMIT</script>
+</section>
+<section id="seq-webhook" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="seq-webhook">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Secuencia · Webhook y reconciliación</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="seq-webhook">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Validaciones del controlador, persistencia idempotente, procesamiento en el worker y barrido cada 5 min con umbrales de config/payments.php.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Fiabilidad · Seguridad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.8.24 · A.8.16</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Pruebas de webhook firmado + recovery</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO 22301</b> · Recuperación de eventos perdidos</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-seq-webhook" aria-label="Diagrama: Secuencia · Webhook y reconciliación"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-seq-webhook">sequenceDiagram
+    autonumber
+    participant MP as Mercado Pago
+    participant W as movap-web
+    participant DB as MySQL
+    participant Q as Cola (jobs)
+    participant K as movap-worker
+    participant S as movap-scheduler
+    MP-)W: POST /api/webhooks/mercadopago (x-signature, x-request-id)
+    W->>W: flag MERCADOPAGO_WEBHOOKS_ENABLED activo? firma HMAC válida?
+    alt flag apagado (404), firma inválida (401), carga excesiva (413) o JSON inválido (400)
+        W-->>MP: rechazo sin efectos
+    else válido
+        W->>W: application_id, user_id (collector) y live_mode esperados?
+        W->>DB: INSERT payment_webhooks (UNIQUE provider + event_id) status received
+        W->>Q: encola el procesamiento
+        W-->>MP: 200 (debe ser menos de ~22 s, por eso web min=1)
+        K->>Q: toma el job
+        K->>MP: GET /v1/payments/{id} (fuente de verdad)
+        K->>DB: BEGIN y lockForUpdate de payment_orders
+        alt approved
+            K->>DB: payment_orders paid · recharge_requests approved
+            K->>DB: INSERT credit_transactions deposit (idempotency_key UNIQUE)
+        else refunded o charged_back
+            K->>DB: INSERT credit_transactions reversal · saldo puede quedar negativo
+        end
+        K->>DB: COMMIT · payment_webhooks processed
+    end
+    loop cada 5 minutos
+        S->>K: mercadopago:reconcile
+        K->>DB: webhooks received con más de 15 min se reencolan
+        K->>DB: órdenes pending con más de 30 min se reconcilian directo
+        K->>MP: búsqueda por external_reference (intentos inciertos, máx. 5)
+        K->>DB: webhooks failed tras 3 recuperaciones pasan a revisión humana
+        K->>DB: pagos paid de los últimos 90 días: detecta reembolsos sin webhook
+    end</script>
+</section>
+<section id="seq-diagnostic" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="seq-diagnostic">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Flujo · Diagnóstico y recomendación (IA opcional)</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="seq-diagnostic">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Recomendación por reglas; enriquecimiento con IA externa solo si está habilitado (hoy apagado).</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Seguridad · Capacidad de interacción</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 42001</b> · Gobierno de IA: apagada, política declara no enviar datos</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27701</b> · Datos de menores antes de activar IA</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-seq-diagnostic" aria-label="Diagrama: Flujo · Diagnóstico y recomendación (IA opcional)"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-seq-diagnostic">flowchart TD
+    A[Padre completa el diagnóstico] --> B{idempotency_key<br/>ya existe?}
+    B -->|sí| C[devuelve el diagnóstico existente]
+    B -->|no| D[student_diagnostics]
+    D --> E[DiagnosticRecommendationService<br/>reglas: score y rank]
+    E --> F{IA habilitada?}
+    F -->|no, estado actual en producción| G[solo recomendación por reglas]
+    F -->|sí| H[DiagnosticAiEnrichmentService<br/>+ ai_usage_logs]
+    G --> I[diagnostic_recommendations]
+    H --> I</script>
+</section><h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-api">Mapa de APIs</h2>
+<section id="api-map" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-diagram="api-map">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <h3 class="text-lg font-semibold">Mapa de APIs por dominio</h3>
+    <button type="button" class="copy-btn rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800" data-target="api-map">Copiar código Mermaid</button>
+  </div>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Rutas web y webhooks agrupadas por público, autenticación, padre, profesor, admin y entrantes. Fuente: routes/web.php, routes/auth.php, routes/api.php.</p>
+  <div class="mt-2 flex flex-wrap gap-1"><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 25010</b> · Seguridad · Mantenibilidad</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC 27001</b> · A.5.15 · A.8.5 · A.8.3</span><span class="rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"><b>ISO/IEC/IEEE 29119</b> · Gap: sin prueba de contrato de rutas automática</span></div>
+  <div class="diagram-out mt-3 overflow-x-auto" id="out-api-map" aria-label="Diagrama: Mapa de APIs por dominio"><p class="text-sm text-slate-500">Cargando diagrama…</p></div>
+  <script type="text/plain" id="src-api-map">flowchart LR
+    subgraph PUB["Público · sin sesión"]
+        P1["GET / · /quienes-somos · /marketplace"]
+        P2["GET /teachers/{id}"]
+        P3["GET /terminos · /privacidad"]
+        P4["GET·POST /libro-de-reclamaciones"]
+        P5["GET /invitacion/profesor · /alumno"]
+        P6["POST /chatbot/message (Movi)"]
+        P7["GET /healthz · /readyz · /sitemap.xml · /robots.txt"]
+    end
+    subgraph AUTH["Autenticación · Breeze + Google"]
+        A1["register · login · logout"]
+        A2["forgot-password · reset-password"]
+        A3["verify-email · verify-phone"]
+        A4["auth/google · callback · role"]
+    end
+    subgraph COMUN["Sesión + email verificado + legal.current"]
+        C1["GET /dashboard"]
+        C2["profile (edit·update·avatar·destroy)"]
+        C3["notifications (index·read·read-all)"]
+        C4["legal/aceptar"]
+        C5["lessons/{id}/join · cancel · reschedule"]
+    end
+    subgraph PAD["Rol parent"]
+        D1["diagnostics (create·store·results·request)"]
+        D2["students (CRUD)"]
+        D3["class-requests (index·create·store·approve·reject·lookup-code)"]
+        D4["counteroffer/accept · reject"]
+        D5["my-classes · lessons/{id}/confirm-payment"]
+        D6["reviews (create·store) · my-reports"]
+        D7["settings/parental-control"]
+    end
+    subgraph PRO["Rol teacher"]
+        T1["teacher/setup · profile · availability"]
+        T2["teacher/credits · recharge · checkout (store·show·pay·status·refresh)"]
+        T3["class-offers (CRUD · toggle)"]
+        T4["teacher/requests (index·accept·reject·counteroffer)"]
+        T5["POST /lessons (reserva créditos)"]
+        T6["teacher/classes · reports · lessons/{id}/report"]
+    end
+    subgraph ADM["Rol admin · MFA TOTP obligatorio"]
+        M1["admin/mfa (setup·challenge·recovery-codes)"]
+        M2["admin/users · pending-teachers · verify · reject · suspend"]
+        M3["admin/lessons (cancel·force-complete·force-refund) · requests"]
+        M4["admin/recharges (approve·reject·reverse·close-rejected-payment)"]
+        M5["admin/operations · reviews · ai-usage · complaints"]
+    end
+    subgraph WH["Webhooks entrantes · /api/webhooks"]
+        W1["POST /mercadopago · firma HMAC · throttle 120/min"]
+        W2["POST /jaas · X-Jaas-Signature · solo presencia"]
+        W3["GET·POST /whatsapp · apagado en producción"]
+    end
+    PUB --> AUTH --> COMUN
+    COMUN --> PAD
+    COMUN --> PRO
+    COMUN --> ADM
+    MP[(Mercado Pago)] -.-> W1
+    JAAS[(JaaS 8x8)] -.-> W2
+    META[(Meta WhatsApp)] -.-> W3</script>
+</section><h2 class="mt-12 mb-2 text-2xl font-bold" id="cat-normas">Normas ISO</h2><section id="normas" class="diagram-card mt-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"><p class="my-2 rounded border-l-4 border-indigo-400 bg-indigo-50 p-2 text-sm dark:bg-indigo-950">Estado: CURRENT · 2026-10-19. <b>Mapeo orientativo para ingeniería: MOVA no está certificada ni auditada contra ninguna de estas normas.</b> Sirve para ubicar qué característica o control respalda cada diagrama y dónde está el hueco.</p>
+<h3 class="mt-6 mb-2 text-lg font-semibold">Ediciones usadas (y una corrección)</h3>
+<div class="overflow-x-auto"><table class="my-2 min-w-full border-collapse text-xs"><thead><tr><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Norma</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Edición</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Uso en MOVA</th></tr></thead><tbody><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO/IEC 25010</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">2023</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Modelo de calidad del producto: adecuación funcional, eficiencia de desempeño, compatibilidad, capacidad de interacción (antes usabilidad), fiabilidad, seguridad, mantenibilidad, flexibilidad (antes portabilidad), seguridad operacional (safety)</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO/IEC/IEEE 29119</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">partes 1–4</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Conceptos, procesos, documentación y técnicas de prueba</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO/IEC 27001</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">2022</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Controles del Anexo A (numeración 2022: A.5, A.6, A.7, A.8)</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO/IEC 27701</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">2025</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gestión de información de privacidad (PIMS)</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO/IEC 42001</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600"><b>2023</b></td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sistema de gestión de IA. <i>La edición vigente es 2023, no 2025: se corrige el dato del encargo.</i></td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ISO 22301</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">2019</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Continuidad del negocio (RTO/RPO)</td></tr></tbody></table></div>
+<h3 class="mt-6 mb-2 text-lg font-semibold">Mapa por diagrama</h3>
+<div class="overflow-x-auto"><table class="my-2 min-w-full border-collapse text-xs"><thead><tr><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Diagrama</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO/IEC 25010:2023</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO/IEC/IEEE 29119 (nivel y gap)</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO/IEC 27001:2022 (Anexo A)</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO/IEC 27701:2025</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO/IEC 42001:2023</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">ISO 22301:2019</th></tr></thead><tbody><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Topología de despliegue en Azure</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, eficiencia de desempeño</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sistema/aceptación: <code>/healthz</code>, <code>/readyz</code>, E2E. Gap: sin prueba de carga</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.20, A.8.22, A.8.31</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">RTO ≈ 50 min medido; PITR 14 d</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Conexión de red y servicios externos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Seguridad, fiabilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sistema. Gap: sin escaneo de red/pentest</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.20, A.8.21, A.8.22, A.5.23</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Flujo transfronterizo: Azure (México), Cloudinary, Sentry, JaaS, Mercado Pago</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">IA externa apagada (OpenAI/Gemini)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Dependencia de proveedores sin plan de salida documentado</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Pipeline CI/CD</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Mantenibilidad, fiabilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sistema en CI (SQLite, MySQL 8.4, Playwright). Gap: despliegue manual</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.32, A.8.9</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Rollback por revisión (no ensayado en esta ronda)</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ER Identidad y catálogo</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Seguridad, compatibilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Unidad/integración de autorización (Policies, roles, MFA)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.5.15, A.5.16, A.8.5</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Datos de menores: consentimiento parental, baja con anonimización</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ER Solicitudes y clases</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Adecuación funcional, fiabilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Integración/sistema. Gap: presencia JaaS no decide asistencia</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.15 (<code>class_events</code>)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ER Créditos y pagos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad funcional</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Concurrencia real multi-proceso (5/5) + PHPUnit MySQL</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.3, A.8.15, A.8.16</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Minimización: sin PAN ni datos de tarjeta en BD</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600"><code>mova:reconcile-ledger</code> diario</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">ER Diagnóstico, IA, consentimientos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Seguridad, capacidad de interacción</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Integración. Gap: consentimiento específico por menor para IA pendiente</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.5.34</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Consentimiento versionado y append-only; ANPD pendiente (trámite del titular)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600"><code>ai_usage_logs</code>; política declara no enviar datos a IA</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Estados <code>ClassRequest</code></td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Adecuación funcional</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Cobertura de transiciones por tests de flujo</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Estados <code>Lesson</code></td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Adecuación funcional, fiabilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gap: <code>paid</code> es declarativo (F-11); sin disputas de asistencia</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Ciclo de créditos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad funcional</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600"><code>MonetizationIntegrityTest</code>, idempotencia, saldo negativo</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.28</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Estados <code>PaymentOrder</code></td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Webhook/recovery cubiertos; gap: sin contract test sandbox en CI</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.15, A.8.16</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Cierre administrativo auditado ante incierto</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Secuencia reserva de clase</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, eficiencia</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Concurrencia: accept-lesson (8 procesos)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.28</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Liquidación de créditos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad funcional</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Dry-run con <code>safe_to_enable</code>; gap: sin prueba de carga de backlog</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.32</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Reanudación tras parada: dry-run primero</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Recarga con Mercado Pago (2072)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gap: causa del 2072 sin resolver; sin pruebas live repetibles</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.24, A.8.5</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Datos de pago tokenizados por el proveedor</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sin cobros a terceros hasta respuesta del soporte</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Webhook y reconciliación</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fiabilidad, seguridad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Tests de firma/recovery; gap: arranque en frío del web (resuelto con min=1)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.8.24, A.8.16</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Recupera eventos perdidos en ≤ 90 d</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Diagnóstico e IA</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Seguridad, capacidad de interacción</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Fallback sin IA probado</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Menores: redacción previa no garantizada técnicamente</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gobierno: IA apagada por defecto; falta evaluación de riesgos de IA</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Mapa de APIs</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Seguridad, mantenibilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gap: sin prueba automática de contrato de rutas</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">A.5.15, A.8.5, A.8.3</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr></tbody></table></div>
+<h3 class="mt-6 mb-2 text-lg font-semibold">Continuidad (ISO 22301)</h3>
+<div class="overflow-x-auto"><table class="my-2 min-w-full border-collapse text-xs"><thead><tr><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Parámetro</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Valor</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Evidencia</th></tr></thead><tbody><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">RTO objetivo declarado</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">No definido formalmente (gap: no hay BIA)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">—</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">RTO medido</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">≈ 50 min (PITR de 32 GB en B1ms, 2026-10-05)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Runbook §3</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">RPO</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Nominal de minutos por PITR continuo (retención 14 d); <b>no medido</b></td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Runbook §3</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Geo-redundancia / alta disponibilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">No (decisión de costo)</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Ledger</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Aplicación</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Rollback por revisión de Container Apps con imágenes por digest</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Runbook §2</td></tr></tbody></table></div>
+<h3 class="mt-6 mb-2 text-lg font-semibold">Brechas consolidadas (priorizadas)</h3>
+<div class="overflow-x-auto"><table class="my-2 min-w-full border-collapse text-xs"><thead><tr><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Prioridad</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Brecha</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Norma</th><th class="border border-slate-300 bg-slate-100 px-2 py-1 text-left dark:border-slate-600 dark:bg-slate-800">Acción</th></tr></thead><tbody><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Alta</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">F-26 credencial histórica en el repositorio público</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">27001 A.5.x/A.8.x</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Titular: rotar o destruir el volumen de Railway</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Alta</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Error 2072 sin causa raíz</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">25010 fiabilidad</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Titular: enviar el caso a soporte</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Media</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sin BIA ni RTO/RPO objetivos aprobados</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">22301</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Definir objetivos y probar restauración periódica</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Media</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Consentimiento específico para IA con menores</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">27701 / 42001</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Gate antes de activar IA</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Media</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Despliegue manual sin smoke/rollback automatizado</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">27001 A.8.32</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600"><code>deploy-azure.yml</code> con OIDC</td></tr><tr><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Baja</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Sin gate de accesibilidad ni contract tests de rutas/pagos</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">25010 / 29119</td><td class="border border-slate-300 px-2 py-1 align-top dark:border-slate-600">Añadir a CI</td></tr></tbody></table></div></section>
+  </main>
+</div>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+const ids = ["deploy-topology", "deploy-network", "deploy-pipeline", "er-identity", "er-classes", "er-finance", "er-ai", "state-request", "state-lesson", "state-credits", "state-payment", "seq-booking", "seq-settlement", "seq-payment", "seq-webhook", "seq-diagnostic", "api-map"];
+const root = document.documentElement;
+const isDark = () => root.classList.contains('dark');
+async function renderAll() {
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: isDark() ? 'dark' : 'default', flowchart: { htmlLabels: true, useMaxWidth: false }, er: { useMaxWidth: false }, sequence: { useMaxWidth: false }, state: { useMaxWidth: false } });
+  for (const id of ids) {
+    const out = document.getElementById('out-' + id);
+    const code = document.getElementById('src-' + id).textContent;
+    try {
+      const { svg } = await mermaid.render('svg-' + id + '-' + Date.now(), code);
+      out.innerHTML = svg;
+    } catch (e) {
+      out.innerHTML = '<pre class="text-sm text-red-600">No se pudo renderizar este diagrama: ' + String(e.message || e).replace(/</g, '&lt;') + '</pre>';
+      console.error('Mermaid error en', id, e);
+    }
+  }
+}
+function setTheme(t) {
+  root.classList.toggle('dark', t === 'dark');
+  try { localStorage.setItem('mova-arch-theme', t); } catch (e) {}
+  renderAll();
+}
+document.getElementById('theme-btn').addEventListener('click', () => setTheme(isDark() ? 'light' : 'dark'));
+document.querySelectorAll('.copy-btn').forEach(btn => btn.addEventListener('click', async () => {
+  const code = document.getElementById('src-' + btn.dataset.target).textContent;
+  const prev = btn.textContent;
+  try { await navigator.clipboard.writeText(code); btn.textContent = 'Copiado'; }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = code; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); btn.textContent = 'Copiado'; } catch (e2) { btn.textContent = 'No se pudo copiar'; } ta.remove(); }
+  setTimeout(() => btn.textContent = prev, 1500);
+}));
+const sb = document.getElementById('sidebar'), mb = document.getElementById('menu-btn');
+mb.addEventListener('click', () => { const open = sb.classList.toggle('hidden') === false; mb.setAttribute('aria-expanded', String(open)); });
+sb.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { if (window.innerWidth < 1024) { sb.classList.add('hidden'); mb.setAttribute('aria-expanded', 'false'); } }));
+const links = new Map([...document.querySelectorAll('.navlink')].map(a => [a.getAttribute('href').slice(1), a]));
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { links.forEach(l => l.classList.remove('active')); const l = links.get(e.target.id); if (l) l.classList.add('active'); } }), { rootMargin: '-20% 0px -70% 0px' });
+document.querySelectorAll('.diagram-card').forEach(s => io.observe(s));
+await renderAll();
+window.__mermaidRendered = true;
+</script>
+</body>
+</html>

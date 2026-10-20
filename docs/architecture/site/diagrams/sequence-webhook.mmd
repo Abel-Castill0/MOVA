@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    participant MP as Mercado Pago
+    participant W as movap-web
+    participant DB as MySQL
+    participant Q as Cola (jobs)
+    participant K as movap-worker
+    participant S as movap-scheduler
+    MP-)W: POST /api/webhooks/mercadopago (x-signature, x-request-id)
+    W->>W: flag MERCADOPAGO_WEBHOOKS_ENABLED activo? firma HMAC válida?
+    alt flag apagado (404), firma inválida (401), carga excesiva (413) o JSON inválido (400)
+        W-->>MP: rechazo sin efectos
+    else válido
+        W->>W: application_id, user_id (collector) y live_mode esperados?
+        W->>DB: INSERT payment_webhooks (UNIQUE provider + event_id) status received
+        W->>Q: encola el procesamiento
+        W-->>MP: 200 (debe ser menos de ~22 s, por eso web min=1)
+        K->>Q: toma el job
+        K->>MP: GET /v1/payments/{id} (fuente de verdad)
+        K->>DB: BEGIN y lockForUpdate de payment_orders
+        alt approved
+            K->>DB: payment_orders paid · recharge_requests approved
+            K->>DB: INSERT credit_transactions deposit (idempotency_key UNIQUE)
+        else refunded o charged_back
+            K->>DB: INSERT credit_transactions reversal · saldo puede quedar negativo
+        end
+        K->>DB: COMMIT · payment_webhooks processed
+    end
+    loop cada 5 minutos
+        S->>K: mercadopago:reconcile
+        K->>DB: webhooks received con más de 15 min se reencolan
+        K->>DB: órdenes pending con más de 30 min se reconcilian directo
+        K->>MP: búsqueda por external_reference (intentos inciertos, máx. 5)
+        K->>DB: webhooks failed tras 3 recuperaciones pasan a revisión humana
+        K->>DB: pagos paid de los últimos 90 días: detecta reembolsos sin webhook
+    end

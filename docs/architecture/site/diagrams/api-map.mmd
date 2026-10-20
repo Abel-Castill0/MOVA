@@ -1,0 +1,59 @@
+flowchart LR
+    subgraph PUB["Público · sin sesión"]
+        P1["GET / · /quienes-somos · /marketplace"]
+        P2["GET /teachers/{id}"]
+        P3["GET /terminos · /privacidad"]
+        P4["GET·POST /libro-de-reclamaciones"]
+        P5["GET /invitacion/profesor · /alumno"]
+        P6["POST /chatbot/message (Movi)"]
+        P7["GET /healthz · /readyz · /sitemap.xml · /robots.txt"]
+    end
+    subgraph AUTH["Autenticación · Breeze + Google"]
+        A1["register · login · logout"]
+        A2["forgot-password · reset-password"]
+        A3["verify-email · verify-phone"]
+        A4["auth/google · callback · role"]
+    end
+    subgraph COMUN["Sesión + email verificado + legal.current"]
+        C1["GET /dashboard"]
+        C2["profile (edit·update·avatar·destroy)"]
+        C3["notifications (index·read·read-all)"]
+        C4["legal/aceptar"]
+        C5["lessons/{id}/join · cancel · reschedule"]
+    end
+    subgraph PAD["Rol parent"]
+        D1["diagnostics (create·store·results·request)"]
+        D2["students (CRUD)"]
+        D3["class-requests (index·create·store·approve·reject·lookup-code)"]
+        D4["counteroffer/accept · reject"]
+        D5["my-classes · lessons/{id}/confirm-payment"]
+        D6["reviews (create·store) · my-reports"]
+        D7["settings/parental-control"]
+    end
+    subgraph PRO["Rol teacher"]
+        T1["teacher/setup · profile · availability"]
+        T2["teacher/credits · recharge · checkout (store·show·pay·status·refresh)"]
+        T3["class-offers (CRUD · toggle)"]
+        T4["teacher/requests (index·accept·reject·counteroffer)"]
+        T5["POST /lessons (reserva créditos)"]
+        T6["teacher/classes · reports · lessons/{id}/report"]
+    end
+    subgraph ADM["Rol admin · MFA TOTP obligatorio"]
+        M1["admin/mfa (setup·challenge·recovery-codes)"]
+        M2["admin/users · pending-teachers · verify · reject · suspend"]
+        M3["admin/lessons (cancel·force-complete·force-refund) · requests"]
+        M4["admin/recharges (approve·reject·reverse·close-rejected-payment)"]
+        M5["admin/operations · reviews · ai-usage · complaints"]
+    end
+    subgraph WH["Webhooks entrantes · /api/webhooks"]
+        W1["POST /mercadopago · firma HMAC · throttle 120/min"]
+        W2["POST /jaas · X-Jaas-Signature · solo presencia"]
+        W3["GET·POST /whatsapp · apagado en producción"]
+    end
+    PUB --> AUTH --> COMUN
+    COMUN --> PAD
+    COMUN --> PRO
+    COMUN --> ADM
+    MP[(Mercado Pago)] -.-> W1
+    JAAS[(JaaS 8x8)] -.-> W2
+    META[(Meta WhatsApp)] -.-> W3

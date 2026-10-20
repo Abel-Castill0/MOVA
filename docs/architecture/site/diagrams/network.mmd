@@ -1,0 +1,48 @@
+flowchart TB
+    USR["Navegador de padres, profesores y admin"] -->|"HTTPS 443"| DNS["Namecheap DNS<br/>movaeduca.me A · www CNAME · MX/SPF sin tocar"]
+    DNS --> IP["IP pública del entorno ACA<br/>TLS gestionado · www → apex 301"]
+    subgraph AZ["Azure · mexicocentral · mova-prod-rg"]
+        subgraph VNET["VNet 10.20.0.0/16"]
+            subgraph SACA["snet-aca /23 · delegada Microsoft.App/environments"]
+                WEB["movap-web<br/>ingress externo :8080<br/>sondas /healthz /readyz"]
+                WRK["movap-worker<br/>sin ingress"]
+                SCH["movap-scheduler<br/>sin ingress"]
+            end
+            subgraph SDB["snet-mysql-prod /28 · delegada MySQL Flexible"]
+                DB[("MySQL 8.4 · mova-prod-mysql-8uxzgq<br/>sin IP pública · TLS obligatorio<br/>PITR 14 días")]
+            end
+            PDNS["Zona DNS privada<br/>mova.private.mysql.database.azure.com"]
+        end
+        ACR["Azure Container Registry<br/>admin deshabilitado"]
+        MI["Managed Identity<br/>rol AcrPull"]
+        LOG["Log Analytics · 30 días · tope 1 GB/día"]
+    end
+    IP --> WEB
+    WEB -->|"TLS, usuario movap_app"| DB
+    WRK -->|"TLS"| DB
+    SCH -->|"TLS"| DB
+    DB --- PDNS
+    MI -.->|"AcrPull"| ACR
+    ACR -.->|"imagen por digest"| WEB
+    ACR -.-> WRK
+    ACR -.-> SCH
+    WEB & WRK & SCH -.->|"stdout"| LOG
+    subgraph EXT["Servicios externos · salida HTTPS"]
+        MPAG["Mercado Pago API<br/>pagos live · cuenta de prueba"]
+        JAASX["JaaS 8x8<br/>JWT RS256 por sala"]
+        SMTP["SMTP Gmail<br/>correo transaccional"]
+        CLD["Cloudinary<br/>avatares"]
+        SEN["Sentry<br/>send_default_pii=false"]
+        AI["OpenAI / Gemini<br/>APAGADO · Movi usa proveedor local"]
+        WAP["Meta WhatsApp<br/>APAGADO"]
+    end
+    WEB -->|"POST /v1/payments"| MPAG
+    WRK -->|"GET pagos · reconcile"| MPAG
+    MPAG -->|"webhook /api/webhooks/mercadopago"| IP
+    WEB -->|"JWT"| JAASX
+    JAASX -->|"webhook presencia"| IP
+    WRK --> SMTP
+    WEB --> CLD
+    WEB & WRK --> SEN
+    WEB -.->|"desactivado"| AI
+    WRK -.->|"desactivado"| WAP
