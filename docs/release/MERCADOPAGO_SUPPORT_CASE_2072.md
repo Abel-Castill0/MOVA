@@ -72,3 +72,9 @@ Necesito saber: (1) si mi cuenta/aplicación de cobro requiere una habilitación
 
 - Intento cerrado en MOVA como rechazado (`PaymentOrder#1 failed`, alerta cerrada); sin movimientos en el ledger; ver `INCIDENT_2026-10-06_yape_live_checkout.md`.
 - No reintentar con otro importe por conjetura hasta tener la respuesta.
+
+## Ronda de cierre (2026-10-19, 4.ª sesión)
+
+- **Verificación de Yape en el panel: no realizada.** `list_connected_browsers` devuelve vacío y no hay herramientas de Playwright en la sesión; no se pudo abrir `mercadopago.com.pe` con la sesión del titular. Estado de Yape en el panel: **desconocido**. Acción del titular: revisar Tus integraciones / Medios de pago; si no existe un interruptor, enviar el mensaje de «habilitación de Yape» de arriba.
+- **Prueba con S/ 5 o S/ 10: no ejecutada.** Es un cobro live (no hay sandbox para Yape) y este caso exige respuesta de soporte y autorización del titular antes de cualquier otro intento; el monto ya fue descartado como causa (mínimo oficial S/ 1). Sin resultados nuevos; la causa raíz más probable sigue siendo la habilitación de la cuenta (hipótesis a), sin confirmar.
+- El mensaje de soporte está listo y **no se ha enviado**.

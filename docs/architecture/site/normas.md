@@ -59,7 +59,7 @@
 | RTO objetivo declarado | No definido formalmente (gap: no hay BIA) | — |
 | RTO medido | ≈ 50 min (PITR de 32 GB en B1ms, 2026-10-05) | Runbook §3 |
 | RPO | **Pendiente de medir.** Nominal: PITR con copias de registros de transacciones (minutos), retención 14 d. **Objetivo aceptable propuesto (a aprobar por el titular): ≤ 1 hora** dada la baja transaccionalidad actual; revisarlo al abrir pagos a terceros | Runbook §3 |
-| Medición del RPO (a ejecutar) | Restaurar a un instante T conocido y comparar la última fila de `credit_transactions`/`payment_orders` con la BD origen; el RPO medido = T − último evento recuperado | Pendiente |
+| Medición del RPO (a ejecutar) | Restaurar a un instante T conocido y comparar la última fila de `credit_transactions`/`payment_orders` con la BD origen; el RPO medido = T − último evento recuperado | Pendiente (objetivo aprobado) |
 | Geo-redundancia / alta disponibilidad | No (decisión de costo) | Ledger |
 | Aplicación | Rollback por revisión de Container Apps con imágenes por digest | Runbook §2 |
 
@@ -70,7 +70,7 @@
 | Elemento | Definición |
 |---|---|
 | RPO = 0 | **Solo** con HA zone-redundant (no contratada). Afirmarlo para MOVA sería falso |
-| Objetivo adoptado (propuesto, pendiente de que el titular lo acepte de forma explícita) | **RPO ≤ 1 hora** mientras MOVA no abra pagos a terceros; **≤ 15 min** al hacerlo |
+| Objetivo adoptado (aprobado por el titular el 2026-10-19) | **RPO ≤ 1 hora** mientras MOVA no abra pagos a terceros; **≤ 15 min** al hacerlo. Medición: ver procedimiento siguiente; no se declara RPO = 0 sin respaldo oficial de Azure |
 | Capacidad nominal | PITR: copias de datos + registros de transacciones (continuas), retención 14 d; ventana real de pérdida **sin medir** |
 | Frecuencia de prueba | Antes de abrir pagos a terceros y luego trimestral (el servidor de prueba se elimina: contiene datos personales) |
 
@@ -94,3 +94,7 @@ Procedimiento (solo lectura sobre producción; el servidor restaurado es aislado
 | Media | Consentimiento específico para IA con menores | 27701 / 42001 | Gate antes de activar IA |
 | Media | Despliegue manual sin smoke/rollback automatizado | 27001 A.8.32 | `deploy-azure.yml` con OIDC |
 | Baja | Sin gate de accesibilidad ni contract tests de rutas/pagos | 25010 / 29119 | Añadir a CI |
+
+### F-26: riesgo aceptado y condiciones de reapertura (2026-10-19)
+
+Estado: **riesgo aceptado por el titular**; no se destruye el volumen de Railway sin su confirmación explícita adicional. Se reabre (Alta) si ocurre cualquiera de estas condiciones: (1) la credencial de Railway sigue aceptando conexiones desde internet; (2) el volumen contiene datos personales reales (sobre todo de menores) o se descubre que algún secreto vigente comparte valor con el histórico; (3) *secret scanning* o los logs de Railway muestran uso no autorizado; (4) MOVA abre pagos a terceros; (5) el repositorio sigue público al cerrar la fase de producción. Cierre definitivo: rotar la credencial, inventariar el contenido del volumen, exportarlo si hace falta y destruirlo con la confirmación del titular.
