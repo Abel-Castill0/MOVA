@@ -243,11 +243,16 @@ class PaymentOrderTest extends TestCase
         $this->assertInstanceOf(FakePaymentProvider::class, app(PaymentProviderContract::class));
     }
 
-    public function test_container_resolves_culqi_provider_when_configured(): void
+    public function test_culqi_is_not_a_supported_provider_and_aborts_boot_instead_of_failing_at_checkout(): void
     {
+        $this->assertNotContains('culqi', config('payments.supported_providers'));
+
         config(['payments.provider' => 'culqi']);
 
-        $this->assertInstanceOf(CulqiPaymentProvider::class, app(PaymentProviderContract::class));
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/no es un proveedor soportado/');
+
+        app(PaymentProviderContract::class);
     }
 
     private function teacher(int $availableCredits = 0): array

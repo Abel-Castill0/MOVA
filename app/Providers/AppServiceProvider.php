@@ -5,7 +5,6 @@ namespace App\Providers;
 use App\Channels\SafeMailChannel;
 use App\Mail\Transport\GmailApiTransport;
 use App\Payment\Contracts\PaymentProviderContract;
-use App\Payment\CulqiPaymentProvider;
 use App\Payment\FakePaymentProvider;
 use App\Payment\MercadoPagoPaymentProvider;
 use App\Services\GmailApiMailService;
@@ -88,7 +87,6 @@ class AppServiceProvider extends ServiceProvider
             // PHP lanza UnhandledMatchError en lugar de devolver el Fake en
             // silencio — que es el fallo que F-03 vino a eliminar.
             return match ($provider) {
-                'culqi'              => new CulqiPaymentProvider(),
                 'mercadopago'        => new MercadoPagoPaymentProvider(),
                 ProviderGuard::FAKE  => new FakePaymentProvider(),
             };

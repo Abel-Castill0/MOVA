@@ -22,7 +22,7 @@ Leyenda: ✅ cierto · ❌ falso · ⚠️ parcial / obsoleto · 📌 acción.
 
 | # | Afirmación | Veredicto | Evidencia / acción |
 |---|---|---|---|
-| A1 | Culqi habilitado pero no implementado | ✅ | `config/payments.php` lo lista en `supported_providers`; `CulqiPaymentProvider` lanza `RuntimeException`. 📌 retirar `culqi` de `supported_providers` o bloquear el arranque con un test (cambio de código: fuera de esta tarea documental) |
+| A1 | Culqi habilitado pero no implementado | ✅ → **corregido 2026-10-19** | `culqi` ya no está en `supported_providers`: `PAYMENT_PROVIDER=culqi` aborta el arranque (`ProviderGuard`, fail-closed) en vez de fallar en el checkout. Test: `PaymentOrderTest::test_culqi_is_not_a_supported_provider_and_aborts_boot_instead_of_failing_at_checkout`. El stub `CulqiPaymentProvider` se conserva para una integración futura |
 | A2 | Consentimientos de menores para IA no documentados | ⚠️ | Consentimiento parental por menor **sí existe** (`student_data_consents`, `legal_acceptances`, decisiones §1). La IA externa está apagada y la política lo declara. Falta consentimiento específico **antes de activar IA**. 📌 gate antes de `AI_*` |
 | A3 | MySQL sin HA ni geo-backup | ✅ | Decisión de costo con RTO probado ≈ 50 min y PITR 14 d (01-deployment) |
 | A4 | Migraciones sin rollback ni prueba incremental | ⚠️ | El deploy usa un Job manual y `/readyz` bloquea revisiones con migraciones pendientes; migraciones recientes son aditivas con `down()`; CI ejecuta MySQL 8.4 completo. Falta prueba incremental sobre dump anonimizado |
@@ -58,9 +58,9 @@ no guarda costo en USD. El ER correcto está en [02](02-data-model.md).
 
 | Prioridad | Acción | Quién |
 |---|---|---|
-| P0 | Cerrar F-26: confirmar rotación de la credencial histórica de Railway y decidir purga del historial | Titular |
+| P0 | Cerrar F-26: rotar/eliminar la credencial histórica de Railway (su volumen sigue `Ready`) y decidir la purga del historial. *Secret scanning* y *push protection* ya activados (2026-10-19) | Titular |
 | P0 | Enviar el caso 2072 a soporte de Mercado Pago; no abrir cobros a terceros hasta la respuesta | Titular |
-| P1 | Retirar Culqi de `supported_providers` (o fallo explícito al arrancar) | Código |
+| ~~P1~~ | ~~Retirar Culqi de `supported_providers`~~ — hecho 2026-10-19 | Código |
 | P1 | Confirmar el modo efectivo de liquidación en las 3 apps con `az` (lectura) | Operación |
 | P1 | Automatizar deploy con OIDC + smoke + rollback | Operación |
 | P2 | Consentimiento específico antes de activar IA con datos de menores | Producto/Legal |

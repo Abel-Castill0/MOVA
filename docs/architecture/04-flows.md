@@ -96,9 +96,9 @@ sequenceDiagram
   propietario; el único intento live fue rechazado con **2072** y sigue sin
   causa raíz (caso en [MERCADOPAGO_SUPPORT_CASE_2072](../release/MERCADOPAGO_SUPPORT_CASE_2072.md),
   sin enviar). No se reintenta ni se cambia el importe por conjetura.
-- **Culqi no existe**: `CulqiPaymentProvider` lanza `RuntimeException` en todos
-  los métodos; aunque `supported_providers` lo lista, el arranque con
-  `PAYMENT_PROVIDER=culqi` no funciona (ver [05](05-claims-verification.md)).
+- **Culqi no existe**: `CulqiPaymentProvider` es un stub que lanza `RuntimeException`;
+  desde 2026-10-19 no figura en `supported_providers`, así que
+  `PAYMENT_PROVIDER=culqi` aborta el arranque (ver [05](05-claims-verification.md)).
 
 ## 4. Tareas programadas (scheduler único)
 

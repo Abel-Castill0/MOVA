@@ -26,8 +26,16 @@ return [
     // Pago, reportando PAYMENT_PROVIDER_INVALID pese a una config
     // perfectamente válida). No es 'fake' — ProviderGuard::FAKE ya lo
     // representa por separado y no es "un proveedor real soportado".
-    'supported_providers' => ['culqi', 'mercadopago'],
+    //
+    // 'culqi' se retiró de esta lista (2026-10-19): CulqiPaymentProvider es un
+    // stub que lanza RuntimeException en cada método. Con 'culqi' aquí, un
+    // PAYMENT_PROVIDER=culqi arrancaba y fallaba en pleno checkout; sin él,
+    // ProviderGuard::resolve() aborta el arranque con "no es un proveedor
+    // soportado" (fail-closed). Reincorporarlo SOLO tras implementar
+    // CulqiPaymentProvider, probarlo y restaurar su rama en AppServiceProvider.
+    'supported_providers' => ['mercadopago'],
 
+    // Reservado para una integración futura; hoy no se usa (ver arriba).
     'culqi' => [
         'public_key' => env('CULQI_PUBLIC_KEY'),
         'private_key' => env('CULQI_PRIVATE_KEY'),
