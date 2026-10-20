@@ -316,3 +316,7 @@ param appSecrets = union(
   mailSecrets,
   mpSecrets
 )
+
+// Key Vault de producción (kv-movap-192f01). En producción EXPORTA MOVA_KEYVAULT_NAME: sin él, un deploy reemplazaría
+// las referencias a Key Vault por valores en línea. Staging/otros: vacío.
+param keyVaultName = readEnvironmentVariable('MOVA_KEYVAULT_NAME', '')

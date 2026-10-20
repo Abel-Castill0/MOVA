@@ -90,6 +90,9 @@ param appSecrets object = {}
 @description('Secretos respaldados por Key Vault (NOMBRE_VAR → URI sin versión). Un nombre NO puede estar a la vez aquí y en appSecrets/runtimeSecrets. Ver docs/architecture/07-secrets-keyvault-plan.md y scripts/azure/migrate-secrets-to-keyvault.sh.')
 param keyVaultSecrets object = {}
 
+@description('Nombre del Key Vault de producción (p. ej. kv-movap-192f01). Si se indica, los 10 secretos de kvManagedNames se toman del vault por referencia (identidad administrada con Key Vault Secrets User) y se IGNORAN sus valores en línea. Vacío = comportamiento anterior (valores en línea).')
+param keyVaultName string = ''
+
 // ---------------------------------------------------------------------------
 // Recursos de la foundation, referenciados como existing (mismos nombres
 // deterministas que main.bicep calcula al crearlos).
@@ -153,6 +156,24 @@ var runtimeSecrets = union(appSecrets, {
   DB_PASSWORD: mysqlAppPassword
 })
 
+// Secretos gestionados en Key Vault (migración 2026-10-19; scripts/azure/migrate-secrets-to-keyvault.sh).
+// ISO/IEC 27001:2022 A.8.24 · ISO/IEC 27017 CLD.12.1.5. Los NOMBRES coinciden con los de las variables de entorno.
+// OJO: sin keyVaultName, un deploy de apps.bicep reemplaza las referencias por valores en línea (regresión de seguridad).
+var kvManagedNames = [
+  'APP_KEY'
+  'DB_PASSWORD'
+  'MERCADOPAGO_ACCESS_TOKEN'
+  'MERCADOPAGO_WEBHOOK_SECRET'
+  'MAIL_USERNAME'
+  'MAIL_PASSWORD'
+  'CLOUDINARY_URL'
+  'JAAS_PRIVATE_KEY'
+  'JAAS_WEBHOOK_SIGNING_SECRET'
+  'SENTRY_LARAVEL_DSN'
+]
+var effectiveSecrets = empty(keyVaultName) ? runtimeSecrets : toObject(filter(items(runtimeSecrets), s => !contains(kvManagedNames, s.key)), s => s.key, s => s.value)
+var effectiveKeyVaultSecrets = empty(keyVaultName) ? keyVaultSecrets : toObject(kvManagedNames, n => n, n => 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${toLower(replace(n, '_', '-'))}')
+
 module web 'modules/container-app.bicep' = if (deployWeb) {
   name: '${appNamePrefix}-web'
   params: {
@@ -177,8 +198,8 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
     minReplicas: webMinReplicas
     maxReplicas: 2
     env: sharedEnv
-    secrets: runtimeSecrets
-    keyVaultSecrets: keyVaultSecrets
+    secrets: effectiveSecrets
+    keyVaultSecrets: effectiveKeyVaultSecrets
   }
 }
 
@@ -214,8 +235,8 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
     minReplicas: 1
     maxReplicas: 1
     env: sharedEnv
-    secrets: runtimeSecrets
-    keyVaultSecrets: keyVaultSecrets
+    secrets: effectiveSecrets
+    keyVaultSecrets: effectiveKeyVaultSecrets
   }
 }
 
@@ -244,8 +265,8 @@ module scheduler 'modules/container-app.bicep' = if (deployScheduler && !schedul
     minReplicas: 1
     maxReplicas: 1
     env: sharedEnv
-    secrets: runtimeSecrets
-    keyVaultSecrets: keyVaultSecrets
+    secrets: effectiveSecrets
+    keyVaultSecrets: effectiveKeyVaultSecrets
   }
 }
 
@@ -264,7 +285,8 @@ module schedulerJob 'modules/container-job.bicep' = if (deployScheduler && sched
     args: ['sh', '-c', 'php artisan config:clear && php artisan schedule:run -v']
     cronExpression: schedulerCron
     env: sharedEnv
-    secrets: runtimeSecrets
+    secrets: effectiveSecrets
+    keyVaultSecrets: effectiveKeyVaultSecrets
   }
 }
 

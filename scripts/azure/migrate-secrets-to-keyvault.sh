@@ -7,6 +7,7 @@
 #
 # Uso:
 #   scripts/azure/migrate-secrets-to-keyvault.sh copy      # 1) copia valores de movap-web al vault (no cambia las apps)
+#   scripts/azure/migrate-secrets-to-keyvault.sh verify    # 1b) compara SHA-256 origen/vault (solo imprime OK/MISMATCH)
 #   scripts/azure/migrate-secrets-to-keyvault.sh switch    # 2) cambia scheduler -> worker -> web a referencias al vault
 #   scripts/azure/migrate-secrets-to-keyvault.sh revert    # 3) (emergencia) vuelve a valores en línea desde el vault
 #
@@ -28,16 +29,29 @@ VAULT_URI="https://${KV}.vault.azure.net/secrets"
 TMP="$(mktemp)"; chmod 600 "$TMP"
 trap 'rm -f "$TMP"' EXIT
 
+# Decodifica un valor entregado como cadena JSON a bytes EXACTOS (conserva saltos de línea: la clave privada de JaaS es PEM multilínea).
+decode() { python -c 'import sys,json; sys.stdout.buffer.write(json.load(sys.stdin).encode("utf-8"))'; }
+aca_val() { az containerapp secret show -g "$RG" -n "$SOURCE_APP" --secret-name "$1" --query value -o json | decode; }
+kv_val()  { az keyvault secret show --vault-name "$KV" -n "$1" --query value -o json | decode; }
+
 ready() { curl -fsS -o /dev/null --max-time 40 "https://movaeduca.me/readyz" && echo "  /readyz OK"; }
 
 case "${1:-}" in
   copy)
     for s in "${SECRETS[@]}"; do
-      az containerapp secret show -g "$RG" -n "$SOURCE_APP" --secret-name "$s" --query value -o tsv | tr -d '\r\n' > "$TMP"
+      aca_val "$s" > "$TMP"
       [ -s "$TMP" ] || { echo "ERROR: $s vacío en $SOURCE_APP" >&2; exit 1; }
-      az keyvault secret set --vault-name "$KV" -n "$s" --file "$TMP" --encoding utf-8 --query name -o tsv
+      az keyvault secret set --vault-name "$KV" -n "$s" --file "$(cygpath -w "$TMP" 2>/dev/null || echo "$TMP")" --encoding utf-8 --query name -o tsv
     done
-    echo "Copiados ${#SECRETS[@]} secretos a $KV. Verifica: az keyvault secret list --vault-name $KV --query '[].name' -o tsv"
+    echo "Copiados ${#SECRETS[@]} secretos a $KV. Siguiente: $0 verify"
+    ;;
+  verify)
+    bad=0
+    for s in "${SECRETS[@]}"; do
+      a="$(aca_val "$s" | sha256sum | cut -c1-64)"; k="$(kv_val "$s" | sha256sum | cut -c1-64)"
+      if [ "$a" = "$k" ]; then echo "OK        $s"; else echo "MISMATCH  $s"; bad=1; fi
+    done
+    exit $bad
     ;;
   switch)
     args=()
@@ -56,7 +70,7 @@ case "${1:-}" in
   revert)
     for a in "${APPS[@]}"; do
       for s in "${SECRETS[@]}"; do
-        az keyvault secret show --vault-name "$KV" -n "$s" --query value -o tsv | tr -d '\r\n' > "$TMP"
+        kv_val "$s" > "$TMP"
         # AVISO: en emergencia el valor viaja como argumento (visible en la lista de procesos local); usar solo en una máquina de confianza.
         az containerapp secret set -g "$RG" -n "$a" --secrets "${s}=$(cat "$TMP")" -o none
       done
@@ -64,5 +78,5 @@ case "${1:-}" in
       ready
     done
     ;;
-  *) echo "Uso: $0 {copy|switch|revert}" >&2; exit 2 ;;
+  *) echo "Uso: $0 {copy|verify|switch|revert}" >&2; exit 2 ;;
 esac

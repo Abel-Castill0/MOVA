@@ -1,6 +1,6 @@
 # 07 · Secretos: estado actual y plan de migración a Key Vault
 
-> Estado: **INFRAESTRUCTURA CREADA Y VALIDADA (2026-10-19); migración de valores PENDIENTE del titular** (ver «Ejecución»). Requiere aprobación del titular
+> Estado: **MIGRACIÓN EJECUTADA Y VERIFICADA EN PRODUCCIÓN (2026-10-19)** (ver «Migración completada»). Requiere aprobación del titular
 > (nuevo recurso con costo y cambio de RBAC). Mapea a ISO/IEC 27001:2022 A.8.24 y
 > A.5.17 (información de autenticación), ISO/IEC 27017 CLD.12.1.5.
 
@@ -58,3 +58,11 @@ secretos permanecen como secretos de Container Apps, con las reglas de manejo vi
 | Migración de los 10 secretos de producción (`app-key`, `db-password`, `mercadopago-*`, `mail-*`, `cloudinary-url`, `jaas-*`, `sentry-laravel-dsn`) | **No ejecutada por Claude**: `AGENTS.md` prohíbe consultar valores de secretos de Azure. Script para el titular: `scripts/azure/migrate-secrets-to-keyvault.sh` (`copy` → `switch` → `revert`), sin imprimir valores |
 
 Notas: no existe un `JWT_SECRET` en MOVA (los secretos reales son los 10 listados). Al pasar a referencias, los **mismos nombres** de secreto y de variable se conservan, así que no cambia el entorno de las apps. Orden recomendado del `switch`: scheduler → worker → web, con `/readyz` entre cada paso. Una vez migrado y verificado: borrar los valores en línea, habilitar *purge protection* (irreversible) y activar los registros `AuditEvent` del vault hacia Log Analytics. Costo del vault: despreciable (operaciones ≈ US$ 0,03 por 10 000; sin cargo por secreto estándar).
+
+## Migración completada (2026-10-19)
+
+- `copy`: 10 secretos copiados desde `movap-web` al vault por archivo temporal 0600, sin imprimir valores. Los valores multilínea (`jaas-private-key`) se conservan byte a byte: el script decodifica JSON, no `tsv`.
+- `verify`: **10/10 `OK`** comparando SHA-256 origen/vault.
+- `switch`: scheduler, luego worker, luego web, cada uno con revisión nueva (`…--kv10192205/06/07`), `Healthy` y `/readyz` 200 entre pasos. Resultado: 10/10 secretos de cada app son `keyvaultref`; `/healthz`, `/readyz`, `/login` y `/register` responden 200; el scheduler ejecuta tareas y el worker procesa el latido; sin errores de acceso a secretos en logs.
+- IaC: `apps.bicep` acepta `keyVaultName` (lista `kvManagedNames`) y `apps.bicepparam` lo lee de `MOVA_KEYVAULT_NAME`. **Sin esa variable un deploy reemplazaría las referencias por valores en línea.**
+- **Pendiente (titular):** rotar secretos desde el vault (nueva versión + revisión nueva), borrar el secreto de prueba `mova-kv-selftest`, habilitar *purge protection* (irreversible) y activar `AuditEvent` hacia Log Analytics. `revert` del script recupera los valores en línea desde el vault si hiciera falta.

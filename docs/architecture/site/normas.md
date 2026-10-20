@@ -65,11 +65,14 @@
 
 ### RPO: objetivo y procedimiento de medición (ISO 22301)
 
+**Decisión sobre «RPO = 0» (2026-10-19): no se declara.** La documentación de Azure atribuye RPO = 0 a la **alta disponibilidad con redundancia de zona** (réplica síncrona en otra zona, conmutación en 60–120 s). El servidor de MOVA (`mova-prod-mysql-8uxzgq`, B1ms) **no tiene HA**, y contratarla duplica aproximadamente el costo del servidor (inviable con el crédito actual). Para la restauración a un punto en el tiempo (PITR) la documentación consultada no publica un intervalo ni una cifra de RPO verificable en el texto que pude leer. Por eso:
+
 | Elemento | Definición |
 |---|---|
-| Objetivo propuesto (a aprobar por el titular) | **RPO ≤ 1 hora** mientras MOVA no abra pagos a terceros; revisar a ≤ 15 min cuando haya cobros reales a terceros |
-| Capacidad nominal | PITR de Azure Database for MySQL Flexible Server: copias completas + registros de transacciones, retención 14 d. Valor nominal **no medido** en esta suscripción |
-| Frecuencia de prueba | Una vez antes de abrir pagos a terceros y luego trimestral (el servidor de prueba se elimina al terminar: contiene datos personales) |
+| RPO = 0 | **Solo** con HA zone-redundant (no contratada). Afirmarlo para MOVA sería falso |
+| Objetivo adoptado (propuesto, pendiente de que el titular lo acepte de forma explícita) | **RPO ≤ 1 hora** mientras MOVA no abra pagos a terceros; **≤ 15 min** al hacerlo |
+| Capacidad nominal | PITR: copias de datos + registros de transacciones (continuas), retención 14 d; ventana real de pérdida **sin medir** |
+| Frecuencia de prueba | Antes de abrir pagos a terceros y luego trimestral (el servidor de prueba se elimina: contiene datos personales) |
 
 Procedimiento (solo lectura sobre producción; el servidor restaurado es aislado y temporal):
 
@@ -78,8 +81,6 @@ Procedimiento (solo lectura sobre producción; el servidor restaurado es aislado
 3. Con un Job de solo lectura dentro de la VNet, leer en el restaurado los mismos valores y contar filas.
 4. **RPO medido = T − (timestamp del último evento de producción presente en el restaurado con fecha ≤ T)**. Debe ser ≈ 0 para datos confirmados antes de T; además registrar la antigüedad del punto restaurable más reciente que ofrece Azure (`latestRestorableTime` frente a la hora actual) como RPO nominal.
 5. Registrar en el Ledger: fecha, T, resultado, RTO medido (≈ 50 min en la prueba del 2026-10-05) y eliminar el servidor de prueba.
-
-**Fuente y límite (2026-10-19):** la documentación de Azure confirma copias de instantáneas de datos y de los registros de transacciones con restauración a cualquier instante dentro de la retención (CLI: `az mysql flexible-server restore --restore-time`), pero **no se pudo confirmar en la documentación consultada un intervalo fijo de copia de registros ni un RPO numérico**. La afirmación «RPO < 1 hora» queda como **objetivo propuesto**, no como garantía del proveedor, hasta medirlo con el procedimiento de arriba.
 
 **Estado:** pendiente de aprobar el objetivo y de ejecutar la medición.
 

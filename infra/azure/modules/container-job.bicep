@@ -29,12 +29,23 @@ param env object = {}
 @description('Secretos nombre→valor. Se exponen como env vía secretRef.')
 param secrets object = {}
 
-var secretItems = [for s in items(secrets): {
+@description('Secretos respaldados por Key Vault: NOMBRE_VAR → URI sin versión (identidad administrada).')
+param keyVaultSecrets object = {}
+
+var inlineSecretItems = [for s in items(secrets): {
   name: toLower(replace(s.key, '_', '-'))
   value: s.value
 }]
+var keyVaultSecretItems = [for s in items(keyVaultSecrets): {
+  name: toLower(replace(s.key, '_', '-'))
+  keyVaultUrl: string(s.value)
+  identity: identityId
+}]
+var secretItems = concat(inlineSecretItems, keyVaultSecretItems)
 var plainEnvVars = [for e in items(env): { name: e.key, value: string(e.value) }]
-var secretEnvVars = [for s in items(secrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var inlineSecretEnv = [for s in items(secrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var keyVaultSecretEnv = [for s in items(keyVaultSecrets): { name: s.key, secretRef: toLower(replace(s.key, '_', '-')) }]
+var secretEnvVars = concat(inlineSecretEnv, keyVaultSecretEnv)
 
 resource job 'Microsoft.App/jobs@2024-03-01' = {
   name: name

@@ -67,6 +67,8 @@ y, **solo en staging**, `db:seed --class=LocalTestDataSeeder` (o importar el JSO
 **Actualización 2026-10-19:** las apps de staging (`mova-web|worker|scheduler`) están en estado **Stopped** (no solo a 0 réplicas). Para usarlas: `az rest --method post --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/mova-prod-rg/providers/Microsoft.App/containerApps/<app>/start?api-version=2024-10-02-preview"` y aplicar los pasos de arriba (BD de staging inexistente). Ver `architecture/06-cost-and-scaling.md`.
 
 ## 2. Despliegue (procedimiento reproducible)
+> **Desde 2026-10-19 los secretos de producción están en Key Vault** (`kv-movap-192f01`). Exporta `MOVA_KEYVAULT_NAME=kv-movap-192f01` antes de `bicep build-params`/deploy; sin él, el deploy volvería a valores en línea. Rotar un secreto: nueva versión en el vault y una revisión nueva de cada rol (`az containerapp update --revision-suffix …`).
+
 
 0. Variables de aplicación imprescindibles: `APP_NAME=MOVA` (sin él los correos salen con la marca «Laravel»).
 1. Construir la imagen del árbol validado y subirla al ACR; usar siempre el **digest** (`mova@sha256:…`).

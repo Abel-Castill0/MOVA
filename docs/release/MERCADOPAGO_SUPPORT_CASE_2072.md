@@ -32,6 +32,8 @@ Con su respuesta haré una única prueba controlada de pago con reembolso inmedi
 
 ## Mensaje listo para pegar: habilitación de Yape (2026-10-19)
 
+> **2026-10-19 (2.º intento):** se comprobó `http://localhost:9222/json/version` y **no hay ningún navegador con `--remote-debugging-port=9222`**; sin eso no se puede conectar un MCP de Playwright por CDP. Además, Chrome 136 y posteriores ignoran ese puerto en el perfil por defecto (hay que usar un `--user-data-dir` propio, sin tus sesiones) y exponerlo da control total del navegador. Recomendación: pegar el mensaje de abajo tú mismo.
+>
 > El panel de Mercado Pago **no se pudo operar desde esta sesión**: no hay un navegador de Chrome conectado a Claude y un navegador propio no tendría tu sesión ni tu 2FA. Estos pasos los hace el titular.
 
 **Dónde:** Mercado Pago → Tus integraciones → (aplicación de producción) → Soporte/Contacto, o el formulario de integradores de Perú. Antes de pedir nada, revisa en el panel si existe una opción de habilitar Yape para la aplicación (Medios de pago / Configuración de la cuenta): si existe, actívala y prueba con la cuenta de prueba (una sola transacción mínima, con reembolso).
