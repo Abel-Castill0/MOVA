@@ -93,6 +93,20 @@ Objetivo: bajar de ≈ US$ 23–26/mes sin romper pagos ni liquidación. Estado 
 - **Presupuesto a US$ 15:** **bloqueado.** Escribir presupuestos devuelve `RBACAccessDenied` («Interactive authentication is needed»): la sesión `az` de este equipo necesita un `az login` interactivo del titular. Hasta entonces sigue `mova-monthly-20`. Edición manual: portal, Cost Management, Presupuestos.
 - **Job cron del scheduler:** Bicep listo (`schedulerAsJob`, cron por minuto, apagado por defecto). **No medido ni desplegado**: Cost Management publica el consumo con 24–48 h de retraso, la prueba exigiría recrear una base de staging y sus credenciales, y no se aplicará a producción sin medición. Ahorro **estimado** 4,5–10 US$/mes.
 
+### Procedimiento de la prueba de 48 h del Job cron (no ejecutada)
+
+No se pudo ejecutar en esta sesión: exige ≥ 48 h de observación y el consumo se publica con 24–48 h de retraso. Pasos, para quien la ejecute:
+
+1. Recrear el MySQL de staging (Runbook §1b): B1ms privado en `snet-mysql`, base `mova` y usuario `mova_app` con un Job de bootstrap; `php artisan migrate --force` y, solo en staging, `db:seed --class=LocalTestDataSeeder`. Costo ≈ US$ 0,6/día.
+2. Cargar los secretos de **staging** (nunca los de producción) y desplegar `apps.bicep` con `deployScheduler=true`, `schedulerAsJob=true`, `deployWorker=true` y `MOVA_APP_NAME_PREFIX=mova`.
+3. Observar 48 h: por minuto, `system_heartbeats` y ejecuciones del Job (`az containerapp job execution list`); contar minutos omitidos y solapes.
+4. Criterios (ISO 29119): ≥ 99 % de los minutos con latido < 2 min, 0 solapes, duración mediana de `schedule:run` < 20 s, cargo extrapolado < US$ 3,2/mes (Cost Management por `ResourceId` del Job).
+5. Eliminar el servidor MySQL de staging y detener las apps de staging al terminar. Solo si se cumplen los criterios, preparar el cambio de producción (nunca coexistir con `movap-scheduler`).
+
+### Presupuesto US$ 15/mes: procedimiento exacto para el titular
+
+Opción A (portal): Cost Management, Presupuestos, `mova-monthly-20`, Editar, importe **15**, conservar los avisos (50 %, 80 % real y 100 % previsto) y el correo de contacto, Guardar. Opción B (CLI): ejecutar `az logout` y `az login` con la cuenta del titular y repetir la creación de `mova-monthly-15` (el cuerpo está en el historial de esta ronda: importe 15, periodo mensual, 4 avisos). Recordatorio: el gasto del mes ya supera US$ 15 y un presupuesto solo avisa, no detiene el consumo.
+
 ## Otras palancas de ahorro evaluadas (sin aplicar)
 
 | Palanca | Ahorro estimado | Riesgo | Decisión |

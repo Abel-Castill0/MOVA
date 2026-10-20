@@ -66,3 +66,12 @@ Notas: no existe un `JWT_SECRET` en MOVA (los secretos reales son los 10 listado
 - `switch`: scheduler, luego worker, luego web, cada uno con revisión nueva (`…--kv10192205/06/07`), `Healthy` y `/readyz` 200 entre pasos. Resultado: 10/10 secretos de cada app son `keyvaultref`; `/healthz`, `/readyz`, `/login` y `/register` responden 200; el scheduler ejecuta tareas y el worker procesa el latido; sin errores de acceso a secretos en logs.
 - IaC: `apps.bicep` acepta `keyVaultName` (lista `kvManagedNames`) y `apps.bicepparam` lo lee de `MOVA_KEYVAULT_NAME`. **Sin esa variable un deploy reemplazaría las referencias por valores en línea.**
 - **Pendiente (titular):** rotar secretos desde el vault (nueva versión + revisión nueva), borrar el secreto de prueba `mova-kv-selftest`, habilitar *purge protection* (irreversible) y activar `AuditEvent` hacia Log Analytics. `revert` del script recupera los valores en línea desde el vault si hiciera falta.
+
+## Cierre del vault (2026-10-19, 2.ª pasada)
+
+| Pendiente | Resultado |
+|---|---|
+| Borrar el secreto de prueba `mova-kv-selftest` | Hecho; el vault solo contiene los 10 secretos reales (quedó en *soft-delete* 90 d) |
+| *Purge protection* | **Activada** (irreversible): los secretos y el vault borrados no pueden purgarse durante 90 días |
+| Auditoría | Proveedor `Microsoft.Insights` registrado (estaba sin registrar); ajuste de diagnóstico `kv-audit` con `AuditEvent` hacia el workspace `mova-logs`. Consulta de ejemplo (Log Analytics): `AzureDiagnostics \| where ResourceProvider == "MICROSOFT.KEYVAULT" \| where Category == "AuditEvent"` |
+| Salud tras los cambios | `/healthz` y `/readyz` 200 |
