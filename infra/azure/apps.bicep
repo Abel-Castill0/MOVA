@@ -156,8 +156,11 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
     externalIngress: true
     targetPort: 8080
     healthPath: '/healthz'
-    cpu: '0.5'
-    memory: '1Gi'
+    // ISO/IEC 25010 (eficiencia de desempeño: utilización de recursos): 0,25 vCPU / 0,5 GiB es lo que corre en producción
+    // desde 2026-10-06 (runbook §1). Antes el IaC decía 0,5/1 GiB: un deploy habría DUPLICADO el costo del web (deriva).
+    // Criterio ISO 29119: /healthz < 2 s con réplica caliente; sin OOM en 7 días (Log Analytics).
+    cpu: '0.25'
+    memory: '0.5Gi'
     // 0 en staging (costo); producción usa webMinReplicas=1 (ISO 25010: fiabilidad + eficiencia temporal; ver arriba).
     minReplicas: webMinReplicas
     maxReplicas: 2

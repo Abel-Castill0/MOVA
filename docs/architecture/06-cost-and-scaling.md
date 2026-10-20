@@ -60,6 +60,23 @@ Las cifras de la comparación externa (always-on ≈ US$ 15,55/mes frente a Job 
 
 > **Corrección:** las estimaciones de worker/scheduler de la 1.ª ronda (≈ US$ 1,0 y 2,2/mes, derivadas de la lectura del 2026-10-05) quedan reemplazadas por los valores medidos de esta tabla.
 
+## Plan de reducción de gasto (3.ª ronda, 2026-10-19)
+
+Objetivo: bajar de ≈ US$ 23–26/mes sin romper pagos ni liquidación. Estado de cada acción (ISO 25010: eficiencia de desempeño, utilización de recursos; contrapeso: fiabilidad):
+
+| # | Acción | Ahorro estimado (US$/mes) | Riesgo | Verificación | Estado / fecha |
+|---|---|---|---|---|---|
+| 1 | Apagar staging: `mova-web/worker/scheduler` en **Stopped** (acción `stop` de la API ARM `2024-10-02-preview`; la CLI 1.3.0b5 no trae `az containerapp stop`). No existe MySQL de staging (eliminado 2026-10-06): `az mysql flexible-server list` solo muestra el de producción, que **no se toca** | ≈ 0 adicional (ya estaban a 0 réplicas); evita un arranque accidental (el staging gastó US$ 14,45 en octubre antes de apagarse) | Bajo; reversible con la acción `start` | `az containerapp list`: staging `Stopped`, producción `Running`; `/healthz` de producción 200 | **Hecho** 2026-10-19 |
+| 2 | Scheduler: confirmar frecuencia real | — | — | 2 tareas cada minuto, 5 min, 3 horarias, 1 diaria (ver sección anterior) | **Hecho** (diagnóstico) |
+| 2b | Scheduler a cron reducido (15–30 min) | ≈ 0 por sí solo si sigue always-on; solo ahorra si pasa a Job | **Alto: cambia comportamiento** (recordatorios y latido por minuto; requiere código en `Kernel.php`) | — | **No aplicado**; decisión del titular |
+| 2c | Scheduler como Job cron `* * * * *` | 4,5–10 | Medio (fiabilidad): ver opciones B/C arriba | Prueba en staging con medición de duración y cargo | **Pendiente de aprobación** |
+| 2d | **Un solo contenedor** para worker + scheduler (`sh -c` con `schedule:work` y `queue:work` y `wait -n`; solo `args` en Bicep, sin tocar la imagen) | ≈ 3,8 (la línea base del worker) | Medio: un OOM o fallo afecta a ambos; 0,5 GiB para dos procesos PHP por medir; el contenedor se reinicia si cualquiera termina | Prueba en staging: memoria máxima < 70 %, `queue:monitor` = 0 y tareas del scheduler en logs | **Pendiente de aprobación** |
+| 3 | `movap-web` a 0,25 vCPU / 0,5 GiB | 0 (ya estaba así en producción desde 2026-10-06) | — | `az containerapp show`: 0,25 / 0,5 GiB; sin líneas OOM; arranque en frío medido 22,9 s (< 30 s) y con min=1 no aplica. **El IaC decía 0,5 / 1 GiB**: corregido en `apps.bicep` para que un deploy no duplique el costo (≈ + 1,7–3,5/mes evitados) | **Hecho** (IaC alineado) |
+| 4 | KEDA scale-to-zero del worker | 0 real | — | `app/Console/Kernel.php:178` despacha `WorkerHeartbeatJob` **cada minuto**: la cola nunca está vacía más de 60 s, así que un escalador por profundidad mantendría el worker encendido (y facturando) todo el tiempo; además el latido alimenta la alerta de worker caído. Un escalador también necesitaría un secreto de conexión a MySQL y alcance a la red privada | **Descartado** con evidencia (sin cambios) |
+| 5 | Alerta de presupuesto de US$ 15/mes | 0 (informa, no detiene gasto) | — | La CLI tiene permiso de **lectura** pero no de escritura sobre presupuestos (`RBACAccessDenied`). Ya existe `mova-monthly-20` (US$ 20/mes; avisos al 50 % y 80 % reales y 100 % previsto, con un correo de contacto). El gasto del mes (≈ US$ 31) ya lo supera | **Bloqueado:** lo cambia el titular en el portal (Cost Management → Presupuestos → `mova-monthly-20` → importe 15) |
+
+**Resumen del ahorro.** Acciones ya aplicadas: ahorro adicional ≈ **US$ 0/mes** (el cómputo de staging y el sobredimensionado del web ya estaban cubiertos; el IaC corregido evita un aumento futuro). Ahorro **disponible con aprobación**: Job cron del scheduler ≈ US$ 4,5–10 y/o contenedor único worker+scheduler ≈ US$ 3,8; combinados se estiman ≈ US$ 12–17/mes frente a ≈ US$ 23–26 actuales. Costos fijos que no se pueden recortar sin cambiar de arquitectura: ACR ≈ 5, IP pública ≈ 3,7, web ≈ 3,7, DNS ≈ 0,5.
+
 ## Otras palancas de ahorro evaluadas (sin aplicar)
 
 | Palanca | Ahorro estimado | Riesgo | Decisión |

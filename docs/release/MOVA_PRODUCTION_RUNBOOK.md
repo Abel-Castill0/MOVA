@@ -64,6 +64,8 @@ manual crear la base `mova` y el usuario `mova_app` con la contraseña del secre
 y, **solo en staging**, `db:seed --class=LocalTestDataSeeder` (o importar el JSON del respaldo); (4) `az containerapp update -n mova-worker|mova-scheduler
 --min-replicas 1`. No usar nunca esos seeders en producción.
 
+**Actualización 2026-10-19:** las apps de staging (`mova-web|worker|scheduler`) están en estado **Stopped** (no solo a 0 réplicas). Para usarlas: `az rest --method post --url "https://management.azure.com/subscriptions/<sub>/resourceGroups/mova-prod-rg/providers/Microsoft.App/containerApps/<app>/start?api-version=2024-10-02-preview"` y aplicar los pasos de arriba (BD de staging inexistente). Ver `architecture/06-cost-and-scaling.md`.
+
 ## 2. Despliegue (procedimiento reproducible)
 
 0. Variables de aplicación imprescindibles: `APP_NAME=MOVA` (sin él los correos salen con la marca «Laravel»).
