@@ -78,3 +78,13 @@ Necesito saber: (1) si mi cuenta/aplicación de cobro requiere una habilitación
 - **Verificación de Yape en el panel: no realizada.** `list_connected_browsers` devuelve vacío y no hay herramientas de Playwright en la sesión; no se pudo abrir `mercadopago.com.pe` con la sesión del titular. Estado de Yape en el panel: **desconocido**. Acción del titular: revisar Tus integraciones / Medios de pago; si no existe un interruptor, enviar el mensaje de «habilitación de Yape» de arriba.
 - **Prueba con S/ 5 o S/ 10: no ejecutada.** Es un cobro live (no hay sandbox para Yape) y este caso exige respuesta de soporte y autorización del titular antes de cualquier otro intento; el monto ya fue descartado como causa (mínimo oficial S/ 1). Sin resultados nuevos; la causa raíz más probable sigue siendo la habilitación de la cuenta (hipótesis a), sin confirmar.
 - El mensaje de soporte está listo y **no se ha enviado**.
+
+## Auditoría del flujo OTP/token Yape (2026-10-19, 5.ª sesión)
+
+**Conclusión: el código SÍ implementa el flujo con OTP; la falta de token Yape NO es la causa del 2072.**
+
+- Frontend: `resources/js/Pages/Teacher/Credits/Checkout.vue` captura celular + OTP de 6 dígitos y `resources/js/lib/mercadoPagoYape.js` llama a `mp.yape({ otp, phoneNumber }).create()`; solo el token llega al backend (`YapePaymentInstrument`). Teléfono/OTP no se persisten.
+- Backend: `MercadoPagoPaymentProvider::createPaymentAttempt()` rechaza (fail closed) si no hay instrumento tokenizado y arma `token`, `payment_method_id: "yape"`, `installments: 1`, `payer.email`, `transaction_amount` numérico, `capture`, `binary_mode`, `external_reference`.
+- Documentación oficial (Checkout API Payments → Yape, consultada hoy): campos obligatorios `token`, `transaction_amount`, `installments=1`, `payment_method_id=yape`, `payer.email`. **`payer.phone.number` NO figura en la tabla**; el celular solo se usa para generar el token. La premisa de que sea obligatorio no se confirma. El payload de MOVA coincide con el ejemplo oficial. **Sin cambios de código.**
+- Hipótesis nueva (d), verificable sin cobrar: **public key y access token de aplicaciones distintas.** El panel muestra 3 aplicaciones Checkout API (`MOVA Produccion Payments`, `MOVA Recarga de Creditos Payments`, `MOVA Recarga de Creditos`). El token Yape se emite con la public key de una aplicación y el pago se crea con el access token de otra: un desajuste podría producir un 400. Comprobar que `MERCADOPAGO_PUBLIC_KEY` y `MERCADOPAGO_ACCESS_TOKEN` de producción pertenezcan a la **misma** aplicación (solo comparar el origen en el panel, sin imprimir valores). Añadir esta pregunta al mensaje a soporte.
+- El panel no tiene interruptor «Habilitar Yape»; la habilitación se resuelve con soporte (mensaje arriba).

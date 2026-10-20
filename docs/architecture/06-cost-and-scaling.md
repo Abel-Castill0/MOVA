@@ -90,7 +90,7 @@ Objetivo: bajar de ≈ US$ 23–26/mes sin romper pagos ni liquidación. Estado 
 
 ## Estado de la 5.ª ronda (2026-10-19)
 
-- **Presupuesto a US$ 15:** **bloqueado.** Escribir presupuestos devuelve `RBACAccessDenied` («Interactive authentication is needed»): la sesión `az` de este equipo necesita un `az login` interactivo del titular. Hasta entonces sigue `mova-monthly-20`. Edición manual: portal, Cost Management, Presupuestos.
+- **Presupuesto a US$ 15:** **hecho y verificado** (lectura `az rest GET` el 2026-10-19: `amount=15.0`, nombre `mova-monthly-20`). La nota previa de `RBACAccessDenied` quedó obsoleta.
 - **Job cron del scheduler:** Bicep listo (`schedulerAsJob`, cron por minuto, apagado por defecto). **No medido ni desplegado**: Cost Management publica el consumo con 24–48 h de retraso, la prueba exigiría recrear una base de staging y sus credenciales, y no se aplicará a producción sin medición. Ahorro **estimado** 4,5–10 US$/mes.
 
 ### Procedimiento de la prueba de 48 h del Job cron (no ejecutada)
