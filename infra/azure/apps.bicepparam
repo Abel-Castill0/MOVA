@@ -18,7 +18,8 @@ using './apps.bicep'
 // MOVA_PREFIX=movap y MOVA_LOCATION=<región> (ver main.production.bicepparam).
 param prefix = readEnvironmentVariable('MOVA_PREFIX', 'mova')
 param location = readEnvironmentVariable('MOVA_LOCATION', 'mexicocentral')
-// Producción: MOVA_APP_NAME_PREFIX=movap, MOVA_MYSQL_SERVER_NAME=<servidor dedicado>, MOVA_WEB_MIN_REPLICAS=1.
+// Producción: MOVA_APP_NAME_PREFIX=movap, MOVA_MYSQL_SERVER_NAME=<servidor dedicado>, MOVA_WEB_MIN_REPLICAS=1
+// (OBLIGATORIO en producción: sin esta variable el web vuelve a 0 réplicas; arranque en frío medido 22,9 s).
 param appNamePrefix = readEnvironmentVariable('MOVA_APP_NAME_PREFIX', 'mova')
 param mysqlServerName = readEnvironmentVariable('MOVA_MYSQL_SERVER_NAME', '')
 param webMinReplicas = int(readEnvironmentVariable('MOVA_WEB_MIN_REPLICAS', '0'))

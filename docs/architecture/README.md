@@ -12,6 +12,7 @@
 | [02-data-model.md](02-data-model.md) | Modelo entidad-relación por dominio (derivado de `database/migrations`) |
 | [03-state-machines.md](03-state-machines.md) | Estados de `class_requests`, `classes`, `recharge_requests`, `payment_orders` |
 | [04-flows.md](04-flows.md) | Secuencias: reserva de clase, liquidación, recarga con Mercado Pago, webhooks, diagnóstico |
+| [06-cost-and-scaling.md](06-cost-and-scaling.md) | Costos y escalado de worker/scheduler/web, decisiones con ISO 25010/29119 |
 | [05-claims-verification.md](05-claims-verification.md) | Qué afirmaciones de la auditoría externa del 2026-10-19 son ciertas, falsas u obsoletas |
 
 ## Convenciones

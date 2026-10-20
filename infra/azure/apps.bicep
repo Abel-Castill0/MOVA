@@ -29,6 +29,11 @@ param appNamePrefix string = prefix
 @description('Nombre del servidor MySQL. Vacío = el de la foundation de staging (<prefix>-mysql-<uniq>). Producción pasa su servidor dedicado.')
 param mysqlServerName string = ''
 
+// ISO/IEC 25010: fiabilidad (disponibilidad/tolerancia a fallos) y eficiencia de desempeño (comportamiento temporal).
+// Medido 2026-10-19: con 0 réplicas la primera petición tardó 22,9 s (arranque en frío), igual al plazo de
+// respuesta de los webhooks de Mercado Pago (~22 s). Costo de min=1 a 0,25 vCPU/0,5 GiB ≈ US$ 1,7/mes.
+// ISO/IEC 29119 (criterio): con min=1, `curl /healthz` tras 10 min de inactividad responde < 2 s.
+// OJO: el default es 0 (staging). Un deploy de producción SIN MOVA_WEB_MIN_REPLICAS=1 devuelve el web a 0.
 @description('Réplicas mínimas del web. 0 en staging (costo); 1 en producción (sin arranque en frío).')
 @minValue(0)
 @maxValue(2)
@@ -153,7 +158,7 @@ module web 'modules/container-app.bicep' = if (deployWeb) {
     healthPath: '/healthz'
     cpu: '0.5'
     memory: '1Gi'
-    // 0 en staging (costo); producción usa webMinReplicas=1.
+    // 0 en staging (costo); producción usa webMinReplicas=1 (ISO 25010: fiabilidad + eficiencia temporal; ver arriba).
     minReplicas: webMinReplicas
     maxReplicas: 2
     env: sharedEnv
@@ -171,6 +176,10 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
     registryServer: acrRef.properties.loginServer
     image: containerImage
     // Contrato Railway intacto: timeout 60 < retry_after 90 (config/queue.php).
+    // ISO/IEC 25010: fiabilidad (madurez). min=max=1: la cola es `database` y no hay escalador KEDA; con min=0 nada
+    // la consume (se halló así el 2026-10-19: correos, webhooks y recuperación de pagos detenidos). Un escalador
+    // KEDA MySQL ahorraría ≈ US$ 1/mes pero añade un secreto y un punto de fallo: descartado (docs/architecture/06).
+    // ISO/IEC 29119 (criterio): tras encolar 100 jobs de prueba, `queue:monitor` llega a 0 pendientes en < 5 min.
     command: ['mova-entrypoint']
     args: [
       'sh'
@@ -187,6 +196,11 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
   }
 }
 
+// ISO/IEC 25010: fiabilidad (madurez, recuperabilidad) y eficiencia de recursos. min=max=1 (≈ US$ 2,2/mes).
+// Migrarlo a un Container Apps Job con cron `* * * * *` ahorraría ≲ US$ 1-2/mes pero arranca un contenedor por minuto
+// y duplica el riesgo de solapes: descartado por ahora (docs/architecture/06-cost-and-scaling.md).
+// ISO/IEC 29119 (criterio): `system_heartbeats` del scheduler < 2 min de antigüedad; `mova:settle-lessons --dry-run`
+// con `safe_to_enable=true` ANTES de arrancar el scheduler tras cualquier parada.
 // INVARIANTE: exactamente 1 réplica. withoutOverlapping() protege por lock en
 // cache=database, pero dos schedule:work duplicarían despachos de recordatorios
 // y reconciliaciones. NO subir maxReplicas.
