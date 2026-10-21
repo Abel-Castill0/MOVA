@@ -23,6 +23,7 @@ use App\Http\Controllers\AiUsageController;
 use App\Http\Controllers\Admin\MfaController as AdminMfaController;
 use App\Http\Controllers\Admin\OperationsController;
 use App\Http\Controllers\Admin\RechargeController;
+use App\Http\Controllers\Admin\WhatsAppController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TeacherPublicController;
 use App\Http\Controllers\TeacherReviewController;
@@ -293,6 +294,11 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
         Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('admin.ai-usage');
         Route::get('/complaints', [ComplaintController::class, 'adminIndex'])->name('admin.complaints');
         Route::post('/complaints/{complaint}/respond', [ComplaintController::class, 'respond'])->middleware('throttle:20,1')->name('admin.complaints.respond');
+
+        // WAHA WhatsApp companion monitoring & test panel
+        Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
+        Route::get('/whatsapp/status', [WhatsAppController::class, 'status'])->name('admin.whatsapp.status');
+        Route::post('/whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware('throttle:10,1')->name('admin.whatsapp.send-test');
     });
 });
 

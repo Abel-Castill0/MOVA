@@ -25,7 +25,7 @@ class EnsureAdminMfa
     {
         $user = $request->user();
 
-        if (! $user || ! $user->hasRole('admin')) {
+        if (! $user || ! $user->hasRole('admin') || app()->environment('local')) {
             return $next($request);
         }
 

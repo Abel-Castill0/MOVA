@@ -31,6 +31,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'waha' => [
+        'url' => env('WAHA_BASE_URL', 'http://localhost:3000'),
+        'api_key' => env('WAHA_API_KEY'),
+        'session' => env('WAHA_DEFAULT_SESSION', 'default'),
+    ],
+
     // WhatsApp Cloud API de Meta directo — reemplaza la integración previa
     // vía Twilio (ver docs/whatsapp-architecture.md). 'templates' mapea una
     // clave simbólica propia de MOVA a la plantilla real ya aprobada por

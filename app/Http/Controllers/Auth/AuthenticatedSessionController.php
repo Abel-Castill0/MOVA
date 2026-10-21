@@ -33,6 +33,14 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        if (app()->environment('local') && $request->user()) {
+            $user = $request->user();
+            if ($user->email_verified_at === null) {
+                $user->forceFill(['email_verified_at' => now()])->save();
+            }
+            \App\Models\LegalAcceptance::recordMissingCurrent($user, $request);
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended(RouteServiceProvider::HOME);

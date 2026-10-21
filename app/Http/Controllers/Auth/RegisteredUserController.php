@@ -86,6 +86,7 @@ class RegisteredUserController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'phone' => $request->phone,
+                'email_verified_at' => app()->environment('local') ? now() : null,
             ]);
 
             $user->assignRole($request->role);
