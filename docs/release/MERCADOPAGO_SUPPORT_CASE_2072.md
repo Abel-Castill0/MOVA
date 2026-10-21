@@ -1,7 +1,6 @@
 # Caso para el soporte de Mercado Pago — HTTP 400 / 2072 en Yape (S/ 1)
 
-> Texto listo para enviar desde la cuenta del titular (Mercado Pago Developers → Soporte, o el formulario de contacto de integradores de Perú).
-> No incluye tokens, teléfonos ni OTP. No se ha enviado.
+> **ENVIADO el 2026-10-20** por el asistente Maxwell del Centro de atención de Mercado Pago Developers (autorización del titular). **N.º de ticket: WCS-55456** (estado «Aguardando soporte»). El mensaje enviado fue la versión «habilitación de Yape» de abajo, con Application ID y collector ID incluidos. Texto original de preparación (ya no aplica): no incluye tokens, teléfonos ni OTP.
 
 **Asunto:** Checkout API Payments (Perú) — Yape — HTTP 400 «Invalid value for transaction_amount» (2072) con `transaction_amount=1`
 
