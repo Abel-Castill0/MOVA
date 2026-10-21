@@ -259,7 +259,7 @@
     <section id="como-funciona" class="pt-10 pb-12 md:py-24 bg-gradient-to-b from-white via-white to-[#E5EEFB] md:bg-none md:bg-[#E5EEFB] reveal-group scroll-mt-16 sm:scroll-mt-20">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header Desktop (Hidden on mobile) -->
-        <div class="reveal-item hidden md:block text-center mb-16">
+        <div class="reveal-item hidden md:block text-center mb-36">
           <h2 class="text-4xl font-black text-brand-900 text-balance">¿Cómo funciona MOVA?</h2>
           <p class="text-slate-600 mt-3 max-w-xl mx-auto text-pretty">En tres pasos sencillos estás aprendiendo con tu profesor ideal</p>
         </div>
@@ -282,17 +282,16 @@
         <div class="hidden md:grid md:grid-cols-3 gap-8">
           <div v-for="(step, i) in steps" :key="i"
             class="reveal-item group relative bg-white rounded-2xl p-8 border border-gray-100 hover:border-brand-200 shadow-sm hover:shadow-xl hover:shadow-brand-900/5 transition-all duration-300 hover:-translate-y-2"
-            @mouseenter="step.title === 'Aprende en vivo' ? playSquirrel() : null"
-            @mouseleave="step.title === 'Aprende en vivo' ? stopSquirrel() : null">
+            @mouseenter="playSquirrel(i)"
+            @mouseleave="stopSquirrel(i)">
 
-            <!-- Animación de Ardilla Graduada -->
-            <div v-if="step.title === 'Aprende en vivo'"
-                 class="absolute bottom-full left-1/2 -translate-x-1/2 w-48 h-48 pointer-events-none z-10 overflow-hidden">
+            <!-- Animación de Ardilla Movi adaptada a cada paso -->
+            <div class="absolute bottom-full left-1/2 -translate-x-1/2 w-48 h-48 pointer-events-none z-10 overflow-hidden">
               <div class="w-full h-full transition-transform duration-500 ease-out flex items-end justify-center"
-                   :class="squirrelVisible ? 'translate-y-0' : 'translate-y-full'">
-                <!-- Movi celebra al pasar el cursor (secuencia animada WebP; con movimiento reducido se muestra la pose final). Se monta
-                     recién en el primer hover para no descargarla si nadie la ve. -->
-                <MoviMascot v-if="squirrelShown" pose="celebra" :animated="true" :size="176" />
+                   :class="squirrelVisible[i] ? 'translate-y-0' : 'translate-y-full'">
+                <!-- Movi aparece al pasar el cursor (secuencia animada WebP; con movimiento reducido se muestra la pose final). Se monta
+                     recién en el primer hover de cada tarjeta para no descargarla si nadie la ve. -->
+                <MoviMascot v-if="squirrelShown[i]" :pose="step.pose" :animated="true" :size="176" />
               </div>
             </div>
 
@@ -476,8 +475,7 @@
                     {{ s.name }}
                   </span>
                 </div>
-                <div class="flex items-center justify-between pt-4 border-t border-gray-50">
-                  <span class="font-black text-brand-700 text-lg">S/{{ parseFloat(t.hourly_rate).toFixed(0) }}<span class="text-sm font-normal text-slate-400">/h</span></span>
+                <div class="flex items-center justify-end pt-4 border-t border-gray-50">
                   <Link :href="route('teachers.show', t.id)"
                     class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors group-hover:shadow-md group-hover:shadow-brand-600/20">
                     Ver perfil
@@ -601,21 +599,21 @@ const isChatOpen = ref(false)
 const showStats = computed(() => (props.stats?.completed ?? 0) >= 10 && (props.stats?.teachers ?? 0) >= 5)
 
 const steps = [
-  { icon: Search, title: 'Solicita tu clase', desc: 'Elige la materia y el nivel que necesitas. Nuestro sistema encuentra los mejores profesores disponibles para ti.' },
-  { icon: UserCheck, title: 'Un experto acepta', desc: 'Un profesor verificado revisará tu solicitud y propondrá un horario que se adapte a tu disponibilidad.' },
-  { icon: Video, title: 'Aprende en vivo', desc: 'Conéctate por videollamada y aprende de manera personalizada, con ejercicios y seguimiento en tiempo real.' },
+  { icon: Search, pose: 'solicita', title: 'Solicita tu clase', desc: 'Elige la materia y el nivel que necesitas. Nuestro sistema encuentra los mejores profesores disponibles para ti.' },
+  { icon: UserCheck, pose: 'experto', title: 'Un experto acepta', desc: 'Un profesor verificado revisará tu solicitud y propondrá un horario que se adapte a tu disponibilidad.' },
+  { icon: Video, pose: 'celebra', title: 'Aprende en vivo', desc: 'Conéctate por videollamada y aprende de manera personalizada, con ejercicios y seguimiento en tiempo real.' },
 ]
 
-const squirrelShown = ref(false)
-const squirrelVisible = ref(false)
+const squirrelShown = ref([false, false, false])
+const squirrelVisible = ref([false, false, false])
 
-function playSquirrel() {
-  squirrelShown.value = true
-  squirrelVisible.value = true
+function playSquirrel(index) {
+  squirrelShown.value[index] = true
+  squirrelVisible.value[index] = true
 }
 
-function stopSquirrel() {
-  squirrelVisible.value = false
+function stopSquirrel(index) {
+  squirrelVisible.value[index] = false
 }
 
 function levelColor(level) {

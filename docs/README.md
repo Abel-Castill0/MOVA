@@ -20,6 +20,7 @@
 | [`PROMPTS_CLAUDE_CODE.md`](PROMPTS_CLAUDE_CODE.md) | Guía y plantillas de indicaciones para Claude Code |
 | [`BACKUP_RESTORE_PLAYBOOK.md`](BACKUP_RESTORE_PLAYBOOK.md) · [`payments-architecture.md`](payments-architecture.md) · [`whatsapp-architecture.md`](whatsapp-architecture.md) | Referencias técnicas (verificar contra el código) |
 | [`../DESIGN.md`](../DESIGN.md) · [`../PRODUCT.md`](../PRODUCT.md) · [`WEB_INTERFACE_GUIDELINES.md`](WEB_INTERFACE_GUIDELINES.md) | Diseño y producto |
+| [`CHANGELOG_2026-10-21_UI_MOVI_DOCKER.md`](CHANGELOG_2026-10-21_UI_MOVI_DOCKER.md) | Registro detallado de cambios UI (profesores destacados, animaciones Movi, navbar) y despliegue Docker local (2026-10-21) |
 
 ## Referencia útil, parcialmente superada
 

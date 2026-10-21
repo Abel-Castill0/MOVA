@@ -1,6 +1,6 @@
 <template>
-  <nav :class="['fixed top-0 inset-x-0 z-50 transition-all duration-300',
-    isSolid ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100' : 'bg-transparent']">
+  <nav :class="['fixed top-0 inset-x-0 z-50 border-b transition-[background-color,border-color,box-shadow] duration-300',
+    isSolid ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-100' : 'bg-transparent border-transparent shadow-none']">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="relative flex items-center justify-between h-16">
         <!-- Logo -->
