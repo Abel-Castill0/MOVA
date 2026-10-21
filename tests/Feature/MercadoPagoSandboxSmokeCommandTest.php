@@ -27,7 +27,7 @@ class MercadoPagoSandboxSmokeCommandTest extends TestCase
 
     private const SECRET = 'whsec-test-only-secret';
 
-    /** @var array{status:string, ref:?string, amount:mixed} */
+    /** @var array{status:string, ref:?string, amount:?float} */
     private array $state = ['status' => 'approved', 'ref' => null, 'amount' => null];
 
     protected function setUp(): void
@@ -94,7 +94,13 @@ class MercadoPagoSandboxSmokeCommandTest extends TestCase
 
             if ($request->method() === 'POST' && str_ends_with($path, '/v1/payments')) {
                 $this->state['ref'] = $request['external_reference'];
-                $this->state['amount'] = $request['transaction_amount'];
+                // Mercado Pago responde `transaction_amount` SIEMPRE como número
+                // JSON, nunca como string, sea cual fuere el formato del request.
+                // MOVA (fix/yape-amount-format) ahora envía "10.00" (string), así
+                // que el mock normaliza a float para representar fielmente la
+                // respuesta del proveedor; el reconciliador acepta ambos tipos
+                // (is_numeric + (float) + number_format → centavos enteros).
+                $this->state['amount'] = (float) $request['transaction_amount'];
 
                 return Http::response($this->paymentJson($live), 201);
             }
