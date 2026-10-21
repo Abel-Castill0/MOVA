@@ -101,8 +101,8 @@ class MercadoPagoPaymentProviderTest extends TestCase
             return $request->url() === 'https://api.mercadopago.com/v1/payments'
                 && $request->hasHeader('Authorization', $expectedAuthHeader)
                 && $request->hasHeader('X-Idempotency-Key', $order->idempotency_key)
-                // NÚMERO, no string — a diferencia de Orders API.
-                && $request['transaction_amount'] === 10.0
+                // STRING con 2 decimales (fix/yape-amount-format, caso 2072).
+                && $request['transaction_amount'] === '10.00'
                 && $request['external_reference'] === "recharge:{$recharge->id}:attempt:1"
                 && $request['payment_method_id'] === 'visa'
                 && $request['token'] === 'card-token-abc'
@@ -172,7 +172,7 @@ class MercadoPagoPaymentProviderTest extends TestCase
             return $request['payment_method_id'] === 'yape'
                 && $request['installments'] === 1
                 && $request['token'] === 'yape-token-xyz'
-                && $request['transaction_amount'] === 25.0
+                && $request['transaction_amount'] === '25.00'
                 // Yape ya tiene su propio mecanismo de autenticación (OTP) —
                 // Payments API no documenta three_d_secure_mode para este
                 // medio de pago, así que MOVA nunca debe enviarlo aquí.

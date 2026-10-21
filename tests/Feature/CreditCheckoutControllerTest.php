@@ -146,7 +146,7 @@ class CreditCheckoutControllerTest extends TestCase
             return $request['payment_method_id'] === 'yape'
                 && $request['installments'] === 1
                 && $request['token'] === 'yape-token-abc'
-                && $request['transaction_amount'] === 30.0 // server-derivado, no el 1 del cliente
+                && $request['transaction_amount'] === '30.00' // server-derivado, no el 1 del cliente
                 && $request['external_reference'] === "recharge:{$recharge->id}:attempt:1"
                 && ($request['payer']['email'] ?? null) !== 'attacker@example.com';
         });
@@ -252,7 +252,7 @@ class CreditCheckoutControllerTest extends TestCase
                 && $request['installments'] === 3
                 && $request['issuer_id'] === '310'
                 && $request['token'] === 'card-brick-token-abc'
-                && $request['transaction_amount'] === 30.0 // server-derivado, no el 1 del cliente
+                && $request['transaction_amount'] === '30.00' // server-derivado, no el 1 del cliente
                 && $request['external_reference'] === "recharge:{$recharge->id}:attempt:1"
                 && ($request['payer']['email'] ?? null) !== 'attacker@example.com'
                 && $request['payer']['identification']['type'] === 'DNI'
