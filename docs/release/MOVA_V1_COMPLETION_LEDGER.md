@@ -1107,3 +1107,26 @@ cierre · commit · tests · evidencia en vivo · notas.
 - **Motivo:** recopilar documentos sensibles exige política aprobada (qué se pide, base legal, retención, quién accede, cifrado). Hasta que el titular defina el alcance de "profesor verificado", los textos públicos no deben sugerir verificación documental.
 - **Decisiones necesarias:** criterios exactos de verificación; si habrá documentos, cuáles y cómo se custodian; texto aprobado de la insignia.
 - **Evidencia en vivo:** no aportada.
+
+## Sesión 2026-10-21 — Plan B Yape (`payer.phone`), salud de MOVA y runbook de despliegue
+
+> Solo lectura sobre producción (Azure/Navegador) y documentación/Git local. **No** se hizo merge, deploy,
+> commit ni push. **No** se tocó Azure ni el código de pago. Sin secretos expuestos.
+
+### Plan B — ¿es obligatorio `payer.phone` en Yape?
+- **Veredicto: NO es obligatorio. No requiere cambio de código.** Documentación oficial (Checkout API Payments →
+  Yape, consultada 2026-10-21): obligatorios = `token`, `transaction_amount`, `installments`, `payment_method_id`,
+  `payer.email`; **`payer.phone` no figura en la tabla de creación de pago**. El celular (`phoneNumber`) es
+  obligatorio solo en el paso **previo** de generar el token.
+- El payload de MOVA coincide (no envía `payer.phone`; usa el celular solo para el token). Ver
+  `MERCADOPAGO_SUPPORT_CASE_2072.md` §«Plan B». Si MP pidiera `payer.phone`, requeriría frontend + backend
+  nuevos (split `area_code`/`number`, hoy no se envía el teléfono al backend). Prioridad baja.
+
+### Salud de MOVA (lectura de producción, 2026-10-21)
+- **`/healthz`** → 200; **`/readyz`** → `{"status":"ready","checks":{"database":"ok","migrations":"ok","cache":"ok"}}` (HTTP 200, `movaeduca.me`).
+- **`movap-worker`**: 1 réplica activa (rev `movap-worker--kv10192206`); logs sin `ERROR`/`Exception`; `WorkerHeartbeatJob` DONE cada ~minuto. **`movap-scheduler`**: 1 réplica (rev `movap-scheduler--kv10192205`); `mova:heartbeat` y `classmate:send-reminders` DONE cada minuto. **Cola sin atascos; ninguna tarea de liquidación fallida observada.**
+- **Costo (read-only, `Microsoft.Consumption/usageDetails`, 1–21 oct):** total del mes ≈ **US$ 31,76**. Gasto diario cayó de **~US$ 2,6/día (5–15 oct)** a **~US$ 0,33–0,42/día (16–19 oct)** tras apagar staging ⇒ el crédito se está agotando **más lento** de lo previsto, no más rápido. Desglose por servicio (mes): `microsoft.app` 25,72 · `Microsoft.ContainerRegistry` 3,29 · `Microsoft.Network` 2,73 · resto < 0,01. (Son valores de consumo `costInUSD`; la facturación real llega con retraso de 24–48 h.)
+
+### Runbook de despliegue del fix
+- Nuevo: [`DEPLOY_YAPE_FIX.md`](./DEPLOY_YAPE_FIX.md) — merge `fix/yape-amount-format` → CI verde → `az acr build` + digest → `az containerapp update --image` (x3 roles) → health → prueba live S/ 1,00 + reembolso → rollback por imagen. **Plan; no ejecutar hasta que MP responda y el titular autorice.**
+- Estado de ramas sin cambios: `fix/yape-amount-format` = `bae5529…` (5 commits), `master` limpio.

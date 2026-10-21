@@ -112,3 +112,26 @@ Tras la respuesta humana de soporte (`SUP_IXEXPERT_02`, 19:22: el 2072 es una va
 - **Nota final del mensaje:** se entendió que 2072 es validación del request; se pidió que indiquen el campo específico fallando y el valor esperado para `transaction_amount`, con ejemplo de body válido para Yape desde el collector 3659471468.
 - **Estado del ticket tras enviar:** «Pendiente». Confirmación visual en el hilo (22:17). La pestaña se cerró tras el clic (navegación), pero la verificación posterior confirmó el mensaje en el thread.
 - **Logs locales:** `storage/logs/laravel.log` local no contiene la evidencia del 6/oct (búsqueda sin coincidencias); los logs del intento viven en producción (Azure), y el body completo nunca se persistió allí (limitación ya corregida).
+
+## Plan B — ¿es obligatorio `payer.phone` en Yape? (2026-10-21)
+
+**Conclusión: `payer.phone` NO es obligatorio. No se requiere cambio de código por este motivo.**
+
+- **Documentación oficial** (Checkout API Payments → Yape, consultada 2026-10-21): la tabla de campos del
+  `POST /v1/payments` marca como **obligatorios** `token`, `transaction_amount`, `installments`,
+  `payment_method_id` (`yape`) y `payer.email`. **`payer.phone` no figura en la tabla.** El número de celular
+  (`phoneNumber`) es obligatorio solo en el paso **previo** de generar el token Yape (`mp.yape({ otp, phoneNumber })`
+  vía SDK JS, o el endpoint de token), no en la creación del pago.
+- **El payload de MOVA coincide:** el backend no envía `payer.phone`, y el frontend usa el celular solo para el
+  token (`resources/js/lib/mercadoPagoYape.js` → `mp.yape({ otp, phoneNumber }).create()`; el teléfono/OTP no
+  llegan al backend ni se persisten). Es el flujo documentado.
+- **Si MP llegara a pedir `payer.phone`** (no documentado hoy): requeriría **cambio de frontend + backend**
+  (hoy el teléfono se descarta tras tokenizar). El dato ya se captura en `Checkout.vue` (`form.phoneNumber`,
+  validado `^\d{6,15}$`), pero `payer.phone` usa `{ area_code, number }` separados y MOVA captura el número
+  completo sin `area_code`. Prepararlo exigiría: (1) enviar el teléfono al backend junto al token (hoy no se
+  envía); (2) dividirlo en `area_code` (Perú: `51`) y `number`; (3) añadirlo a `$payer` en
+  `createPaymentAttempt()`. **No se prepara código aún**: la documentación no lo respalda y hacerlo introduciría
+  datos personales (el teléfono) en el backend, que hoy se evita por diseño (sección 5/6 del encargo).
+- **Prioridad del Plan B:** baja. La hipótesis de formato de monto (`transaction_amount`) sigue siendo la más
+  probable y es la que cubre la rama `fix/yape-amount-format`; el runbook de despliegue es
+  `DEPLOY_YAPE_FIX.md`. Si MP responde con otro campo, se prepara una rama aparte (no se despliega este fix).
