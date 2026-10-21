@@ -1582,16 +1582,16 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
     }
 
     /**
-     * Convierte centavos enteros a un NÚMERO (no string) para el payload
-     * de transporte — Payments API documenta transaction_amount como
-     * número JSON. round() a 2 decimales antes de exponerlo evita ruido de
-     * punto flotante en la serialización; la comparación de verdad sigue
-     * ocurriendo siempre en centavos enteros (ver fetchPayment() y
-     * MercadoPagoPaymentReconciliationService), nunca comparando este float.
+     * Convierte centavos enteros a un STRING con dos decimales ("1.00") para
+     * el payload de transporte — pendiente de confirmación de soporte de
+     * Mercado Pago sobre el formato esperado de `transaction_amount` para
+     * Yape (ticket WCS-55456). La comparación de verdad sigue ocurriendo
+     * siempre en centavos enteros (ver fetchPayment() y
+     * MercadoPagoPaymentReconciliationService), nunca comparando este valor.
      */
-    private function amountMinorToApiNumber(int $amountMinor): float
+    private function amountMinorToApiNumber(int $amountMinor): string
     {
-        return round($amountMinor / 100, 2);
+        return number_format($amountMinor / 100, 2, '.', '');
     }
 
     /**
