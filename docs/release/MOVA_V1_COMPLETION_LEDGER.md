@@ -155,6 +155,13 @@ y activos WebP (`public/images` de 48 MB a 2,8 MB), páginas de error con marca,
   Mercado Pago sandbox hasta recrearlo. Dato del día 5/oct: US$ 0,94 (≈ 4 h de producción y del servidor del simulacro de restauración); el 6/oct aún no
   se factura. Presupuesto `mova-monthly-20` (US$ 20/mes; alertas de correo al 50 % y 80 % reales y 100 % previsto) **informa,
   no limita**; con estos importes se superará. No se cambió a pago por uso ni se creó ningún recurso.
+- **Descubrimiento de infraestructura (2026-10-20):** las apps `movap-*` (`movap-web`, `movap-worker`, `movap-scheduler`, RG
+  `mova-prod-rg`) son **producción real**: `movap-web` sirve los dominios personalizados `movaeduca.me` y `www.movaeduca.me`
+  (certificados SNI gestionados) y las tres tienen `minReplicas=1` (siempre encendidas, gastan crédito). Las apps `mova-*`
+  (`mova-web`, `mova-worker`, `mova-scheduler`, mismo RG) son legado/staging y ya están en **`minReplicas=0`** (escalan a cero
+  en reposo). **No hay costos de staging corriendo actualmente**; el único gasto de Container Apps en reposo proviene de las tres
+  apps de producción `movap-*`. **No apagar `movap-*`** (derribaría el dominio canónico). El prefijo `movap-` (con `p`) es el
+  stack productivo; `mova-` es el legado. Cualquier acción de ahorro futura debe apuntar solo a las apps `mova-*`.
 - **Sentry:** proyecto propio `mova-production`, DSN propio cargado como secreto `sentry-laravel-dsn` en los tres roles.
   El archivo temporal local que lo contuvo se sobrescribió y se eliminó; el valor no aparece en el repositorio, la
   documentación ni los logs. Todavía no hay evento sintético de producción.
