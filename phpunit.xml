@@ -10,8 +10,13 @@
          transacciones reales). Dejar un <testsuite> apuntando a un directorio
          vacío rompe PHPUnit ("Test directory not found"), porque git no
          versiona directorios vacíos. Si en el futuro se agregan tests
-         unitarios de verdad, volver a declarar la suite junto con ellos. -->
+         unitarios de verdad, volver a declarar la suite junto con ellos.
+         Re-declarada el 2026-10-20 junto con tests/Unit/MercadoPagoAmountTest.php
+         (contrato de formato de transaction_amount para Yape, rama fix/yape-amount-format). -->
     <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
