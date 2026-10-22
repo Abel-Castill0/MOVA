@@ -59,7 +59,7 @@ Plataforma peruana de tutorías con padres, profesores y alumnos menores de edad
 
 Las reglas específicas de Laravel, Vue/UI y páginas públicas viven en `.claude/rules/`.
 
-Para Mercado Pago usa la skill `mova-mercadopago`.
+Para Mercado Pago usa la skill `mova-mercadopago` (sus invariantes financieras aplican también a Culqi). Punto de entrada para cualquier agente: `docs/AI_HANDOFF.md`.
 
 Para una auditoría formal usa `/mova-audit`.
 
@@ -74,6 +74,14 @@ Agentes de solo lectura (`.claude/agents/`; la edición la hace siempre la sesi�
 - Puedes eliminar recursos únicamente de staging si confirmas que contienen solo datos sintéticos/recreables, preservas backup/export y verificas que el ahorro supera el impacto en QA. Nunca elimines recursos de producción para ahorrar sin preservar recuperación y continuidad.
 - Mantén pagos/webhooks apagados hasta completar integración, renovar secretos expuestos y superar los gates técnicos. Para la prueba live final, sigue `AGENTS.md`: cuenta controlada por el propietario, importe mínimo, una sola transacción y reembolso posterior. No cargues a terceros ni abras liquidaciones reales.
 - No inventes datos legales, consentimientos de menores, políticas de reembolso/ausencia, disputas, recurrencia, verificación docente ni presupuesto. Investiga lo que puedas y pide solo decisiones que la autoridad técnica no permita obtener.
+
+### 8.1 Pagos: Culqi y Mercado Pago (leer antes de tocar créditos)
+
+- Culqi (API V2, Custom Checkout, 3DS, órdenes) está **implementado y probado en sandbox**; **no** está activado ni validado en producción. No confundas «implementado/pasa con mocks» con «validado»: la matriz honesta está en `docs/AI_HANDOFF.md` §6 y la evidencia en `docs/payments-culqi.md` §3/§7.
+- `PAYMENT_PROVIDER` (`fake` | `mercadopago` | `culqi`) elige un único proveedor para cobros nuevos; Mercado Pago sigue operativo y cada pago conserva su proveedor. No borres ni debilites código de Mercado Pago, ni cambies el proveedor de producción, sin orden explícita del propietario.
+- Antes de modificar créditos/recargas/webhooks lee `docs/payments-migration-mp-to-culqi.md` §4–§6. Se conservan siempre: transacción + `lockForUpdate`, `RechargeApprovalService::credit()/reverse()` como única vía, `idempotency_key` único, ledger append-only, la API del proveedor como verdad (nunca el navegador ni el webhook solos) y estados inciertos sin resolver «a ciegas».
+- No inventes reglas de negocio (reembolsos, saldo negativo, disputas): están en `docs/release/MOVA_V1_DECISIONS.md`.
+- Nunca ejecutes cobros ni reembolsos reales automáticamente (solo la prueba live única que autoriza `AGENTS.md`), ni imprimas llaves o la URL del webhook (`culqi:webhook-url --reveal` es solo para el propietario).
 
 ## 9. Eficiencia (sin relajar seguridad ni calidad)
 

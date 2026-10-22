@@ -15,7 +15,7 @@ MOVA conecta familias con profesores particulares para clases en vivo por videol
 | Roles | Spatie Laravel Permission |
 | Videollamadas | JaaS (8x8 / Jitsi) con JWT por sala |
 | Email | SMTP (Gmail) en producción; Gmail API soportada; staging usa `array` |
-| Pagos de créditos | Mercado Pago (live acotado a la cuenta de prueba del titular; sin cobros a terceros) + recarga manual revisada. Culqi **no** está implementado |
+| Pagos de créditos | Mercado Pago (live acotado a la cuenta de prueba del titular; sin cobros a terceros) + recarga manual revisada. Culqi (API V2) está **implementado y probado en sandbox**, no activado en producción (`PAYMENT_PROVIDER` elige un proveedor; ver `docs/payments-culqi.md`) |
 | Cola | Laravel Queue |
 | Producción | **Azure Container Apps + Azure MySQL** sirviendo `https://movaeduca.me` (`infra/azure`) |
 | Railway | **Legacy, no operable** (deployments fallidos desde julio de 2026) |
@@ -78,7 +78,7 @@ npm run qa:production-readonly
 
 ## Infraestructura
 
-Producción: **Azure Container Apps (`movap-web`, `movap-worker`, `movap-scheduler`) + Azure Database for MySQL**, modelada en `infra/azure` y operada con `docs/release/MOVA_PRODUCTION_RUNBOOK.md`. El estado vigente del lanzamiento está en `docs/release/MOVA_V1_COMPLETION_LEDGER.md` (fuente de verdad). Diagramas y flujos: `docs/architecture/`. Índice de toda la documentación: `docs/README.md`.
+Producción: **Azure Container Apps (`movap-web`, `movap-worker`, `movap-scheduler`) + Azure Database for MySQL**, modelada en `infra/azure` y operada con `docs/release/MOVA_PRODUCTION_RUNBOOK.md`. El estado vigente del lanzamiento está en `docs/release/MOVA_V1_COMPLETION_LEDGER.md` (fuente de verdad). Diagramas y flujos: `docs/architecture/`. Índice de toda la documentación: `docs/README.md`; punto de entrada para agentes de IA: `docs/AI_HANDOFF.md`.
 
 - Despliegue **manual** (build por digest → Job de migración revisada → `apps.bicep` → `/healthz` y `/readyz`); no hay workflow de deploy. Las migraciones **no** corren al arrancar.
 - Rollback: `az containerapp revision activate` sobre la revisión anterior.

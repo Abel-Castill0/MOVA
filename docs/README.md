@@ -11,6 +11,7 @@
 |---|---|
 | [`../README.md`](../README.md) | Visión, stack, instalación y QA |
 | [`../AGENTS.md`](../AGENTS.md) · [`../CLAUDE.md`](../CLAUDE.md) | Autorizaciones, reglas de trabajo y límites (agentes) |
+| [`AI_HANDOFF.md`](AI_HANDOFF.md) | **Punto de entrada para agentes de IA**: arquitectura, módulos, estado probado/no probado, pruebas y primeros pasos |
 | [`architecture/`](architecture/README.md) | Despliegue, ER, estados, flujos, verificación de auditorías |
 | [`release/MOVA_V1_COMPLETION_LEDGER.md`](release/MOVA_V1_COMPLETION_LEDGER.md) | Fuente de verdad del estado de V1 |
 | [`release/MOVA_PRODUCTION_RUNBOOK.md`](release/MOVA_PRODUCTION_RUNBOOK.md) | Operación de producción en Azure |
@@ -20,6 +21,7 @@
 | [`PROMPTS_CLAUDE_CODE.md`](PROMPTS_CLAUDE_CODE.md) | Guía y plantillas de indicaciones para Claude Code |
 | [`CLAUDE_CODE_AGENTS.md`](CLAUDE_CODE_AGENTS.md) | Subagentes, skills y hooks de Claude Code para MOVA: inventario, uso, pruebas y límites |
 | [`payments-culqi.md`](payments-culqi.md) | Culqi (API V2): integración, evidencia de sandbox, webhooks, MCP local `mova-culqi` y pasos manuales en CulqiPanel |
+| [`payments-migration-mp-to-culqi.md`](payments-migration-mp-to-culqi.md) | Mercado Pago → Culqi: historia, arquitectura, flujo de créditos, manual operativo, migración y rollback |
 | [`BACKUP_RESTORE_PLAYBOOK.md`](BACKUP_RESTORE_PLAYBOOK.md) · [`payments-architecture.md`](payments-architecture.md) · [`whatsapp-architecture.md`](whatsapp-architecture.md) | Referencias técnicas (verificar contra el código) |
 | [`../DESIGN.md`](../DESIGN.md) · [`../PRODUCT.md`](../PRODUCT.md) · [`WEB_INTERFACE_GUIDELINES.md`](WEB_INTERFACE_GUIDELINES.md) | Diseño y producto |
 | [`CHANGELOG_2026-10-21_UI_MOVI_DOCKER.md`](CHANGELOG_2026-10-21_UI_MOVI_DOCKER.md) | Registro completo (2026-10-21): cambios UI/Movi/Navbar (`040e673`), integración WAHA WhatsApp, bypass login local y arquitectura de 4 contenedores Docker |

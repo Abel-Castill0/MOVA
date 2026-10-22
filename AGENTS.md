@@ -11,6 +11,13 @@ MOVA usa Laravel 13, PHP 8.3+ (`composer.json`), Vue 3, Inertia, Tailwind CSS, V
 - Antes de modificar, inspecciona los archivos reales relacionados con la tarea.
 - Si una integracion o flujo importa, compruebalo con herramientas de solo lectura o pruebas seguras.
 
+## Mapa Para Agentes
+
+- Punto de entrada: [`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md) (arquitectura, módulos, qué está probado y qué no, comandos de prueba, primeros pasos). Índice general: [`docs/README.md`](docs/README.md); estado del lanzamiento: [`docs/release/MOVA_V1_COMPLETION_LEDGER.md`](docs/release/MOVA_V1_COMPLETION_LEDGER.md).
+- Sistema financiero y proveedores de pago (`PAYMENT_PROVIDER` = `fake` | `mercadopago` | `culqi`, uno activo; los pagos históricos conservan su proveedor): [`docs/payments-migration-mp-to-culqi.md`](docs/payments-migration-mp-to-culqi.md) y [`docs/payments-culqi.md`](docs/payments-culqi.md). Culqi está implementado y probado en **sandbox**; no está activado ni validado en producción.
+- Procedimiento: localiza el módulo (tabla de `docs/AI_HANDOFF.md`), lee su documento, inspecciona el código y los tests reales, haz el cambio mínimo, añade un test que falle sin él, ejecuta pruebas dirigidas y revisa con los agentes de `.claude/agents/` (obligatorio `mova-security-finance` si toca dinero, auth, menores, JaaS o webhooks).
+- Antes de commit: `git diff --check`, pruebas relevantes y build, sin secretos, sin archivos ajenos y documentación al día.
+
 ## Seguridad
 
 - Nunca imprimas secretos, tokens, contrasenas, claves API, refresh tokens, app passwords ni cadenas de conexion.
@@ -42,7 +49,7 @@ MOVA usa Laravel 13, PHP 8.3+ (`composer.json`), Vue 3, Inertia, Tailwind CSS, V
 - Para el objetivo de completitud/lanzamiento autorizado el 2026-10-05, se autoriza preparar la infraestructura de producción Azure separada de staging, desplegar allí después de superar los gates técnicos/legales/operativos, y configurar Namecheap para que el dominio público llegue únicamente a producción. La autorización DNS requiere preservar MX/TXT/correo y conservar captura/registro de los valores previos para rollback. No migres datos QA/financieros de staging a producción.
 - No cargues a terceros, no envíes correo masivo ni abras liquidaciones reales. Para completar el lanzamiento, la autorización permanente permite una sola prueba de pago live con cuenta controlada por el propietario, por el importe mínimo permitido, seguida de reembolso y registro de comisiones. Mantén pagos/webhooks cerrados hasta renovar credenciales expuestas y superar los gates técnicos.
 - Revisa todas las migraciones antes de publicar.
-- `php artisan migrate --force` forma parte del arranque de Azure y debe tratarse como riesgo critico de produccion.
+- `php artisan migrate --force` es riesgo critico de produccion. Verificado 2026-10-22: el `Dockerfile`/entrypoint **no** lo ejecutan al arrancar; las migraciones corren en un Job de migracion revisado (ver `docs/release/MOVA_PRODUCTION_RUNBOOK.md`) y el CI no despliega.
 - No consultes ni muestres valores secretos de Azure. Para revisar estado, muestra solo nombres, booleanos o valores no sensibles permitidos.
 - Agrupa los cambios de configuración de Azure en la menor cantidad de revisiones posible. Lee costos por recurso y configura alertas, pero no presentes una alerta como tope de gasto.
 
@@ -52,7 +59,7 @@ MOVA usa Laravel 13, PHP 8.3+ (`composer.json`), Vue 3, Inertia, Tailwind CSS, V
 - Usa `lockForUpdate` al leer o modificar saldos, reservas, cupos o aprobaciones financieras.
 - El ledger de transacciones es la fuente de verdad de auditoria.
 - Disena operaciones idempotentes ante reintentos, doble click, webhooks repetidos o fallas parciales.
-- No permitas saldos negativos.
+- No permitas saldos negativos por consumo o reserva. Unica excepcion decidida por el propietario: una devolucion/contracargo confirmado por el proveedor sobre creditos ya gastados se aplica y puede dejar el saldo negativo (`docs/release/MOVA_V1_DECISIONS.md` §3); no la amplies ni la cambies sin decision del propietario.
 - No permitas doble consumo, doble reserva, doble liberacion ni doble deposito.
 - Toda reserva, consumo, liberacion y deposito debe dejar transaccion de auditoria.
 - Las pruebas de concurrencia son obligatorias antes de produccion para dinero, creditos, recargas y cupos.
