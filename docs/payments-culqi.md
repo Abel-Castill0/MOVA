@@ -111,7 +111,7 @@ Registrado en `.mcp.json` (Claude Code pedirá aprobarlo la primera vez). Sin de
   resultado incierto ⇒ se reporta y se concilia por `metadata.mcp_request_id`.
 - Ejemplo: “con mova-culqi, ¿qué cargos de las últimas horas están en review?” → `culqi_reconcile_report`.
 
-## 7. Pruebas
+## 7. Pruebas (ver también §14.6: carreras multi-proceso)
 
 `vendor/bin/phpunit --filter 'CulqiPaymentTest|PaymentOrderTest|ProviderGuardTest'` (en Docker `php_qa`, PHP 8.3) · `npm run check:culqi-mcp` (CI)
 · `php artisan culqi:sandbox-smoke --confirm-sandbox [--scenario=refund]` (solo `local`/`testing`, BD sqlite o `mova_qa`, `sk_test_`, tope de importe).
@@ -167,6 +167,7 @@ Pendiente / aceptado (documentado, no bloquea el uso en sandbox):
 
 - **Hechos:** el par entregado es de 1024 bits con id UUID; con él Culqi responde `crypto_error` en **tokens y órdenes** (los cargos con token sin cifrar funcionan). Se probaron 4 variantes de OAEP/IV/tag, sin éxito. La documentación indica que las llaves RSA son por entorno, se muestran una sola vez, se asocian a endpoints concretos en su creación y vencen en ≤ 1 año.
 - **Distinción:** no es un fallo de TLS ni de tokenización (sin cifrado, ambos funcionan); apunta al **par RSA** (entorno equivocado, endpoints no seleccionados, par de otra integración o caducado) o a una exigencia de formato no documentada.
+- **Es opcional para el checkout elegido (evidencia oficial, 2026-10-22):** la documentación de Custom Checkout (<https://docs.culqi.com/es/documentacion/checkout/checkout-custom>) solo menciona la **llave pública** y no habla de RSA ni de cifrado; la de llaves (<https://docs.culqi.com/es/documentacion/pagos-online/llaves>) describe pública y secreta y solo enlaza a «Llaves RSA»; los SDK oficiales (PHP/Python) activan el cifrado únicamente si el comercio configura `rsa_id` y `rsa_public_key`. No encontré en la documentación pública ninguna operación que lo exija. **Condición de activación:** si CulqiPanel o Culqi exigieran RSA para algún método live, ese método no se habilita hasta resolverlo.
 - **Decisión:** el cifrado es opcional y queda **apagado** (`CULQI_ENCRYPT_PAYLOADS=false`); no bloquea ninguna operación. No se intenta más por código.
 - **Acción del propietario (única):** inventario manual en CulqiPanel → Desarrollo → RSA Keys del entorno de integración: recrear el par, marcar endpoints (tokens, orders, charges), copiar ID y llave (una vez) a los secretos, y reprobar con `culqi:sandbox-smoke`. No imprimir las llaves, ni siquiera comentadas.
 
@@ -177,3 +178,143 @@ Culqi indica que usar la API de tokens directamente exige SAQ-D. Con **Custom Ch
 ## 13. Build de Vite (`vite: not found`)
 
 Diagnóstico con evidencia: `rm -rf node_modules && npm ci` en el contenedor (Node 22) termina con código 0 en ~38 s, deja `node_modules/.bin/vite` y `npm run build` termina con 0. El fallo anterior **no se reproduce en limpio**; la causa observada fue una instalación interrumpida (`node_modules` parcial, carpeta `vite` vacía) y que el comando original encadenaba `npm ci … | tail && npm run build`, donde el pipe ocultaba el código de salida de `npm ci`. Regla: ejecutar `npm ci` y `npm run build` por separado y comprobar `$?`/`set -o pipefail`; no hay `NODE_ENV=production` ni `omit` que excluya devDependencies.
+
+## 14. Activación en producción: estado real, bloqueos y checklist (2026-10-22)
+
+> **PREPARADO PARA PRODUCCIÓN ≠ OPERATIVO EN PRODUCCIÓN.** Hoy Culqi está **desplegado e inactivo** en Azure (imagen `a32a1f0`; `PAYMENT_PROVIDER=mercadopago`, cero variables `CULQI_*`) y **no está preparado para cobros live**: hay bloqueos de términos y de credenciales (abajo). Nada de lo siguiente se ha activado.
+
+### 14.1 Bloqueos que impiden activar cobros reales
+
+| # | Bloqueo | Evidencia | Quién lo resuelve |
+|---|---|---|---|
+| B-1 | **Azure for Students no es para uso comercial.** La FAQ oficial responde a «¿Puedo usar Azure for Students para producción o solo desarrollo?»: ofrece los productos «*expressly for the support of education or teaching, noncommercial research, or efforts to design, develop, test, and demonstrate software applications for these purposes*». MOVA cobra a profesores reales: operar cobros live en esta suscripción es un uso comercial fuera de ese alcance. Términos: <https://azure.microsoft.com/offers/ms-azr-0170p/> · FAQ: <https://learn.microsoft.com/en-us/azure/education-hub/faq>. El crédito (US$ 100/12 meses) además tiene límite de gasto: al agotarse o a los 12 meses los recursos se **decomisionan** salvo que se pase a pago por uso (90 días de plazo). | Microsoft Learn FAQ (consultada 2026-10-22). No se pudo leer el texto legal completo de la oferta: confirmarlo con Microsoft | **Titular**: decidir alojamiento compatible (§14.8) antes de cobrar. Regla del proyecto: no activar cobros reales en esa suscripción |
+| B-2 | **No existen llaves live** en ningún sitio. `.env` local: solo `pk_test_/sk_test_`, RSA (id + llave, dan `crypto_error`), secreto de webhook (48 caracteres) y `CULQI_WEBHOOKS_ENABLED=false`. Azure: ninguna variable `CULQI_*` en web/worker/scheduler y ningún secreto de Culqi en `kv-movap-192f01` (10 secretos, todos de otras integraciones) | `az containerapp show` (solo nombres) + `az keyvault secret list` (solo nombres) | **Titular**: obtenerlas en CulqiPanel de **producción** (§14.3) |
+| B-3 | **Comercio Culqi aprobado y medios live habilitados: sin verificar.** No hay acceso a CulqiPanel desde las herramientas (el navegador integrado no tiene permiso para `*.culqi.com`) y la documentación pública no lo expone | — | **Titular** |
+| B-4 | **Webhooks no registrados** en CulqiPanel (ningún evento real ha llegado al backend público; el endpoint responde 404 porque `CULQI_WEBHOOKS_ENABLED` no existe en Azure) | 2 avisos «[Culqi/Webhook] … descartada» en Log Analytics, ambos de pruebas propias | **Titular** (registro manual) |
+| B-5 | **Conectividad Azure → Culqi sin probar** (se descartó crear un job efímero para no añadir recursos). Inferido, no verificado: el entorno ya llama a internet (Mercado Pago, Cloudinary, JaaS, SMTP) y no hay reglas de salida restrictivas | — | Probar tras tener llaves, p. ej. `php artisan culqi:diagnose --remote` en un contenedor existente |
+| B-6 | **PCI/contrato**: con Custom Checkout los datos de tarjeta no pasan por MOVA (el backend rechaza `card_number`/`cvv` y el JS solo maneja el token), pero **no hay evidencia de cumplimiento PCI DSS** ni confirmación escrita del cuestionario aplicable (SAQ) por parte de Culqi | `CulqiCheckoutController::FORBIDDEN_FIELDS` + pruebas | **Titular** con Culqi |
+| B-7 | **Métodos sin validar de punta a punta**: Yape (solo el token se creó en sandbox) y órdenes (el estado `paid` nunca se observó; solo dobles) | `payments-migration-mp-to-culqi.md` §8 | Sandbox/live controlado |
+
+### 14.2 Credenciales y variables (nombres reales del proyecto; sin valores)
+
+| Variable | Dónde | Estado |
+|---|---|---|
+| `PAYMENT_PROVIDER` (`fake`/`mercadopago`/`culqi`) | web, worker, scheduler (misma en las tres: la lee el scheduler para agendar `culqi:reconcile`) | Azure: `mercadopago` — **no cambiar** hasta superar §14.9 |
+| `PAYMENTS_ENABLED` | idem | Azure: `true` (Mercado Pago live acotado) |
+| `CULQI_ENV` (`test`/`live`) | idem | Azure: no existe · local: `test` |
+| `CULQI_PUBLIC_KEY` | web (se entrega al navegador) | Azure: no existe · local: test |
+| `CULQI_SECRET_KEY` (alias antiguo `CULQI_PRIVATE_KEY`) | **secreto** en Key Vault, `secretRef` en web, worker y scheduler (los tres hablan con la API) | Azure: no existe · local: test |
+| `CULQI_WEBHOOK_SECRET` (≥ 32 caracteres) | **secreto**; solo web lo recibe, pero el job/comando lo lee en cualquier rol | Azure: no existe · local: definido |
+| `CULQI_WEBHOOKS_ENABLED` | web (y worker si procesa el job) | Azure: no existe (⇒ desactivado) · local: `false` |
+| `CULQI_METHODS` (`card`,`yape`,`order`) | web | Por defecto `card`. Añadir `yape`/`order` solo tras validarlos |
+| `CULQI_ENCRYPT_PAYLOADS`, `CULQI_RSA_ID`, `CULQI_RSA_PUBLIC_KEY` | — | **Desactivado** (§11) |
+| `CULQI_ORDER_TTL_MINUTES`, `CULQI_THREE_DS_WINDOW_MINUTES`, `CULQI_CHECKOUT_ALLOWLIST` | web | Opcionales (defaults en `config/payments.php`) |
+
+**Separación test/live:** `CulqiConfig` aborta el arranque con `PAYMENTS_ENABLED=true` si `CULQI_ENV` no coincide con el prefijo de las llaves, si hay llaves mezcladas o si hay `*_live_` fuera de `APP_ENV=production`; `applyTruth` además rechaza cargos con prefijo de otro entorno. **Nunca cargar llaves test en producción ni llaves live en staging/local.** Cargar los secretos con `az keyvault secret set` + `secretRef` en la app (mismo patrón que `mercadopago-access-token`), sin imprimirlos, y crear una revisión por rol (`az containerapp update --image …` no basta: hay que añadir las variables/secretRef).
+
+### 14.3 CulqiPanel: lo que debe hacer el titular (no hay API documentada para configurarlo)
+
+| # | Producto | Recurso | Acción | Resultado esperado | Entorno |
+|---|---|---|---|---|---|
+| 1 | CulqiPanel (producción) | Desarrollo → API Keys | Copiar la llave pública y mostrar/copiar la secreta **directamente** a Key Vault / variables (sin pegarlas en chats) | `pk_live_…` y `sk_live_…` cargadas como secretos | producción |
+| 2 | CulqiPanel (producción) | Comercio / medios de pago | Confirmar que el comercio está **aprobado** y qué medios están habilitados (tarjeta, Yape, PagoEfectivo/billeteras/banca móvil/agentes) | Lista de medios live | producción |
+| 3 | CulqiPanel (integración) | Eventos → Webhook | Crear **un webhook por evento**: `charge.creation.succeeded`, `charge.creation.failed`, `refund.creation.succeeded`, `refund.creation.failed`, `order.status.changed` (IDs del OpenAPI oficial `apiculqi.yaml`; la página pública de webhooks no los lista) | 5 webhooks apuntando a `https://movaeduca.me/api/webhooks/culqi/<CULQI_WEBHOOK_SECRET>` | integración (llaves test) **primero contra un entorno que no sea producción** |
+| 4 | CulqiPanel (producción) | Eventos → Webhook | Repetir los 5 con la URL de producción solo cuando haya llaves live y `CULQI_WEBHOOKS_ENABLED=true` | idem | producción |
+| 5 | CulqiPanel | Desarrollo → RSA Keys | Opcional: ver §11. No bloquea tarjeta, Yape ni órdenes | — | — |
+
+URL **HTTPS pública**; autenticación: **secreto en la ruta** (Culqi no documenta firma ni cabecera de autenticación ni lista de IP de origen; verificado en la documentación oficial 2026-10-22). Obtén la URL con `php artisan culqi:webhook-url --reveal` en tu terminal; el informe y los logs no la muestran. Tras registrar, validar la recepción real con un evento de sandbox (un cargo de prueba de tarjeta test) y comprobar en `payment_webhooks` una fila `culqi` procesada y en `payment_orders` el estado esperado.
+
+### 14.4 Seguridad del secreto del webhook en cada capa (verificado)
+
+| Capa | Estado |
+|---|---|
+| Logs de acceso de Caddy | No hay directiva `log` en `docker/Caddyfile`: no se registran URLs |
+| Logs HTTP de ingreso de Container Apps | El entorno solo envía a Log Analytics la consola y el sistema; no hay tabla de acceso HTTP; no hay Application Insights |
+| Logs de la aplicación | El controlador no registra la URL; Log Analytics (30 días) solo contiene dos avisos «[Culqi/Webhook] … descartada» sin secreto |
+| Sentry | `SentryScrubber`: redacta `/webhooks/culqi/{secreto}` en URL, transacción, mensaje, breadcrumbs, excepciones, **trazas y spans** (`CulqiSecretsTest`, 6 pruebas) |
+| Documentación / informes | Solo `<CULQI_WEBHOOK_SECRET>` |
+| Mecanismo más fuerte | **No hay uno oficial documentado** (sin firma/HMAC); se mantiene el secreto en la ruta + re-consulta de la API antes de acreditar |
+
+Rotación del secreto: nuevo valor (`openssl rand -hex 24`) en Key Vault → revisión nueva → actualizar la URL de los 5 webhooks en CulqiPanel (ventana corta; `culqi:reconcile` cada 5 min recupera lo perdido).
+
+### 14.5 Matriz de métodos de pago (qué está probado de verdad)
+
+| Método | Implementado | A. Mocks/PHPUnit | B. Sandbox real | C. Navegador | Operativo |
+|---|---|---|---|---|---|
+| Tarjeta | Sí | Sí | **Sí** (aprobada y rechazada) | **Sí** | **Solo sandbox** |
+| 3DS | Sí (Culqi3DS, dos pasos) | Sí (inicio, completar, cancelar, ventana vencida, token distinto) | **Sí** (tarjeta `4456 5300 0000 1096`, reto simulado, OTP de prueba) | **Sí** | **Solo sandbox**. Cancelado/fallido/inconcluso se distinguen: cancelado → `abandonThreeDs`; ventana vencida → cierre; segundo reto → fallo |
+| Yape | Sí (token `ype_`) | Sí | **Parcial**: solo se creó el token por API | No | **Pendiente de validación** |
+| Efectivo/billeteras/banca móvil/agentes (órdenes) | Sí | Sí (incluye `paid`, `expired`, `cancelled`) | **Parcial**: orden creada con CIP/QR y `pending` | **Parcial**: se muestra el pendiente, créditos sin acreditar | **Pendiente**: `state=paid` nunca observado |
+
+### 14.6 Pruebas de concurrencia reales (procesos independientes sobre MySQL)
+
+Nuevo comando QA `mova:qa-payment-race` + `scripts/qa-payment-race.sh` (+ doble HTTP local `scripts/qa/culqi-stub.php`): lanzan N procesos PHP independientes con barrera común contra `mysql_qa`/`mova_qa` (falla cerrado fuera de local/testing; no toca Culqi real).
+
+| Operación | Qué hace | Resultado (8 y 12 procesos; 3 repeticiones) |
+|---|---|---|
+| `reconcile-paid` | N procesos aplican la misma verdad «cargo pagado» (webhook + barrido + respuesta simultáneos) | **1 depósito**, saldo = 5, recarga `approved`, 0 errores |
+| `reconcile-refund` | recarga aprobada; N procesos aplican la misma devolución total | **1 reversión**, saldo 0, recarga `reversed` |
+| `charge-attempt` | N procesos (doble clic) piden cobrar el mismo intento contra el doble HTTP | **exactamente 1 `POST /v2/charges`**, 1 depósito |
+
+La primera ejecución encontró un defecto real (ver §14.7) y se corrigió antes de la serie verde. Uso: `bash scripts/qa-payment-race.sh <operación> <procesos>` dentro de `php_qa` (APP_ENV=testing).
+
+### 14.7 Defecto encontrado y corregido: el aviso por correo podía revertir una acreditación
+
+`RechargeApprovalService::credit()`/`reverse()` enviaban el aviso al profesor con `->notify()` **dentro de la transacción exterior** de `applyTruth`. Con la cola `sync` (la del web en producción) un fallo SMTP lanzaba `MailDeliveryException` y **revertía la acreditación de un pago ya confirmado** (se recuperaba después por el barrido, con retraso). Corrección mínima: `notifyAfterCommit()` (`DB::afterCommit` + `try/catch` + `report()`): el aviso solo sale tras el commit y su fallo nunca afecta al ledger. `changed` sigue garantizando un único aviso. Pruebas: `RechargeNotificationResilienceTest` (3; las dos primeras fallan sin el arreglo). **Esta corrección está en el repositorio pero NO desplegada en Azure** hasta que el titular decida el siguiente despliegue.
+
+### 14.8 Alojamiento compatible con uso comercial (si se confirma B-1)
+
+Sin migrar nada automáticamente. Precios de lista (Azure Retail Prices API, 2026-10-22, mexicocentral); solo estimaciones:
+
+| Opción | US$/mes aprox. | Notas |
+|---|---|---|
+| Mismo diseño en una suscripción **de pago por uso** (3 Container Apps + ACR Basic + IP + MySQL B1ms 32 GiB) | ≈ 44–52 | MySQL deja de ser gratuito (≈ 13,6 + 4,0). Conserva la optimización de OPcache CLI |
+| Lo anterior con la optimización C-1 de costos (worker+scheduler en un contenedor; en estudio, ver la documentación de costos de Azure) | ≈ 38–46 | Requiere prueba |
+| 1 VM `B2ats v2` (≈ 7,5) + disco + IP + MySQL gestionado | ≈ 34 | Rediseño de despliegue; `B1s` no está disponible en la suscripción actual |
+| Fuera de Azure | no evaluado | Requiere autorización del titular |
+
+### 14.9 Checklist de la Fase 9 (evidencia)
+
+| Condición | Estado | Evidencia |
+|---|---|---|
+| Comercio Culqi aprobado | ❌ sin verificar | B-3 |
+| Métodos de pago live habilitados | ❌ sin verificar | B-3 |
+| Credenciales live correctas | ❌ no existen | B-2 |
+| Webhooks HTTPS registrados y validados | ❌ | B-4 |
+| Secretos protegidos de logs | ✅ | §14.4 |
+| Checkout funcionando | ✅ solo sandbox (tarjeta/3DS) | §14.5 |
+| 3DS preparado | ✅ sandbox | §14.5 |
+| Confirmación de pagos verificada (API como verdad) | ✅ | `applyTruth` + `CulqiCheckoutTest` + `CulqiPaymentTest` |
+| Acreditación idempotente | ✅ | clave única + 3 carreras multi-proceso GREEN |
+| Conciliación disponible | ✅ | `culqi:reconcile` (scheduler 5 min cuando el proveedor es Culqi) |
+| Trabajadores de colas funcionando | ✅ (Mercado Pago hoy) | worker `Healthy`, `WorkerHeartbeatJob` cada minuto |
+| Rollback documentado | ✅ | §14.10 |
+| Monitoreo de errores financieros | ✅ parcial | alertas `payment_review`/`reconciliation_failure`; Sentry con redacción |
+| Capacidad de investigar y reembolsar | ✅ | `payments-migration-mp-to-culqi.md` §6; el reembolso se hace en CulqiPanel |
+| PCI y condiciones contractuales | ❌ sin evidencia | B-6 |
+| Compatibilidad con Azure for Students | ❌ **incompatible con uso comercial** | B-1 |
+
+**Conclusión: NO está preparado para activar cobros live.** La activación (cambio de `PAYMENT_PROVIDER`) exige aprobación explícita del titular una vez resueltos B-1…B-7. Una prueba live (S/ 1 + reembolso) también exige su autorización específica de operación e importe.
+
+### 14.10 Pasos de activación (futuros) y rollback
+
+1. Resolver B-1 (alojamiento/suscripción), B-2 (llaves live en Key Vault), B-3, B-6.
+2. Desplegar la imagen vigente (incluye la corrección §14.7) y cargar `CULQI_ENV=live`, `CULQI_PUBLIC_KEY`, `CULQI_SECRET_KEY` (secretRef), `CULQI_WEBHOOK_SECRET` (secretRef), `CULQI_WEBHOOKS_ENABLED=true`, `CULQI_METHODS=card`, `CULQI_CHECKOUT_ALLOWLIST` acotada, **sin** cambiar aún `PAYMENT_PROVIDER`.
+3. Registrar los 5 webhooks de producción (§14.3) y validar recepción con `culqi:diagnose`.
+4. Prueba live única autorizada (importe y operación aprobados por el titular) + reembolso; verificar un depósito y una reversión.
+5. Cambiar `PAYMENT_PROVIDER=culqi` en web, worker y scheduler (revisión nueva de cada uno); comprobar que el checkout usa Culqi, que los pagos antiguos siguen con su proveedor y que `culqi:reconcile` está agendado.
+
+**Rollback (nuevas recargas):** `PAYMENT_PROVIDER=mercadopago` en los tres roles; mantener `CULQI_*` y el webhook activos hasta cerrar las recargas/órdenes ya creadas con `provider=culqi` (se completan por `culqi:reconcile`); no borrar órdenes ni revertir asientos; no cambiar el proveedor de transacciones existentes. El rollback no duplica créditos: la acreditación depende de la clave `recharge:{id}:deposit`, no del proveedor activo.
+
+### 14.11 Errores frecuentes y reembolsos
+
+| Síntoma | Causa probable | Acción |
+|---|---|---|
+| Webhook responde 404 | `CULQI_WEBHOOKS_ENABLED` ausente/false o secreto distinto | Revisar variable y URL registrada (sin imprimir el secreto) |
+| Webhook 401 | Secreto de la ruta incorrecto | Rotar y actualizar la URL en CulqiPanel |
+| Recarga `pending` con cargo ya cobrado | Respuesta perdida/timeout | `php artisan culqi:reconcile --order=<id>` |
+| `review_reason` no nulo | Importe/metadata/entorno no coinciden, devolución parcial, disputa | Investigar con `culqi_get_charge` (MCP) y decidir manualmente; nunca acreditar a mano |
+| `crypto_error` | Cifrado RSA activado con un par inválido | Mantener `CULQI_ENCRYPT_PAYLOADS=false` |
+| Orden `pending` sin cambios | El usuario no pagó el CIP/QR | Vence sola (`CULQI_ORDER_TTL_MINUTES`) |
+
+**Reembolso:** solo desde CulqiPanel (o API de Culqi) sobre `chr_…`; el evento `refund.creation.succeeded` + re-consulta aplican `reverse()` si es **total** (puede dejar saldo negativo por regla de negocio); parcial/disputa → revisión humana. No existe reembolso desde MOVA ni aprobación manual de recargas Culqi.

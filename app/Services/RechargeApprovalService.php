@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Exceptions\ReversalWouldGoNegative;
+use App\Models\OperationalAlert;
 use App\Models\RechargeRequest;
 use App\Models\TeacherProfile;
 use App\Notifications\RechargeApprovedNotification;
 use App\Notifications\RechargeReversedNotification;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use Throwable;
+// OperationalAlertService vive en el mismo namespace (App\Services).
 
 /**
  * Único punto de abono/reversión de créditos por recarga. Antes esta
@@ -52,9 +56,7 @@ class RechargeApprovalService
         // podría procesar el job antes del commit y leer una recarga que
         // todavía no está aprobada.
         if ($result['changed']) {
-            $result['recharge']->teacherProfile?->user?->notify(
-                new RechargeApprovedNotification($result['recharge'])
-            );
+            $this->notifyAfterCommit($result['recharge'], new RechargeApprovedNotification($result['recharge']));
         }
 
         return $result;
@@ -197,9 +199,7 @@ class RechargeApprovalService
         // Misma garantía de exactamente-una-vez que en credit(): `changed` solo
         // es true en la ejecución que realmente movió la recarga a 'reversed'.
         if ($result['changed']) {
-            $result['recharge']->teacherProfile?->user?->notify(
-                new RechargeReversedNotification($result['recharge'])
-            );
+            $this->notifyAfterCommit($result['recharge'], new RechargeReversedNotification($result['recharge']));
         }
 
         return $result;
@@ -266,5 +266,41 @@ class RechargeApprovalService
         } catch (UniqueConstraintViolationException) {
             abort(409, 'La reversión ya fue procesada (idempotencia).');
         }
+    }
+
+    /**
+     * El aviso al profesor NUNCA puede deshacer ni bloquear un asiento del ledger.
+     *
+     * credit()/reverse() los invocan los conciliadores desde DENTRO de su propia transacción (applyTruth). Con la
+     * cola `sync` (la del web en producción) un fallo SMTP lanzaba aquí MailDeliveryException y revertía la
+     * acreditación de un pago YA confirmado por el proveedor (demostrado con mova:qa-payment-race). Se difiere al
+     * commit de la transacción más externa y cualquier fallo del aviso se reporta sin propagarse: el dinero ya
+     * quedó asentado y el correo es solo informativo.
+     */
+    private function notifyAfterCommit(RechargeRequest $recharge, Notification $notification): void
+    {
+        $notifiable = $recharge->teacherProfile?->user;
+
+        if ($notifiable === null) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($recharge, $notifiable, $notification) {
+            try {
+                $notifiable->notify($notification);
+            } catch (Throwable $e) {
+                // Ya no hay reintento automático (la recarga está asentada y un reintento vería changed=false):
+                // se reporta Y se deja una incidencia visible para que un humano reenvíe o avise al profesor.
+                report($e);
+                app(OperationalAlertService::class)->raise(
+                    key: "recharge:{$recharge->id}:notification_failed:".class_basename($notification),
+                    type: OperationalAlert::TYPE_PAYMENT_REVIEW,
+                    title: 'Aviso de recarga no enviado',
+                    message: 'El movimiento de créditos SÍ quedó asentado en el ledger, pero el correo al profesor falló. '
+                        .'No hay que repetir ninguna operación financiera: solo avisar al profesor si hace falta.',
+                    context: ['Motivo' => 'El aviso por correo no se pudo enviar (ver Sentry)', 'Recarga' => $recharge->id],
+                );
+            }
+        });
     }
 }

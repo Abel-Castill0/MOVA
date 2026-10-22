@@ -126,6 +126,8 @@ sequenceDiagram
 
 ## 7. Migración a producción (plan; **no activado**)
 
+> **Bloqueo previo (2026-10-22): la suscripción actual es Azure for Students**, cuya oferta es «expressly for the support of education or teaching, noncommercial research, or efforts to design, develop, test, and demonstrate software applications for these purposes» (Microsoft Learn FAQ). Cobrar a profesores reales es un uso comercial: **no activar cobros live en esa suscripción**. Alternativas, costos y la checklist completa de activación (con evidencia): [`payments-culqi.md`](payments-culqi.md) §14.
+
 **Dependencias de Culqi (acción del propietario):** llaves `pk_live_/sk_live_` solo en secretos de producción; cuestionario PCI aplicable (ver `payments-culqi.md` §12); confirmar medios habilitados (Yape, PagoEfectivo/billeteras); registrar los webhooks con HTTPS público; (opcional) RSA correcto.
 
 **Plan de activación (cuando lo autorices):** (1) desplegar el código con `PAYMENT_PROVIDER` aún en `mercadopago`/`fake` (la migración nueva es aditiva); (2) cargar `CULQI_*` live y `CULQI_ENV=live`; `CULQI_METHODS=card` primero; (3) registrar webhooks y `CULQI_WEBHOOKS_ENABLED=true`; (4) `php artisan culqi:diagnose` (config coherente) y una prueba live única de S/ 1 con cuenta del propietario seguida de reembolso (según `AGENTS.md`), verificando que `paid:false` + `venta_exitosa` también es la forma live; (5) cambiar `PAYMENT_PROVIDER=culqi` con `CULQI_CHECKOUT_ALLOWLIST` acotada; (6) ampliar.
@@ -282,8 +284,8 @@ Despliegue: el CI de GitHub (`.github/workflows/ci.yml`) solo valida (frontend, 
 | 1 | RSA opcional: Culqi responde `crypto_error` con el par entregado; el cifrado sigue desactivado (`CULQI_ENCRYPT_PAYLOADS=false`) | Sin resolver; acción del propietario en CulqiPanel (`payments-culqi.md` §11) |
 | 2 | Yape: tokenización probada; **pago completo no confirmado** | Pendiente de sandbox/live |
 | 3 | Orden asíncrona: nunca llegó a `paid` en el sandbox real; ese estado solo está probado con dobles | Pendiente |
-| 4 | Concurrencia real entre procesos no probada (tests secuenciales/reentrantes, también en MySQL) | Pendiente (`ConcurrencyProbe`) |
-| 5 | `credit()`/`reverse()` notifican dentro de la transacción exterior (heredado de Mercado Pago) | Riesgo conocido |
+| 4 | ~~Concurrencia real entre procesos no probada~~ → **probada** con procesos independientes sobre MySQL (`mova:qa-payment-race`, `scripts/qa-payment-race.sh`: 8 y 12 procesos × 3: 1 depósito, 1 reversión, 1 `POST /v2/charges`). Sigue sin probarse contra el sandbox real de Culqi con dos procesos | Cubierto en QA; ver `payments-culqi.md` §14.6 |
+| 5 | ~~`credit()`/`reverse()` notificaban dentro de la transacción exterior~~ → **corregido** (`notifyAfterCommit`: aviso tras el commit, su fallo se reporta y no toca el ledger; `RechargeNotificationResilienceTest`). **No desplegado todavía en Azure** | Corregido en el repo; pendiente de despliegue |
 | 6 | Posible diferencia de orden de locks: Recarga→Orden (`resolveAttemptRow`) vs Orden→Recarga (`applyTruth`) | Riesgo conocido |
 | 7 | Excluir `/api/webhooks/culqi/` de los logs de acceso de Azure | Pendiente de infraestructura (no tocada) |
 | 8 | Webhooks sin registrar/validar con HTTPS público en CulqiPanel | Pendiente del propietario |
