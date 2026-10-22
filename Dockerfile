@@ -91,6 +91,12 @@ RUN mkdir -p storage/framework/{cache/data,sessions,views} storage/logs bootstra
     && chown -R www-data:www-data storage bootstrap/cache public \
     && chown -R www-data:www-data /data /config
 
+# OPcache de archivos solo para el CLI (scheduler/worker lanzan `php artisan` cada minuto). Va AL
+# FINAL, después de todos los RUN de build, para que ningún bytecode compilado durante el build
+# quede dentro de la imagen; el directorio nace vacío en cada contenedor.
+COPY docker/php-cli.ini "$PHP_INI_DIR/php-cli.ini"
+RUN mkdir -p /tmp/opcache-cli && chown www-data:www-data /tmp/opcache-cli
+
 USER www-data
 
 ENV APP_ENV=production \
