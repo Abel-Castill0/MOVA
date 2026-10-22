@@ -108,7 +108,7 @@ class CulqiPaymentTest extends TestCase
                 && $d['metadata']['payment_order_id'] === (string) $order->id
                 && $d['metadata']['recharge_request_id'] === (string) $recharge->id
                 && $d['metadata']['idempotency_key'] === $order->idempotency_key
-                && array_diff(array_keys($d), ['amount', 'currency_code', 'email', 'source_id', 'capture', 'description', 'metadata']) === [];
+                && array_diff(array_keys($d), ['amount', 'currency_code', 'email', 'source_id', 'capture', 'description', 'metadata', 'antifraud_details']) === [];
         });
     }
 

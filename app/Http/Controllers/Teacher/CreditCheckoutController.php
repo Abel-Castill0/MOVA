@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
 use App\Support\CheckoutAllowlist;
+use App\Support\CheckoutProvider;
 use App\Support\CreditPackages;
 use App\Models\RechargeRequest;
 use App\Payment\Contracts\CardPaymentInstrument;
@@ -75,6 +76,12 @@ class CreditCheckoutController extends Controller
      */
     public function store(Request $request)
     {
+        // Culqi como proveedor activo: la recarga nace y se paga en Culqi (CulqiCheckoutController). Las
+        // recargas de Mercado Pago ya creadas conservan su payment_method y su flujo, sin cambios.
+        if (CheckoutProvider::culqiEnabled($request->user())) {
+            return app(CulqiCheckoutController::class)->store($request);
+        }
+
         $teacherProfile = $request->user()->teacherProfile;
         abort_unless($teacherProfile, 403, 'No tienes perfil de profesor.');
         abort_unless(
@@ -124,6 +131,9 @@ class CreditCheckoutController extends Controller
     public function show(RechargeRequest $recharge)
     {
         $this->authorize('view', $recharge);
+        if ($recharge->payment_method === 'culqi') {
+            return app(CulqiCheckoutController::class)->show($recharge);
+        }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
 
         $recharge->load('teacherProfile', 'latestPaymentOrder');
@@ -184,6 +194,9 @@ class CreditCheckoutController extends Controller
     public function pay(Request $request, RechargeRequest $recharge)
     {
         $this->authorize('pay', $recharge);
+        if ($recharge->payment_method === 'culqi') {
+            return app(CulqiCheckoutController::class)->pay($request, $recharge);
+        }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
         abort_unless(
             $this->mercadoPagoCheckoutEnabled(),
@@ -294,6 +307,9 @@ class CreditCheckoutController extends Controller
     public function status(RechargeRequest $recharge)
     {
         $this->authorize('view', $recharge);
+        if ($recharge->payment_method === 'culqi') {
+            return app(CulqiCheckoutController::class)->status($recharge);
+        }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
 
         return $this->uncachedJson($this->safeStatus($recharge, $recharge->latestPaymentOrder));
@@ -320,6 +336,9 @@ class CreditCheckoutController extends Controller
     public function refresh(RechargeRequest $recharge)
     {
         $this->authorize('view', $recharge);
+        if ($recharge->payment_method === 'culqi') {
+            return app(CulqiCheckoutController::class)->refresh($recharge);
+        }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
 
         $order = $recharge->latestPaymentOrder;

@@ -50,6 +50,11 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#send_default_pii
     'send_default_pii' => env('SENTRY_SEND_DEFAULT_PII', false),
 
+    // Redacta el secreto del webhook de Culqi (viaja en la ruta) antes de enviar el evento. Se usa un
+    // callable de array, no un Closure, para no romper `php artisan config:cache`.
+    'before_send' => [\App\Support\SentryScrubber::class, 'beforeSend'],
+    'before_send_transaction' => [\App\Support\SentryScrubber::class, 'beforeSendTransaction'],
+
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#ignore_exceptions
     // 'ignore_exceptions' => [],
 

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Muestra la URL que hay que registrar en CulqiPanel (Eventos > Webhooks).
@@ -21,6 +22,7 @@ class CulqiWebhookUrl extends Command
         'charge.creation.failed',
         'refund.creation.succeeded',
         'refund.creation.failed',
+        'order.status.changed',
     ];
 
     public function handle(): int
@@ -30,6 +32,22 @@ class CulqiWebhookUrl extends Command
             $this->error('CULQI_WEBHOOK_SECRET no está configurado. Genera uno largo (p. ej. `openssl rand -hex 24`) y guárdalo en el .env / gestor de secretos.');
 
             return self::FAILURE;
+        }
+
+        // Revelar el secreto es una acción sensible: solo en una terminal interactiva, con confirmación explícita y
+        // con una línea de auditoría (sin el secreto). Un pipe/CI/agente no interactivo nunca lo obtiene.
+        if ($this->option('reveal')) {
+            if (! $this->input->isInteractive()) {
+                $this->error('--reveal exige una terminal interactiva: el secreto del webhook no se imprime en ejecuciones automáticas.');
+
+                return self::FAILURE;
+            }
+            if (! $this->confirm('Vas a mostrar el secreto del webhook de Culqi en pantalla. ¿Estás en una terminal privada y sin grabación?', false)) {
+                $this->warn('Cancelado: no se mostró el secreto.');
+
+                return self::FAILURE;
+            }
+            Log::notice('[Culqi] Secreto del webhook revelado por consola.', ['usuario_so' => get_current_user(), 'entorno' => app()->environment()]);
         }
 
         $base = rtrim((string) ($this->option('base') ?: config('app.url')), '/');

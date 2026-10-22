@@ -68,6 +68,18 @@ return [
         'sandbox_max_amount_minor' => (int) env('CULQI_SANDBOX_MAX_AMOUNT_MINOR', 1000),
         // Prefijo del correo sintético de la sonda culqi:sandbox-smoke (se le añade un sufijo único por ejecución).
         'sandbox_payer_email_local' => env('CULQI_SANDBOX_PAYER_EMAIL_LOCAL', 'sandbox-smoke'),
+
+        // Medios que el checkout ofrece al profesor (lista separada por comas): card | yape | order.
+        // Por defecto SOLO tarjeta: Yape y las órdenes (PagoEfectivo/billeteras/Cuotéalo) dependen de que
+        // CulqiPanel los haya habilitado para el comercio y no se activan sin esa confirmación. El código de
+        // los tres está listo; ver docs/payments-culqi.md §Medios de pago.
+        'methods' => env('CULQI_METHODS', 'card'),
+        // Vigencia de una orden de pago (minutos). Culqi asigna 24 h si no se envía.
+        'order_ttl_minutes' => (int) env('CULQI_ORDER_TTL_MINUTES', 1440),
+        // Ventana para completar el reto 3DS tras el primer POST /v2/charges (el token de Culqi vive ~5 min).
+        'three_ds_window_minutes' => (int) env('CULQI_THREE_DS_WINDOW_MINUTES', 8),
+        // Allowlist de correos que pueden usar el checkout (QA/staging). Vacía = sin restricción.
+        'checkout_allowlist' => env('CULQI_CHECKOUT_ALLOWLIST'),
         'recovery' => [
             // payment_orders pendientes/inciertas más viejas que esto se reconcilian contra la API.
             'stuck_order_minutes' => (int) env('CULQI_RECOVERY_STUCK_ORDER_MINUTES', 15),

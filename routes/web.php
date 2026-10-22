@@ -32,6 +32,7 @@ use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\LegalAcceptanceController;
 use App\Http\Controllers\Teacher\CreditController;
 use App\Http\Controllers\Teacher\CreditCheckoutController;
+use App\Http\Controllers\Teacher\CulqiCheckoutController;
 use App\Http\Controllers\Teacher\AvailabilityController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ChatbotController;
@@ -201,6 +202,19 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
         Route::post('/teacher/credits/checkout/{recharge}/refresh', [CreditCheckoutController::class, 'refresh'])
             ->middleware('throttle:60,1')
             ->name('teacher.credits.checkout.refresh');
+
+        // Culqi Custom Checkout: pasos propios de Culqi (3DS en dos tiempos y órdenes de pago). Las demás
+        // acciones (store/show/pay/status/refresh) comparten ruta con Mercado Pago y se delegan según el
+        // payment_method de la recarga. Una recarga que no sea 'culqi' responde 404 aquí.
+        Route::post('/teacher/credits/checkout/{recharge}/3ds', [CulqiCheckoutController::class, 'threeDs'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.three-ds');
+        Route::post('/teacher/credits/checkout/{recharge}/3ds/cancel', [CulqiCheckoutController::class, 'cancelThreeDs'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.three-ds.cancel');
+        Route::post('/teacher/credits/checkout/{recharge}/order', [CulqiCheckoutController::class, 'order'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.order');
 
         // 'create'/'store' deliberadamente excluidos: el profesor ya no
         // publica anuncios (marketplace informativo, HANDOFF_FINAL.md §21) —

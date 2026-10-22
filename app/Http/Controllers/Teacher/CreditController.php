@@ -7,6 +7,7 @@ use App\Models\RechargeRequest;
 use App\Models\User;
 use App\Notifications\NewRechargeRequestNotification;
 use App\Support\CheckoutAllowlist;
+use App\Support\CheckoutProvider;
 use App\Support\CreditPackages;
 use App\Support\OperationNumberNormalizer;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -46,7 +47,7 @@ class CreditController extends Controller
             // S/ 2.00" con el valor escrito a mano en la plantilla: si alguien
             // ajustaba config/credits.php, esa línea mentía al profesor
             // justo en la pantalla donde decide comprar.
-            'packages' => collect($this->mercadoPagoCheckoutEnabled() ? CreditPackages::forCheckout(auth()->user()) : config('credits.packages'))
+            'packages' => collect(CheckoutProvider::active(auth()->user()) !== null ? CreditPackages::forCheckout(auth()->user()) : config('credits.packages'))
                 ->map(fn (array $package, string $code) => ['code' => $code] + $package + [
                     'price_per_credit' => $package['credits'] > 0
                         ? number_format((float) $package['amount_pen'] / $package['credits'], 2, '.', '')
@@ -63,6 +64,9 @@ class CreditController extends Controller
             // independiente del flujo manual de arriba (ver
             // CreditCheckoutController::mercadoPagoCheckoutEnabled()).
             'mercadoPagoCheckoutEnabled' => $this->mercadoPagoCheckoutEnabled(),
+            // Pasarela activa del checkout automático ('mercadopago' | 'culqi' | null) y su etiqueta, para que la
+            // pantalla no nombre a un proveedor que no es el que realmente cobra.
+            'checkoutProvider' => CheckoutProvider::active(auth()->user()),
         ]);
     }
 

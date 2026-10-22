@@ -51,9 +51,9 @@ class ProcessCulqiWebhook implements ShouldQueue
             return;
         }
 
-        // Evento sobre un recurso que MOVA no gestiona (tokens, clientes, planes, órdenes…): se registra y se cierra.
+        // Evento sobre un recurso que MOVA no gestiona (tokens, clientes, planes, suscripciones…): se registra y se cierra.
         $type = (string) $webhook->event_type;
-        if (! str_starts_with($type, 'charge.') && ! str_starts_with($type, 'refund.')) {
+        if (! str_starts_with($type, 'charge.') && ! str_starts_with($type, 'refund.') && ! str_starts_with($type, 'order.')) {
             $webhook->update(['status' => 'processed', 'processed_at' => now(), 'error' => 'tipo de evento no gestionado']);
 
             return;
@@ -69,6 +69,17 @@ class ProcessCulqiWebhook implements ShouldQueue
         $order = PaymentOrder::where('provider', CulqiPaymentProvider::PROVIDER)
             ->where('provider_order_id', $chargeId)
             ->first();
+
+        // Orden de pago aún no vinculada (carrera con la respuesta de creación, o creación incierta): la API
+        // dice si su metadata corresponde a un intento de MOVA; solo entonces se vincula y se concilia.
+        if (! $order && str_starts_with($chargeId, 'ord_') && $reconciler->linkOrderByMetadata($chargeId, $webhook) !== null) {
+            $webhook->refresh();
+            if ($webhook->status === 'received') {
+                $webhook->update(['status' => 'processed', 'processed_at' => now()]);
+            }
+
+            return;
+        }
 
         if (! $order) {
             // Última oportunidad: el cargo no es de MOVA (creado desde el panel/MCP/otro sistema o un

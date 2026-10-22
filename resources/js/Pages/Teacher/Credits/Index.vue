@@ -32,7 +32,7 @@
           <p v-if="!anyRechargeMethodEnabled" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
             Las recargas se habilitarán próximamente.
           </p>
-          <p v-else-if="mercadoPagoCheckoutEnabled" class="text-sm text-slate-500">Paga al instante con Yape — tus créditos se acreditan automáticamente.</p>
+          <p v-else-if="automaticCheckoutEnabled" class="text-sm text-slate-500">{{ automaticCheckoutHelp }}</p>
           <p v-else class="text-sm text-slate-500">Realiza el pago al destino indicado y registra el número de operación para revisión administrativa.</p>
         </div>
 
@@ -51,7 +51,7 @@
             <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
 
             <button
-              v-if="mercadoPagoCheckoutEnabled"
+              v-if="automaticCheckoutEnabled"
               type="button"
               :disabled="payingWithYape === pack.code"
               class="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-brand-600/20 transition-all hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -61,17 +61,17 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
               </svg>
-              {{ payingWithYape === pack.code ? 'Abriendo checkout…' : 'Pagar con Yape' }}
+              {{ payingWithYape === pack.code ? 'Abriendo checkout…' : automaticCheckoutLabel }}
             </button>
             <button
               v-if="rechargesEnabled"
               type="button"
-              :class="mercadoPagoCheckoutEnabled
+              :class="automaticCheckoutEnabled
                 ? 'mt-2 w-full rounded-xl px-4 py-2 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700'
                 : 'mt-5 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2'"
               @click="openRecharge(pack)"
             >
-              {{ mercadoPagoCheckoutEnabled ? 'Pagar manualmente y esperar revisión' : 'Comprar' }}
+              {{ automaticCheckoutEnabled ? 'Pagar manualmente y esperar revisión' : 'Comprar' }}
             </button>
           </article>
         </div>
@@ -293,6 +293,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // Pasarela que atiende el checkout automático: 'mercadopago' | 'culqi' | null (apagado).
+  checkoutProvider: {
+    type: String,
+    default: null,
+  },
 })
 
 const activeTab = ref('transactions')
@@ -304,7 +309,14 @@ const payingWithYape = ref(null)
 // backend (ver CreditController::rechargesEnabled() vs.
 // mercadoPagoCheckoutEnabled()) — la sección de paquetes se muestra si
 // cualquiera de los dos está activo, nunca solo si lo está el manual.
-const anyRechargeMethodEnabled = computed(() => props.rechargesEnabled || props.mercadoPagoCheckoutEnabled)
+const automaticCheckoutEnabled = computed(() => props.checkoutProvider !== null || props.mercadoPagoCheckoutEnabled)
+const anyRechargeMethodEnabled = computed(() => props.rechargesEnabled || automaticCheckoutEnabled.value)
+
+// El texto y el botón nombran solo lo que la pasarela activa realmente ofrece.
+const automaticCheckoutLabel = computed(() => (props.checkoutProvider === 'culqi' ? 'Pagar en línea' : 'Pagar con Yape'))
+const automaticCheckoutHelp = computed(() => (props.checkoutProvider === 'culqi'
+  ? 'Paga en línea de forma segura: tus créditos se acreditan automáticamente cuando se confirma el pago.'
+  : 'Paga al instante con Yape — tus créditos se acreditan automáticamente.'))
 
 function payWithYape(pack) {
   if (payingWithYape.value) return

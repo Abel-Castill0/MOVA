@@ -78,6 +78,12 @@ class CulqiClient
 
     // ── Órdenes ───────────────────────────────────────────────────────────
 
+    /** @param array<string, mixed> $payload */
+    public function createOrder(array $payload): CulqiResult
+    {
+        return $this->post($this->baseUrl().'/v2/orders', $payload, $this->secret());
+    }
+
     public function getOrder(string $id): CulqiResult
     {
         return $this->get($this->baseUrl().'/v2/orders/'.rawurlencode($id), [], $this->secret());

@@ -8,6 +8,8 @@ use App\Models\PaymentWebhook;
 use App\Models\RechargeRequest;
 use App\Payment\Culqi\CulqiChargeMapper;
 use App\Payment\Culqi\CulqiClient;
+use App\Payment\Culqi\CulqiConfig;
+use App\Payment\Culqi\CulqiOrderMapper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -33,28 +35,56 @@ class CulqiPaymentReconciliationService
     {
     }
 
-    /** Consulta el cargo en Culqi y aplica el resultado. Devuelve el estado local resultante. */
+    /** Consulta el cargo/orden en Culqi y aplica el resultado. Devuelve el estado local resultante. */
     public function reconcile(PaymentOrder $order, ?PaymentWebhook $webhook = null): string
     {
-        $chargeId = $order->provider_order_id;
+        $resourceId = $order->provider_order_id;
 
-        if ($chargeId === null) {
+        if ($resourceId === null) {
             throw new RuntimeException("CulqiPaymentReconciliationService: PaymentOrder#{$order->id} todavía no tiene provider_order_id — nada que consultar.");
         }
 
-        $result = $this->client->getCharge($chargeId);
+        $isOrder = str_starts_with($resourceId, 'ord_');
+        $result = $isOrder ? $this->client->getOrder($resourceId) : $this->client->getCharge($resourceId);
 
         if (! $result->successful()) {
             // No se sabe nada nuevo: se reintenta luego (job/barrido), no se cambia el estado.
-            throw new RuntimeException("CulqiPaymentReconciliationService: no se pudo consultar el cargo {$chargeId} (HTTP {$result->status}).");
+            throw new RuntimeException('CulqiPaymentReconciliationService: no se pudo consultar '.($isOrder ? 'la orden' : 'el cargo')." {$resourceId} (HTTP {$result->status}).");
         }
 
         return $this->applyTruth($order, $webhook, $result->body);
     }
 
     /**
-     * Aplica un objeto `charge` ya obtenido directamente de la API de Culqi
-     * (respuesta de POST /v2/charges o GET /v2/charges/{id}) — NUNCA un
+     * Evento de una orden que MOVA todavía no tiene vinculada (carrera con la respuesta de creación, o
+     * creación incierta): se consulta la orden en Culqi y, SOLO si su metadata apunta a un PaymentOrder
+     * de Culqi del canal `order` sin id de proveedor, se vincula y se concilia. null = no es de MOVA.
+     */
+    public function linkOrderByMetadata(string $culqiOrderId, ?PaymentWebhook $webhook = null): ?string
+    {
+        $result = $this->client->getOrder($culqiOrderId);
+        if (! $result->successful()) {
+            throw new RuntimeException("CulqiPaymentReconciliationService: no se pudo consultar la orden {$culqiOrderId} (HTTP {$result->status}).");
+        }
+
+        $local = PaymentOrder::where('provider', 'culqi')
+            ->where('payment_channel', 'order')
+            ->whereNull('provider_order_id')
+            ->whereKey((int) ($result->body['metadata']['payment_order_id'] ?? 0))
+            ->first();
+
+        if ($local === null || ! $this->metadataMatches($result->body, $local)) {
+            return null;
+        }
+
+        $local->update(['provider_order_id' => $culqiOrderId, 'submission_status' => 'submitted']);
+
+        return $this->applyTruth($local->fresh(), $webhook, $result->body);
+    }
+
+    /**
+     * Aplica un objeto `charge` u `order` ya obtenido directamente de la API de Culqi
+     * (respuesta de POST /v2/charges o GET /v2/charges|orders/{id}) — NUNCA un
      * payload de webhook.
      *
      * @param  array<string, mixed>  $charge
@@ -70,6 +100,10 @@ class CulqiPaymentReconciliationService
                 $this->markReview($order, $webhook, $mismatch, $charge);
 
                 return 'review';
+            }
+
+            if ($this->isOrderObject($charge)) {
+                return $this->applyOrderTruth($order, $recharge, $webhook, $charge);
             }
 
             $normalized = CulqiChargeMapper::normalize($charge);
@@ -120,7 +154,12 @@ class CulqiPaymentReconciliationService
             $query['email'] = $email;
         }
 
-        $result = $this->client->listCharges($query);
+        $isOrderChannel = $order->payment_channel === 'order';
+        if ($isOrderChannel) {
+            unset($query['email'], $query['currency_code']); // el listado de órdenes solo filtra por importe y fechas
+        }
+
+        $result = $isOrderChannel ? $this->client->listOrders($query) : $this->client->listCharges($query);
 
         if (! $result->successful()) {
             return $this->bumpSearchAttempt($order, 'búsqueda no concluyente (HTTP '.$result->status.')');
@@ -134,7 +173,7 @@ class CulqiPaymentReconciliationService
             }
         }
 
-        return $this->bumpSearchAttempt($order, 'ningún cargo con la metadata de este intento');
+        return $this->bumpSearchAttempt($order, $isOrderChannel ? 'ninguna orden con la metadata de este intento' : 'ningún cargo con la metadata de este intento');
     }
 
     public function markReview(?PaymentOrder $order, ?PaymentWebhook $webhook, string $reason, array $charge = []): void
@@ -278,9 +317,16 @@ class CulqiPaymentReconciliationService
             return 'El cargo consultado no es el registrado en el intento (id distinto).';
         }
 
-        $expectedPrefix = \App\Payment\Culqi\CulqiConfig::isTestMode() ? 'chr_test_' : 'chr_live_';
+        $isOrder = $this->isOrderObject($charge);
+        $mode = CulqiConfig::isTestMode() ? 'test' : 'live';
+        $expectedPrefix = ($isOrder ? 'ord_' : 'chr_').$mode.'_';
         if (! str_starts_with($id, $expectedPrefix)) {
-            return 'El cargo pertenece a otro entorno de Culqi (test/live) que el configurado.';
+            return 'El recurso pertenece a otro entorno de Culqi (test/live) o no es del tipo esperado.';
+        }
+
+        // El canal local decide qué recurso se espera: una orden de pago nunca se resuelve con un cargo (ni al revés).
+        if (($order->payment_channel === 'order') !== $isOrder) {
+            return 'El tipo de recurso de Culqi (cargo/orden) no coincide con el canal del intento.';
         }
 
         if (! $this->metadataMatches($charge, $order)) {
@@ -366,7 +412,57 @@ class CulqiPaymentReconciliationService
             return null;
         }
 
+        if ($this->isOrderObject($charge)) {
+            return is_string($charge['state'] ?? null) ? mb_substr($charge['state'], 0, 64) : null;
+        }
+
         return ($charge['paid'] ?? false) === true ? 'paid' : 'not_paid';
+    }
+
+    /** @param array<string, mixed> $resource */
+    private function isOrderObject(array $resource): bool
+    {
+        return ($resource['object'] ?? null) === 'order' || str_starts_with((string) ($resource['id'] ?? ''), 'ord_');
+    }
+
+    // ── Órdenes de pago (PagoEfectivo, billeteras, Cuotéalo…) ─────────────
+
+    /** @param array<string, mixed> $culqiOrder */
+    private function applyOrderTruth(PaymentOrder $order, RechargeRequest $recharge, ?PaymentWebhook $webhook, array $culqiOrder): string
+    {
+        return match (CulqiOrderMapper::normalize($culqiOrder)) {
+            'paid' => $this->applyPaid($order, $recharge, $culqiOrder),
+            'expired' => $this->closeOrderUnpaid($order, 'expired', $culqiOrder),
+            'cancelled' => $this->closeOrderUnpaid($order, 'cancelled', $culqiOrder),
+            'pending' => $this->keepOrderPending($order, $culqiOrder),
+            default => $this->reviewAndReturn($order, $webhook, 'Estado de la orden en Culqi no reconocido ('.($culqiOrder['state'] ?? 'null').') — fail closed.', $culqiOrder),
+        };
+    }
+
+    /** Orden creada/pendiente: se registra la verificación y NO se acredita nada. */
+    private function keepOrderPending(PaymentOrder $order, array $culqiOrder): string
+    {
+        if ($order->status === 'paid') {
+            return 'paid'; // un evento tardío "pending" nunca degrada un pago ya acreditado
+        }
+
+        $this->recordResolvedTruth($order, $culqiOrder);
+
+        return 'pending';
+    }
+
+    private function closeOrderUnpaid(PaymentOrder $order, string $terminal, array $culqiOrder): string
+    {
+        if ($order->status === 'paid') {
+            return $this->reviewAndReturn($order, null, "Culqi reporta la orden '{$terminal}' pero MOVA ya la acreditó como pagada — requiere revisión manual.", $culqiOrder);
+        }
+
+        if (! in_array($order->status, ['failed', 'expired', 'cancelled'], true)) {
+            $order->update(['status' => $terminal, 'submission_status' => 'submitted']);
+        }
+        $this->recordResolvedTruth($order, $culqiOrder);
+
+        return $terminal;
     }
 
     private function providerDetail(array $charge): ?string
