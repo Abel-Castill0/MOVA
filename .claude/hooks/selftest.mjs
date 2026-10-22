@@ -44,6 +44,30 @@ for (const c of ['git reset --hard HEAD~1', 'git push --force origin master', 'g
   check(`bash ask: ${c}`, decision(r) === 'ask', JSON.stringify(r.out));
 }
 
+// --- guard-bash: .env citado como TEXTO o consultas que no revelan valores → no preguntan
+for (const c of [
+  `printf 'ejecuta: grep -c APP_KEY .env.production' > prompt.txt`,
+  `echo "no hagas cat .env" && ls`,
+  'grep -c APP_KEY .env.production',
+  'grep -q APP_KEY .env',
+  'grep -l APP_KEY .env.production .env',
+  'ls -la .env',
+  'cat .env.example',
+  'git commit -m "docs: no imprimir cat .env.production"',
+]) {
+  const r = bash(c);
+  check(`bash allow (.env solo texto/quieto): ${c.slice(0, 60)}`, decision(r) === 'allow' && r.out === null, JSON.stringify(r.out));
+}
+// --- .env como argumento real de un comando que imprime → sigue preguntando (también tras && o con comillas)
+for (const c of ['cat ".env"', 'echo ok && cat .env.production', 'head -5 ./.env', 'grep APP_KEY .env.production', 'tail qa/.env.qa | wc -l']) {
+  check(`bash ask (.env impreso): ${c}`, decision(bash(c)) === 'ask');
+}
+// --- modo "omitir permisos": el .env no fuerza el prompt (solo aviso); las operaciones destructivas siguen pidiendo
+const byp = (command) => run('guard-bash.mjs', { tool_name: 'Bash', permission_mode: 'bypassPermissions', tool_input: { command } });
+const rb = byp('cat .env');
+check('bypassPermissions: cat .env sin prompt, con aviso', decision(rb) === 'allow' && /omitir-permisos/.test(rb.out?.hookSpecificOutput?.additionalContext ?? ''), JSON.stringify(rb.out));
+check('bypassPermissions: git reset --hard sigue pidiendo confirmación', decision(byp('git reset --hard HEAD~1')) === 'ask');
+
 // --- guard-bash: git commit con/ sin secretos en un repo temporal
 const sandbox = path.join(tmp, 'repo');
 fs.mkdirSync(sandbox);
@@ -98,6 +122,38 @@ check('snapshot save escribe .claude/state', fs.existsSync(path.join(proj, '.cla
 fs.writeFileSync(path.join(proj, 'nuevo.txt'), 'x');
 const st = run('snapshot.mjs', { hook_event_name: 'SessionStart' }, { cwd: proj, args: ['start'] });
 check('snapshot start imprime contexto breve', /MOVA ·/.test(st.raw) && st.raw.split('\n').length <= 5, st.raw);
+
+// --- prompt-hint (UserPromptSubmit): clasifica sin alterar ni bloquear
+const hint = (prompt) => run('optional/prompt-hint.mjs', { hook_event_name: 'UserPromptSubmit', prompt });
+const ctx = (r) => r.out?.hookSpecificOutput?.additionalContext ?? null;
+const cases = [
+  ['arregla los créditos cuando cancelan una clase', /Dinero/],
+  ['revisa por qué está fallando Mercado Pago', /Dinero/],
+  ['el dashboard del profesor está muy feo, mejóralo', /Frontend/],
+  ['haz que el administrador pueda controlar las solicitudes', /Funcionalidad/],
+  ['haz commit de lo que cambié', /Git/],
+  ['cómo es la seguridad del login de los padres', /Seguridad/],
+  ['por qué se cae la cola de correos en producción', /Depuración|Backend/],
+];
+for (const [p, re] of cases) {
+  const r = hint(p);
+  check(`hint "${p.slice(0, 40)}"`, r.status === 0 && re.test(ctx(r) ?? ''), JSON.stringify(r.out));
+  check('  contexto ≤ 50 palabras y sin decisión de bloqueo', (ctx(r) ?? '').split(/\s+/).length <= 50 && !r.out?.decision && !r.out?.hookSpecificOutput?.permissionDecision);
+}
+for (const p of ['ok', 'gracias, sigue', '/mova-audit app', '¿qué hace credit() en RechargeApprovalService?', 'en StatusBadge.vue ponle role="status"', 'cuál es la capital de Perú',
+  '<task-notification>subagent terminó: arregla el error de pago</task-notification>', 'x'.repeat(450) + ' pago error']) {
+  check(`hint silencio: ${p.slice(0, 40)}`, hint(p).out === null);
+}
+check('hint tolera entrada vacía/corrupta', run('optional/prompt-hint.mjs', {}).status === 0);
+
+// --- agentes: todos de solo lectura y con frontmatter coherente
+const agentsDir = path.join(repo, '.claude/agents');
+for (const f of fs.readdirSync(agentsDir).filter((x) => x.startsWith('mova-'))) {
+  const fm = /^---\n([\s\S]*?)\n---/.exec(fs.readFileSync(path.join(agentsDir, f), 'utf8'))?.[1] ?? '';
+  const tools = /^tools:\s*(.+)$/m.exec(fm)?.[1].split(',').map((s) => s.trim()) ?? [];
+  const nameOk = new RegExp(`^name:\\s*${f.replace('.md', '')}\\s*$`, 'm').test(fm);
+  check(`agente ${f}: nombre=archivo, solo Read/Grep/Glob`, nameOk && tools.length > 0 && tools.every((t) => ['Read', 'Grep', 'Glob'].includes(t)), `tools=${tools}`);
+}
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${total - failed}/${total} OK`);

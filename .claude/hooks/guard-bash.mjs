@@ -4,7 +4,7 @@
 //            migrate:fresh/reset/rollback, db:wipe/seed, DROP/TRUNCATE) y comandos que
 //            imprimirían el contenido de un .env real.
 // Todo lo demás pasa sin salida (no añade latencia perceptible ni ruido).
-import { readInput, projectDir, git, ask, deny, scanText, isSensitiveFile } from './lib.mjs';
+import { readInput, projectDir, git, ask, deny, context, scanText, isSensitiveFile } from './lib.mjs';
 
 const input = readInput();
 if (input.tool_name && input.tool_name !== 'Bash') process.exit(0);
@@ -62,11 +62,31 @@ for (const [re, why] of risky) {
   }
 }
 
-// 3) Imprimir un .env real (no *.example).
-const envFile = /(?:^|[\s/\\'"=])\.env(?:\.(?!example\b)[\w.-]+)?(?=$|[\s'"|;&)])/;
-const printer = /\b(?:cat|type|more|less|head|tail|sed|awk|grep|rg|egrep|Get-Content|gc|Select-String|printenv|env)\b/;
-const skipEnv = /\bgit\s+(?:-C\s+\S+\s+)?commit\b|\bgh\s+(?:pr|issue)\b/.test(cmd);
-if (!skipEnv && envFile.test(raw) && printer.test(raw)) {
-  ask('El comando leería un .env real y podría imprimir secretos (AGENTS.md: no mostrar valores). Valida solo presencia/formato, o usa un script que no los imprima.');
-  process.exit(0);
+// 3) Imprimir un .env real (no *.example). Se analiza comando a comando y el .env solo cuenta
+// como ARGUMENTO de un comando que imprime contenido: el texto entre comillas (printf, echo,
+// mensajes de commit, prompts) y las consultas que no revelan valores (grep -c/-q/-l) no activan nada.
+const PRINTERS = new Set(['cat', 'type', 'more', 'less', 'head', 'tail', 'sed', 'awk', 'grep', 'egrep', 'fgrep', 'rg', 'bat', 'nl', 'tac', 'od', 'xxd', 'strings',
+  'get-content', 'gc', 'select-string', 'printenv', 'env']);
+const isEnvArg = (t) => /(?:^|[\\/])\.env(?:\.[\w.-]+)?$/.test(t) && !/\.example$/i.test(t);
+const unquoted = raw
+  .replace(/<<-?\s*['"]?(\w+)['"]?[\s\S]*?\n\s*\1\b/g, ' ')
+  .replace(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g, (m, a, b) => { const s = a ?? b ?? ''; return /^\S+$/.test(s) && isEnvArg(s) ? ` ${s} ` : '""'; });
+const quietFlag = (a) => /^-[A-Za-z]*[cqlL][A-Za-z]*$/.test(a) || /^--(?:count|quiet|silent|files-with-matches|files-without-match)$/.test(a);
+const readsEnv = unquoted.split(/&&|\|\||[;|\n]/).some((seg) => {
+  const tokens = seg.trim().split(/\s+/).filter(Boolean);
+  while (tokens.length && (/^[A-Za-z_]\w*=/.test(tokens[0]) || ['sudo', 'command', 'builtin', 'time'].includes(tokens[0].toLowerCase()))) tokens.shift();
+  const name = (tokens[0] ?? '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase();
+  if (!PRINTERS.has(name)) return false;
+  const args = tokens.slice(1);
+  if (!args.some(isEnvArg)) return false;
+  if (['grep', 'egrep', 'fgrep', 'rg'].includes(name) && args.some(quietFlag)) return false; // solo conteo/existencia
+  return true;
+});
+if (readsEnv) {
+  if (input.permission_mode === 'bypassPermissions') {
+    // El usuario eligió "omitir permisos": no se fuerza el prompt; queda solo el aviso al modelo.
+    context('PreToolUse', 'Lectura de un .env real en modo omitir-permisos: no muestres valores de secretos (AGENTS.md); valida solo presencia/formato.');
+  } else {
+    ask('El comando leería un .env real y podría imprimir secretos (AGENTS.md: no mostrar valores). Valida solo presencia/formato (p. ej. grep -c), o usa un script que no los imprima.');
+  }
 }

@@ -19,7 +19,9 @@
 | Skill `/mova-feature-workflow` | `skills/mova-feature-workflow/` | Investigar→planificar→implementar→revisar→verificar, con umbral S/M/L |
 | Skill `/mova-safe-qa` | `skills/mova-safe-qa/` | Selección y ejecución de pruebas aisladas + informe de ≤15 líneas |
 | Skill `/mova-release-check` (solo manual) | `skills/mova-release-check/` | GO/NO-GO previo a push/release; solo lectura |
-| Hooks + config | `settings.json`, `hooks/*.mjs` | Ver §4 |
+| Agente `mova-context-scout` (haiku, 12 turnos, `omitClaudeMd`) | `agents/mova-context-scout.md` | Localiza archivos/funciones y devuelve `ruta:línea` (<250 palabras); solo para búsquedas amplias |
+| Skill `/mova-prompt [preview\|execute]` (solo manual) | `skills/mova-prompt/` | Interpreta instrucciones informales: PREVIEW (por defecto) o EXECUTE |
+| Hooks + config | `settings.json`, `hooks/*.mjs` | Ver §4. `hooks/optional/prompt-hint.mjs` está **desactivado** (§8) |
 
 **Modificados (mínimo):** `CLAUDE.md` §7 (+1 párrafo de punteros), `docs/README.md` (+1 fila), `docs/PROMPTS_CLAUDE_CODE.md` (regla 8), `.gitignore` (+`/.claude/state/`).
 **Reutilizados sin cambios:** `/handoff`, `/mova-audit`, skill `mova-mercadopago`, `.claude/rules/*`, `launch.json`. Los agentes **no** duplican rules ni skills: las referencian.
@@ -62,7 +64,7 @@ Node ≥ 18 (sin dependencias), ejecutados con `node` desde Git Bash o PowerShel
 
 | Evento | Script | Comportamiento |
 |---|---|---|
-| PreToolUse `Bash` | `guard-bash.mjs` | **Deniega** `git commit` si lo staged (o `-a`) incluye `.env*`, `qa/auth/`, `*.local.env`, `auth.json`, claves PEM o tokens reconocibles (Mercado Pago, GitHub, AWS, Google, Slack, Sentry DSN, Cloudinary…). **Pide confirmación** en `git reset --hard`, force push, `git clean -f`, `checkout/restore .`, `branch -D`, `rm -rf`, `Remove-Item -Recurse -Force`, `migrate:fresh/reset/rollback`, `db:wipe`, `db:seed`, `DROP/TRUNCATE`, y al imprimir un `.env` real (no `*.example`). Ignora el texto entre comillas/heredocs (mensajes de commit). |
+| PreToolUse `Bash` | `guard-bash.mjs` | **Deniega** `git commit` si lo staged (o `-a`) incluye `.env*`, `qa/auth/`, `*.local.env`, `auth.json`, claves PEM o tokens reconocibles (Mercado Pago, GitHub, AWS, Google, Slack, Sentry DSN, Cloudinary…). **Pide confirmación** en `git reset --hard`, force push, `git clean -f`, `checkout/restore .`, `branch -D`, `rm -rf`, `Remove-Item -Recurse -Force`, `migrate:fresh/reset/rollback`, `db:wipe`, `db:seed`, `DROP/TRUNCATE`, y cuando un comando que imprime contenido (`cat`, `head`, `grep` sin `-c/-q/-l`, `Get-Content`…) recibe un `.env` real como argumento (no `*.example`). Ignora el texto entre comillas/heredocs (mensajes de commit, prompts, `printf`) y las consultas que no revelan valores (`grep -c`, `ls`). Con *Omitir permisos* (`bypassPermissions`) el caso `.env` no fuerza el prompt: solo avisa al modelo; las operaciones destructivas y el bloqueo de secretos en commits siguen igual. |
 | PreToolUse `Edit/Write/MultiEdit/NotebookEdit` | `guard-files.mjs` | **Pide confirmación** al editar `.env*`/`qa/auth`, o una migración ya existente (forward-fix). **Deniega** escribir secretos reconocibles en archivos versionables. Migración nueva: pasa. |
 | PostToolUse `Edit/Write/MultiEdit` | `post-edit.mjs` | `php -l`, `node --check`, JSON válido (solo informa, nunca bloquea; avisa si el PHP local es <8.3). Recordatorio **una vez por sesión y zona** (dinero, auth, menores/video, migración) de invocar el revisor. Nunca corre suites. |
 | SessionStart / PreCompact / SessionEnd | `snapshot.mjs` | Guarda `.claude/state/session-snapshot.json` (ignorado por Git: rama, HEAD, conteos y **nombres** de archivos modificados) y al iniciar imprime ≤4 líneas (rama@HEAD, sin commit, ahead/behind, aviso si cambió el estado y si existe `docs/SESSION_HANDOFF.md`). |
@@ -101,3 +103,49 @@ Autotest de los hooks (≈2 s, sin red, usa repos temporales): `node .claude/hoo
 - `php -l` local es 8.2: la sintaxis 8.3 puede marcarse como error (el aviso lo indica). Las pruebas PHP reales siguen requiriendo Docker (`php_qa`) o CI.
 - Un agente puede equivocarse: sus hallazgos exigen archivo:línea y la sesión principal debe verificarlos antes de actuar.
 - Cambios no commiteados por petición expresa: revisar y commitear los archivos de `.claude/`, `docs/CLAUDE_CODE_AGENTS.md`, `CLAUDE.md`, `.gitignore` y `docs/*` modificados.
+
+## 8. Optimización de tokens y prompts (2026-10-22)
+
+**Auditoría (Claude Code 2.1.304; medido con `claude -p --output-format stream-json`, `/context` no existe en modo headless).**
+- Contexto base de una petición trivial: ≈ 23 k tokens de prefijo (prompt del sistema, herramientas, plugins/MCP diferidos, skills, `CLAUDE.md`). Lo que controla el proyecto es ≈ 15 %: `CLAUDE.md` (≈ 2,4 k tokens, 87 líneas, < 200 recomendadas), 6 agentes y 3 skills listadas (≈ 1 k). `AGENTS.md` **no** se carga solo (no hay `@import`); las rules de `.claude/rules/` cargan por ruta.
+- Duplicados eliminados sin tocar reglas de seguridad: 2 líneas repetidas de `CLAUDE.md` (§4 «archivos ajenos», §8 «avanza hasta…», ya en «Autonomía operativa»).
+- MCP: a nivel de proyecto no hay `.mcp.json`; las herramientas MCP vienen del usuario (2 conectores claude.ai conectados y ~10 servidores de plugins sin autenticar). Sus definiciones están diferidas (solo nombres). Desactivar los no usados con `/mcp` (ámbito usuario; no se tocó).
+- Hooks: salidas ya mínimas (SessionStart ≤ 4 líneas; `post-edit` solo avisa una vez por sesión y zona; el resto no imprime). El snapshot guarda solo rama/HEAD/conteos/nombres de archivo y no se carga automáticamente: sin cambios. `/handoff` ya cubre la continuidad; no se creó otra memoria.
+
+**Añadido y verificado**
+- `mova-context-scout`: delegación real comprobada (`modelUsage` muestra `claude-haiku-5-5`). `omitClaudeMd: true` es seguro (solo lee; su prompt lleva su propio mapa y la prohibición de `.env`; `permissions.ask` sigue aplicando) y ahorra ≈ 2 k tokens cacheados por invocación (58,4 k vs 60,4 k de entrada, n = 1).
+- `/mova-prompt`: PREVIEW no usó herramientas de escritura y devolvió el formato pedido (≈ 976 tokens de salida, US$ 0,12); EXECUTE ante la frase financiera ambigua («arregla los créditos cuando cancelan una clase») investigó, **no cambió ningún archivo ni inventó una política de devolución** y pidió el síntoma; EXECUTE pequeño (`role="status"` en `StatusBadge.vue`) editó exactamente 1 línea, sin subagentes.
+- Política de eficiencia: `CLAUDE.md` §9 + bloque `# Compact instructions` (formato oficial).
+
+**Benchmark (Sonnet 5.5, `claude -p`, worktrees desechables de `0862914`, 2 repeticiones por conjunto; n pequeño: la variación entre repeticiones de una misma tarea llega a ±20 %)**
+
+| Tarea | ANTES coste US$ (r1/r2) | DESPUÉS coste US$ (r1/r2) | Subagentes |
+|---|---|---|---|
+| Petición trivial (base) | 0,095 / 0,095 | 0,098 / 0,098 | 0 |
+| 1 Consulta sobre un archivo | 0,140 / 0,140 | 0,145 / 0,140 | 0 |
+| 2 Corrección Vue (1 línea) | 0,121 / 0,121 | 0,124 / 0,124 | 0 |
+| 3 Flujo Laravel (liquidación) | 0,210 / 0,195 | 0,191 / 0,184 | 0 |
+| 4 Incidencia de créditos | 0,224 / 0,226 | 0,194 / 0,231 | 0 |
+| 5 Planificación multimódulo | 0,205 / 0,235 | 0,232 / 0,223 | 0 |
+| **Σ tareas 1-5 (media)** | **0,909** | **0,894 (−1,7 %)** | 0 / 0 |
+
+Salida total 11.778 → 12.563 tokens (+6,7 %); entrada total (incl. caché) 1,22 M → 1,16 M (−5,3 %); llamadas a herramientas 28 → 30. **Conclusión honesta: sin diferencia medible en tareas ya acotadas** (el ahorro está dentro del ruido) y el prefijo fijo sube ≈ 0,6 k tokens (+2,7 %). Calidad: respuestas equivalentes en las 5 tareas; la corrección Vue idéntica; ninguna tarea simple lanzó subagentes (ni antes ni después). No se ejecutó la suite PHP (los worktrees no tienen `vendor/`).
+
+Donde sí hay efecto: **búsqueda amplia delegada** (mismo objetivo «dónde se liberan créditos al cancelar una clase»): directo en la sesión principal US$ 0,149 / 162 k tokens de entrada / 2.055 de salida / 20 s; con `mova-context-scout` US$ 0,123 (Haiku 0,004) / 105 k / 995 / 30 s → **−17 % coste, −35 % entrada y −52 % salida en el contexto principal** a cambio de +10 s (n = 1; los tokens del subagente, ≈ 58 k de entrada Haiku, están incluidos en el coste).
+
+**Configuraciones descartadas**
+- Hook `UserPromptSubmit` (`hooks/optional/prompt-hint.mjs`, clasificador determinista ≤ 45 palabras): funciona y se entrega al modelo (verificado), pero en el A/B con/sin hook («arregla los créditos…»: US$ 0,250 vs 0,238, ambos sin editar ni inventar reglas) **no aportó beneficio medible**, y en producción también se ejecutaría con mensajes no humanos. Queda inactivo; 23 casos de autotest lo cubren por si se reactiva (instrucciones en su cabecera).
+- Forzar Haiku en tareas financieras/de seguridad; aligerar `CLAUDE.md` quitando reglas; hook `Stop` por turno; segundo sistema de memoria.
+
+**Problemas encontrados**
+- El filtro de `.env` de `guard-bash.mjs` daba falso positivo cuando el texto de un comando (p. ej. un `printf` con `grep … .env.production` dentro de comillas) mencionaba un `.env`, y forzaba confirmación incluso con *Omitir permisos*. Corregido (análisis por comando y argumento, exención de `grep -c/-q/-l`, aviso en lugar de prompt bajo `bypassPermissions`) con 15 casos nuevos en el autotest (79/79).
+- `claude` no está en el PATH; el binario del app está en `…\Claude-Data\…\claude-code\<versión>\claude.exe` (la ruta cambia con cada actualización).
+- Las diferencias de `git diff` en worktrees con *overlay* incluyen los archivos de configuración sin commitear; la edición del modelo se comprobó filtrando `app resources database routes tests config`.
+
+**Cómo revertir** (todo está sin commitear salvo lo ya confirmado en `0862914`):
+`git checkout -- CLAUDE.md .claude/settings.json` y borrar `.claude/agents/mova-context-scout.md`, `.claude/skills/mova-prompt/`, `.claude/hooks/optional/`; para volver solo al filtro `.env` anterior, restaurar `.claude/hooks/guard-bash.mjs` y `selftest.mjs` con `git checkout --`.
+
+**Uso**
+- `/mova-prompt arregla los créditos cuando cancelan una clase` → PREVIEW (entendimiento breve + prompt mejorado, no toca nada).
+- `/mova-prompt execute el dashboard del profesor está muy feo, mejóralo` → interpreta y ejecuta con `/mova-feature-workflow`.
+- «Usa mova-context-scout para localizar dónde se usa `PaymentOrder`» → solo si la búsqueda es amplia.

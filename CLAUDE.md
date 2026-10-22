@@ -41,7 +41,6 @@ Plataforma peruana de tutorías con padres, profesores y alumnos menores de edad
 
 - Inspecciona branch, HEAD, status y ahead/behind antes de mutar Git.
 - Para completar MOVA, `AGENTS.md` autoriza commit/push a `master` y despliegue de cambios validados que pertenezcan al proyecto. No incluyas archivos ajenos, secretos ni cambios no validados.
-- No incluyas archivos ajenos o no relacionados.
 - Ante conflictos, preserva trabajo existente y resuélvelos basándote en evidencia; no descartes trabajo silenciosamente.
 
 ## 5. Dependencias
@@ -70,9 +69,19 @@ Agentes de solo lectura (`.claude/agents/`; la edición la hace siempre la sesi�
 
 ## 8. Autonomía, costos y ahorro de contexto
 
-- Avanza hasta dejar terminadas todas las áreas independientes; no cierres el trabajo tras una auditoría o una integración aislada. Si algo necesita al propietario, agrupa al final una lista corta con la acción exacta, pantalla y dato requerido, y sigue con lo demás.
 - Usa primero evidencia ya producida; no repitas búsquedas, llamadas a paneles, pruebas o lecturas de logs sin un cambio de estado que lo justifique. Agrupa consultas independientes, limita salidas a conteos/estados, evita pegar logs largos y ejecuta la suite completa una vez contra el árbol final.
 - Antes de cualquier recurso/cambio con costo, verifica crédito y costo por recurso. El crédito reportado es US$86 hasta 2027-09-14; prioriza reducir consumo y no excedas el saldo, no actives Pay-As-You-Go y no compres planes de pago. Las alertas no detienen el gasto. Si la arquitectura necesaria no cabe en el crédito, presenta una única comparación breve y continúa todo el trabajo sin costo.
 - Puedes eliminar recursos únicamente de staging si confirmas que contienen solo datos sintéticos/recreables, preservas backup/export y verificas que el ahorro supera el impacto en QA. Nunca elimines recursos de producción para ahorrar sin preservar recuperación y continuidad.
 - Mantén pagos/webhooks apagados hasta completar integración, renovar secretos expuestos y superar los gates técnicos. Para la prueba live final, sigue `AGENTS.md`: cuenta controlada por el propietario, importe mínimo, una sola transacción y reembolso posterior. No cargues a terceros ni abras liquidaciones reales.
 - No inventes datos legales, consentimientos de menores, políticas de reembolso/ausencia, disputas, recurrencia, verificación docente ni presupuesto. Investiga lo que puedas y pide solo decisiones que la autoridad técnica no permita obtener.
+
+## 9. Eficiencia (sin relajar seguridad ni calidad)
+
+- **Pequeña** (1–2 archivos, sin dinero/auth/menores): directo en la sesión principal, sin subagentes ni plan; un test dirigido.
+- **Mediana**: localiza con Grep/Glob (`mova-context-scout` solo si la búsqueda es amplia); reutiliza el patrón existente; cambio mínimo.
+- **Compleja o sensible**: plan breve por dependencias reales; `/mova-feature-workflow`; `mova-security-finance` si toca dinero, auth, menores, JaaS o webhooks.
+- No releas archivos ya leídos ni repitas tests sin cambios; a los subagentes pásales rutas concretas. Sonnet por defecto; Haiku solo para localizar; Opus solo para razonamiento financiero/de seguridad profundo. `/clear` entre tareas independientes; `/handoff` antes de pausas largas. Para instrucciones informales: `/mova-prompt`.
+
+# Compact instructions
+
+Al compactar conserva: objetivo, archivos modificados, decisiones, comandos de prueba con su resultado y bloqueos pendientes; descarta logs, exploraciones descartadas y salidas largas.
