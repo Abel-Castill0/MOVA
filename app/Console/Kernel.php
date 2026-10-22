@@ -147,6 +147,16 @@ class Kernel extends ConsoleKernel
                 ->runInBackground();
         }
 
+        // Culqi: misma lógica que arriba. Solo se agenda cuando Culqi es el proveedor
+        // real y los pagos están habilitados; es la red de seguridad si un webhook
+        // (que Culqi no firma) no llega o si la creación de un cargo quedó incierta.
+        if (config('payments.enabled') === true && config('payments.provider') === 'culqi') {
+            $schedule->command('culqi:reconcile')
+                ->everyFiveMinutes()
+                ->withoutOverlapping(900)
+                ->runInBackground();
+        }
+
         // H-03 — El health-check ya existía, era completo y NADIE lo ejecutaba.
         //
         // Ese era el hallazgo: MOVA sabía detectar que la liquidación automática

@@ -52,6 +52,8 @@ jobs:
       # cuando el backend lo declara disponible (C-P2-CI-MOVI).
       - run: npm run check:movi-availability
       - run: npm run check:checkout-poll
+      # MCP local de Culqi (sin red real: servidor HTTP falso).
+      - run: npm run check:culqi-mcp
       - uses: actions/upload-artifact@v4
         with:
           name: vite-build

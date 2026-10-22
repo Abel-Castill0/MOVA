@@ -5,6 +5,9 @@ namespace App\Providers;
 use App\Channels\SafeMailChannel;
 use App\Mail\Transport\GmailApiTransport;
 use App\Payment\Contracts\PaymentProviderContract;
+use App\Payment\Culqi\CulqiClient;
+use App\Payment\Culqi\CulqiConfig;
+use App\Payment\CulqiPaymentProvider;
 use App\Payment\FakePaymentProvider;
 use App\Payment\MercadoPagoPaymentProvider;
 use App\Services\GmailApiMailService;
@@ -36,6 +39,8 @@ class AppServiceProvider extends ServiceProvider
         // proveedor falso — que responde 'paid' a todo. Ahora un proveedor
         // desconocido, o un Fake en producción con pagos habilitados,
         // detiene el arranque.
+        $this->app->bind(CulqiClient::class, fn () => CulqiClient::fromConfig());
+
         $this->app->bind(PaymentProviderContract::class, function () {
             $paymentsEnabled = (bool) config('payments.enabled', false);
 
@@ -82,12 +87,34 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
 
+            // Culqi: mismas reglas fail-closed que Mercado Pago. Las llaves deben existir y
+            // ser coherentes entre sí y con CULQI_ENV (ver CulqiConfig); el secreto del
+            // webhook solo se exige cuando el webhook se declara activo.
+            if ($provider === 'culqi') {
+                ProviderGuard::requireConfig('Culqi', $paymentsEnabled, [
+                    'CULQI_PUBLIC_KEY' => config('payments.culqi.public_key'),
+                    'CULQI_SECRET_KEY' => config('payments.culqi.private_key'),
+                    'CULQI_ENV' => config('payments.culqi.env'),
+                ]);
+
+                if ($paymentsEnabled) {
+                    CulqiConfig::assertConsistent();
+                }
+
+                if ((bool) config('payments.culqi.webhooks_enabled', false)) {
+                    ProviderGuard::requireConfig('Culqi Webhooks', $paymentsEnabled, [
+                        'CULQI_WEBHOOK_SECRET' => config('payments.culqi.webhook_secret'),
+                    ]);
+                }
+            }
+
             // Sin rama `default`: cada proveedor se nombra explícitamente. Si
             // alguien añade uno a ProviderGuard y olvida instanciarlo aquí,
             // PHP lanza UnhandledMatchError en lugar de devolver el Fake en
             // silencio — que es el fallo que F-03 vino a eliminar.
             return match ($provider) {
                 'mercadopago'        => new MercadoPagoPaymentProvider(),
+                'culqi'              => new CulqiPaymentProvider(),
                 ProviderGuard::FAKE  => new FakePaymentProvider(),
             };
         });

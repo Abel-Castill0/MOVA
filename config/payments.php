@@ -4,8 +4,9 @@
 // que se agrega ENCIMA del sistema de recargas manual existente
 // (config/credits.php, RechargeRequest), no lo reemplaza. Mientras
 // 'provider' sea 'fake', ningún profesor puede pagar de verdad por esta vía
-// — solo existe para tests/desarrollo. Cambiar a 'culqi' requiere haber
-// implementado App\Payment\CulqiPaymentProvider primero (ver ese archivo).
+// — solo existe para tests/desarrollo. 'culqi' (App\Payment\CulqiPaymentProvider,
+// docs/payments-culqi.md) y 'mercadopago' son los proveedores reales; solo uno
+// puede estar activo, y ambos exigen su configuración financiera al arrancar.
 return [
     // F-03: 'enabled' declara si los pagos automáticos están operativos. Es lo
     // que permite a ProviderGuard distinguir "todavía no conectamos Culqi"
@@ -27,20 +28,59 @@ return [
     // perfectamente válida). No es 'fake' — ProviderGuard::FAKE ya lo
     // representa por separado y no es "un proveedor real soportado".
     //
-    // 'culqi' se retiró de esta lista (2026-10-19): CulqiPaymentProvider es un
-    // stub que lanza RuntimeException en cada método. Con 'culqi' aquí, un
-    // PAYMENT_PROVIDER=culqi arrancaba y fallaba en pleno checkout; sin él,
-    // ProviderGuard::resolve() aborta el arranque con "no es un proveedor
-    // soportado" (fail-closed). Reincorporarlo SOLO tras implementar
-    // CulqiPaymentProvider, probarlo y restaurar su rama en AppServiceProvider.
-    'supported_providers' => ['mercadopago'],
+    // 'culqi' vuelve a esta lista (2026-10-22) porque CulqiPaymentProvider ya está
+    // implementado y probado; AppServiceProvider exige su configuración financiera
+    // mínima (llaves + modo coherente) antes de habilitarlo, igual que Mercado Pago.
+    'supported_providers' => ['mercadopago', 'culqi'],
 
-    // Reservado para una integración futura; hoy no se usa (ver arriba).
+    // Culqi — API V2 (https://apidocs.culqi.com/, spec OpenAPI apiculqi.yaml).
+    // Cargos con token de tarjeta/Yape, devoluciones y eventos. Las llaves
+    // viven SOLO en .env / gestor de secretos; el modo (test|live) lo decide
+    // un humano en CULQI_ENV y App\Payment\Culqi\CulqiConfig lo cruza con el
+    // prefijo de la llave (pk_test_/sk_test_ vs pk_live_/sk_live_) para abortar
+    // el arranque ante cualquier mezcla (fail-closed).
     'culqi' => [
         'public_key' => env('CULQI_PUBLIC_KEY'),
-        'private_key' => env('CULQI_PRIVATE_KEY'),
+        // CULQI_SECRET_KEY es el nombre que usa CulqiPanel ("Secret API Key");
+        // CULQI_PRIVATE_KEY se conserva por compatibilidad con .env previos.
+        'private_key' => env('CULQI_SECRET_KEY', env('CULQI_PRIVATE_KEY')),
+        // Secreto en la URL del webhook (/api/webhooks/culqi/{secreto}). Culqi
+        // NO firma sus notificaciones (la documentación oficial no describe
+        // firma, HMAC ni cabecera de autenticación), así que este valor solo
+        // filtra tráfico ajeno: la verdad de un pago SIEMPRE se consulta a la
+        // API de Culqi con la llave secreta antes de acreditar.
         'webhook_secret' => env('CULQI_WEBHOOK_SECRET'),
+        'webhooks_enabled' => env('CULQI_WEBHOOKS_ENABLED', false),
         'env' => env('CULQI_ENV', 'test'),
+        'base_url' => env('CULQI_BASE_URL', 'https://api.culqi.com'),
+        // Tokens (POST /v2/tokens, /v2/tokens/yape) se crean en otro host con la llave pública.
+        'secure_url' => env('CULQI_SECURE_URL', 'https://secure.culqi.com'),
+        // Cifrado híbrido AES-256-GCM + RSA-OAEP-SHA256 del payload (opcional,
+        // ver App\Payment\Culqi\CulqiPayloadEncryptor). El ID y la llave PÚBLICA
+        // RSA salen de CulqiPanel > Desarrollo > RSA.
+        'rsa_id' => env('CULQI_RSA_ID'),
+        'rsa_public_key' => env('CULQI_RSA_PUBLIC_KEY'),
+        'encrypt_payloads' => env('CULQI_ENCRYPT_PAYLOADS', false),
+        'connect_timeout' => (int) env('CULQI_CONNECT_TIMEOUT', 5),
+        'timeout' => (int) env('CULQI_TIMEOUT', 15),
+        // Tope de importe (céntimos) para operaciones de ESCRITURA de sandbox
+        // (comando culqi:sandbox-smoke y servidor MCP). Nunca aplica a producción.
+        'sandbox_max_amount_minor' => (int) env('CULQI_SANDBOX_MAX_AMOUNT_MINOR', 1000),
+        // Prefijo del correo sintético de la sonda culqi:sandbox-smoke (se le añade un sufijo único por ejecución).
+        'sandbox_payer_email_local' => env('CULQI_SANDBOX_PAYER_EMAIL_LOCAL', 'sandbox-smoke'),
+        'recovery' => [
+            // payment_orders pendientes/inciertas más viejas que esto se reconcilian contra la API.
+            'stuck_order_minutes' => (int) env('CULQI_RECOVERY_STUCK_ORDER_MINUTES', 15),
+            // Ventana (minutos) alrededor de la creación del intento para buscar un cargo incierto.
+            'uncertain_search_window_minutes' => (int) env('CULQI_RECOVERY_UNCERTAIN_WINDOW_MINUTES', 60),
+            'uncertain_search_max_attempts' => (int) env('CULQI_RECOVERY_UNCERTAIN_MAX_ATTEMPTS', 5),
+            'batch_size' => (int) env('CULQI_RECOVERY_BATCH_SIZE', 100),
+            // Un intento 'submitting' más reciente que esto se considera POST en vuelo (no incierto):
+            // ni el doble clic ni el cron lo reconcilian ni gastan su presupuesto de búsquedas.
+            'in_flight_grace_seconds' => (int) env('CULQI_RECOVERY_IN_FLIGHT_GRACE_SECONDS', 120),
+            // Pagos ya 'paid' se re-verifican contra la API durante estos días (devoluciones/disputas sin webhook).
+            'paid_lookback_days' => (int) env('CULQI_RECOVERY_PAID_LOOKBACK_DAYS', 14),
+        ],
     ],
 
     // Mercado Pago — Payments API (`POST/GET /v1/payments`), Perú/MPE. La

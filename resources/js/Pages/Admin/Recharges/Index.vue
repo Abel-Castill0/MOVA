@@ -73,7 +73,7 @@
                     mostrarlos.
                   -->
                   <div
-                    v-if="recharge.status === 'pending' && recharge.payment_method !== 'mercadopago'"
+                    v-if="recharge.status === 'pending' && !['mercadopago', 'culqi'].includes(recharge.payment_method)"
                     class="flex justify-end gap-2"
                   >
                     <button
@@ -118,7 +118,7 @@
                     403 (RechargeRequestPolicy::reverse()).
                   -->
                   <div
-                    v-else-if="recharge.status === 'approved' && recharge.payment_method !== 'mercadopago'"
+                    v-else-if="recharge.status === 'approved' && !['mercadopago', 'culqi'].includes(recharge.payment_method)"
                     class="flex justify-end"
                   >
                     <button

@@ -9,6 +9,26 @@ class RechargeRequest extends Model
 {
     use HasFactory;
 
+    /**
+     * Métodos de pago cuyo estado decide el proveedor (webhook / consulta
+     * server-to-server), nunca un admin a ojo. Clave = valor de
+     * recharge_requests.payment_method; valor = nombre legible para mensajes.
+     */
+    public const PROVIDER_MANAGED_METHODS = [
+        'mercadopago' => 'Mercado Pago',
+        'culqi' => 'Culqi',
+    ];
+
+    public static function isProviderManagedMethod(?string $method): bool
+    {
+        return $method !== null && array_key_exists($method, self::PROVIDER_MANAGED_METHODS);
+    }
+
+    public static function providerLabel(?string $method): string
+    {
+        return self::PROVIDER_MANAGED_METHODS[$method] ?? 'el proveedor';
+    }
+
     protected $fillable = [
         'teacher_profile_id',
         'package_code',

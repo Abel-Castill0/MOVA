@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CulqiWebhookController;
 use App\Http\Controllers\JaasWebhookController;
 use App\Http\Controllers\MercadoPagoWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
@@ -53,6 +54,16 @@ Route::prefix('webhooks/mercadopago')->middleware('throttle:120,1')->group(funct
         ->name('webhooks.mercadopago.handle')
         ->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class.':api');
 });
+
+// Webhook de Culqi — INERTE hasta CULQI_WEBHOOKS_ENABLED=true (404 si no). Culqi no
+// firma sus notificaciones: el último segmento de la URL es CULQI_WEBHOOK_SECRET
+// (comparado en tiempo constante) y, aun así, el job consulta la API de Culqi
+// antes de acreditar. Se quita el throttle 'api' (60/min) por la misma razón que
+// en Mercado Pago: los reintentos legítimos no deben descartarse.
+Route::post('webhooks/culqi/{token}', [CulqiWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.culqi.handle')
+    ->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class.':api');
 
 // Presencia de JaaS (PARTICIPANT_JOINED / PARTICIPANT_LEFT). SOLO guarda
 // evidencia en lesson_presence_events: no cambia estados de clase, créditos ni

@@ -147,6 +147,23 @@ class SchedulerConfigurationTest extends TestCase
         $this->assertStringContainsString('mercadopago:reconcile', $commands);
     }
 
+    // Culqi: misma regla que Mercado Pago — solo se agenda con pagos habilitados y
+    // Culqi como proveedor real; nunca arrastra el barrido de Mercado Pago.
+    public function test_culqi_reconcile_is_scheduled_only_with_payments_enabled_and_culqi_as_provider(): void
+    {
+        config(['payments.enabled' => true, 'payments.provider' => 'culqi']);
+        $commands = implode(' | ', $this->scheduledCommands());
+        $this->assertStringContainsString('culqi:reconcile', $commands);
+        $this->assertStringNotContainsString('mercadopago:reconcile', $commands);
+        $this->assertTrue($this->findScheduled('culqi:reconcile')->withoutOverlapping, 'culqi:reconcile debe usar withoutOverlapping().');
+
+        config(['payments.enabled' => false, 'payments.provider' => 'culqi']);
+        $this->assertStringNotContainsString('culqi:reconcile', implode(' | ', $this->scheduledCommands()));
+
+        config(['payments.enabled' => true, 'payments.provider' => 'mercadopago']);
+        $this->assertStringNotContainsString('culqi:reconcile', implode(' | ', $this->scheduledCommands()));
+    }
+
     // PRODUCTION ENABLEMENT (readiness pass) — mercadopago:reconcile era un
     // PRODUCTION BLOCKER explícito (ver docblock de
     // App\Console\Commands\MercadoPagoReconcile) mientras no estuviera

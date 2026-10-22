@@ -65,7 +65,7 @@ class RechargeRequestPolicy
      */
     public function approve(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
+        return $user->hasRole('admin') && ! RechargeRequest::isProviderManagedMethod($recharge->payment_method);
     }
 
     /**
@@ -79,7 +79,7 @@ class RechargeRequestPolicy
      */
     public function reject(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
+        return $user->hasRole('admin') && ! RechargeRequest::isProviderManagedMethod($recharge->payment_method);
     }
 
     /**
@@ -107,7 +107,7 @@ class RechargeRequestPolicy
      */
     public function reverse(User $user, RechargeRequest $recharge): bool
     {
-        return $user->hasRole('admin') && $recharge->payment_method !== 'mercadopago';
+        return $user->hasRole('admin') && ! RechargeRequest::isProviderManagedMethod($recharge->payment_method);
     }
 
     /**

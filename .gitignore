@@ -50,3 +50,6 @@ qa/auth/
 
 # Estado local de hooks de Claude Code (snapshot de sesion); nunca versionar
 /.claude/state/
+
+# Ledger de idempotencia del MCP de Culqi (ids y hashes locales)
+/tools/culqi-mcp/.state/

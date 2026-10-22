@@ -29,8 +29,9 @@ use Throwable;
  * el flujo se parte en dos: el controller llama solo a persist() y responde
  * 200 rápido; ProcessMercadoPagoWebhook (job en cola) hace la verificación
  * server-to-server y aplica el resultado. handle() sigue siendo el camino
- * síncrono completo (persist + procesar) que usan Fake/Culqi y los tests
- * existentes — no cambió de comportamiento.
+ * síncrono completo (persist + procesar) que usan Fake y los tests existentes
+ * — no cambió de comportamiento. Mercado Pago y Culqi NO lo usan: confían solo
+ * en la verdad server-to-server, nunca en `$event->status` de un webhook.
  */
 class PaymentWebhookService
 {

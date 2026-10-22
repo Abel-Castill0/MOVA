@@ -228,14 +228,14 @@ class PaymentOrderTest extends TestCase
         app(RechargeApprovalService::class)->reverse($recharge, $admin->id, 'No debería poder');
     }
 
-    public function test_culqi_provider_is_a_stub_that_refuses_to_run(): void
+    public function test_culqi_provider_refuses_to_run_without_a_coherent_configuration(): void
     {
         [, $profile] = $this->teacher();
         $recharge = $this->recharge($profile);
-        $culqi = new CulqiPaymentProvider();
+        config(['payments.culqi.public_key' => null, 'payments.culqi.private_key' => null]);
 
         $this->expectException(RuntimeException::class);
-        $culqi->createPaymentAttempt($recharge);
+        (new CulqiPaymentProvider())->createPaymentAttempt($recharge);
     }
 
     public function test_container_resolves_fake_provider_by_default(): void
@@ -243,14 +243,14 @@ class PaymentOrderTest extends TestCase
         $this->assertInstanceOf(FakePaymentProvider::class, app(PaymentProviderContract::class));
     }
 
-    public function test_culqi_is_not_a_supported_provider_and_aborts_boot_instead_of_failing_at_checkout(): void
+    public function test_culqi_is_a_supported_provider_but_aborts_boot_when_enabled_without_its_keys(): void
     {
-        $this->assertNotContains('culqi', config('payments.supported_providers'));
+        $this->assertContains('culqi', config('payments.supported_providers'));
 
-        config(['payments.provider' => 'culqi']);
+        config(['payments.provider' => 'culqi', 'payments.enabled' => true, 'payments.culqi.public_key' => null, 'payments.culqi.private_key' => null]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/no es un proveedor soportado/');
+        $this->expectExceptionMessageMatches('/Configuración de Culqi incompleta/');
 
         app(PaymentProviderContract::class);
     }

@@ -19,10 +19,12 @@ agrega la posibilidad de que esa compra de créditos se automatice vía un
 proveedor de pagos (Culqi, en principio) — **sin** tocar cómo el padre le
 paga al profesor, que sigue siendo un asunto completamente externo a MOVA.
 
-**Estado actual: no hay cuenta comercial de Culqi.** Todo lo de este
-documento funciona hoy en modo `fake` (test/desarrollo) y está diseñado para
-no requerir ningún cambio al núcleo cuando exista la cuenta — solo
-implementar `App\Payment\CulqiPaymentProvider`.
+**Actualización 2026-10-22:** `App\Payment\CulqiPaymentProvider` ya está implementado y
+probado contra el sandbox de Culqi (modo test) sin cambiar el núcleo; ver
+[`payments-culqi.md`](payments-culqi.md) (flujo, evidencia de sandbox, webhooks, MCP local y
+pasos manuales en CulqiPanel). Lo que sigue describe la base provider-agnóstica original
+(escrita cuando solo existía el modo `fake`); donde diga «stub» o «sin cuenta de Culqi», manda
+`payments-culqi.md`.
 
 ## Flujo
 

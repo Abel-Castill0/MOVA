@@ -84,8 +84,10 @@ class RechargeApprovalService
                 // proveedor confirmara el pago (o después de que lo
                 // rechazara), sin que ninguna violación de idempotencia lo
                 // detectara.
-                if ($reviewerId !== null && $recharge->payment_method === 'mercadopago') {
-                    abort(422, 'Esta recarga es gestionada automáticamente por Mercado Pago y no puede aprobarse manualmente. Espera la confirmación del proveedor.');
+                $providerLabel = RechargeRequest::providerLabel($recharge->payment_method);
+
+                if ($reviewerId !== null && RechargeRequest::isProviderManagedMethod($recharge->payment_method)) {
+                    abort(422, "Esta recarga es gestionada automáticamente por {$providerLabel} y no puede aprobarse manualmente. Espera la confirmación del proveedor.");
                 }
 
                 // PROVIDER CREDIT CHOKE-POINT INVARIANT (MOVA Yape Final
@@ -104,11 +106,11 @@ class RechargeApprovalService
                 // aquí, así que este chequeo no les cambia el
                 // comportamiento — solo le cierra la puerta a cualquier otro
                 // caller que no lo haya hecho.
-                if ($reviewerId === null && $recharge->payment_method === 'mercadopago') {
+                if ($reviewerId === null && RechargeRequest::isProviderManagedMethod($recharge->payment_method)) {
                     abort_unless(
                         $recharge->paymentOrders()->where('status', 'paid')->exists(),
                         422,
-                        'No se puede acreditar automáticamente esta recarga de Mercado Pago sin un pago confirmado por el proveedor.'
+                        "No se puede acreditar automáticamente esta recarga de {$providerLabel} sin un pago confirmado por el proveedor."
                     );
                 }
 

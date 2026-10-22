@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mova-culqi": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "tools/culqi-mcp/server.mjs"
+      ]
+    }
+  }
+}
