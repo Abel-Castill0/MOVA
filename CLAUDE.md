@@ -66,6 +66,8 @@ Para una auditoría formal usa `/mova-audit`.
 
 Antes de cerrar una fase o hacer `/clear`, usa `/handoff`.
 
+Agentes de solo lectura (`.claude/agents/`; la edición la hace siempre la sesión principal): `mova-architect` (diseño previo, cambios multicapa), `mova-laravel-reviewer`, `mova-vue-reviewer`, `mova-security-finance` (obligatorio si el cambio toca dinero, auth, menores, JaaS o webhooks) y `mova-qa-reviewer`. Una tarea de 1–2 archivos no lanza ninguno. Skills: `/mova-feature-workflow`, `/mova-safe-qa`, `/mova-release-check`. Hooks de seguridad en `.claude/hooks/` (guía: `docs/CLAUDE_CODE_AGENTS.md`).
+
 ## 8. Autonomía, costos y ahorro de contexto
 
 - Avanza hasta dejar terminadas todas las áreas independientes; no cierres el trabajo tras una auditoría o una integración aislada. Si algo necesita al propietario, agrupa al final una lista corta con la acción exacta, pantalla y dato requerido, y sigue con lo demás.

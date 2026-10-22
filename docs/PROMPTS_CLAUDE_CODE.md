@@ -34,8 +34,9 @@
    puede crear o escalar recursos sin calcular el costo mensual por recurso.
 7. **Una sesión por entregable;** `/clear` al cambiar de tema, `/compact` antes de
    pausas largas; no cambies de modelo a mitad de sesión (rompe la caché).
-8. **Subagentes** solo para exploración ruidosa de solo lectura (grep amplio); la
-   edición la hace la sesión principal.
+8. **Subagentes** solo de solo lectura (exploración ruidosa o los revisores `mova-*`
+   de `.claude/agents/`); la edición la hace la sesión principal. Ver
+   [`CLAUDE_CODE_AGENTS.md`](CLAUDE_CODE_AGENTS.md).
 
 ## Plantilla base (copiar y rellenar)
 

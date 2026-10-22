@@ -47,3 +47,6 @@ qa/auth/
 
 # Valores locales de despliegue de producción (datos del titular; nunca versionar)
 /infra/azure/*.local.env
+
+# Estado local de hooks de Claude Code (snapshot de sesion); nunca versionar
+/.claude/state/
