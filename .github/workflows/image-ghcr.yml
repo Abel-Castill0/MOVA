@@ -39,7 +39,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build y push (sin secretos en el contexto: ver .dockerignore)
+      - name: Build y push (el contexto excluye secretos, ver .dockerignore)
         id: push
         uses: docker/build-push-action@v6
         with:
