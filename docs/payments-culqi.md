@@ -76,7 +76,7 @@ Escenarios ejecutados en el sandbox real vía backend (`culqi:sandbox-smoke`, BD
 `CULQI_ENV` (`test`|`live`) · `CULQI_PUBLIC_KEY` · `CULQI_SECRET_KEY` (alias antiguo `CULQI_PRIVATE_KEY`) ·
 `CULQI_WEBHOOK_SECRET` · `CULQI_WEBHOOKS_ENABLED` (false) · `CULQI_ENCRYPT_PAYLOADS` (false) · `CULQI_RSA_ID` ·
 `CULQI_RSA_PUBLIC_KEY` (PEM con `\n` literales) · `CULQI_SANDBOX_MAX_AMOUNT_MINOR` (1000) ·
-`CULQI_METHODS` (`card`; subconjunto de `card,yape,order`) · `CULQI_ORDER_TTL_MINUTES` (1440) · `CULQI_3DS_WINDOW_MINUTES` (8) · `CULQI_CHECKOUT_ALLOWLIST` ·
+`CULQI_METHODS` (`card`; subconjunto de `card,yape,order`) · `CULQI_ORDER_TTL_MINUTES` (1440) · `CULQI_THREE_DS_WINDOW_MINUTES` (8) · `CULQI_CHECKOUT_ALLOWLIST` ·
 `CULQI_BASE_URL`/`CULQI_SECURE_URL` (solo local/testing; fuera de ahí deben ser los hosts oficiales). Fail-closed al arrancar con `PAYMENTS_ENABLED=true`: llaves ausentes, de ejemplo,
 con modos mezclados, distintas de `CULQI_ENV`, live fuera de `APP_ENV=production`, hosts no oficiales fuera de local/testing,
 o (con `CULQI_WEBHOOKS_ENABLED=true`) un `CULQI_WEBHOOK_SECRET` de menos de 32 caracteres.
@@ -92,7 +92,7 @@ Validar sin ver secretos: `php artisan culqi:diagnose` (y `--remote` para GET de
 | 4 | CulqiPanel → comercio | Confirmar medios habilitados en **live**. Sandbox: tarjeta, 3DS y órdenes (PagoEfectivo/billeteras/banca móvil/agentes) comprobados en navegador; Yape: el token `ype_test_` se crea, pero no se completó un pago Yape. El pago de una **orden** no se pudo simular (no hay simulador documentado). |
 | 5 | Producción | Cuestionario PCI correspondiente a tu modalidad (§12; con Custom Checkout los datos de tarjeta no pasan por MOVA, pero **confírmalo por escrito con Culqi**) y llaves `pk_live_/sk_live_` generadas por ti → solo al almacén de secretos de producción. |
 | 6 | Activación (cuando decidas) | `PAYMENT_PROVIDER=culqi`, `PAYMENTS_ENABLED=true`, `CULQI_METHODS=card` (añade `yape`, `order` solo tras habilitarlos) y `CULQI_CHECKOUT_ALLOWLIST` acotada. Plan completo y rollback: `payments-migration-mp-to-culqi.md` §7. |
-| 7 | Órdenes | Exigen celular peruano de 9 dígitos en el perfil del profesor (si falta, el checkout lo indica antes de llamar a Culqi). `CULQI_ORDER_TTL_MINUTES` (1440) y `CULQI_3DS_WINDOW_MINUTES` (8) ajustan vigencias. |
+| 7 | Órdenes | Exigen celular peruano de 9 dígitos en el perfil del profesor (si falta, el checkout lo indica antes de llamar a Culqi). `CULQI_ORDER_TTL_MINUTES` (1440) y `CULQI_THREE_DS_WINDOW_MINUTES` (8) ajustan vigencias. |
 
 No inicié sesión en CulqiPanel (no figura entre los paneles autorizados en `AGENTS.md`); todo lo anterior se verificó por API.
 
