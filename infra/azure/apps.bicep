@@ -218,12 +218,14 @@ module worker 'modules/container-app.bicep' = if (deployWorker) {
     // KEDA MySQL ahorraría ≈ US$ 1/mes pero añade un secreto y un punto de fallo: descartado (docs/architecture/06).
     // ISO/IEC 29119 (criterio): tras encolar 100 jobs de prueba, `queue:monitor` llega a 0 pendientes en < 5 min.
     command: ['mova-entrypoint']
-    // combineWorkerScheduler (EXPERIMENTAL): ambos procesos en un contenedor; `wait -n` requiere bash (no dash). Si uno
-    // termina, el contenedor sale con 1 y Container Apps lo reinicia. Probar memoria (0,5 GiB) en staging antes de usarlo.
+    // combineWorkerScheduler: ambos procesos en un contenedor bajo docker/mova-supervise.sh (reenvía SIGTERM, si uno
+    // termina mata al otro y sale con 1 para que Container Apps reinicie). DESPLEGADO en producción el 2026-10-22
+    // (movap-scheduler) con este mismo contenido: ver docs/azure-cost-optimization.md §C-1. Pruebas: memoria 164 MiB de 512.
     args: combineWorkerScheduler ? [
       'bash'
       '-c'
-      'php artisan config:clear && { php artisan schedule:work -v & php artisan queue:work --queue=default --sleep=3 --tries=3 --timeout=60 --backoff=5 --no-interaction & wait -n; echo "proceso terminado, reiniciando contenedor" >&2; exit 1; }'
+      loadTextContent('../../docker/mova-supervise.sh')
+      'mova-supervise'
     ] : [
       'sh'
       '-c'
