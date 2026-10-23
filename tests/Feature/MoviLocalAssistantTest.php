@@ -61,7 +61,10 @@ class MoviLocalAssistantTest extends TestCase
         $reply = $this->ask('¿Cómo funciona el sistema de créditos en MOVA?');
 
         $this->assertStringContainsString('S/ 2.00', $reply);
-        $this->assertStringContainsString('Inicio (5 créditos, S/ 10)', $reply);
+        foreach (config('credits.packages') as $package) {
+            $this->assertStringContainsString("{$package['name']} ({$package['credits']} créditos, S/ {$package['amount_pen']})", $reply);
+        }
+        $this->assertStringContainsString('precio base', $reply);
     }
 
     public function test_refund_answer_states_the_seven_day_policy_and_the_support_email(): void

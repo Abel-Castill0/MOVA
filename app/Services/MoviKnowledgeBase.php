@@ -22,7 +22,7 @@ class MoviKnowledgeBase
     {
         $creditPrice = number_format((float) config('credits.credit_price_pen', '2.00'), 2);
         $packages = collect((array) config('credits.packages', []))
-            ->map(fn ($p) => "{$p['name']} ({$p['credits']} créditos, S/ ".number_format((float) $p['amount_pen'], 0).')')
+            ->map(fn ($p) => "{$p['name']} ({$p['credits']} créditos, S/ ".$p['amount_pen'].')')
             ->implode(', ');
         $refundDays = 7;
         $subjects = $this->subjectNames();
@@ -54,7 +54,7 @@ class MoviKnowledgeBase
             ],
             'credits' => [
                 'keywords' => ['credit' => 5, 'saldo' => 3, 'recarg' => 5, 'paquet' => 4],
-                'reply' => "Los créditos son para profesores: 1 crédito equivale a 1 hora de clase y cuesta S/ {$creditPrice}. Al aceptar una solicitud se reservan los créditos y se consumen cuando la clase se liquida; si la clase se cancela, se devuelven. Paquetes: {$packages}.\n\nLos padres no compran créditos: ellos confirman la clase y coordinan el pago con el profesor.",
+                'reply' => "Los créditos son para profesores: 1 crédito equivale a 1 hora de clase y tiene un precio base de S/ {$creditPrice}, con descuentos permanentes por volumen. Al aceptar una solicitud se reservan los créditos y se consumen cuando la clase se liquida; si la clase se cancela, se devuelven. Paquetes: {$packages}.\n\nLos padres no compran créditos: ellos confirman la clase y coordinan el pago con el profesor.",
             ],
             'parent_payment' => [
                 'keywords' => ['cuanto cuesta' => 4, 'cuanto cobr' => 5, 'precio' => 4, 'tarifa' => 4, 'pagar' => 3, 'pago' => 2, 'costo' => 3, 'cuanto vale' => 4, 'cuanto pago' => 5],

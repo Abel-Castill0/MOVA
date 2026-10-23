@@ -16,8 +16,8 @@
         <section>
           <h2 class="mb-2 text-lg font-black text-slate-900">1. Qué compras en MOVA</h2>
           <p class="leading-relaxed text-slate-600">
-            MOVA vende <strong class="text-slate-800">créditos de plataforma</strong> a los profesores. Un crédito equivale a {{ creditMinutes }} minutos de clase y tiene un valor de
-            S/ {{ Number(creditPricePen).toFixed(2) }}. Los créditos se usan para aceptar clases dentro de MOVA y no se canjean por dinero. <strong class="text-slate-800">La clase en sí la paga
+            MOVA vende <strong class="text-slate-800">créditos de plataforma</strong> a los profesores. Un crédito equivale a {{ creditMinutes }} minutos de clase y tiene un precio base de
+            S/ {{ Number(creditPricePen).toFixed(2) }}, con descuentos por volumen según el paquete. El importe pagado consta en cada compra. Los créditos se usan para aceptar clases dentro de MOVA y no se canjean por dinero. <strong class="text-slate-800">La clase en sí la paga
             la familia directamente al profesor</strong>: MOVA no cobra ni intermedia ese pago.
           </p>
         </section>

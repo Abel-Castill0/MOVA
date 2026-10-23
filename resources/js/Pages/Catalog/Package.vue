@@ -43,7 +43,11 @@
             <div class="flex justify-between gap-4"><dt class="text-slate-500">Equivalencia</dt><dd class="font-semibold text-slate-900">{{ package.minutes_included }} min de clase</dd></div>
             <div class="flex justify-between gap-4"><dt class="text-slate-500">Valor por crédito</dt><dd class="font-semibold text-slate-900">S/ {{ package.price_per_credit }}</dd></div>
             <div class="flex justify-between gap-4"><dt class="text-slate-500">Moneda</dt><dd class="font-semibold text-slate-900">Soles (PEN)</dd></div>
+            <div class="flex justify-between gap-4"><dt class="text-slate-500">Precio base</dt><dd class="font-semibold text-slate-900">S/ {{ package.base_amount_pen }}</dd></div>
+            <div class="flex justify-between gap-4"><dt class="text-slate-500">Descuento por volumen</dt><dd class="font-semibold text-slate-900">{{ package.discount_percent }}%</dd></div>
+            <div class="flex justify-between gap-4"><dt class="text-slate-500">Ahorro</dt><dd class="font-semibold text-brand-700">S/ {{ package.saving_pen }}</dd></div>
           </dl>
+          <p class="mt-3 text-xs text-slate-600">Descuento permanente por volumen, sin fecha de vencimiento.</p>
           <div class="mt-4 flex items-baseline justify-between border-t border-gray-100 pt-4">
             <span class="text-sm font-bold text-slate-700">Total a pagar</span>
             <span class="text-3xl font-black text-slate-900" data-testid="total">S/ {{ money(package.amount_pen) }}</span>

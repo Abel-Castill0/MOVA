@@ -1,5 +1,107 @@
 # Revisión comercial de Culqi — observación y subsanación
 
+## Actualización vigente — 2026-10-22: cinco paquetes autorizados
+
+Esta sección prevalece sobre el registro anterior, que conserva fechas 2026-10-23 y tres paquetes.
+La fecha local es 2026-10-22; el reloj UTC ya marca 2026-10-23 (04:40Z verificado). Esta diferencia de zona horaria explica la aparente fecha futura, pero no demuestra aprobación legal. No se cambia la versión 2026-10-23 ni el historial de aceptaciones.
+
+| Paquete / URL `/comprar-creditos/…` | Créditos | Base S/ | Descuento permanente | Final S/ | Centavos | Ahorro S/ | S/ por crédito |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| inicio | 5 | 10.00 | 0% | 10.00 | 1000 | 0.00 | 2.00 |
+| esencial | 10 | 20.00 | 1% | 19.80 | 1980 | 0.20 | 1.98 |
+| impulso | 15 | 30.00 | 2% | 29.40 | 2940 | 0.60 | 1.96 |
+| avance | 20 | 40.00 | 3% | 38.80 | 3880 | 1.20 | 1.94 |
+| pro | 30 | 60.00 | 4% | 57.60 | 5760 | 2.40 | 1.92 |
+
+Fuente única: `config/credits.php`; `CreditPackages::pricing()` presenta los importes usando enteros y cadenas decimales.
+Fórmula comprobada por regresión: `final_centavos × 100 = créditos × 200 × (100 − descuento)`.
+El cliente envía exclusivamente el código. `RechargeRequest` conserva nombre, créditos e importe aceptados; `PaymentOrder` conserva centavos/moneda.
+No hay migración ni recálculo de compras pendientes o históricas. Un Pro antiguo de S/60 mantiene S/60; uno nuevo de S/57.60 mantiene S/57.60 aunque vuelva a cambiar el catálogo.
+Las cinco fichas reutilizan ilustraciones propias de Movi diferentes, con alt, descripción y precio; Pro dice «Mayor ahorro».
+Movi y la explicación de precios en devoluciones distinguen precio base de precio final; no cambia la política de devolución.
+
+### Alcance comercial y consulta pendiente
+
+[Culqi exige al menos cinco productos, pero permite variar el mínimo de servicios según el modelo](https://ayuda.culqi.com/portal/es/kb/articles/cuales-son-los-requisitos-para-que-la-web-o-app-de-mi-comercio-no-sea-observado-al-momento-de-integrar-la-pasarela).
+Cinco paquetes son cinco ofertas del mismo servicio de créditos, no cinco servicios educativos independientes. Su existencia **no garantiza aprobación**.
+Consulta propuesta: «MOVA vende créditos prepagados a profesores, en cinco paquetes de 5, 10, 15, 20 y 30 créditos. Las familias pagan las clases directamente al docente. ¿Estas cinco ofertas satisfacen el requisito para nuestro modelo? ¿Aceptan revisar el checkout con llaves de integración y cuenta restringida en un entorno aislado, manteniendo cerrados los cobros de producción?».
+
+### Comisiones: estimación pública, no tarifa contractual de MOVA
+
+[Tarifario oficial Online y Link consultado](https://culqi.com/precios/): tarjetas nacionales/Yape 3.44%, internacionales 3.99%, más US$0.20 por venta Online. Indica comisiones inafectas a IGV y sujetas a evaluación; el contrato efectivo debe confirmarse en CulqiPanel. El PDF contractual antiguo menciona IGV: no se asume que sea el contrato vigente del comercio.
+Supuesto de cálculo **referencial**: US$1 = S/3.85 (referencia publicada por Culqi), fijo S/0.77; redondeo final a céntimos. No representa cotización actual ni neto garantizado.
+
+| Paquete | Cobro S/ | Comisión nacional estimada S/ | Neto S/ | Neto por crédito S/ | Comisión internacional estimada S/ |
+|---|---:|---:|---:|---:|---:|
+| Inicio | 10.00 | 1.11 | 8.89 | 1.7780 | 1.17 |
+| Esencial | 19.80 | 1.45 | 18.35 | 1.8350 | 1.56 |
+| Impulso | 29.40 | 1.78 | 27.62 | 1.8413 | 1.94 |
+| Avance | 38.80 | 2.10 | 36.70 | 1.8350 | 2.32 |
+| Pro | 57.60 | 2.75 | 54.85 | 1.8283 | 3.07 |
+
+La nota de mínimo S/3.50 bajo S/87.72 aparece vinculada a Cuotéalo/PagoEfectivo; no se aplica sin evidencia a las tarjetas. Confirmar si ese mínimo incluye el fijo antes de estimar esos medios. No se cambiaron los precios autorizados para compensar comisiones.
+
+### Legal y operaciones: decisiones pendientes, no aprobaciones supuestas
+
+- La regla existente de siete días para créditos sin usar **no está aprobada en esta misión**. Se conserva mientras se prepara la revisión humana. No se inventa un derecho general de arrepentimiento: el [Código y sus lineamientos](https://consumidor.gob.pe/wp-content/uploads/2020/07/Lineamientos_Proteccion_Consumidor_2022.pdf) vinculan la restitución del artículo 59 a supuestos específicos. Revisar también [DL1729 de 2026](https://busquedas.elperuano.pe/dispositivo/NL/2486266-3), atención digital y prácticas coercitivas, con asesoría jurídica.
+- Devolución total confirmada por Culqi: reversión una sola vez sobre compra histórica, incluso con créditos gastados según la excepción ya aprobada del ledger. Parcial: `review`, sin reversión proporcional automática. No convertir saldo no usado a S/2: cualquier cálculo debe partir de lo efectivamente pagado y de la política que se apruebe.
+- El titular debe resolver: plazo comercial, tratamiento de consumo parcial/reservas, redondeo del importe proporcional, versión y aprobación de Términos/Privacidad/Devoluciones. Los derechos legales imperativos no dependen de una decisión de producto.
+- Identidad, RUC y domicilio sí están publicados y configurados (comprobación de esta ronda); el registro anterior que los daba por ausentes está superado. Teléfono autorizado: +51 916666934; no hay redes sociales oficiales.
+- Evaluador: buzón autorizado por el titular, cuenta docente restringida mediante `mova:culqi-evaluator` solo en QA. La contraseña no se documenta ni se publica; revocación por el mismo comando. No crear un administrador ni mezclar saldos sintéticos con producción.
+- Azure for Students sigue siendo la suscripción efectiva. [Microsoft Learn](https://learn.microsoft.com/azure/education-hub/azure-dev-tools-teaching/azure-students-program) limita el programa a educación/investigación no comercial y desarrollo/pruebas para esos fines. Confirmar alojamiento comercial compatible antes de ventas live; no se modifica suscripción ni se contratan recursos.
+
+### Riesgos heredados identificados en revisión independiente
+
+1. Orden de locks inverso entre creación de intento (Recarga→Orden) y aplicación de verdad (Orden→Recarga): una carrera mixta puede provocar deadlock; las carreras existentes no demuestran ausencia de este caso.
+2. `culqi:reconcile --order` filtra primero `pending`, por lo que no reconsulta una orden `paid`; los reembolsos dependen del webhook o del barrido de pagos recientes. No usar ese comando como recuperación universal de devoluciones.
+3. El reembolso parcial se envía a revisión y conserva saldo hasta resolución operativa. No se afirma que exista devolución proporcional automática.
+
+### Evidencia ejecutada en esta actualización
+
+- SQLite: **1611 pruebas, 6850 aserciones, 7 omitidas**, 35 avisos de deprecación PHPUnit. Primera copia aislada omitió `lang/` y falló la localización del correo; se completó la copia y se repitió con éxito. No se cambió código de correo.
+- MySQL 8.4: perfil completo **1611 pruebas, 6849 aserciones, 7 omitidas**, mismas deprecaciones, en contenedor/base QA separados. Incluye integridad, permisos, histórico MP, Culqi, rechazos, pendientes, 3DS simulado, fallos de red, webhook/reconciliación repetidos y reclamaciones.
+- Carreras MySQL, ocho procesos cada una: `reconcile-paid`, `reconcile-refund`, `charge-attempt` **GREEN**; un depósito, una reversión cuando corresponde y un solo POST de cargo al stub. Son procesos reales contra MySQL y proveedor simulado, no ocho cargos al sandbox.
+- Vite: build correcto usando dependencias aisladas (Vite no estaba instalado en la raíz). Composer validate y diff check correctos. Checks checkout-poll/chatbot-escape/movi-availability correctos; MCP Culqi 19/19.
+- Navegador: 375, 768 y 1440 px sin desborde; las cinco imágenes cargan. Selección Esencial → login → retorno a Esencial → recarga de 1980 centavos PEN → iframe real de Culqi con tarjeta pública de prueba → «Pago aprobado» → saldo 10 e historial con un depósito. Reconciliado dos veces más por backend: sigue **1 depósito, saldo 10, estado approved**.
+- Sandbox real por comando: aprobado, fondos insuficientes y devolución total correctos. Webhook inyectado localmente dos veces y conciliación doble sin duplicación. Esto **no prueba entrega pública de webhooks desde CulqiPanel**.
+- Evidencia local ignorada por Git: `qa/reports/culqi-pricing/{sandbox-approved,catalog-desktop,pro-mobile}.png`. Cuenta creada mediante `mova:culqi-evaluator`, rol teacher no verificado, en SQLite exclusiva de evaluación; no hay datos reales de alumnos. Credencial temporal de QA no publicada. Los registros legales de la fixture QA no son aprobación del titular.
+- Pendiente externo: URL HTTPS de evaluación accesible a Culqi. El entorno local `http://localhost:8081` no es accesible al revisor; staging Azure está detenido y sin BD, y no se crean recursos nuevos ni se usan datos de producción para pruebas.
+- No verificado en esta ronda: 3DS interactivo, Yape completo, orden de efectivo pagada, tarifa contractual del comercio, hosting comercial aprobado, aceptación del modelo por Culqi. No se efectuaron cobros reales.
+
+### Matriz de entrega comercial
+
+| Requisito | URL/evidencia | Estado |
+|---|---|---|
+| Cinco ofertas, imágenes, descripciones y precios | `/servicios`, cinco detalles `/comprar-creditos/{codigo}` | Implementado y probado; interpretación comercial pendiente de Culqi |
+| Botón y flujo de pago | Detalle → login → checkout; Esencial S/19.80 real sandbox | Verificado en QA; producción conserva compra cerrada |
+| Usuario de revisión | `mova:culqi-evaluator`, correo autorizado, teacher sin privilegios | Creado en QA local; acceso público y entrega privada pendientes |
+| Identidad/RUC/domicilio | Pie/legales públicos, props del servidor | Verificados presentes |
+| Contacto | Correo publicado y teléfono autorizado | Teléfono preparado para configuración; sin redes oficiales |
+| Términos/privacidad/devoluciones | `/terminos`, `/privacidad`, `/politica-de-devoluciones` | Accesibles; aprobación jurídica pendiente |
+| Libro integrado | `/libro-de-reclamaciones`, pruebas completas | Implementado; no es formulario externo |
+| HTTPS | Dominio público de Azure | Verificado en la versión previa y a verificar tras publicación |
+| Cobro live | Ninguno | Cerrado deliberadamente; no declarar comercio listo para cobrar |
+
+### Borrador de respuesta a Culqi — no enviado
+
+**Asunto: MI COMERCIO FUE OBSERVADO**
+
+Hola, equipo Culqi:
+
+MOVA ofrece créditos prepagados de plataforma para profesores. Las familias pagan sus clases directamente al docente; MOVA no intermedia ese pago.
+Hemos preparado cinco paquetes con imagen, descripción, precio en PEN, detalle del descuento por volumen y botón de compra. Catálogo público: https://movap-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io/servicios.
+El recorrido de selección, login, checkout y acreditación fue verificado en integración con tarjeta de prueba, sin cobros reales. Producción mantiene los cobros cerrados.
+También están disponibles Términos, Privacidad, Devoluciones y Libro de Reclamaciones integrado. La validación final de los textos legales continúa pendiente.
+
+¿Confirman que cinco paquetes de créditos del mismo servicio satisfacen el requisito para este modelo? ¿Aceptan revisar el pago en un entorno HTTPS aislado con llaves de integración? Tras confirmar el entorno, facilitaremos la URL y las credenciales de una cuenta docente restringida por un canal privado. El recorrido será Servicios → paquete → iniciar sesión → Continuar al pago → tarjeta de prueba → saldo e historial.
+
+Quedamos atentos a sus indicaciones para completar la revisión.
+
+MOVA
+
+**Antes de enviar:** confirmar despliegue de este catálogo, aprobación legal, URL pública de QA y contraseña del evaluador por canal privado. No adjuntar llaves, tokens, contraseña ni URL secreta del webhook a este documento.
+
+
 > Fecha: 2026-10-23 · Commit desplegado: `546d44c` · Estado: **subsanación técnica lista; faltan datos/decisiones del titular (§9)**.
 > Este documento **no contiene** contraseñas, llaves ni URLs de webhook. La contraseña del evaluador se entrega **solo por un canal privado**.
 

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\RechargeRequest;
 use App\Models\User;
 use App\Notifications\NewRechargeRequestNotification;
-use App\Support\CheckoutAllowlist;
 use App\Support\CheckoutProvider;
 use App\Support\CreditPackages;
 use App\Support\OperationNumberNormalizer;
@@ -48,11 +47,7 @@ class CreditController extends Controller
             // ajustaba config/credits.php, esa línea mentía al profesor
             // justo en la pantalla donde decide comprar.
             'packages' => collect(CheckoutProvider::active(auth()->user()) !== null ? CreditPackages::forCheckout(auth()->user()) : config('credits.packages'))
-                ->map(fn (array $package, string $code) => ['code' => $code] + $package + [
-                    'price_per_credit' => $package['credits'] > 0
-                        ? number_format((float) $package['amount_pen'] / $package['credits'], 2, '.', '')
-                        : null,
-                ])
+                ->map(fn (array $package, string $code) => CreditPackages::pricing($code, $package))
                 ->values(),
             'currency' => 'S/',
             'paymentMethods' => config('credits.payment_methods'),

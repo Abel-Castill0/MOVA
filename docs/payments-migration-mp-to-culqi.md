@@ -102,7 +102,7 @@ sequenceDiagram
 ## 5. Flujo de créditos (contrato de negocio real, verificado en el código)
 
 - **Qué es un crédito:** 60 minutos de clase (`config/credits.php`: `credit_minutes=60`, `credit_price_pen=2.00`). Lo compra y usa el **profesor** (`TeacherProfile.credits_available`); el padre no compra créditos.
-- **Precio:** paquetes fijos en `config('credits.packages')` (Inicio 5 cr = S/ 10, Impulso 15 = S/ 30, Pro 30 = S/ 60) más el paquete de verificación (S/ 1) solo con allowlist. El monto se congela al crear la `RechargeRequest` y de ahí a `payment_orders.amount_minor`.
+- **Precio:** paquetes fijos en `config('credits.packages')` (Inicio 5 cr = S/10.00, Esencial 10 = S/19.80, Impulso 15 = S/29.40, Avance 20 = S/38.80, Pro 30 = S/57.60), descuentos permanentes 0/1/2/3/4% sobre base S/2; más el paquete de verificación (S/1) solo con allowlist. El monto se congela al crear la `RechargeRequest` y de ahí a `payment_orders.amount_minor`. Los precios históricos no se migran ni recalculan.
 - **Estados de recarga:** `pending → approved | rejected`; `approved → reversed`. Solo `credit()` mueve saldo y deja el asiento `deposit` (`recharge:{id}:deposit`); `reverse()` deja `reversal` (`recharge:{id}:reversal`). El ledger `credit_transactions` es append-only.
 - **Uso:** reservar créditos al aceptar una clase, consumirlos al liquidar, devolverlos al cancelar (`LessonController::cancel` → asiento `refund` idempotente `lesson:{id}:release`).
 - **Pago confirmado dos veces:** el segundo evento solo actualiza `last_verified_at`; no hay segundo depósito.

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\ProcessCulqiWebhook;
 use App\Models\CreditTransaction;
+use App\Models\OperationalAlert;
 use App\Models\PaymentOrder;
 use App\Models\PaymentWebhook;
 use App\Models\RechargeRequest;
@@ -15,8 +16,12 @@ use App\Payment\Contracts\YapePaymentInstrument;
 use App\Payment\Culqi\CulqiChargeMapper;
 use App\Payment\Culqi\CulqiClient;
 use App\Payment\Culqi\CulqiConfig;
+use App\Payment\Culqi\CulqiPayloadEncryptor;
 use App\Payment\CulqiPaymentProvider;
 use App\Services\CulqiPaymentReconciliationService;
+use App\Services\PaymentWebhookService;
+use App\Services\RechargeApprovalService;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -27,6 +32,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 /**
@@ -400,6 +406,35 @@ class CulqiPaymentTest extends TestCase
 
     // ── Devoluciones ──────────────────────────────────────────────────────
 
+    public function test_discounted_and_historical_purchases_keep_their_paid_amount_through_refunds(): void
+    {
+        foreach (['57.60' => 5760, '60.00' => 6000] as $amount => $minor) {
+            $recharge = $this->recharge(amountPen: (string) $amount, credits: 30);
+            $recharge->update(['package_code' => 'pro', 'package_name' => 'Pro']);
+            // Un cambio futuro jamás modifica la compra ya aceptada.
+            config(['credits.packages.pro.amount_pen' => '99.00', 'credits.packages.pro.credits' => 99]);
+            $this->fakeApi(charge: fn (Request $r) => Http::response($this->chargeFor($r->data()), 201));
+            $order = $this->provider()->createPaymentAttempt($recharge->fresh(), $this->card());
+            $this->assertSame($minor, $order->amount_minor);
+            $this->assertSame(30, $recharge->teacherProfile->fresh()->credits_available);
+            $truth = $this->chargeFor($this->payloadFor($order), ['id' => $order->provider_order_id]);
+            $reconciler = app(CulqiPaymentReconciliationService::class);
+            $reconciler->applyTruth($order->fresh(), null, $truth);
+            $this->assertSame(1, $this->deposits($recharge));
+            $this->assertSame('review', $reconciler->applyTruth($order->fresh(), null,
+                array_replace($truth, ['amount_refunded' => 192, 'current_amount' => $minor - 192])));
+            $this->assertSame(30, $recharge->teacherProfile->fresh()->credits_available);
+            $order->fresh()->update(['review_reason' => null]);
+            $full = array_replace($truth, ['amount_refunded' => $minor, 'current_amount' => 0]);
+            for ($i = 0; $i < 2; $i++) {
+                $this->assertSame('reversed', $reconciler->applyTruth($order->fresh(), null, $full));
+            }
+            $this->assertSame(0, $recharge->teacherProfile->fresh()->credits_available);
+            $this->assertSame(1, CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'reversal')->count());
+            $this->assertSame((string) $amount, $recharge->fresh()->amount_pen);
+        }
+    }
+
     public function test_full_refund_reverses_once_and_partial_refund_goes_to_review(): void
     {
         $recharge = $this->recharge();
@@ -530,12 +565,12 @@ class CulqiPaymentTest extends TestCase
     public function test_a_culqi_recharge_cannot_be_approved_or_credited_without_a_paid_order(): void
     {
         $recharge = $this->recharge();
-        $service = app(\App\Services\RechargeApprovalService::class);
+        $service = app(RechargeApprovalService::class);
 
         try {
             $service->credit($recharge, null);
             $this->fail('Debió exigir un pago confirmado por Culqi.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertStringContainsString('Culqi', $e->getMessage());
         }
 
@@ -544,7 +579,7 @@ class CulqiPaymentTest extends TestCase
         try {
             $service->credit($recharge, $admin->id);
             $this->fail('Un admin no puede aprobar a mano una recarga de Culqi.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertStringContainsString('gestionada automáticamente por Culqi', $e->getMessage());
         }
 
@@ -561,9 +596,9 @@ class CulqiPaymentTest extends TestCase
         $admin->assignRole('admin');
 
         try {
-            app(\App\Services\RechargeApprovalService::class)->credit($recharge, $admin->id);
+            app(RechargeApprovalService::class)->credit($recharge, $admin->id);
             $this->fail('Debió abortar.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame('Esta recarga es gestionada automáticamente por Mercado Pago y no puede aprobarse manualmente. Espera la confirmación del proveedor.', $e->getMessage());
         }
     }
@@ -625,7 +660,7 @@ class CulqiPaymentTest extends TestCase
 
     public function test_payload_encryptor_produces_the_aes_rsa_envelope_and_never_leaks_the_plaintext(): void
     {
-        $ns = \App\Payment\Culqi\CulqiPayloadEncryptor::phpseclibNamespace();
+        $ns = CulqiPayloadEncryptor::phpseclibNamespace();
         if ($ns === null) {
             $this->markTestSkipped('phpseclib no está instalado.');
         }
@@ -814,7 +849,7 @@ class CulqiPaymentTest extends TestCase
     {
         $webhook = $this->persistEvent($this->event('evt_test_foreign', 'charge.creation.succeeded', 'chr_test_FOREIGN00000001'));
         $job = new ProcessCulqiWebhook($webhook->id);
-        $queueJob = \Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $queueJob = \Mockery::mock(Job::class);
         $queueJob->shouldReceive('attempts')->andReturn($job->tries);
         $job->setJob($queueJob);
 
@@ -823,7 +858,7 @@ class CulqiPaymentTest extends TestCase
         $webhook = $webhook->fresh();
         $this->assertSame('processed', $webhook->status);
         $this->assertStringContainsString('ajeno a MOVA', $webhook->error);
-        $this->assertSame(0, \App\Models\OperationalAlert::count());
+        $this->assertSame(0, OperationalAlert::count());
     }
 
     public function test_the_sweep_catches_a_refund_whose_webhook_never_arrived(): void
@@ -955,7 +990,7 @@ class CulqiPaymentTest extends TestCase
     private function fakeApi(?callable $charge = null, ?callable $list = null, ?callable $get = null): void
     {
         // Http::fake() acumula stubs y gana el primero: se parte de una fábrica limpia en cada llamada.
-        Http::swap(new HttpFactory());
+        Http::swap(new HttpFactory);
 
         Http::fake(function (Request $r) use ($charge, $list, $get) {
             $path = parse_url($r->url(), PHP_URL_PATH);
@@ -995,7 +1030,7 @@ class CulqiPaymentTest extends TestCase
         $event = $this->provider()->verifyWebhook(json_encode($payload), ['x-mova-webhook-token' => self::WEBHOOK_SECRET]);
         $this->assertNotNull($event);
 
-        return app(\App\Services\PaymentWebhookService::class)->persist('culqi', $event);
+        return app(PaymentWebhookService::class)->persist('culqi', $event);
     }
 
     private function processWebhook(array $payload): void

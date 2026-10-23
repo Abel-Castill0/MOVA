@@ -1,5 +1,11 @@
 # MOVA — Handoff para agentes de IA (Claude Code, Codex, Antigravity…)
 
+> Actualización de catálogo 2026-10-22: cinco paquetes autorizados (Inicio5/10.00, Esencial10/19.80,
+> Impulso15/29.40, Avance20/38.80, Pro30/57.60, PEN). `CreditPackages::pricing()` comparte presentación exacta
+> entre catálogo y panel docente; las compras históricas conservan sus snapshots. Ver [evidencia comercial vigente](culqi-commercial-review.md).
+> Las fechas 2026-10-23 de registros previos no se reinterpretan como aprobación legal: el titular aún debe aprobar
+> la política existente de siete días. No habilitar cobros live ni mezclar el evaluador de QA con producción.
+
 > Estado: CURRENT · última verificación 2026-10-22 · rama `master` · commit de referencia: el que contiene este
 > archivo (`git log -1 -- docs/AI_HANDOFF.md`). Este documento **orienta**; el código, las migraciones y el
 > [Completion Ledger](release/MOVA_V1_COMPLETION_LEDGER.md) deciden. Si algo aquí contradice al código, está desactualizado:

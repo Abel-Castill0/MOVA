@@ -7,6 +7,8 @@
 
 ## Vigente (CURRENT)
 
+- [Revisión comercial Culqi](culqi-commercial-review.md): actualización 2026-10-22, cinco paquetes autorizados, descuentos, comisiones referenciales, estado legal y evidencia diferenciada.
+
 | Documento | Para qué |
 |---|---|
 | [`../README.md`](../README.md) | Visión, stack, instalación y QA |

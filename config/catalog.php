@@ -11,7 +11,7 @@ return [
         'inicio' => [
             'image' => '/images/mascot/movi-saluda-512.webp',
             'alt' => 'Movi, la ardilla mascota de MOVA, saludando',
-            'tagline' => 'Para empezar a recibir clases en MOVA',
+            'tagline' => 'Para empezar a dictar clases en MOVA',
             'description' => 'Paquete de entrada para profesores nuevos: créditos suficientes para aceptar tus primeras solicitudes de clase.',
             'benefits' => [
                 'Créditos prepagados, sin suscripción ni cuotas mensuales.',
@@ -19,16 +19,30 @@ return [
                 'Reembolso íntegro de los créditos no usados dentro de los plazos de la política de devoluciones.',
             ],
         ],
+        'esencial' => [
+            'image' => '/images/mascot/movi-lee-512.webp',
+            'alt' => 'Movi, la ardilla mascota de MOVA, leyendo un libro',
+            'tagline' => 'Para preparar tu agenda de clases',
+            'description' => 'Diez créditos para profesores que quieren organizar sus próximas clases con saldo disponible.',
+            'benefits' => ['Descuento permanente por volumen.', 'Sin suscripción ni cuotas mensuales.', 'Historial de movimientos en tu panel de créditos.'],
+        ],
         'impulso' => [
             'image' => '/images/mascot/movi-experto-420.webp',
             'alt' => 'Movi, la ardilla mascota de MOVA, con gesto de experto',
             'tagline' => 'Para profesores con agenda regular',
             'description' => 'Paquete intermedio para quienes ya dictan clases con frecuencia y quieren tener saldo para varias semanas.',
             'benefits' => [
-                'Mismo valor por crédito que el resto de paquetes.',
+                'Descuento permanente por volumen.',
                 'Créditos acreditados automáticamente cuando el pago se confirma.',
                 'Historial de movimientos visible en tu panel de créditos.',
             ],
+        ],
+        'avance' => [
+            'image' => '/images/mascot/movi-solicita-420.webp',
+            'alt' => 'Movi, la ardilla mascota de MOVA, organizando solicitudes de clase',
+            'tagline' => 'Para ampliar tu agenda de clases',
+            'description' => 'Veinte créditos para profesores que necesitan continuidad entre sus clases y sus próximas solicitudes.',
+            'benefits' => ['Descuento permanente por volumen.', 'Acreditación cuando el pago se confirma.', 'Saldo y movimientos visibles en tu panel.'],
         ],
         'pro' => [
             'image' => '/images/mascot/movi-celebra-420.webp',

@@ -21,11 +21,12 @@
         <div class="mb-5">
           <h2 id="creditos" class="text-2xl font-black text-slate-900">Paquetes de créditos para profesores</h2>
           <p class="mt-1 text-sm text-slate-600">
-            1 crédito = {{ creditMinutes }} minutos de clase · valor de cada crédito: S/ {{ money(creditPricePen) }}.
+            1 crédito = {{ creditMinutes }} minutos de clase · precio base por crédito: S/ {{ money(creditPricePen) }}.
+            Descuentos permanentes por volumen según el paquete.
             Se compran en línea y se acreditan automáticamente cuando el pago queda confirmado.
           </p>
         </div>
-        <div class="grid gap-5 md:grid-cols-3">
+        <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           <article v-for="pack in packages" :key="pack.code" class="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm" :data-testid="`package-${pack.code}`">
             <div class="flex h-44 items-center justify-center bg-[#E5EEFB]">
               <img :src="pack.image" :alt="pack.alt" width="200" height="200" class="h-40 w-40 object-contain" loading="lazy" />
@@ -36,8 +37,11 @@
                 <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
               </div>
               <p v-if="pack.tagline" class="mt-1 text-sm font-semibold text-brand-600">{{ pack.tagline }}</p>
+              <p v-if="pack.code === 'pro'" class="mt-2 text-sm font-bold text-brand-700">Mayor ahorro</p>
               <p class="mt-2 text-sm text-slate-600">{{ pack.description }}</p>
+              <p class="mt-4 text-sm text-slate-600">Precio base: S/ {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
               <p class="mt-4 text-3xl font-black text-slate-900" :aria-label="`Precio: ${money(pack.amount_pen)} soles`">S/ {{ money(pack.amount_pen) }}</p>
+              <p class="text-sm font-semibold text-brand-700">Ahorro: S/ {{ pack.saving_pen }}</p>
               <p class="text-xs text-slate-500">S/ {{ pack.price_per_credit }} por crédito · {{ pack.minutes_included }} minutos de clase incluidos</p>
               <ul class="mt-4 space-y-1.5 text-sm text-slate-600">
                 <li v-for="b in pack.benefits" :key="b" class="flex gap-2"><span aria-hidden="true" class="text-brand-600">✓</span><span>{{ b }}</span></li>

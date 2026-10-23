@@ -101,13 +101,12 @@ final class Catalog
         $amount = (string) ($package['amount_pen'] ?? '0.00');
         $minutes = (int) config('credits.credit_minutes', 60);
 
-        return [
+        return CreditPackages::pricing($code, $package) + [
             'code' => $code,
             'name' => (string) ($package['name'] ?? $code),
             'credits' => $credits,
             'amount_pen' => $amount,
             'currency' => 'PEN',
-            'price_per_credit' => $credits > 0 ? number_format((float) $amount / $credits, 2, '.', '') : null,
             'minutes_included' => $credits * $minutes,
             'image' => $presentation['image'] ?? '/images/mascot/movi-saluda-512.webp',
             'alt' => $presentation['alt'] ?? 'Movi, la ardilla mascota de MOVA',

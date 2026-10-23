@@ -1,5 +1,10 @@
 # MOVA - Plataforma de clases particulares en línea
 
+Créditos para profesores: Inicio 5/S/10.00, Esencial 10/S/19.80, Impulso 15/S/29.40,
+Avance 20/S/38.80 y Pro 30/S/57.60. Descuentos permanentes por volumen sobre base S/2.
+Catálogo `/servicios`; precios autoritativos en `config/credits.php`. [Estado comercial, pruebas y limitaciones de Culqi](docs/culqi-commercial-review.md).
+Publicar el catálogo no activa pagos: Culqi live continúa cerrado hasta superar los requisitos operativos y comerciales.
+
 MOVA conecta familias con profesores particulares para clases en vivo por videollamada. Los padres registran alumnos y crean solicitudes de clase (abiertas a los profesores verificados de la materia, o dirigidas a un profesor con su código); el profesor acepta o propone otro horario usando créditos MOVA.
 
 ## Stack Tecnológico

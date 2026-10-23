@@ -27,16 +27,31 @@ return [
             'name' => 'Inicio',
             'credits' => 5,
             'amount_pen' => '10.00',
+            'discount_percent' => 0,
+        ],
+        'esencial' => [
+            'name' => 'Esencial',
+            'credits' => 10,
+            'amount_pen' => '19.80',
+            'discount_percent' => 1,
         ],
         'impulso' => [
             'name' => 'Impulso',
             'credits' => 15,
-            'amount_pen' => '30.00',
+            'amount_pen' => '29.40',
+            'discount_percent' => 2,
+        ],
+        'avance' => [
+            'name' => 'Avance',
+            'credits' => 20,
+            'amount_pen' => '38.80',
+            'discount_percent' => 3,
         ],
         'pro' => [
             'name' => 'Pro',
             'credits' => 30,
-            'amount_pen' => '60.00',
+            'amount_pen' => '57.60',
+            'discount_percent' => 4,
         ],
     ],
 

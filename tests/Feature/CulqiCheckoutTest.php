@@ -70,7 +70,7 @@ class CulqiCheckoutTest extends TestCase
         $this->assertSame('culqi', $recharge->payment_method);
         $this->assertSame('pending', $recharge->status);
         $this->assertSame(15, $recharge->credits);
-        $this->assertSame('30.00', (string) $recharge->amount_pen);
+        $this->assertSame('29.40', (string) $recharge->amount_pen);
         $this->assertNull($recharge->operation_number);
         $this->assertSame($profile->id, $recharge->teacher_profile_id);
     }

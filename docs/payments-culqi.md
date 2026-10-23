@@ -1,5 +1,10 @@
 # Culqi en MOVA — integración, webhooks y MCP local
 
+> Catálogo actualizado 2026-10-22: Inicio 1000, Esencial 1980, Impulso 2940, Avance 3880, Pro 5760 centavos PEN.
+> Créditos 5/10/15/20/30; descuentos permanentes 0/1/2/3/4%. Precio y créditos siguen congelados en cada recarga.
+> La regresión de Pro nuevo (57.60) y antiguo (60.00) comprueba depósito/reversión únicos, sin recálculo desde el catálogo.
+> [Detalle comercial, estimaciones de comisión y riesgos heredados](culqi-commercial-review.md). No implica activación live.
+
 > Estado: CURRENT · 2026-10-22 · API V2 (`https://api.culqi.com`, tokens en `https://secure.culqi.com`).
 > Fuente: especificación OpenAPI oficial (`https://apidocs.culqi.com/apiculqi.yaml`) **y pruebas reales contra el
 > sandbox** — donde difieren, manda lo observado (tabla §3). Probado en modo **test**; producción no se tocó.

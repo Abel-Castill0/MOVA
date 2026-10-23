@@ -8,7 +8,7 @@
         </div>
         <a href="#recargas"
           class="flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-          <Icon name="credits" :size="18" /> Recargar créditos (Yape/Plin)
+          <Icon name="credits" :size="18" /> Recargar créditos
         </a>
       </div>
 
@@ -49,7 +49,10 @@
               </div>
               <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
             </div>
+            <p v-if="pack.code === 'pro'" class="mt-3 text-sm font-bold text-brand-700">Mayor ahorro</p>
+            <p class="mt-3 text-sm text-slate-600">Precio base: S/ {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
             <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
+            <p class="text-sm text-brand-700">Ahorro: S/ {{ pack.saving_pen }}</p>
 
             <button
               v-if="automaticCheckoutEnabled"
