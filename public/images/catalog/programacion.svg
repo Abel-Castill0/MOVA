@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Pantalla con llaves de código</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<rect x="80" y="50" width="320" height="190" rx="16" fill="#12315C"/><rect x="80" y="50" width="320" height="30" rx="16" fill="#1F5AA6"/>
+<circle cx="102" cy="65" r="6" fill="#F5B83D"/><circle cx="122" cy="65" r="6" fill="#5FB87E"/><circle cx="142" cy="65" r="6" fill="#fff"/>
+<text x="240" y="178" text-anchor="middle" font-family="Consolas,monospace" font-size="84" font-weight="700" fill="#FFE29A">{ }</text>
+<path d="M120 112h70M120 134h40" stroke="#9DB8DE" stroke-width="6" stroke-linecap="round"/><path d="M300 112h70M330 134h40" stroke="#9DB8DE" stroke-width="6" stroke-linecap="round"/>
+<path d="M170 240 l-20 40 h180 l-20 -40" fill="#1F5AA6"/><rect x="140" y="278" width="200" height="14" rx="7" fill="#12315C"/>
+</svg>

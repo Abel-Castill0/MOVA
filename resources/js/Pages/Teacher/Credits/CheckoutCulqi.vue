@@ -1,6 +1,7 @@
 <template>
   <AppLayout title="Pagar recarga">
     <div class="mx-auto max-w-lg space-y-6">
+      <PaymentsStatusBanner />
       <div>
         <Link :href="route('teacher.credits.index')" class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700">
           <Icon name="back" :size="16" /> Volver a Mis créditos
@@ -136,6 +137,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'

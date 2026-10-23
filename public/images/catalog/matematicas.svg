@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Pizarra con operaciones matemáticas y una regla</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<rect x="70" y="50" width="340" height="190" rx="14" fill="#1F5AA6"/><rect x="82" y="62" width="316" height="166" rx="8" fill="#2A6BBD"/>
+<text x="110" y="120" font-family="Verdana,sans-serif" font-size="34" font-weight="700" fill="#fff">2x + 5 = 15</text>
+<text x="110" y="170" font-family="Verdana,sans-serif" font-size="30" fill="#FFE29A">x = 5</text>
+<path d="M300 150 l30 0 M315 135 l0 30" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+<path d="M340 200 l40 0 M340 214 l40 0" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+<rect x="110" y="256" width="260" height="22" rx="4" fill="#F5B83D"/><g stroke="#8A5B00" stroke-width="2"><path d="M130 256v10M150 256v10M170 256v14M190 256v10M210 256v10M230 256v14M250 256v10M270 256v10M290 256v14M310 256v10M330 256v10M350 256v14"/></g>
+</svg>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\NotificationPreferencesController;
 use App\Http\Controllers\DiagnosticsController;
@@ -77,6 +78,7 @@ Route::get('/robots.txt', function () {
 // ── Legal pages (public, no auth required) ───────────────────────────────────
 Route::get('/terminos', [LegalController::class, 'terms'])->name('legal.terms');
 Route::get('/privacidad', [LegalController::class, 'privacy'])->name('legal.privacy');
+Route::get('/politica-de-devoluciones', [LegalController::class, 'refunds'])->name('legal.refunds');
 // P0-K — Libro de Reclamaciones virtual (público; con o sin sesión).
 Route::get('/libro-de-reclamaciones', [ComplaintController::class, 'create'])->name('complaints.create');
 Route::post('/libro-de-reclamaciones', [ComplaintController::class, 'store'])->middleware('throttle:5,1')->name('complaints.store');
@@ -84,6 +86,11 @@ Route::post('/libro-de-reclamaciones', [ComplaintController::class, 'store'])->m
 // ── Public pages ────────────────────────────────────────────────────────────
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 Route::get('/quienes-somos', [AboutController::class, 'index'])->name('about');
+
+// Catálogo y compra PÚBLICOS (sin sesión): lo que MOVA vende, con precio visible y un botón de compra funcional. No cobra ni
+// crea recargas por sí mismo; el cobro es teacher.credits.checkout.store (profesor autenticado).
+Route::get('/servicios', [CatalogController::class, 'index'])->name('catalog.index');
+Route::get('/comprar-creditos/{package}', [CatalogController::class, 'package'])->where('package', '[a-z0-9_-]+')->name('catalog.package');
 Route::get('/invitacion/profesor', [TeacherInvitationController::class, 'index'])->name('landing.teacher');
 Route::get('/invitacion/alumno', [StudentInvitationController::class, 'index'])->name('landing.student');
 Route::get('/marketplace', [MarketplaceController::class, 'index'])->name('marketplace');

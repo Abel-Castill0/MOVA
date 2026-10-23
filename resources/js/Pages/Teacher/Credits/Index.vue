@@ -27,6 +27,7 @@
       </div>
 
       <section id="recargas" class="space-y-3 scroll-mt-24">
+        <PaymentsStatusBanner v-if="$page.props.payments?.online" />
         <div>
           <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
           <p v-if="!anyRechargeMethodEnabled" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
@@ -250,6 +251,7 @@
 import { ref, computed } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'
 import InputLabel from '@/Components/InputLabel.vue'
 import Modal from '@/Components/Modal.vue'

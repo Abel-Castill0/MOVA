@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Matraz de laboratorio y una hoja</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<path d="M210 60 h60 v70 l62 110 a24 24 0 0 1 -21 36 H169 a24 24 0 0 1 -21 -36 l62 -110 Z" fill="#fff" stroke="#1F5AA6" stroke-width="7" stroke-linejoin="round"/>
+<path d="M175 215 h130 l28 50 a14 14 0 0 1 -12 20 H159 a14 14 0 0 1 -12 -20 Z" fill="#5FB87E"/>
+<circle cx="225" cy="240" r="9" fill="#fff" opacity=".8"/><circle cx="262" cy="228" r="6" fill="#fff" opacity=".8"/><circle cx="248" cy="258" r="5" fill="#fff" opacity=".8"/>
+<rect x="198" y="48" width="84" height="16" rx="6" fill="#1F5AA6"/>
+<path d="M360 120 c40 -10 70 20 60 60 c-40 10 -70 -20 -60 -60 Z" fill="#5FB87E"/><path d="M366 176 L412 128" stroke="#2F7A4B" stroke-width="5" stroke-linecap="round"/>
+</svg>

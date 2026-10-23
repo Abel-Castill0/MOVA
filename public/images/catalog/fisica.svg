@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Átomo con órbitas</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<g fill="none" stroke="#1F5AA6" stroke-width="6"><ellipse cx="240" cy="160" rx="130" ry="48"/><ellipse cx="240" cy="160" rx="130" ry="48" transform="rotate(60 240 160)"/><ellipse cx="240" cy="160" rx="130" ry="48" transform="rotate(-60 240 160)"/></g>
+<circle cx="240" cy="160" r="22" fill="#F5B83D" stroke="#8A5B00" stroke-width="4"/>
+<circle cx="370" cy="160" r="13" fill="#1F5AA6"/><circle cx="175" cy="48" r="13" fill="#1F5AA6" transform="translate(0 0)"/><circle cx="175" cy="272" r="13" fill="#1F5AA6"/>
+</svg>

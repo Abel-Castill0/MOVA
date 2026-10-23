@@ -31,7 +31,17 @@ class HandleInertiaRequests extends Middleware
             // para footers, layouts y páginas legales — nunca literales en Vue.
             'support' => [
                 'email' => config('legal.support_email'),
+                'phone' => config('legal.support_phone'),
+                'social' => array_filter((array) config('legal.social'), fn ($url) => is_string($url) && str_starts_with($url, 'https://')),
             ],
+            // Identidad del comercio (Culqi exige mostrar razón social, RUC y domicilio): nunca se inventa, solo lo configurado.
+            'merchant' => [
+                'business_name' => config('legal.provider.business_name'),
+                'ruc' => config('legal.provider.ruc'),
+                'address' => config('legal.provider.address'),
+            ],
+            // Estado honesto del pago en línea: la web nunca presenta como disponible lo que no lo está.
+            'payments' => fn () => \App\Support\Catalog::paymentsState($request->user()),
             // Movi (asistente de ayuda): los layouts montan el widget solo si puede responder de verdad.
             'movi' => [
                 'enabled' => fn () => \App\Services\ChatbotService::isAvailable(),

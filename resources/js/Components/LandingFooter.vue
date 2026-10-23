@@ -47,7 +47,15 @@
             </li>
             <li class="flex items-start gap-2">
               <svg class="w-4 h-4 text-brand-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span class="text-sm text-slate-400">Perú · Online</span>
+              <span class="text-sm text-slate-400">{{ $page.props.merchant?.address || 'Perú · Online' }}</span>
+            </li>
+            <li v-if="$page.props.support.phone" class="flex items-start gap-2">
+              <span class="text-sm text-slate-400">Tel.: <a :href="`tel:${$page.props.support.phone.replace(/\s+/g, '')}`" class="hover:text-white transition-colors">{{ $page.props.support.phone }}</a></span>
+            </li>
+          </ul>
+          <ul v-if="socialLinks.length" class="mt-4 flex flex-wrap gap-3" aria-label="Redes sociales de MOVA">
+            <li v-for="s in socialLinks" :key="s.key">
+              <a :href="s.url" target="_blank" rel="noopener noreferrer" class="text-sm text-slate-300 underline-offset-2 hover:text-white hover:underline transition-colors">{{ s.label }}</a>
             </li>
           </ul>
         </div>
@@ -55,10 +63,16 @@
       </div>
 
       <div class="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-        <p class="text-sm text-slate-300">© {{ year }} MOVA · Abel Castillo & Elias Paz · Todos los derechos reservados.</p>
+        <div class="text-sm text-slate-300">
+          <p>© {{ year }} MOVA · Abel Castillo & Elias Paz · Todos los derechos reservados.</p>
+          <p v-if="$page.props.merchant?.business_name" class="mt-1 text-xs text-slate-400" data-testid="merchant-identity">
+            {{ $page.props.merchant.business_name }}<template v-if="$page.props.merchant.ruc"> · RUC {{ $page.props.merchant.ruc }}</template><template v-if="$page.props.merchant.address"> · {{ $page.props.merchant.address }}</template>
+          </p>
+        </div>
         <div class="flex items-center gap-4">
           <a href="/privacidad" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Política de Privacidad</a>
           <a href="/terminos" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Términos y Condiciones</a>
+          <a href="/politica-de-devoluciones" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Cambios y devoluciones</a>
           <a href="/libro-de-reclamaciones" class="text-xs text-slate-300 hover:text-slate-400 transition-colors">Libro de Reclamaciones</a>
         </div>
       </div>
@@ -67,13 +81,21 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
 
 const year = new Date().getFullYear()
 
+// Solo las redes oficiales configuradas en el backend (config/legal.php): nunca se inventan.
+const SOCIAL_LABELS = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', linkedin: 'LinkedIn', youtube: 'YouTube' }
+const page = usePage()
+const socialLinks = computed(() => Object.entries(page.props.support?.social ?? {}).map(([key, url]) => ({ key, url, label: SOCIAL_LABELS[key] ?? key })))
+
 const quickLinks = [
   { href: '/', label: 'Inicio' },
   { href: '/#como-funciona', label: 'Cómo funciona' },
+  { href: '/servicios', label: 'Servicios y precios' },
   { href: '/marketplace', label: 'Marketplace' },
   { href: '/quienes-somos', label: 'Quiénes somos' },
 ]

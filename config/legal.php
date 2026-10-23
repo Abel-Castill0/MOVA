@@ -10,11 +10,13 @@ return [
     // 2026-09-29 (C1): texto alineado con el runtime real — IA desactivada,
     // minimización pre-aceptación, consentimiento por alumno, pagos de
     // créditos, proveedores/transferencia internacional, cookies, re-aceptación.
+    // 2026-10-23: Términos §5 y Privacidad §8/§9 nombran a Culqi como procesador de pagos en línea (Mercado Pago solo para lo
+    //             histórico) y se publica la Política de cambios y devoluciones: nueva aceptación para todos los usuarios.
     // 2026-10-06: Términos §5 (reembolso de créditos no usados a 7 días) y
     // Privacidad §11 (plazos de conservación) alineados con DECISIONS.
     'versions' => [
-        'terms'   => env('LEGAL_TERMS_VERSION', '2026-10-06'),
-        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-10-06.2'),
+        'terms'   => env('LEGAL_TERMS_VERSION', '2026-10-23'),
+        'privacy' => env('LEGAL_PRIVACY_VERSION', '2026-10-23'),
     ],
 
     // C-P0-MINOR-CONSENT — declaración que el padre/apoderado marca al
@@ -35,6 +37,16 @@ return [
 
     // Canal de soporte ya publicado en Legal/Privacy.vue.
     'support_email' => env('LEGAL_SUPPORT_EMAIL', 'm0v4class@gmail.com'),
+
+    // Contacto y redes OFICIALES del comercio. Se muestran en el sitio solo si están definidos (nunca se inventan).
+    'support_phone' => env('LEGAL_SUPPORT_PHONE'),
+    'social' => [
+        'instagram' => env('SOCIAL_INSTAGRAM_URL'),
+        'facebook'  => env('SOCIAL_FACEBOOK_URL'),
+        'tiktok'    => env('SOCIAL_TIKTOK_URL'),
+        'linkedin'  => env('SOCIAL_LINKEDIN_URL'),
+        'youtube'   => env('SOCIAL_YOUTUBE_URL'),
+    ],
 
     // Plazo de respuesta (días hábiles) mostrado al consumidor.
     'complaint_response_days' => (int) env('LEGAL_COMPLAINT_RESPONSE_DAYS', 15),

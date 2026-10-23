@@ -78,7 +78,7 @@
             <li><strong class="text-slate-800">Google</strong> — envío de correos (Gmail) e inicio de sesión con Google, si lo eliges.</li>
             <li><strong class="text-slate-800">8x8 (JaaS)</strong> — videollamadas de clase. El acceso a cada sala usa un token temporal emitido por MOVA solo para el profesor y la familia de esa clase.</li>
             <li><strong class="text-slate-800">Cloudinary</strong> — almacenamiento de fotos de perfil.</li>
-            <li><strong class="text-slate-800">Mercado Pago</strong> — pago en línea de créditos de profesores (ver sección 8).</li>
+            <li><strong class="text-slate-800">Culqi</strong> — pago en línea de créditos de profesores (ver sección 8). <strong class="text-slate-800">Mercado Pago</strong> — solo para verificar, conciliar o reembolsar operaciones realizadas antes con ese proveedor.</li>
             <li><strong class="text-slate-800">Meta (WhatsApp Business)</strong> — códigos de verificación y avisos por WhatsApp, cuando ese servicio esté habilitado. Recibe el número y el contenido del mensaje.</li>
             <li><strong class="text-slate-800">Pusher</strong> — avisos en tiempo real dentro de la plataforma.</li>
             <li><strong class="text-slate-800">Sentry</strong> — registro de errores técnicos, configurado para no adjuntar datos de identificación del usuario (como su IP o su sesión).</li>
@@ -91,7 +91,7 @@
         <section>
           <h2 class="text-lg font-black text-slate-900 mb-2">8. Pagos</h2>
           <p class="text-slate-600 leading-relaxed"><strong class="text-slate-800">Pago de las clases:</strong> se coordina y realiza directamente entre el padre y el profesor por medios externos (Yape, Plin u otros). MOVA no interviene en ese pago. Si el profesor registró su número de Yape o Plin, MOVA lo muestra a las familias que tienen clases con él.</p>
-          <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Créditos del profesor:</strong> cuando un profesor recarga créditos, MOVA registra el paquete, el monto, el estado y las fechas de la operación. En una recarga manual guarda además el medio de pago y el número de operación que el profesor informa. En un pago en línea con Mercado Pago, MOVA envía a Mercado Pago el correo del profesor, un identificador del medio de pago generado por Mercado Pago y, si se paga con tarjeta, el documento de identidad del titular; y guarda los identificadores y el estado de la operación. MOVA no recibe ni guarda el número completo de la tarjeta, su código de seguridad ni el código de aprobación de Yape.</p>
+          <p class="text-slate-600 leading-relaxed mt-2"><strong class="text-slate-800">Créditos del profesor:</strong> cuando un profesor recarga créditos, MOVA registra el paquete, el monto, el estado y las fechas de la operación. En una recarga manual guarda además el medio de pago y el número de operación que el profesor informa. En un pago en línea con Culqi, MOVA envía a Culqi el correo del profesor, su nombre y teléfono (para la prevención de fraude y las órdenes de pago), un identificador del dispositivo, el identificador del medio de pago generado por Culqi en su formulario seguro y el importe; y guarda los identificadores y el estado de la operación. Las operaciones realizadas antes con Mercado Pago se siguen verificando y reembolsando con ese proveedor. MOVA no recibe ni guarda el número completo de la tarjeta, su código de seguridad ni el código de aprobación de Yape.</p>
         </section>
 
         <section>

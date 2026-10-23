@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Cuaderno y un lápiz</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<rect x="120" y="50" width="220" height="230" rx="14" fill="#fff" stroke="#1F5AA6" stroke-width="7"/><path d="M160 50v230" stroke="#1F5AA6" stroke-width="5"/>
+<g stroke="#9DB8DE" stroke-width="6" stroke-linecap="round"><path d="M185 100h120M185 135h120M185 170h120M185 205h80"/></g>
+<path d="M330 250 L390 120 l22 10 L352 260 l-30 6 Z" fill="#F5B83D" stroke="#8A5B00" stroke-width="4" stroke-linejoin="round"/>
+</svg>

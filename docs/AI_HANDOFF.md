@@ -51,6 +51,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 |---|---|
 | Créditos, recargas, ledger | `payments-migration-mp-to-culqi.md` §4–§6 · `release/MOVA_V1_DECISIONS.md` · `MONETIZATION_INTEGRITY_PHASE1.md` · skill `mova-mercadopago` (invariantes comunes) |
 | Culqi | `payments-culqi.md` (todo) |
+| Revisión comercial de Culqi (catálogo público, evaluador, legal) | `culqi-commercial-review.md` (todo) |
 | Mercado Pago | `payments-architecture.md` (histórico, verificar) · `release/INCIDENT_2026-10-06_yape_live_checkout.md` · `release/MERCADOPAGO_SUPPORT_CASE_2072.md` |
 | Despliegue / Azure / DNS | `release/MOVA_PRODUCTION_RUNBOOK.md` · `architecture/01-deployment.md` · `AGENTS.md` (límites de coste) |
 | Estados y flujos de negocio | `architecture/03-state-machines.md`, `04-flows.md` · `MOVA_SYSTEM_MAP.md` (parcialmente superado) |

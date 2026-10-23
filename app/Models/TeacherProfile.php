@@ -126,14 +126,14 @@ class TeacherProfile extends Model
         $avgRating = $this->avgRating();
 
         if ($this->completed_classes_count >= 20 && $avgRating !== null && $avgRating >= 4.5) {
-            return 30;
+            return (int) config('credits.class_rates.expert', 30);
         }
 
         if ($this->completed_classes_count >= 5 && $avgRating !== null && $avgRating >= 4.0) {
-            return 25;
+            return (int) config('credits.class_rates.experienced', 25);
         }
 
-        return 20;
+        return (int) config('credits.class_rates.base', 20);
     }
 
     public function hasAvailableMentorshipSlots(): bool

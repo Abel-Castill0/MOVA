@@ -277,6 +277,7 @@ const navLinks = [
   { href: '/#como-funciona', label: 'Cómo funciona' },
   { href: '/#materias', label: 'Materias' },
   { href: '/#profesores', label: 'Profesores' },
+  { href: '/servicios', label: 'Servicios' },
   { href: '/quienes-somos', label: 'Quiénes somos' },
 ]
 

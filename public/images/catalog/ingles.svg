@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-labelledby="t"><title id="t">Dos globos de diálogo con las letras A y B</title><rect width="480" height="320" rx="24" fill="#E5EEFB"/><circle cx="410" cy="60" r="70" fill="#CFE0F7"/><circle cx="60" cy="290" r="90" fill="#CFE0F7"/>
+<path d="M70 70 h210 a24 24 0 0 1 24 24 v80 a24 24 0 0 1 -24 24 h-120 l-44 38 v-38 h-46 a24 24 0 0 1 -24 -24 v-80 a24 24 0 0 1 24 -24 Z" fill="#1F5AA6"/>
+<text x="168" y="158" text-anchor="middle" font-family="Verdana,sans-serif" font-size="70" font-weight="800" fill="#fff">Hi!</text>
+<path d="M410 150 h-120 a22 22 0 0 0 -22 22 v70 a22 22 0 0 0 22 22 h60 l40 34 v-34 h20 a22 22 0 0 0 22 -22 v-70 a22 22 0 0 0 -22 -22 Z" fill="#F5B83D"/>
+<text x="350" y="228" text-anchor="middle" font-family="Verdana,sans-serif" font-size="44" font-weight="800" fill="#5A3C00">Hello</text>
+</svg>

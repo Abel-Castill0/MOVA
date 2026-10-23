@@ -11,6 +11,17 @@ return [
     // (ej. 30 min = 1 crédito, igual que 60 min). Ver Lesson::creditCostForMinutes().
     'cost_per_hour' => 1,
 
+    // Tarifa MÁXIMA por hora de clase que un profesor puede fijar según su nivel (la paga el padre DIRECTAMENTE al profesor;
+    // MOVA no intermedia ese cobro). Fuente única: TeacherProfile::maxAllowedRate() y el catálogo público las leen de aquí.
+    'class_rates' => [
+        'base' => 20,         // profesores nuevos
+        'experienced' => 25,  // ≥ 5 clases completadas y calificación ≥ 4,0
+        'expert' => 30,       // ≥ 20 clases completadas y calificación ≥ 4,5
+    ],
+
+    // Reembolso íntegro de créditos comprados y NO usados: días desde la compra (docs/release/MOVA_V1_DECISIONS.md §3, Términos §5).
+    'refund_days' => 7,
+
     'packages' => [
         'inicio' => [
             'name' => 'Inicio',

@@ -38,6 +38,9 @@
     <footer class="px-4 sm:px-8 py-6 flex flex-wrap gap-4 justify-center text-xs text-gray-500 border-t border-gray-200/60 bg-white/70 backdrop-blur-sm">
       <Link :href="route('legal.terms')" class="hover:text-brand-600 transition-colors">Términos y Condiciones</Link>
       <Link :href="route('legal.privacy')" class="hover:text-brand-600 transition-colors">Política de Privacidad</Link>
+      <Link :href="route('legal.refunds')" class="hover:text-brand-600 transition-colors">Cambios y devoluciones</Link>
+      <Link :href="route('complaints.create')" class="hover:text-brand-600 transition-colors">Libro de Reclamaciones</Link>
+      <Link :href="route('catalog.index')" class="hover:text-brand-600 transition-colors">Servicios y precios</Link>
       <a :href="`mailto:${$page.props.support.email}`" class="hover:text-brand-600 transition-colors">Soporte</a>
       <span class="text-gray-300">·</span>
       <span>© {{ year }} MOVA. Todos los derechos reservados.</span>
