@@ -722,17 +722,41 @@ class AccountLifecycleTest extends TestCase
         $this->assertSame(0, AccountDeletionRequest::first()->outcome['classes_cancelled']);
     }
 
-    public function test_suspended_or_indebted_accounts_cannot_use_the_automatic_closure(): void
+    public function test_suspended_or_indebted_accounts_can_close_but_cannot_register_again(): void
+    {
+        [$user, $teacher] = $this->teacher(); $email = $user->email;
+        $user->forceFill(['phone' => '987654321', 'phone_verified_normalized' => '+51987654321', 'suspended_at' => now(), 'suspension_reason' => 'QA'])->save();
+        $this->actingAs($user)->delete('/profile', $this->closure(['accept_credit_loss' => true]))->assertRedirect(route('account.closure.status'));
+        $this->assertNotNull($user->fresh()->account_erased_at);
+        $this->assertTrue(AccountDeletionRequest::first()->outcome['registration_blocked']);
+        // Only hashes are stored, never the email or the phone.
+        $stored = json_encode(DB::table('closure_blocklist')->get());
+        $this->assertStringNotContainsString($email, $stored);
+        $this->assertStringNotContainsString('987654321', $stored);
+        $this->assertSame(2, DB::table('closure_blocklist')->count());
+
+        $payload = ['name' => 'Nueva', 'email' => $email, 'password' => 'Str0ng-Pass-2026!', 'password_confirmation' => 'Str0ng-Pass-2026!', 'role' => 'parent', 'accepted_terms' => true];
+        $this->post('/register', $payload)->assertSessionHasErrors('email');
+        $this->post('/register', ['email' => 'otro-'.Str::random(6).'@example.test', 'phone' => '987654321'] + $payload)->assertSessionHasErrors('email');
+        $this->assertSame(0, User::where('email', $email)->count());
+        // The same email in another casing is blocked too; an unrelated person is not.
+        $this->post('/register', ['email' => strtoupper($email)] + $payload)->assertSessionHasErrors('email');
+        $this->post('/register', ['email' => 'limpio-'.Str::random(6).'@example.test'] + $payload)->assertSessionHasNoErrors();
+    }
+
+    public function test_an_account_with_debt_closes_and_is_blocklisted_but_a_normal_closure_is_not(): void
     {
         [$user, $teacher] = $this->teacher();
-        $user->forceFill(['suspended_at' => now(), 'suspension_reason' => 'QA'])->save();
-        $this->actingAs($user)->delete('/profile', $this->closure(['accept_credit_loss' => true]))->assertSessionHasErrors('closure');
-        $this->assertNull($user->fresh()->account_erased_at);
-        $user->forceFill(['suspended_at' => null])->save();
         $teacher->update(['credits_available' => -3]);
-        $this->delete('/profile', $this->closure(['accept_credit_loss' => true]))->assertSessionHasErrors('closure');
-        $this->assertNull($user->fresh()->account_erased_at);
-        $this->assertDatabaseCount('account_deletion_requests', 0);
+        $this->actingAs($user)->delete('/profile', $this->closure())->assertRedirect(route('account.closure.status'));
+        $this->assertSame(-3, $teacher->fresh()->credits_available);
+        $this->assertSame(0, CreditTransaction::where('type', 'forfeiture')->count());
+        $this->assertGreaterThan(0, DB::table('closure_blocklist')->where('reason', 'debt')->count());
+
+        $normal = $this->user();
+        $count = DB::table('closure_blocklist')->count();
+        $this->actingAs($normal)->delete('/profile', $this->closure())->assertRedirect();
+        $this->assertSame($count, DB::table('closure_blocklist')->count());
     }
 
     public function test_the_credit_loss_cannot_exceed_the_amount_the_user_accepted(): void

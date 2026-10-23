@@ -70,6 +70,9 @@ class PhoneVerificationController extends Controller
         // verificación. Hallazgo CRÍTICO de auditoría (2026-08-22): antes de
         // este fix, N cuentas podían verificar el mismo teléfono y cobrar el
         // bono de bienvenida N veces.
+        if (\App\Models\ClosureBlocklist::blocks(null, $normalized)) {
+            return back()->withErrors(['phone' => 'No es posible verificar este número. Escríbenos a soporte.']);
+        }
         if (User::where('phone_verified_normalized', $normalized)->where('id', '!=', $user->id)->exists()) {
             return back()->withErrors(['phone' => 'Este número de teléfono ya está verificado en otra cuenta de MOVA.']);
         }

@@ -43,6 +43,9 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (\App\Models\ClosureBlocklist::blocks((string) $request->input('email'), $request->input('phone'))) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['email' => 'No es posible crear una cuenta con estos datos. Escríbenos a soporte.']);
+        }
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',

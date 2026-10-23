@@ -168,6 +168,12 @@ class GoogleAuthController extends Controller
             ]);
         }
 
+        if (\App\Models\ClosureBlocklist::blocks($pending['email'])) {
+            $request->session()->forget(self::PENDING_SESSION_KEY);
+
+            return redirect()->route('login')->withErrors(['email' => 'No es posible crear una cuenta con estos datos. Escríbenos a soporte.']);
+        }
+
         $user = DB::transaction(function () use ($pending, $data, $request) {
             $user = User::create([
                 'name' => $pending['name'],

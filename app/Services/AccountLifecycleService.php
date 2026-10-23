@@ -173,10 +173,9 @@ class AccountLifecycleService
             }
             $this->authorize($locked);
             $validateIdentity?->__invoke($locked);
-            // Cierre automático no disponible con una restricción o una deuda abiertas: evita usarlo para evadirlas.
-            if ($locked->suspended_at !== null || ($teacher && $teacher->credits_available < 0)) {
-                throw ValidationException::withMessages(['closure' => 'Tu cuenta tiene una restricción o un saldo pendiente. Escríbenos a soporte con tu correo y lo resolvemos contigo.']);
-            }
+            // Una cuenta suspendida o con deuda puede cerrarse, pero su correo y teléfono (solo hashes) quedan en una lista
+            // de bloqueo de re-registro: el cierre automático no sirve para evadir la restricción o la deuda.
+            $blocklist = $locked->suspended_at !== null ? 'suspended' : (($teacher && $teacher->credits_available < 0) ? 'debt' : null);
 
             $locked->setRelation('teacherProfile', $teacher);
             $summary = $this->summary($locked);
@@ -195,6 +194,7 @@ class AccountLifecycleService
                 'events' => $events,
             ]);
             $originalEmail = $locked->email;
+            $originalPhones = [$locked->phone, $locked->phone_verified_normalized];
             $hadAvatar = filled($locked->avatar_url);
 
             // Cierre de identidad primero: cualquier alta concurrente ve la cuenta cerrada al obtener el lock.
@@ -205,6 +205,10 @@ class AccountLifecycleService
             $outcome += $this->settleCredits($locked, $teacher, $acceptCreditLoss);
             $outcome['students_anonymized'] = $this->erasePersonalData($locked, $scope, $teacher, $originalEmail, $locked->phone);
             $outcome['had_avatar'] = $hadAvatar;
+            if ($blocklist) {
+                \App\Models\ClosureBlocklist::add($originalEmail, $originalPhones, $blocklist);
+                $outcome['registration_blocked'] = true;
+            }
 
             $events[] = ['action' => 'erased', 'at' => now()->toIso8601String(), 'actor_id' => null];
             $request->forceFill([
