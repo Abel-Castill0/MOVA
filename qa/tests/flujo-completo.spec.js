@@ -115,7 +115,9 @@ async function showListView(page) {
 }
 
 async function logout(page) {
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  // «Cerrar sesión» vive en el menú del avatar (hay uno por breakpoint; solo uno es visible).
+  await page.locator('button[aria-label="Menú de mi cuenta"]:visible').first().click();
+  await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
   await page.waitForURL('/', { timeout: 15000 });
 }
 
