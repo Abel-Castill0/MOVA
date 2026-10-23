@@ -404,7 +404,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
     });
   });
 
-  test('UI de recargas: botón visible, página de créditos carga con los 3 paquetes', async ({ page }) => {
+  test('UI de recargas: botón visible, catálogo de cinco paquetes autorizados', async ({ page }) => {
     await test.step('1. Login del profesor', async () => {
       await login(page, TEACHER_EMAIL, TEACHER_PASSWORD);
     });
@@ -415,13 +415,13 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       await expect(dashboardBtn).toHaveAttribute('href', /\/teacher\/credits$/);
     });
 
-    await test.step('3-4. Navegar a la página de créditos y verificar los 3 paquetes', async () => {
+    await test.step('3-4. Navegar a la página de créditos y verificar los cinco paquetes', async () => {
       await page.goto('/teacher/credits');
       await expect(page.getByText('Mis créditos MOVA')).toBeVisible();
 
       // Botón destacado de recarga en la propia página de créditos — siempre
       // visible, apunta a la sección de paquetes.
-      const creditsBtn = page.getByRole('link', { name: /Recargar créditos \(Yape\/Plin\)/ });
+      const creditsBtn = page.getByRole('link', { name: 'Recargar créditos', exact: true });
       await expect(creditsBtn).toBeVisible();
       await expect(creditsBtn).toHaveAttribute('href', '#recargas');
 
@@ -435,24 +435,24 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
         `echo (config('credits.recharges.enabled') && filled(config('credits.recharges.payment_destination'))) ? '1' : '0';`
       ) === '1';
 
-      if (rechargesEnabled) {
-        for (const name of ['Inicio', 'Impulso', 'Pro']) {
+      const automaticEnabled = tinker(
+        `echo App\\Support\\CheckoutProvider::active(App\\Models\\User::where('email', '${TEACHER_EMAIL}')->first()) !== null ? '1' : '0';`
+      ) === '1';
+      const packages = tinker(
+        `echo collect(config('credits.packages'))->map(fn($p) => "{$p['name']}:{$p['credits']}:{$p['amount_pen']}")->implode('|');`
+      );
+      expect(packages).toBe('Inicio:5:10.00|Esencial:10:19.80|Impulso:15:29.40|Avance:20:38.80|Pro:30:57.60');
+
+      if (rechargesEnabled || automaticEnabled) {
+        for (const name of ['Inicio', 'Esencial', 'Impulso', 'Avance', 'Pro']) {
           await expect(page.getByRole('heading', { name })).toBeVisible();
         }
-        await expect(page.getByText('5 creditos')).toBeVisible();
-        await expect(page.getByText('15 creditos')).toBeVisible();
-        await expect(page.getByText('30 creditos')).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Comprar' }).first()).toBeVisible();
+        for (const credits of [5, 10, 15, 20, 30]) {
+          await expect(page.getByText(`${credits} créditos`, { exact: true })).toBeVisible();
+        }
+        await expect(page.getByRole('button', { name: automaticEnabled ? /Pagar en línea|Pagar con/ : 'Comprar' }).first()).toBeVisible();
       } else {
         await expect(page.getByText('Las recargas se habilitarán próximamente.')).toBeVisible();
-
-        // Los paquetes no se renderizan mientras RECHARGES_ENABLED=false, pero
-        // el catálogo del backend (fuente de verdad para la UI el día que se
-        // habilite) debe tener exactamente los 3 paquetes acordados con el dueño.
-        const packages = tinker(
-          `echo collect(config('credits.packages'))->map(fn($p) => "{$p['name']}:{$p['credits']}:{$p['amount_pen']}")->implode('|');`
-        );
-        expect(packages).toBe('Inicio:5:10.00|Impulso:15:30.00|Pro:30:60.00');
       }
     });
 
