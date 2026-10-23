@@ -48,6 +48,9 @@
              propio config([...]) en setUp() como ya hacían. -->
         <env name="PAYMENTS_ENABLED" value="false" force="true"/>
         <env name="PAYMENT_PROVIDER" value="fake" force="true"/>
+        <!-- Mercado Pago está retirado para compras nuevas en producción (default false). Las pruebas lo activan para
+             conservar la cobertura del proveedor y del checkout heredado; las pruebas de retiro lo apagan explícitamente. -->
+        <env name="MERCADOPAGO_NEW_PAYMENTS_ENABLED" value="true" force="true"/>
         <env name="ZOOM_ACCOUNT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_SECRET" value="" force="true"/>

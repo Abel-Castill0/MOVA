@@ -35,13 +35,41 @@ final class CheckoutProvider
         };
     }
 
-    /** Misma regla que CreditCheckoutController::mercadoPagoCheckoutEnabled() (sin cambios). */
+    /**
+     * ¿Se ofrecen compras NUEVAS con Mercado Pago? Retirado por defecto (MERCADOPAGO_NEW_PAYMENTS_ENABLED=false):
+     * con Culqi como proveedor exclusivo, esto jamás vuelve a ser el respaldo automático de Culqi.
+     */
     public static function mercadoPagoEnabled(?Authenticatable $user = null): bool
     {
         return (bool) config('payments.enabled')
+            && (bool) config('payments.mercadopago.new_payments_enabled', false)
             && config('payments.provider') === 'mercadopago'
             && filled(config('payments.mercadopago.public_key'))
             && CheckoutAllowlist::permits($user ?? auth()->user());
+    }
+
+    /**
+     * Mercado Pago como sistema HISTÓRICO: ¿hay que seguir verificando, conciliando y consultando el estado de los
+     * pagos ya creados con Mercado Pago? Independiente del proveedor activo y de la bandera de pagos nuevos: mientras
+     * existan credenciales y el webhook esté habilitado, las operaciones anteriores se cierran correctamente.
+     */
+    public static function mercadoPagoLegacyProcessing(): bool
+    {
+        return (bool) config('payments.enabled')
+            && (config('payments.provider') === 'mercadopago'
+                || (filled(config('payments.mercadopago.access_token')) && (bool) config('payments.mercadopago.webhooks_enabled', false)));
+    }
+
+    /**
+     * Culqi como sistema de conciliación: ¿hay que seguir verificando los cargos/órdenes de Culqi ya creados? Igual que
+     * en Mercado Pago, sobrevive a un rollback del proveedor de compras nuevas mientras haya llave secreta y el webhook
+     * de Culqi esté habilitado (o Culqi sea el proveedor activo).
+     */
+    public static function culqiLegacyProcessing(): bool
+    {
+        return (bool) config('payments.enabled')
+            && CulqiConfig::secretKey() !== null
+            && (config('payments.provider') === 'culqi' || (bool) config('payments.culqi.webhooks_enabled', false));
     }
 
     /**

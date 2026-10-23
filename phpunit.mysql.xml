@@ -53,6 +53,7 @@
         <env name="WHATSAPP_ENABLED" value="false" force="true"/>
         <env name="PAYMENTS_ENABLED" value="false" force="true"/>
         <env name="PAYMENT_PROVIDER" value="fake" force="true"/>
+        <env name="MERCADOPAGO_NEW_PAYMENTS_ENABLED" value="true" force="true"/>
         <env name="ZOOM_ACCOUNT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_ID" value="" force="true"/>
         <env name="ZOOM_CLIENT_SECRET" value="" force="true"/>

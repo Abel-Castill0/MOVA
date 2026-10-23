@@ -80,6 +80,15 @@ class MercadoPagoPaymentProvider implements PaymentProviderContract
      */
     public function createPaymentAttempt(RechargeRequest $recharge, ?TokenizedPaymentInstrument $instrument = null): PaymentOrder
     {
+        // Retiro para compras nuevas: ningún camino (HTTP, comando, script) puede crear un cobro nuevo en Mercado
+        // Pago. Las operaciones ya creadas se siguen resolviendo por reconcile()/webhook, que no pasan por aquí.
+        if (! (bool) config('payments.mercadopago.new_payments_enabled', false)) {
+            throw new RuntimeException(
+                'MercadoPagoPaymentProvider: Mercado Pago ya no admite pagos nuevos (MERCADOPAGO_NEW_PAYMENTS_ENABLED=false). '
+                .'Las compras nuevas se hacen con Culqi.'
+            );
+        }
+
         $accessToken = config('payments.mercadopago.access_token');
         if (! $accessToken) {
             throw new RuntimeException(

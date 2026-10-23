@@ -91,6 +91,15 @@ class AppServiceProvider extends ServiceProvider
             // ser coherentes entre sí y con CULQI_ENV (ver CulqiConfig); el secreto del
             // webhook solo se exige cuando el webhook se declara activo.
             if ($provider === 'culqi') {
+                // Mercado Pago sigue verificando/conciliando pagos HISTÓRICOS aunque Culqi sea el proveedor: sin su collector
+                // esperado y su secreto de webhook los controles de cuenta/firma se omitirían en silencio, así que se exigen.
+                if (filled(config('payments.mercadopago.access_token')) && (bool) config('payments.mercadopago.webhooks_enabled', false)) {
+                    ProviderGuard::requireConfig('Mercado Pago (histórico)', $paymentsEnabled, [
+                        'MERCADOPAGO_EXPECTED_COLLECTOR_ID' => config('payments.mercadopago.expected_collector_id'),
+                        'MERCADOPAGO_WEBHOOK_SECRET' => config('payments.mercadopago.webhook_secret'),
+                    ]);
+                }
+
                 ProviderGuard::requireConfig('Culqi', $paymentsEnabled, [
                     'CULQI_PUBLIC_KEY' => config('payments.culqi.public_key'),
                     'CULQI_SECRET_KEY' => config('payments.culqi.private_key'),

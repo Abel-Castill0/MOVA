@@ -120,6 +120,10 @@ class MercadoPagoSandboxSmoke extends Command
 
     private function assertSafeToRun(): void
     {
+        if (! (bool) config('payments.mercadopago.new_payments_enabled', false)) {
+            throw new RuntimeException('Mercado Pago está retirado para pagos nuevos (MERCADOPAGO_NEW_PAYMENTS_ENABLED=false): esta sonda no puede crear pagos. Abortado sin tocar datos.');
+        }
+
         QaDatabaseGuard::assertSafeEnvironment();
 
         $connection = (string) config('database.default');

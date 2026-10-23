@@ -126,6 +126,8 @@ sequenceDiagram
 
 ## 7. Migración a producción (plan; **no activado**)
 
+> **Actualización 2026-10-22: Mercado Pago está retirado para compras nuevas** (`MERCADOPAGO_NEW_PAYMENTS_ENABLED=false`, por defecto). Culqi es el único proveedor de recargas nuevas; mientras no esté listo, MOVA no acepta compras nuevas (sin respaldo hacia Mercado Pago ni `fake`). Las operaciones históricas de Mercado Pago se siguen verificando, conciliando y reembolsando. Detalle, rollback y pruebas: [`payments-culqi.md`](payments-culqi.md) §15.
+
 > **Bloqueo previo (2026-10-22): la suscripción actual es Azure for Students**, cuya oferta es «expressly for the support of education or teaching, noncommercial research, or efforts to design, develop, test, and demonstrate software applications for these purposes» (Microsoft Learn FAQ). Cobrar a profesores reales es un uso comercial: **no activar cobros live en esa suscripción**. Alternativas, costos y la checklist completa de activación (con evidencia): [`payments-culqi.md`](payments-culqi.md) §14.
 
 **Dependencias de Culqi (acción del propietario):** llaves `pk_live_/sk_live_` solo en secretos de producción; cuestionario PCI aplicable (ver `payments-culqi.md` §12); confirmar medios habilitados (Yape, PagoEfectivo/billeteras); registrar los webhooks con HTTPS público; (opcional) RSA correcto.

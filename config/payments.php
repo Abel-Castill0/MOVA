@@ -112,6 +112,12 @@ return [
     // chequeo aparte, y ProviderGuard tampoco lo exige al arrancar (sección
     // 13: solo cuando el webhook esté realmente configurado/activo).
     'mercadopago' => [
+        // RETIRADO PARA COMPRAS NUEVAS (2026-10-22): Culqi es la única pasarela de nuevas recargas. Con `false`
+        // (valor por defecto) MOVA no abre checkout de Mercado Pago, no crea RechargeRequest/PaymentOrder nuevos
+        // por ese proveedor y MercadoPagoPaymentProvider::createPaymentAttempt() se niega. Lo ya creado sigue
+        // verificándose, conciliándose y reembolsándose (webhook, barrido, polling de estado). `true` solo como
+        // marcha atrás de emergencia o en pruebas (phpunit.xml lo activa para conservar la cobertura del proveedor).
+        'new_payments_enabled' => filter_var(env('MERCADOPAGO_NEW_PAYMENTS_ENABLED', false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
         'base_url' => env('MERCADOPAGO_BASE_URL', 'https://api.mercadopago.com'),
         'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
         // Public key: NO es secreta (documentada para uso en el navegador,

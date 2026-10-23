@@ -318,3 +318,32 @@ Sin migrar nada automáticamente. Precios de lista (Azure Retail Prices API, 202
 | Orden `pending` sin cambios | El usuario no pagó el CIP/QR | Vence sola (`CULQI_ORDER_TTL_MINUTES`) |
 
 **Reembolso:** solo desde CulqiPanel (o API de Culqi) sobre `chr_…`; el evento `refund.creation.succeeded` + re-consulta aplican `reverse()` si es **total** (puede dejar saldo negativo por regla de negocio); parcial/disputa → revisión humana. No existe reembolso desde MOVA ni aprobación manual de recargas Culqi.
+
+
+## 15. Mercado Pago retirado para compras nuevas; Culqi único proveedor (2026-10-22)
+
+> Estado del código: **hecho y probado**. Estado en producción: ver `release/DEPLOY_HISTORY.md`. Culqi **no** acepta todavía pagos reales (bloqueos de §14.1): mientras tanto MOVA **no acepta compras nuevas** (no vuelve a Mercado Pago ni a `fake`).
+
+### 15.1 Regla
+
+| Concepto | Comportamiento |
+|---|---|
+| Compras nuevas | **Solo Culqi.** `CheckoutProvider::active()` devuelve `culqi` únicamente si pagos están habilitados, `PAYMENT_PROVIDER=culqi`, la configuración es coherente (llaves/modo/hosts) y el usuario pasa la allowlist; en cualquier otro caso devuelve `null` y la pantalla de créditos muestra «Las recargas se habilitarán próximamente». No existe respaldo automático hacia Mercado Pago ni hacia `fake` |
+| Bandera de retiro | `MERCADOPAGO_NEW_PAYMENTS_ENABLED` (`config('payments.mercadopago.new_payments_enabled')`), **default `false` = retirado**. Con `false`: `store` responde 503 y no crea `RechargeRequest`; `show` de una recarga antigua de Mercado Pago redirige a la pantalla de créditos; `pay` responde 410; `MercadoPagoPaymentProvider::createPaymentAttempt()` lanza `RuntimeException` (ningún comando/script/servicio puede crear un cobro nuevo); nada llama a la API. `true` solo como marcha atrás de emergencia (y con `PAYMENT_PROVIDER=mercadopago`) o en pruebas (`phpunit.xml`) |
+| Operaciones históricas | **Se conservan.** El webhook `/api/webhooks/mercadopago` depende solo de `MERCADOPAGO_WEBHOOKS_ENABLED` (no del proveedor activo); `ProcessMercadoPagoWebhook`, `MercadoPagoPaymentReconciliationService`, el polling de estado (`status`/`refresh`, que usan `CheckoutProvider::mercadoPagoLegacyProcessing()`), los comandos `mercadopago:*` y devoluciones siguen funcionando; `mercadopago:reconcile` sigue agendado mientras haya proveedor `mercadopago` o webhook de MP habilitado con credenciales (Kernel). Cada pago conserva su `provider`/`payment_method`; nada se migra a Culqi; no se borra ninguna tabla, columna ni registro |
+| Credenciales | Las de Mercado Pago se conservan (pagos históricos, webhooks pendientes, devoluciones) hasta cerrar todas las operaciones antiguas |
+| Frontend | `Index.vue` ya no ofrece «Pagar con Yape» de Mercado Pago salvo que la bandera esté en `true`; `Checkout.vue` (Mercado Pago) queda inaccesible por redirección; la spec Playwright de Yape de Mercado Pago se omite sin la bandera. **No se tocaron** los textos legales (`Legal/Privacy.vue` menciona a Mercado Pago como procesador): cambiarlos exige versión legal nueva y re-aceptación, decisión del titular; **antes de activar Culqi live hay que citarlo como procesador en la política de privacidad** |
+
+### 15.2 Pruebas
+
+`MercadoPagoRetirementTest` (12): sin proveedor ofrecido con solo Mercado Pago; `store` 503 sin filas ni llamadas HTTP; `show` redirige; `pay` 410 sin `PaymentOrder` ni HTTP; el proveedor se niega desde cualquier entrada; una mala configuración de Culqi **nunca** cae a Mercado Pago ni con la bandera de emergencia; Culqi es el único proveedor cuando está listo; un pago histórico de Mercado Pago se verifica y acredita **exactamente una vez** tras el cambio a Culqi; el barrido sigue agendado con Culqi como proveedor; el webhook de Mercado Pago es independiente del proveedor activo; el barrido y el refresh de Culqi sobreviven a un rollback; un intento histórico en curso muestra su estado en solo lectura; con Culqi activo se exige la configuración histórica de Mercado Pago.
+
+### 15.3 Activación de Culqi como único proveedor (cuando se levanten los bloqueos de §14.1)
+
+1. `PAYMENT_PROVIDER=culqi` y las variables `CULQI_*` de §14.2 en web y scheduler (revisión nueva de cada uno). **No** definir `MERCADOPAGO_NEW_PAYMENTS_ENABLED` (queda `false`).
+2. Los pagos antiguos siguen en Mercado Pago; `mercadopago:reconcile` y el webhook de Mercado Pago siguen activos.
+3. **Rollback.** (a) *Cerrar compras sin perder la conciliación* (lo seguro y preferible; es el estado de producción hasta que Culqi esté listo): `PAYMENT_PROVIDER=mercadopago` con `MERCADOPAGO_NEW_PAYMENTS_ENABLED=false` — no hay compras nuevas; Mercado Pago histórico y los cargos/órdenes de Culqi ya creados siguen conciliándose (Culqi mientras su webhook siga habilitado y la llave secreta cargada: `CheckoutProvider::culqiLegacyProcessing()`). (b) *Reabrir Mercado Pago*: `MERCADOPAGO_NEW_PAYMENTS_ENABLED=true` + `PAYMENT_PROVIDER=mercadopago`, solo por orden expresa del titular. **No** usar `PAYMENTS_ENABLED=false` como rollback: apaga también la conciliación de lo que está en curso.
+
+### 15.4 Endurecimiento tras la revisión de seguridad financiera (2026-10-22)
+
+Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a un rollback del proveedor (`culqiLegacyProcessing`); con `PAYMENT_PROVIDER=culqi` y el webhook de Mercado Pago habilitado se **exigen** `MERCADOPAGO_EXPECTED_COLLECTOR_ID` y `MERCADOPAGO_WEBHOOK_SECRET` (si no, los controles de cuenta/firma de lo histórico se omitirían en silencio); `show` de un intento histórico en curso o en revisión sigue mostrando su estado en solo lectura (no se pierde el aviso «no vuelvas a pagar»); la bandera se lee con `FILTER_VALIDATE_BOOLEAN` (un `off`/`no` ya no cuenta como verdadero); `mercadopago:sandbox-smoke` se niega con la bandera en `false`; el aviso `MERCADOPAGO_WEBHOOK_QUEUE_SYNC` del health-check usa la misma regla histórica. **Aceptado/pendiente:** `PAYMENTS_ENABLED=false` detiene también la conciliación histórica (no usarlo como interruptor de compras); falta una prueba de concurrencia webhook + refresh simultáneos sobre un pago histórico con la bandera en `false` (la acreditación única ya está cubierta por las carreras multi-proceso y las pruebas existentes).

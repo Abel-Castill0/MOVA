@@ -91,6 +91,11 @@ async function login(page, email, password) {
 
 test.describe.serial('Checkout Yape — contrato real payment_method (local)', () => {
   test('el submit real de Yape envía payment_method=yape + token, nunca phone/otp', async ({ page }) => {
+    // Mercado Pago está RETIRADO para compras nuevas (MERCADOPAGO_NEW_PAYMENTS_ENABLED=false por defecto): GET
+    // .../checkout/{id} de una recarga de Mercado Pago redirige y /pay responde 410, así que esta pantalla ya no
+    // se ofrece. El contrato queda cubierto por MercadoPagoRetirementTest (PHPUnit). Reactivar solo si se
+    // reabre Mercado Pago con MERCADOPAGO_NEW_PAYMENTS_ENABLED=true.
+    test.skip(process.env.MERCADOPAGO_NEW_PAYMENTS_ENABLED !== 'true', 'Mercado Pago retirado para compras nuevas');
     test.setTimeout(60_000);
 
     // Fixture directo por tinker (mismo patrón que flujo-completo.spec.js):

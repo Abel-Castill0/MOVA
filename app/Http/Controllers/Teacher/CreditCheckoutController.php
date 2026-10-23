@@ -136,6 +136,19 @@ class CreditCheckoutController extends Controller
         }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
 
+        // Mercado Pago está retirado para compras nuevas: una recarga antigua de ese proveedor ya no abre el checkout
+        // de pago (no se puede iniciar ningún cobro nuevo). Si ya se había pagado, la conciliación la acredita sola.
+        // Excepción: un intento en curso o en revisión sigue mostrando su ESTADO en solo lectura (sin formulario de pago ni
+        // llave pública) para no perder avisos como «no vuelvas a pagar»; el resto se redirige.
+        $latest = $recharge->latestPaymentOrder;
+        $inFlight = $latest !== null && ($latest->status === 'pending' || $latest->review_reason !== null);
+        if (! (bool) config('payments.mercadopago.new_payments_enabled', false) && ! $inFlight) {
+            return redirect()->route('teacher.credits.index')->with(
+                'error',
+                'Mercado Pago ya no admite pagos nuevos. Si ya pagaste esta recarga, se acreditará automáticamente al confirmarse; si no, inicia una compra nueva.'
+            );
+        }
+
         $recharge->load('teacherProfile', 'latestPaymentOrder');
 
         return Inertia::render('Teacher/Credits/Checkout', [
@@ -198,6 +211,11 @@ class CreditCheckoutController extends Controller
             return app(CulqiCheckoutController::class)->pay($request, $recharge);
         }
         abort_unless($recharge->payment_method === 'mercadopago', 404);
+        abort_if(
+            ! (bool) config('payments.mercadopago.new_payments_enabled', false),
+            410,
+            'Mercado Pago ya no admite pagos nuevos. Las compras se hacen con Culqi.'
+        );
         abort_unless(
             $this->mercadoPagoCheckoutEnabled(),
             503,
@@ -343,7 +361,7 @@ class CreditCheckoutController extends Controller
 
         $order = $recharge->latestPaymentOrder;
 
-        if ($order !== null && $this->mercadoPagoCheckoutEnabled()) {
+        if ($order !== null && CheckoutProvider::mercadoPagoLegacyProcessing()) {
             $this->reconcileOnDemand($recharge, $order);
             $order = $order->fresh();
             $recharge = $recharge->fresh();
@@ -572,11 +590,7 @@ class CreditCheckoutController extends Controller
      */
     private function mercadoPagoCheckoutEnabled(): bool
     {
-        return (bool) config('payments.enabled')
-            && config('payments.provider') === 'mercadopago'
-            && filled(config('payments.mercadopago.public_key'))
-            // Acotado a usuarios QA cuando MERCADOPAGO_CHECKOUT_ALLOWLIST está definida
-            // (vacía = sin restricción). Ver App\Support\CheckoutAllowlist.
-            && CheckoutAllowlist::permits(auth()->user());
+        // Regla única en CheckoutProvider (pagos encendidos + bandera de pagos nuevos + proveedor + public key + allowlist).
+        return CheckoutProvider::mercadoPagoEnabled(auth()->user());
     }
 }

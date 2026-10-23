@@ -144,8 +144,7 @@ class HealthCheck extends Command
         // de ser rápido y un GET lento/caído a Mercado Pago retiene la
         // respuesta al webhook en vez de solo el reintento del job.
         if ($queueDriver === 'sync'
-            && (bool) config('payments.enabled', false)
-            && config('payments.provider') === 'mercadopago'
+            && \App\Support\CheckoutProvider::mercadoPagoLegacyProcessing()
             && (bool) config('payments.mercadopago.webhooks_enabled', false)
         ) {
             $warnings[] = [

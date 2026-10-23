@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Jobs\WorkerHeartbeatJob;
+use App\Support\CheckoutProvider;
 use App\Support\Heartbeat;
 use App\Support\SettlementMode;
 use Illuminate\Console\Scheduling\Schedule;
@@ -140,7 +141,10 @@ class Kernel extends ConsoleKernel
         // 5 minutos contra un proveedor apagado. No basta con confiar en que
         // payment_orders/payment_webhooks estén vacías -- eso es un efecto
         // observado, no la causa; el guard debe leer la config real.
-        if (config('payments.enabled') === true && config('payments.provider') === 'mercadopago') {
+        // Mercado Pago está RETIRADO para compras nuevas pero sus operaciones históricas deben cerrarse: el barrido
+        // sigue agendado mientras haya credenciales y webhook habilitado (o sea el proveedor activo), aunque el
+        // proveedor de compras nuevas sea Culqi. Sin operaciones pendientes el barrido no hace llamadas HTTP.
+        if (CheckoutProvider::mercadoPagoLegacyProcessing()) {
             $schedule->command('mercadopago:reconcile')
                 ->everyFiveMinutes()
                 ->withoutOverlapping(900)
@@ -150,7 +154,10 @@ class Kernel extends ConsoleKernel
         // Culqi: misma lógica que arriba. Solo se agenda cuando Culqi es el proveedor
         // real y los pagos están habilitados; es la red de seguridad si un webhook
         // (que Culqi no firma) no llega o si la creación de un cargo quedó incierta.
-        if (config('payments.enabled') === true && config('payments.provider') === 'culqi') {
+        // Tras un rollback del proveedor (p. ej. PAYMENT_PROVIDER=mercadopago con compras cerradas) los cargos/órdenes de
+        // Culqi ya creados deben seguir conciliándose: se agenda también con la llave secreta presente y el webhook de Culqi
+        // habilitado, aunque Culqi ya no sea el proveedor de compras nuevas.
+        if (CheckoutProvider::culqiLegacyProcessing()) {
             $schedule->command('culqi:reconcile')
                 ->everyFiveMinutes()
                 ->withoutOverlapping(900)

@@ -195,7 +195,8 @@ class CulqiCheckoutController extends Controller
         abort_unless($recharge->payment_method === CulqiPaymentProvider::PROVIDER, 404);
 
         $order = $recharge->latestPaymentOrder;
-        if ($order !== null && CheckoutProvider::culqiEnabled(auth()->user())) {
+        // Reconciliar lo ya creado no depende de la allowlist ni de que Culqi siga siendo el proveedor de compras nuevas.
+        if ($order !== null && CheckoutProvider::culqiLegacyProcessing()) {
             $this->reconcileOnDemand($recharge, $order);
         }
 

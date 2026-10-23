@@ -159,9 +159,8 @@ class CreditController extends Controller
      */
     private function mercadoPagoCheckoutEnabled(): bool
     {
-        return (bool) config('payments.enabled')
-            && config('payments.provider') === 'mercadopago'
-            && filled(config('payments.mercadopago.public_key'))
-            && CheckoutAllowlist::permits(auth()->user());
+        // Compras nuevas con Mercado Pago: retiradas por defecto (MERCADOPAGO_NEW_PAYMENTS_ENABLED=false). Regla única en
+        // CheckoutProvider, compartida con CreditCheckoutController.
+        return CheckoutProvider::mercadoPagoEnabled(auth()->user());
     }
 }
