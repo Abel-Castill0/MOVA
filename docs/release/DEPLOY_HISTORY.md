@@ -4,6 +4,17 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (6) — `b1076c4` (master) → producción — corrección del CI de `7f69072` (sin cambios de comportamiento en producción)
+
+| Campo | Valor |
+|---|---|
+| Motivo | El CI de `7f69072` falló (SQLite y MySQL): `culqiLegacyProcessing()` exigía llave secreta aun con Culqi como proveedor (rompía `SchedulerConfigurationTest` en un entorno sin llaves, como el del CI con `.env.example`) y `MercadoPagoRetirementTest` dependía del `.env` local. Las pruebas locales habían pasado porque usaban el `.env` del desarrollador: **validar siempre también con un `.env` equivalente al del CI** (copia de `.env.example` como `.env.testing`) |
+| Commit | `b1076c4` (`fix(payments): keep culqi:reconcile scheduled whenever Culqi is the provider; make the retirement test hermetic`); CI de GitHub Actions en `success` |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:f26a1e0d51beda363c857bb32d9017a3af6cd0bda2b05d5c1baced5682a9466f` (workflow *Image (GHCR)* por la etiqueta `img-20261023-b1076c4`, éxito) |
+| Apps | `movap-scheduler` `0000028` → `0000029`, luego `movap-web` `0000028` → `0000029` (solo `--image`; sin cambios de variables ni secretos; worker **Stopped**) |
+| Imagen anterior (rollback) | `ghcr.io/abel-castill0/mova@sha256:0d2fbb41d77fd5491c8b0e14ed10c8052ae9c45e91a947065f915847e699216e` (`7f69072`) → `az containerapp update … --image <ese digest>`; sin migraciones |
+| Verificación | revisiones nuevas `Healthy`; `/readyz` `ready`; `/`, `/quienes-somos`, `/login`, `/register`, `/healthz` 200; checkout sin sesión 302; webhook de Mercado Pago sin firma 401; Culqi 404; scheduler ejecutando recordatorios, latido y `WorkerHeartbeatJob`; `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true`, sin `MERCADOPAGO_NEW_PAYMENTS_ENABLED` (compras nuevas cerradas) |
+| Pruebas (entorno equivalente al CI) | SQLite completa 1590 OK; MySQL completa 1590 OK; carreras multi-proceso GREEN (ejecutadas antes con el mismo código de pagos) |
 ## 2026-10-23 (5) — `7f69072` (master) → producción — Culqi único proveedor de compras nuevas; Mercado Pago retirado para pagos nuevos
 
 | Campo | Valor |
