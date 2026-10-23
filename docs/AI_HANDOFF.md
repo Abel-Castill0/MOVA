@@ -1,6 +1,6 @@
 # MOVA — Handoff para agentes de IA (Claude Code, Codex, Antigravity…)
 
-> Perfil y cierre de cuenta 2026-10-23: menú del avatar (Mi perfil / Configuración de cuenta / Cerrar sesión) y «Eliminar mi cuenta» como **solicitud de cierre** (acceso restringido + comprobante + bandeja admin); **no hay borrado definitivo**: falta aprobar la política de conservación. Detalle, evidencias, carreras MySQL y decisión pendiente (cancelar clases con cuenta cerrada) en [`ACCOUNT_LIFECYCLE.md`](ACCOUNT_LIFECYCLE.md); la migración `2026_10_23_060000` es hacia adelante (no `migrate:rollback`). Un rollback de imagen a código anterior pierde la restricción de cuentas cerradas.
+> Perfil y cierre de cuenta 2026-10-23: menú del avatar (Mi perfil / Configuración de cuenta / Cerrar sesión) y «Eliminar mi cuenta» como **solicitud de cierre** (acceso restringido + comprobante + bandeja admin); **no hay borrado definitivo**: falta aprobar la política de conservación. Detalle, evidencias, carreras MySQL y decisión pendiente (cancelar clases con cuenta cerrada) en [`ACCOUNT_LIFECYCLE.md`](ACCOUNT_LIFECYCLE.md); la migración `2026_10_23_060000` es hacia adelante (no `migrate:rollback`). Un rollback de imagen a código anterior pierde la restricción de cuentas cerradas. Publicado el 2026-10-23: `cadd779`, web/scheduler `0000032`, migración aplicada.
 
 > Actualización de catálogo 2026-10-22: cinco paquetes autorizados (Inicio5/10.00, Esencial10/19.80,
 > Impulso15/29.40, Avance20/38.80, Pro30/57.60, PEN). `CreditPackages::pricing()` comparte presentación exacta

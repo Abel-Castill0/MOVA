@@ -4,6 +4,24 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (9) — `cadd779` (master) → producción — perfil, menú de cuenta y solicitud de cierre de cuenta
+
+| Campo | Valor |
+|---|---|
+| Código | `cadd7796d8b9b973fd6cfc2a80e2c3cd1b7fe368`; funcionalidad `4501c2f`, ajuste del E2E (logout desde el menú del avatar) `cadd779` |
+| CI | Funcionalidad `4501c2f`: Composer, frontend, SQLite y MySQL verdes; **E2E falló** (el helper de logout buscaba el botón antiguo del sidebar). Corregido en `cadd779`: [39912844557](https://github.com/Abel-Castill0/MOVA/actions/runs/39912844557) Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:330d3a416e544f1291b9bb01df745315f4475279555155606cbfd31a0c6b4919`; workflow *Image (GHCR)* [39913576103](https://github.com/Abel-Castill0/MOVA/actions/runs/39913576103) **success** (etiqueta git `img-20261023-cadd779`, etiqueta de imagen `cadd779`); revisión OCI = SHA completo, sin `.env`, con manifest de Vite y la migración |
+| Respaldo previo | Backup manual `predeploy-cadd779-20261023` (completo, 06:49Z) además de PITR 14 d |
+| Migración | `2026_10_23_060000_create_account_deletion_requests` (aditiva: `users.account_closed_at` nullable indexado + tabla `account_deletion_requests`). Job manual `movap-migrate` (misma imagen y env/secretos Key Vault de `movap-web`): `migrate:status --pending` mostró **solo** esa migración; `migrate --force` → DONE en 723 ms; job eliminado. **Antes** de cambiar imágenes: el código nuevo consulta la columna en cada petición |
+| Aplicaciones | Scheduler `0000031` → `0000032` (Healthy, 0 errores en logs) y después web `0000031` → `0000032` (Healthy, 100 % tráfico). Solo `--image`; sin cambios de variables, secretos, escala (web 1–2, scheduler 1–1) ni infraestructura. Worker independiente **Stopped** |
+| Pagos y finanzas | Sin cambios: `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true` (Mercado Pago solo histórico), sin llaves de Culqi; sin cobros, reembolsos, seeders ni cuentas QA en producción; ningún cierre de cuenta real |
+| Verificación en producción | `/readyz` ready (BD, migraciones, caché), `/healthz`, `/`, `/login`, `/register`, `/marketplace` (consulta la columna nueva), `/servicios`, `/quienes-somos`, Términos, Privacidad, Devoluciones y Libro 200; `/profile`, `/account/settings`, `/dashboard` y `/admin/account-deletions` sin sesión → 302 a `/login`; `/cuenta/solicitud` sin sesión → 404; `DELETE /profile` sin sesión → 302; el manifest de Vite incluye los chunks nuevos; 0 errores/excepciones en los logs de las revisiones nuevas. **No verificado en producción**: el flujo autenticado (cierre de cuenta, menú, bandeja admin): se probó solo en QA local con cuentas sintéticas para no cerrar cuentas reales |
+| Pruebas locales | SQLite completa **1638 pruebas, 7146 aserciones, 7 omitidas, 35 deprecaciones, OK**; `AccountLifecycleTest` 27 y perfil MySQL (121 pruebas afectadas) OK; 11 escenarios de carreras multiproceso en MySQL OK; build y checks npm OK. Revisiones `mova-security-finance` (sin críticos/altos; 1 decisión del titular) y `mova-vue-reviewer` (el alto y los medios aplicables corregidos; textos de botón conforme a la definición del producto) |
+| Rollback | **Imagen**: `ghcr.io/abel-castill0/mova@sha256:3360c62315e5ec030a09740108360fc6d6dbc45443d838976c22f94442139c29` (`ae5a220`, revisión `0000031`) en scheduler y web con `az containerapp update --image`. El esquema es aditivo: **no** ejecutar `migrate:rollback`. **Advertencia**: ese código anterior ignora `account_closed_at`; si ya existiera alguna cuenta cerrada, recuperaría acceso a su dashboard. Nosotros no ejecutamos ningún cierre real (no verificado por consulta a la BD de producción), de modo que el rollback inmediato es el caso de menor riesgo; si se hiciera después de cierres reales, preferir corrección hacia adelante |
+| Pendientes | Política de conservación y borrado definitivo (deshabilitado), decisión sobre cancelar clases con cuenta cerrada, envío real del código por correo (solo probado con transporte simulado), validación legal de plazos y representación de menores |
+
+Detalle funcional: [`ACCOUNT_LIFECYCLE.md`](../ACCOUNT_LIFECYCLE.md).
+
 ## 2026-10-23 (8) — `ae5a220` (master) → producción — cinco paquetes y contacto autorizado
 
 | Campo | Valor |

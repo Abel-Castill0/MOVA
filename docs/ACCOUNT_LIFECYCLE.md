@@ -77,6 +77,8 @@ Antes de publicar, revisar el SQL y probarlo en MySQL QA, disponer del respaldo 
 
 ## Verificación y límites pendientes
 
+Publicación: commit `cadd779`, imagen GHCR `sha256:330d3a41…`, migración y revisión Azure `0000032` de web y scheduler (2026-10-23); detalle y rollback en `release/DEPLOY_HISTORY.md`. El flujo autenticado no se ejecutó en producción (no se cierran cuentas reales).
+
 Evidencia ejecutada sobre el árbol final (2026-10-23; datos sintéticos, contenedores QA, nunca cuentas reales):
 
 - `AccountLifecycleTest` (27 pruebas): identidad por contraseña/código (incorrecto, caducado, reutilizado, de otra sesión, correo no verificado, roles no elegibles, límites de frecuencia 3/10 min y 5/min, el código nunca aparece en logs ni en caché en claro), cierre idempotente, admin excluido, conservación de alumnos/clases/créditos/pagos/ledger, recibo privado y caducidad del recibo de invitado, avisos suprimidos, trabajo de WhatsApp en cola descartado para cuentas cerradas, y sin bono de bienvenida a una cuenta cerrada.
