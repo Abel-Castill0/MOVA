@@ -120,7 +120,7 @@ Route::middleware(['auth', 'admin.mfa'])->group(function () {
         ->middleware('throttle:5,1,account-closure-submit')->name('profile.destroy');
 });
 
-Route::middleware(['auth', 'verified', 'role:admin', 'admin.mfa', 'not.suspended'])->group(function () {
+Route::middleware(['auth', 'role:admin', 'admin.mfa', 'not.suspended'])->group(function () {
     Route::get('/admin/account-deletions', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('admin.account-deletions.index');
     Route::patch('/admin/account-deletions/{deletion}', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'update'])
         ->middleware('throttle:20,1')->name('admin.account-deletions.update');
@@ -139,12 +139,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin/mfa')->name('admin.mfa.
 });
 
 // C-P1-LEGAL-REACCEPTANCE: fuera del grupo con 'legal.current' (sin bucle).
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth'])->group(function () {
     Route::get('/legal/aceptar', [LegalAcceptanceController::class, 'show'])->name('legal.accept');
     Route::post('/legal/aceptar', [LegalAcceptanceController::class, 'store'])->middleware('throttle:10,1')->name('legal.accept.store');
 });
 
-Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(function () {
+Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 

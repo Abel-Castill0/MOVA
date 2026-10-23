@@ -140,12 +140,8 @@ class RegisteredUserController extends Controller
         $user->notify($welcome);
         $user->update(['welcome_notification_sent_at' => now()]);
 
-        if ($verificationMailFailed) {
-            return redirect()->route('verification.notice')->with(
-                'error',
-                'Tu cuenta fue creada, pero no pudimos enviar el correo de verificación. Intenta reenviarlo en unos momentos.'
-            );
-        }
+        // El correo ya no es requisito de acceso: un fallo de entrega del correo de confirmación opcional no
+        // interrumpe el registro (se reportó arriba) y la persona entra directamente a su panel.
 
         return $request->role === 'parent'
             ? redirect()->route('students.create')

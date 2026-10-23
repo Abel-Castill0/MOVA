@@ -72,7 +72,7 @@ class AccountLifecycleTest extends TestCase
         $this->assertNull($user->fresh()->email_verified_at);
         $this->actingAs($user->fresh());
         $this->get('/profile')->assertOk();
-        $this->get('/dashboard')->assertRedirect(route('verification.notice'));
+        $this->get('/dashboard')->assertOk();
     }
 
     public function test_password_change_uses_existing_current_password_validation(): void

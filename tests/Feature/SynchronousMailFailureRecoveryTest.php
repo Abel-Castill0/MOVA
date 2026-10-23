@@ -61,9 +61,7 @@ class SynchronousMailFailureRecoveryTest extends TestCase
     {
         $response = $this->post('/register', $this->registration());
 
-        $response->assertRedirect(route('verification.notice'));
-        $response->assertSessionHas('error');
-        $response->assertSessionMissing('status');
+        $response->assertRedirect(route('students.create'));
         $this->assertAuthenticated();
 
         $user = User::where('email', 'new-user@example.com')->firstOrFail();
@@ -77,7 +75,7 @@ class SynchronousMailFailureRecoveryTest extends TestCase
 
     public function test_teacher_registration_also_survives_and_keeps_its_state(): void
     {
-        $this->post('/register', $this->registration('teacher'))->assertRedirect(route('verification.notice'));
+        $this->post('/register', $this->registration('teacher'))->assertRedirect(route('teacher.setup'));
 
         $user = User::where('email', 'new-user@example.com')->firstOrFail();
         $this->assertTrue($user->hasRole('teacher'));

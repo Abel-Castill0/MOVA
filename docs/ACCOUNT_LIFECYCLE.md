@@ -43,6 +43,10 @@ La fila `users` se conserva únicamente como ancla de integridad (FKs de ledger 
 
 Pueden cerrarse automáticamente como cualquier otra (decisión del propietario, 2026-10-23), pero el cierre no sirve para evadir la restricción: su correo y su teléfono quedan en la lista de bloqueo `closure_blocklist` como **hashes HMAC** (clave de la aplicación; nunca se guarda el dato en claro; razón `suspended` o `debt`). El registro normal, el alta con Google y la verificación de teléfono rechazan esos datos con un mensaje genérico que remite a soporte. La deuda (saldo negativo) permanece en el ledger de la fila anonimizada; no se perdona ni se compensa. Un cierre normal no entra en la lista y su correo sigue pudiendo reutilizarse.
 
+## Correo y acceso
+
+Verificar el correo **no** es requisito de acceso (ver `AI_HANDOFF.md`). Una cuenta nueva con el correo de otra eliminada no hereda nada y entra directamente a su panel; el código de un solo uso para confirmar un cierre sí exige un correo ya verificado, porque prueba la titularidad.
+
 ## Reutilización del correo
 
 El correo (`deleted-{id}@mova.invalid`) y el teléfono verificado quedan libres. Se puede registrar una cuenta **nueva** con el mismo correo, como padre o como profesor, con identidad de aplicación nueva, sin roles, clases, solicitudes, créditos, sesiones, tokens ni privilegios anteriores, y pasa por el registro normal (términos vigentes, verificación de correo). No hay conexión automática con pagos o saldos antiguos.

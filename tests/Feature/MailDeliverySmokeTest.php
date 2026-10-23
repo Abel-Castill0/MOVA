@@ -207,9 +207,7 @@ class MailDeliverySmokeTest extends TestCase
         $user = User::where('email', 'caida@example.test')->first();
         $this->assertNotNull($user, 'La cuenta debe conservarse aunque el correo falle.');
         $this->assertNull($user->email_verified_at);
-        $response->assertRedirect(route('verification.notice'));
-        $this->assertNotNull(session('flash.error') ?? session('error'), 'Debe avisar del fallo en vez de simular éxito.');
-        $this->assertNotSame('verification-link-sent', session('status'));
+        $response->assertRedirect(route('students.create'));
         $this->assertCount(0, $this->inboxOf('caida@example.test'));
     }
 }
