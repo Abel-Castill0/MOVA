@@ -4,6 +4,18 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (10) — `132b6af` (master) → producción — una cuenta cerrada puede cancelar sus clases programadas
+
+| Campo | Valor |
+|---|---|
+| Cambio | Decisión del titular: `EnsureAccountIsOpen` exceptúa solo `lessons.cancel`; el comprobante lista las clases programadas (sin datos del alumno) con cancelación en dos pasos. Autorización, devolución de la reserva y avisos siguen en `LessonController::cancel` |
+| CI | [39917354455](https://github.com/Abel-Castill0/MOVA/actions/runs/39917354455): Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:be20af5505924268021980a6edefdc0cec00a85eecf282924bb2ca4aaeb7ab07`; workflow *Image (GHCR)* [39918352032](https://github.com/Abel-Castill0/MOVA/actions/runs/39918352032) **success** (etiqueta git `img-20261023-132b6af`); revisión OCI = SHA completo, sin `.env`, con manifest de Vite |
+| Aplicaciones | Scheduler `0000032` → `0000033` (Healthy) y después web `0000032` → `0000033` (Healthy, 100 %). Solo `--image`; sin migraciones, variables, secretos ni escala (web 1–2, scheduler 1–1); worker **Stopped**; pagos sin cambios (`mercadopago`, sin Culqi) |
+| Pruebas | SQLite completa **1640 pruebas, 7189 aserciones, 7 omitidas, OK**; `AccountLifecycleTest` 29; 13 escenarios MySQL multiproceso (incluye cierre↔cancelación en ambos órdenes: un solo reembolso, sin interbloqueos); build y checks npm; navegador local con cuenta sintética (lista, confirmación y cancelación) |
+| Verificación en producción | `/readyz` ready; `/`, `/login`, `/marketplace`, `/servicios`, `/privacidad`, `/healthz` 200; rutas privadas sin sesión → 302; `/cuenta/solicitud` 404 sin sesión; 0 errores en los logs de las revisiones nuevas. El flujo autenticado no se ejecutó en producción |
+| Rollback | Reaplicar `ghcr.io/abel-castill0/mova@sha256:330d3a416e544f1291b9bb01df745315f4475279555155606cbfd31a0c6b4919` (`cadd779`, revisión `0000032`) a scheduler y web; sin cambios de esquema |
+
 ## 2026-10-23 (9) — `cadd779` (master) → producción — perfil, menú de cuenta y solicitud de cierre de cuenta
 
 | Campo | Valor |
