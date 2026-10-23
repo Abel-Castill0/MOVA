@@ -1,6 +1,6 @@
 # Revisión comercial de Culqi — observación y subsanación
 
-> Fecha: 2026-10-23 · Commit desplegado: `__COMMIT__` · Estado: **subsanación técnica lista; faltan datos/decisiones del titular (§9)**.
+> Fecha: 2026-10-23 · Commit desplegado: `546d44c` · Estado: **subsanación técnica lista; faltan datos/decisiones del titular (§9)**.
 > Este documento **no contiene** contraseñas, llaves ni URLs de webhook. La contraseña del evaluador se entrega **solo por un canal privado**.
 
 ## 1. Observación recibida
@@ -60,7 +60,7 @@ Comando: `php artisan mova:culqi-evaluator {create|revoke|status} <correo>` (`ap
 | Política de privacidad | `/privacidad` | Versión 2026-10-23 (datos enviados a Culqi) |
 | Cambios, cancelaciones y devoluciones | `/politica-de-devoluciones` | Reembolso íntegro de créditos no usados en 7 días (`config('credits.refund_days')`) |
 | Libro de Reclamaciones | `/libro-de-reclamaciones` (+ enlace en pie y en la compra) | Funcional, código de seguimiento, respuesta ≤15 días hábiles |
-| HTTPS | Producción (Azure Container Apps) | A verificar tras el despliegue |
+| HTTPS | Producción (Azure Container Apps, `https://movap-web.whitecliff-88cda913.mexicocentral.azurecontainerapps.io`) | ✔ servido por HTTPS; dominio propio pendiente |
 
 Los textos legales cambian de versión (`LEGAL_TERMS_VERSION`, `LEGAL_PRIVACY_VERSION` = 2026-10-23): **todos los usuarios deberán aceptar de nuevo** al entrar tras el despliegue. El texto legal requiere aprobación humana del titular (§9).
 
@@ -81,3 +81,7 @@ Los textos legales cambian de versión (`LEGAL_TERMS_VERSION`, `LEGAL_PRIVACY_VE
 ## 10. Limitaciones
 
 Pago en línea cerrado en producción; ninguna transacción live; la web no se afirma «lista para cobrar». Cualquier cambio de precios requiere editar `config/credits.php`.
+
+## 11. Verificación en producción (2026-10-23, `546d44c`)
+
+`/`, `/servicios`, `/comprar-creditos/{inicio,impulso,pro}`, `/politica-de-devoluciones`, `/libro-de-reclamaciones`, `/terminos`, `/privacidad`, `/sitemap.xml`, `/readyz` y `/healthz` responden 200 por HTTPS; un paquete inexistente da 404; `POST /teacher/credits/checkout` sin sesión redirige (302). La web muestra «Pago en línea en activación» (el pago sigue cerrado) y el pie **no** muestra razón social/RUC/domicilio porque no están configurados en producción (§9.3). Configuración financiera sin cambios (`PAYMENT_PROVIDER=mercadopago` histórico, sin `CULQI_*`). La cuenta de evaluador **no** existe todavía en producción (§9.4).

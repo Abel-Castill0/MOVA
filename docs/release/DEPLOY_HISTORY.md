@@ -4,6 +4,19 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (7) — `546d44c` (master) → producción — catálogo público, política de devoluciones y cuenta de evaluador (revisión comercial de Culqi)
+
+| Campo | Valor |
+|---|---|
+| Commit | `546d44c` (`feat(catalog): public services catalog, refund policy and evaluator account for the Culqi commercial review`); CI de GitHub Actions en `success` |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:f5b5aa9a9f55c01ce9f42009f59fd8fc518fd5e726533e110a9f1875edbd5c0a` (workflow *Image (GHCR)* por la etiqueta `img-20261023-546d44c`, éxito) |
+| Apps | `movap-scheduler` `0000029` → `0000030`, luego `movap-web` `0000029` → `0000030` (solo `--image`; sin cambios de variables ni secretos; worker **Stopped**) |
+| Imagen anterior (rollback) | `ghcr.io/abel-castill0/mova@sha256:f26a1e0d51beda363c857bb32d9017a3af6cd0bda2b05d5c1baced5682a9466f` (`b1076c4`) → `az containerapp update … --image <ese digest>`; sin migraciones |
+| Efecto | Páginas públicas nuevas (`/servicios`, `/comprar-creditos/{paquete}`, `/politica-de-devoluciones`); Términos y Privacidad pasan a la versión 2026-10-23 → **todos los usuarios deben aceptarlos de nuevo al entrar** |
+| Verificación | revisión nueva sana; `/readyz`, `/healthz`, `/`, `/servicios`, detalle de los 3 paquetes, devoluciones, libro, términos, privacidad y sitemap 200; paquete inexistente 404; checkout sin sesión 302; configuración de pagos sin cambios (`PAYMENT_PROVIDER=mercadopago`, sin `CULQI_*`); banner «Pago en línea en activación» visible |
+| Pruebas | SQLite completa 1608 OK (con `.env` equivalente al CI); checks npm y MCP OK; `git diff --check` limpio |
+| No verificado | cobro con tarjeta de prueba dentro del iframe de Culqi en navegador (no automatizable); cuenta de evaluador en producción (pendiente del titular) |
+
 ## 2026-10-23 (6) — `b1076c4` (master) → producción — corrección del CI de `7f69072` (sin cambios de comportamiento en producción)
 
 | Campo | Valor |
