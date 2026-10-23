@@ -48,6 +48,8 @@ class ExpireClassRequests extends Command
         // decida sin prisa.
         $ids = ClassRequest::where('status', 'open')
             ->where('created_at', '<=', $cutoff)
+            // Una solicitud devuelta a búsqueda (el profesor cerró su cuenta) cuenta su plazo desde ese momento.
+            ->where(fn ($q) => $q->whereNull('republished_at')->orWhere('republished_at', '<=', $cutoff))
             ->orderBy('id')
             ->pluck('id');
 

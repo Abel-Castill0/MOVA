@@ -224,6 +224,9 @@ class Kernel extends ConsoleKernel
         //
         // Al minuto :30 para no competir con settle-lessons y health-check, que
         // corren en punto.
+        // Cierre automático de cuentas: reintenta la limpieza secundaria y avisa de saldos posteriores al cierre.
+        $schedule->command('mova:account-closure:finish')->hourlyAt(45)->withoutOverlapping();
+
         $schedule->command('mova:expire-class-requests')
             ->hourlyAt(30)
             ->withoutOverlapping();

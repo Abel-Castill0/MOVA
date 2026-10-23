@@ -12,7 +12,8 @@ class PreventClosedAccountNotifications
     {
         if ($event->notifiable instanceof User
             && User::whereKey($event->notifiable->id)->whereNotNull('account_closed_at')->exists()
-            && ! $event->notification instanceof ResetPassword) {
+            && ! $event->notification instanceof ResetPassword
+            && ! $event->notification instanceof \App\Notifications\AccountClosureCode) {
             return false;
         }
         // A password reset only restores access to the request status, never the dashboard.

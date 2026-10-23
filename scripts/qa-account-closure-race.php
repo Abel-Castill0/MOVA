@@ -106,29 +106,45 @@ function buildFixture(string $run, string $leader, string $follower, array $opti
     });
 }
 
-/** @return array<string,array{leader:string,follower:string,options:array,expect:array}> */
+/**
+ * Cada escenario: líder (mantiene sus locks) y seguidor (debe esperar). `expect`:
+ *  closed         identidad que se cierra (parent|teacher_user)
+ *  lessons        estados esperados de las clases de la solicitud original, ordenados
+ *  available/reserved  saldo final del profesor
+ *  ledger         tipos del ledger del profesor, ordenados
+ *  request        estado final de la solicitud original
+ *  requests       total de solicitudes del alumno
+ *  student_erased el alumno queda anonimizado (cierra el padre)
+ *  verified       is_verified esperado del profesor
+ *
+ * @return array<string,array{leader:string,follower:string,options:array,expect:array}>
+ */
 function scenarios(): array
 {
+    $base = ['closed' => 'parent', 'lessons' => [], 'available' => 10, 'reserved' => 0, 'ledger' => ['deposit'], 'request' => 'expired', 'requests' => 1, 'student_erased' => true];
+
     return [
-        // Existing coverage kept: duplicate closure and closure vs lesson scheduling.
-        'duplicate-closure' => ['leader' => 'close', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 0]],
-        'closure-wins' => ['leader' => 'close', 'follower' => 'schedule', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'parent', 'classes' => 0]],
-        'scheduling-wins' => ['leader' => 'schedule', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'scheduled', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 1]],
-        // A) parent closes while a new class request is created.
-        'closure-vs-new-request' => ['leader' => 'close', 'follower' => 'store', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'parent', 'classes' => 0, 'requests' => 1]],
-        'new-request-vs-closure' => ['leader' => 'store', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'stored', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 0, 'requests' => 2]],
-        // B) teacher closes while admin approval arrives (both orders).
-        'teacher-closure-vs-admin-approval' => ['leader' => 'close-teacher', 'follower' => 'verify', 'options' => ['teacher_verified' => false], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'teacher_user', 'classes' => 0, 'verified' => false]],
-        'admin-approval-vs-teacher-closure' => ['leader' => 'verify', 'follower' => 'close-teacher', 'options' => ['teacher_verified' => false], 'expect' => ['leader' => 'verified', 'follower' => 'closed', 'closed' => 'teacher_user', 'classes' => 0, 'verified' => false]],
-        // C/E) pending financial operation at closure, completed afterwards by its own legitimate process.
-        'closure-then-pending-recharge-credit' => ['leader' => 'close-teacher', 'follower' => 'credit', 'options' => ['recharge' => true], 'expect' => ['leader' => 'closed', 'follower' => 'credited', 'closed' => 'teacher_user', 'classes' => 0, 'credited' => true]],
-        'pending-recharge-credit-then-closure' => ['leader' => 'credit', 'follower' => 'close-teacher', 'options' => ['recharge' => true], 'expect' => ['leader' => 'credited', 'follower' => 'closed', 'closed' => 'teacher_user', 'classes' => 0, 'credited' => true]],
-        // E/F/G) settlement (scheduler path) of a class created before closure, with real notification delivery.
-        'closure-then-settlement' => ['leader' => 'close', 'follower' => 'settle', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'closed', 'follower' => 'settled', 'closed' => 'parent', 'classes' => 1, 'settled' => true, 'parent_notifications' => 0]],
-        // E) a class scheduled before closure is cancelled afterwards by its (closed) owner: one refund, in both orders.
-        'closure-then-cancellation' => ['leader' => 'close', 'follower' => 'cancel', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'closed', 'follower' => 'cancelled', 'closed' => 'parent', 'classes' => 1, 'cancelled' => true]],
-        'cancellation-then-closure' => ['leader' => 'cancel', 'follower' => 'close', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'cancelled', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 1, 'cancelled' => true]],
-        'settlement-then-closure' => ['leader' => 'settle', 'follower' => 'close', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'settled', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 1, 'settled' => true]],
+        'duplicate-closure' => ['leader' => 'close', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'closed'] + $base],
+        'closure-wins' => ['leader' => 'close', 'follower' => 'schedule', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked'] + $base],
+        // La clase agendada justo antes del cierre se cancela y su reserva vuelve (un asiento reservation + uno refund).
+        'scheduling-wins' => ['leader' => 'schedule', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'scheduled', 'follower' => 'closed', 'lessons' => ['cancelled'], 'ledger' => ['deposit', 'refund', 'reservation']] + $base],
+        'closure-vs-new-request' => ['leader' => 'close', 'follower' => 'store', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked'] + $base],
+        'new-request-vs-closure' => ['leader' => 'store', 'follower' => 'close', 'options' => [], 'expect' => ['leader' => 'stored', 'follower' => 'closed', 'requests' => 2] + $base],
+        // Profesor: el cierre da de baja el saldo con un asiento y despublica; nunca queda publicado.
+        'teacher-closure-vs-admin-approval' => ['leader' => 'close-teacher', 'follower' => 'verify', 'options' => ['teacher_verified' => false], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'teacher_user', 'available' => 0, 'ledger' => ['deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'verified' => false] + $base],
+        'admin-approval-vs-teacher-closure' => ['leader' => 'verify', 'follower' => 'close-teacher', 'options' => ['teacher_verified' => false], 'expect' => ['leader' => 'verified', 'follower' => 'closed', 'closed' => 'teacher_user', 'available' => 0, 'ledger' => ['deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'verified' => false] + $base],
+        // Clase del profesor + reserva: cancelada, reserva devuelta y luego dada de baja; la solicitud vuelve a búsqueda.
+        'teacher-closure-vs-booking' => ['leader' => 'close-teacher', 'follower' => 'schedule', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'teacher_user', 'available' => 0, 'ledger' => ['deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false] + $base],
+        'booking-vs-teacher-closure' => ['leader' => 'schedule', 'follower' => 'close-teacher', 'options' => [], 'expect' => ['leader' => 'scheduled', 'follower' => 'closed', 'closed' => 'teacher_user', 'lessons' => ['cancelled'], 'available' => 0, 'ledger' => ['deposit', 'forfeiture', 'refund', 'reservation'], 'request' => 'open', 'student_erased' => false] + $base],
+        // Webhook/recarga manual que se acredita antes o después del cierre: un solo depósito; el saldo tardío queda fuera de uso.
+        'closure-then-pending-recharge-credit' => ['leader' => 'close-teacher', 'follower' => 'credit', 'options' => ['recharge' => true], 'expect' => ['leader' => 'closed', 'follower' => 'credited', 'closed' => 'teacher_user', 'available' => 5, 'ledger' => ['deposit', 'deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'credited' => true] + $base],
+        'pending-recharge-credit-then-closure' => ['leader' => 'credit', 'follower' => 'close-teacher', 'options' => ['recharge' => true], 'expect' => ['leader' => 'credited', 'follower' => 'closed', 'closed' => 'teacher_user', 'available' => 5, 'ledger' => ['deposit', 'deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'credited' => true] + $base],
+        // Liquidación del scheduler de una clase ya terminada: se conserva y se consume una sola vez; el padre cerrado no recibe avisos.
+        'closure-then-settlement' => ['leader' => 'close', 'follower' => 'settle', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'closed', 'follower' => 'settled', 'lessons' => ['completed'], 'available' => 9, 'ledger' => ['consumption', 'deposit', 'reservation'], 'request' => 'accepted', 'settled' => true, 'parent_notifications' => 0] + $base],
+        'settlement-then-closure' => ['leader' => 'settle', 'follower' => 'close', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'settled', 'follower' => 'closed', 'lessons' => ['completed'], 'available' => 9, 'ledger' => ['consumption', 'deposit', 'reservation'], 'request' => 'accepted', 'settled' => true] + $base],
+        // Cancelación manual de la clase programada vs cierre: un solo reembolso, sin interbloqueo, en ambos órdenes.
+        'closure-then-cancellation' => ['leader' => 'close', 'follower' => 'cancel', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'closed', 'follower' => 'noop', 'lessons' => ['cancelled'], 'ledger' => ['deposit', 'refund', 'reservation'], 'request' => 'expired'] + $base],
+        'cancellation-then-closure' => ['leader' => 'cancel', 'follower' => 'close', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'cancelled', 'follower' => 'closed', 'lessons' => ['cancelled'], 'ledger' => ['deposit', 'refund', 'reservation'], 'request' => 'accepted'] + $base],
     ];
 }
 
@@ -164,7 +180,7 @@ try {
         $perform = function () use ($operation, $fixture): string {
             if ($operation === 'close' || $operation === 'close-teacher') {
                 $target = $operation === 'close' ? $fixture['parent'] : $fixture['teacher_user'];
-                app(AccountLifecycleService::class)->requestClosure(User::findOrFail($target), 'password');
+                app(AccountLifecycleService::class)->closeAccount(User::findOrFail($target), 'password', null, true);
 
                 return 'closed';
             }
@@ -191,6 +207,9 @@ try {
                     app(\App\Http\Controllers\ClassRequestController::class)->store($http);
 
                     return 'stored';
+                } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+                    // El alumno ya fue anonimizado y retirado de la cuenta cerrada.
+                    return 'blocked';
                 } catch (ValidationException $exception) {
                     check(in_array(CLOSED_MESSAGE, array_merge(...array_values($exception->errors())), true), 'Unexpected booking validation.');
 
@@ -209,7 +228,14 @@ try {
                 $http->setLaravelSession(app('session')->driver());
                 $http->setUserResolver(fn () => Auth::user());
                 app()->instance('request', $http);
-                app(\App\Http\Controllers\LessonController::class)->cancel(Lesson::findOrFail($fixture['lesson']));
+                try {
+                    app(\App\Http\Controllers\LessonController::class)->cancel(Lesson::findOrFail($fixture['lesson']));
+                } catch (ValidationException|\Illuminate\Auth\Access\AuthorizationException $exception) {
+                    // El cierre ya canceló la clase (o retiró el rol): no hay segundo reembolso.
+                    check(! ($exception instanceof ValidationException) || isset($exception->errors()['cancel']), 'Unexpected cancellation validation.');
+
+                    return 'noop';
+                }
 
                 return 'cancelled';
             }
@@ -222,7 +248,10 @@ try {
                 app(LessonSchedulingService::class)->schedule(
                     $fixture['request'], $fixture['teacher'], $fixture['start'], 60,
                     function (ClassRequest $request): void {
-                        check($request->status === 'open', 'Unexpected scheduling request state.');
+                        // Mismo efecto que el guard real de la política: una solicitud ya cerrada no se puede aceptar.
+                        if ($request->status !== 'open') {
+                            throw ValidationException::withMessages(['accept' => CLOSED_MESSAGE]);
+                        }
                     }
                 );
 
@@ -263,8 +292,6 @@ try {
         $expect = $definition['expect'];
         $run = (string) Str::uuid();
         $fixture = buildFixture($run, $definition['leader'], $definition['follower'], $definition['options']);
-        $ledgerBefore = CreditTransaction::where('teacher_profile_id', $fixture['teacher'])->count();
-        $studentBefore = Student::findOrFail($fixture['student'])->only(['first_name', 'last_name', 'parent_user_id']);
         $directory = sys_get_temp_dir().'/mova-closure-race-'.$run;
         check(mkdir($directory, 0700), 'Cannot create worker directory.');
         file_put_contents($directory.'/fixture.json', json_encode($fixture, JSON_THROW_ON_ERROR));
@@ -276,66 +303,61 @@ try {
             $follower->start();
             $leader->wait();
             $follower->wait();
-            check($leader->isSuccessful() && $follower->isSuccessful(), 'Worker failed in '.$scenario.' (inspect scenario fixtures; no provider calls were made).');
+            check($leader->isSuccessful() && $follower->isSuccessful(), 'Worker failed in '.$scenario.' (inspect scenario fixtures; no provider calls were made): '.substr(trim($leader->getErrorOutput().' | '.$follower->getErrorOutput()), 0, 400));
             $leaderResult = json_decode(trim($leader->getOutput()), true, flags: JSON_THROW_ON_ERROR);
             $followerResult = json_decode(trim($follower->getOutput()), true, flags: JSON_THROW_ON_ERROR);
             check($followerResult['elapsed_ms'] >= 500, 'Follower did not demonstrate waiting for the held lock in '.$scenario.'.');
             check($leaderResult['result'] === $expect['leader'], 'Leader result invalid in '.$scenario.': '.$leaderResult['result']);
             check($followerResult['result'] === $expect['follower'], 'Follower result invalid in '.$scenario.': '.$followerResult['result']);
 
-            // Exactly one closure request and one request event for the closed identity.
+            // Una sola solicitud completada y exactamente dos eventos (requested, erased) para la identidad cerrada.
             $closedUser = $fixture[$expect['closed']];
             check(AccountDeletionRequest::where('user_id', $closedUser)->count() === 1, 'Expected exactly one closure request.');
             $deletion = AccountDeletionRequest::where('user_id', $closedUser)->sole();
-            check(count($deletion->events) === 1 && $deletion->events[0]['action'] === 'requested', 'Expected exactly one request event.');
-            check(User::findOrFail($closedUser)->account_closed_at !== null, 'Account must be closed.');
+            check($deletion->status === 'completed' && array_column($deletion->events, 'action') === ['requested', 'erased'], 'Closure must complete once.');
+            $erased = User::findOrFail($closedUser);
+            check($erased->account_closed_at !== null && $erased->account_erased_at !== null, 'Account must be closed and erased.');
+            check($erased->email === "deleted-{$closedUser}@mova.invalid" && $erased->phone === null && $erased->getRoleNames()->isEmpty(), 'Identity must be released.');
             $otherUser = $expect['closed'] === 'parent' ? $fixture['teacher_user'] : $fixture['parent'];
             check(User::findOrFail($otherUser)->account_closed_at === null, 'Counterparty must not be closed.');
             check(AccountDeletionRequest::where('user_id', $otherUser)->count() === 0, 'Counterparty must have no closure request.');
 
-            // H) Students, classes and their links are preserved, never cancelled or reassigned.
-            check(Student::findOrFail($fixture['student'])->only(['first_name', 'last_name', 'parent_user_id']) === $studentBefore, 'Student data must be preserved.');
-            $lessons = Lesson::where('class_request_id', $fixture['request'])->get();
-            check($lessons->count() === $expect['classes'], 'Unexpected number of retained classes.');
+            // Alumno: anonimizado solo si cierra el padre. Las clases siguen vinculadas a sus participantes.
+            $student = Student::withTrashed()->findOrFail($fixture['student']);
+            check(($student->first_name === 'Estudiante') === $expect['student_erased'], 'Student anonymization mismatch.');
+            check($student->parent_user_id === $fixture['parent'], 'Student must stay linked to its original parent row.');
+            $lessons = Lesson::where('class_request_id', $fixture['request'])->orderBy('id')->get();
+            check($lessons->pluck('status')->sort()->values()->all() === $expect['lessons'], 'Unexpected class states: '.json_encode($lessons->pluck('status')));
             foreach ($lessons as $lesson) {
                 check($lesson->student_id === $fixture['student'] && $lesson->teacher_profile_id === $fixture['teacher'], 'Class participants changed.');
-                // Closure never cancels a class; only the owner's explicit cancellation does.
-                check(($lesson->status === 'cancelled') === ($expect['cancelled'] ?? false), 'Unexpected class cancellation state.');
             }
-            check(ClassRequest::where('student_id', $fixture['student'])->count() === ($expect['requests'] ?? 1), 'Unexpected request history.');
+            check(ClassRequest::where('student_id', $fixture['student'])->count() === $expect['requests'], 'Unexpected request history.');
+            check(ClassRequest::findOrFail($fixture['request'])->status === $expect['request'], 'Unexpected request status: '.ClassRequest::findOrFail($fixture['request'])->status);
+
+            // Saldo y ledger: solo asientos legítimos (nunca un UPDATE a cero) y balance derivado == balance real.
             $profile = TeacherProfile::findOrFail($fixture['teacher']);
-            $credited = $expect['credited'] ?? false;
-            $settled = $expect['settled'] ?? false;
-            $classes = $expect['classes'];
-            // Credits and ledger only move through their own legitimate operation, never because of closure.
-            $cancelled = $expect['cancelled'] ?? false;
-            $expectedAvailable = ($cancelled ? 10 : 10 - $classes) + ($credited ? 5 : 0);
-            $expectedReserved = ($settled || $cancelled) ? 0 : $classes;
-            check($profile->credits_available === $expectedAvailable && $profile->credits_reserved === $expectedReserved, 'Credit balances diverged.');
-            // A settled class had its reservation written during fixture setup (already in $ledgerBefore);
-            // otherwise a class scheduled by the race adds one reservation. Settlement adds one consumption.
-            $expectedLedger = $ledgerBefore + (($settled || $cancelled) ? 1 : $classes) + ($credited ? 1 : 0);
-            if ($cancelled) {
-                check(CreditTransaction::where('lesson_id', $fixture['lesson'])->where('type', 'refund')->count() === 1, 'Refund must be single.');
-            }
-            check(CreditTransaction::where('teacher_profile_id', $profile->id)->count() === $expectedLedger, 'Unexpected ledger mutation.');
-            if ($credited) {
+            check($profile->credits_available === $expect['available'] && $profile->credits_reserved === $expect['reserved'], 'Credit balances diverged: '.$profile->credits_available.'/'.$profile->credits_reserved);
+            check(CreditTransaction::where('teacher_profile_id', $profile->id)->pluck('type')->sort()->values()->all() === $expect['ledger'], 'Unexpected ledger: '.json_encode(CreditTransaction::where('teacher_profile_id', $profile->id)->pluck('type')->sort()->values()));
+            check(app(\App\Support\LedgerReconciliation::class)->derivedAvailableFor($profile->id) === $profile->credits_available, 'Ledger derivation diverged from the balance.');
+            check(CreditTransaction::where('type', 'forfeiture')->whereIn('teacher_profile_id', [$profile->id])->count() <= 1, 'Forfeiture must be single.');
+            check(CreditTransaction::where('teacher_profile_id', $profile->id)->where('type', 'refund')->count() <= 1, 'Refund must be single.');
+            if ($expect['credited'] ?? false) {
                 check(RechargeRequest::findOrFail($fixture['recharge'])->status === 'approved', 'Recharge must complete once.');
                 check(CreditTransaction::where('idempotency_key', 'recharge:'.$fixture['recharge'].':deposit')->count() === 1, 'Recharge deposit must be single.');
             }
-            if ($settled) {
+            if ($expect['settled'] ?? false) {
                 $lessonRow = Lesson::findOrFail($fixture['lesson']);
                 check($lessonRow->status === 'completed' && $lessonRow->credits_settled_at !== null, 'Settlement must finish after closure.');
                 check(CreditTransaction::where('lesson_id', $fixture['lesson'])->where('type', 'consumption')->count() === 1, 'Consumption must be single.');
             }
             if (array_key_exists('verified', $expect)) {
-                check($profile->is_verified === $expect['verified'], 'Closed teacher must not remain published.');
+                check((bool) $profile->is_verified === $expect['verified'], 'Closed teacher must not remain published.');
                 check(! $profile->classOffers()->where('is_active', true)->exists(), 'Closed teacher offers must stay inactive.');
             }
             if (array_key_exists('parent_notifications', $expect) && $definition['leader'] === 'close') {
                 check(DB::table('notifications')->where('notifiable_id', $fixture['parent'])->count() === $expect['parent_notifications'], 'Closed account received a routine notification.');
             }
-            echo json_encode(['scenario' => $scenario, 'passed' => true, 'leader' => $leaderResult['result'], 'follower' => $followerResult['result'], 'follower_wait_ms' => $followerResult['elapsed_ms'], 'retained_classes' => $classes], JSON_THROW_ON_ERROR).PHP_EOL;
+            echo json_encode(['scenario' => $scenario, 'passed' => true, 'leader' => $leaderResult['result'], 'follower' => $followerResult['result'], 'follower_wait_ms' => $followerResult['elapsed_ms'], 'lessons' => $lessons->pluck('status')->all(), 'available' => $profile->credits_available], JSON_THROW_ON_ERROR).PHP_EOL;
         } finally {
             $leader->stop(1);
             $follower->stop(1);

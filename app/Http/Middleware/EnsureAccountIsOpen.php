@@ -14,7 +14,9 @@ class EnsureAccountIsOpen
             'account.closure.status', 'logout', 'legal.privacy', 'legal.terms', 'legal.refunds', 'complaints.*',
             // Closing an account must not strand the other party: the owner may still cancel a class
             // scheduled before closure (authorization and refund rules stay in LessonController::cancel).
-            'lessons.cancel'
+            'lessons.cancel',
+            // Cuentas cerradas con el flujo anterior pueden reconfirmar y completar la eliminación por sí mismas.
+            'account.closure.code', 'profile.destroy'
         )) {
             if ($request->expectsJson() && ! $request->header('X-Inertia')) {
                 abort(403, 'Tu cuenta está cerrada. Puedes consultar tu solicitud de eliminación.');

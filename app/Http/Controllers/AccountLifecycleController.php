@@ -50,6 +50,8 @@ class AccountLifecycleController extends Controller
             'scope' => ['required', 'in:account'],
             'password' => ['nullable', 'string', 'max:512'],
             'code' => ['nullable', 'digits:6'],
+            'accept_credit_loss' => ['sometimes', 'boolean'],
+            'credit_loss_amount' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
         $method = 'password';
         if (! filled($data['password'] ?? null) || ! Hash::check($data['password'], $request->user()->password)) {
@@ -61,14 +63,14 @@ class AccountLifecycleController extends Controller
             $method = 'email_code';
         }
         $identity = $request->user()->only(['password', 'email', 'email_verified_at']);
-        $deletion = $lifecycle->requestClosure($request->user(), $method, function ($locked) use ($identity, $method) {
+        $deletion = $lifecycle->closeAccount($request->user(), $method, function ($locked) use ($identity, $method) {
             $valid = $method === 'password'
                 ? hash_equals($identity['password'], $locked->password)
                 : $identity['email'] === $locked->email && $locked->hasVerifiedEmail();
             if (! $valid) {
                 throw ValidationException::withMessages(['password' => 'Tu acceso cambió. Confirma de nuevo tu identidad antes de continuar.']);
             }
-        });
+        }, ! empty($data['accept_credit_loss']) ? (isset($data['credit_loss_amount']) ? (int) $data['credit_loss_amount'] : true) : false);
         Cache::forget($this->proofKey($request));
         Auth::logout();
         $request->session()->invalidate();
@@ -85,9 +87,13 @@ class AccountLifecycleController extends Controller
             ? AccountDeletionRequest::where('user_id', $request->user()->id)->first()?->receipt()
             : AccountDeletionRequest::where('reference', $request->session()->get('closure_reference_until', 0) >= now()->timestamp ? $request->session()->get('closure_reference', '') : '')->first()?->receipt();
         abort_unless($receipt, 404);
+        // Solo una cuenta cerrada con el flujo anterior (sin completar) conserva sesión: puede reconfirmar.
+        $legacy = $request->user() && $receipt['status'] !== 'completed';
         return Inertia::render('Profile/ClosureStatus', [
             'receipt' => $receipt,
-            'cancellableLessons' => $request->user() ? $this->cancellableLessons($request->user()) : [],
+            'cancellableLessons' => $legacy ? $this->cancellableLessons($request->user()) : [],
+            'accountSummary' => $legacy ? app(AccountLifecycleService::class)->summary($request->user()) : null,
+            'status' => session('status'),
         ]);
     }
 

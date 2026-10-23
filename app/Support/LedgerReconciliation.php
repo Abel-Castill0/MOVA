@@ -200,7 +200,9 @@ class LedgerReconciliation
         // para poder sumarse aquí igual que los demás tipos. $sum('reversal')
         // ya trae el signo correcto (RechargeApprovalService::reverse()
         // siempre escribe amount negativo), así que se suma, no se resta.
-        return $sum('deposit') - $sum('reservation') + $sum('refund') + $sum('reversal');
+        // 'forfeiture' (saldo no utilizado perdido al eliminar la cuenta) también se escribe con
+        // importe NEGATIVO (AccountLifecycleService), igual que 'reversal'.
+        return $sum('deposit') - $sum('reservation') + $sum('refund') + $sum('reversal') + $sum('forfeiture');
     }
 
     private function explain(string $classification, string $status, int $reservations, int $consumptions, int $refunds): string
