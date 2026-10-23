@@ -1,5 +1,7 @@
 # MOVA — Handoff para agentes de IA (Claude Code, Codex, Antigravity…)
 
+> Perfil y cierre de cuenta 2026-10-23: menú del avatar (Mi perfil / Configuración de cuenta / Cerrar sesión) y «Eliminar mi cuenta» como **solicitud de cierre** (acceso restringido + comprobante + bandeja admin); **no hay borrado definitivo**: falta aprobar la política de conservación. Detalle, evidencias, carreras MySQL y decisión pendiente (cancelar clases con cuenta cerrada) en [`ACCOUNT_LIFECYCLE.md`](ACCOUNT_LIFECYCLE.md); la migración `2026_10_23_060000` es hacia adelante (no `migrate:rollback`). Un rollback de imagen a código anterior pierde la restricción de cuentas cerradas.
+
 > Actualización de catálogo 2026-10-22: cinco paquetes autorizados (Inicio5/10.00, Esencial10/19.80,
 > Impulso15/29.40, Avance20/38.80, Pro30/57.60, PEN). `CreditPackages::pricing()` comparte presentación exacta
 > entre catálogo y panel docente; las compras históricas conservan sus snapshots. Ver [evidencia comercial vigente](culqi-commercial-review.md).
@@ -65,6 +67,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | Mercado Pago | `payments-architecture.md` (histórico, verificar) · `release/INCIDENT_2026-10-06_yape_live_checkout.md` · `release/MERCADOPAGO_SUPPORT_CASE_2072.md` |
 | Despliegue / Azure / DNS | `release/MOVA_PRODUCTION_RUNBOOK.md` · `architecture/01-deployment.md` · `AGENTS.md` (límites de coste) |
 | Estados y flujos de negocio | `architecture/03-state-machines.md`, `04-flows.md` · `MOVA_SYSTEM_MAP.md` (parcialmente superado) |
+| Perfil, cuentas, cierre/eliminación | `ACCOUNT_LIFECYCLE.md` (todo) · `scripts/qa-account-closure-race.php` |
 | UI | `../DESIGN.md`, `../PRODUCT.md`, `WEB_INTERFACE_GUIDELINES.md`, `.claude/rules/frontend-vue.md` |
 | WhatsApp | `whatsapp-architecture.md` |
 | Estado del lanzamiento | `release/MOVA_V1_COMPLETION_LEDGER.md` |

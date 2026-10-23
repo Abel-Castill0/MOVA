@@ -12,6 +12,8 @@
  * comentario en cada grupo.
  */
 import {
+  Settings,
+  LockKeyhole,
   LayoutDashboard,
   Users,
   BadgeCheck,
@@ -63,6 +65,8 @@ export const icons = {
   // Navegación — AppLayout.vue (los 3 roles)
   dashboard: LayoutDashboard,
   users: Users,
+  settings: Settings,
+  lock: LockKeyhole,
   'verify-teachers': BadgeCheck,   // ✅ "Verificar profesores" — validación/aprobación, no un check genérico
   requests: ClipboardList,         // 📋 "Solicitudes" (los 3 roles)
   classes: Calendar,               // 📅 "Clases"/"Mis clases" — listado, no un horario específico

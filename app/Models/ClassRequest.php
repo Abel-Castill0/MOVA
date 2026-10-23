@@ -88,7 +88,7 @@ class ClassRequest extends Model
      */
     public function scopeVisibleToTeacher(Builder $query, int $teacherProfileId, $offerIds, $subjectIds): Builder
     {
-        return $query->where(function ($q) use ($teacherProfileId, $offerIds, $subjectIds) {
+        return $query->whereHas('student.parent', fn ($q) => $q->whereNull('account_closed_at'))->where(function ($q) use ($teacherProfileId, $offerIds, $subjectIds) {
             $q->where('teacher_profile_id', $teacherProfileId)
                 ->orWhere(function ($inner) use ($offerIds, $subjectIds) {
                     $inner->whereNull('teacher_profile_id')
@@ -121,6 +121,7 @@ class ClassRequest extends Model
      */
     public function eligibleTeacherUsers(): \Illuminate\Support\Collection
     {
+        if ($this->student?->parent?->account_closed_at !== null) return collect();
         // Los tres caminos exigen un perfil VERIFICADO vigente: una
         // notificación lleva el nombre del menor, y la verificación pudo
         // retirarse después de crear la solicitud (p. ej. antes de que el
@@ -129,18 +130,18 @@ class ClassRequest extends Model
             $profile = $this->teacherProfile;
             $user = $profile?->is_verified ? $profile->user : null;
 
-            return $user ? collect([$user]) : collect();
+            return $user && ! $user->account_closed_at ? collect([$user]) : collect();
         }
 
         if ($this->class_offer_id) {
             $profile = $this->classOffer?->teacherProfile;
             $user = $profile?->is_verified ? $profile->user : null;
 
-            return $user ? collect([$user]) : collect();
+            return $user && ! $user->account_closed_at ? collect([$user]) : collect();
         }
 
         return TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
-            ->where('is_verified', true)
+            ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->with('user')
             ->get()
             ->map(fn (TeacherProfile $profile) => $profile->user)
@@ -155,6 +156,7 @@ class ClassRequest extends Model
      */
     public function isEligibleTeacherUser(User $user): bool
     {
+        if ($user->fresh()?->account_closed_at !== null || $this->student?->parent?->fresh()?->account_closed_at !== null) return false;
         if ($this->teacher_profile_id) {
             $profile = $this->teacherProfile;
 
@@ -168,7 +170,7 @@ class ClassRequest extends Model
         }
 
         return TeacherProfile::where('user_id', $user->id)
-            ->where('is_verified', true)
+            ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
             ->exists();
     }

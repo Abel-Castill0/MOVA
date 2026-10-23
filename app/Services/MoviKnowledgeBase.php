@@ -90,7 +90,7 @@ class MoviKnowledgeBase
             ],
             'delete_account' => [
                 'keywords' => ['eliminar cuenta' => 6, 'borrar cuenta' => 6, 'dar de baja' => 5, 'eliminar mis datos' => 6, 'borrar mis datos' => 6, 'mis datos' => 3, 'privacidad' => 4, 'datos personales' => 5, 'eliminar' => 2],
-                'reply' => "Puedes eliminar tu cuenta desde tu **Perfil**. Si tienes historial de clases o créditos, la cuenta se anonimiza (se borran tu nombre, correo, teléfono y foto) y se conservan solo los registros necesarios. Más detalle: [Privacidad]",
+                'reply' => "Abre el menú de tu avatar → **Mi perfil** → **Privacidad y cuenta** → **Eliminar mi cuenta**. Tras confirmar tu identidad, se cierra el acceso habitual y se registra una solicitud de eliminación. Los datos de alumnos, clases y operaciones no se borran automáticamente: se revisa qué debe conservarse y por qué. Puedes iniciar sesión para consultar el estado. Más detalle: [Privacidad]",
             ],
             'complaints' => [
                 'keywords' => ['reclam' => 6, 'queja' => 6, 'libro de reclamaciones' => 7, 'denunci' => 4, 'mal servicio' => 4],

@@ -4,18 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\AvatarStorageUnavailable;
 use App\Http\Requests\ProfileUpdateRequest;
-use App\Models\ClassRequest;
-use App\Models\Lesson;
 use App\Models\User;
 use App\Services\CloudinaryService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,6 +24,9 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+            'section' => $request->routeIs('account.settings') ? 'security' : 'personal',
+            'accountSummary' => app(\App\Services\AccountLifecycleService::class)->summary($request->user()),
+            'canRequestClosure' => $request->user()->hasAnyRole(['parent', 'teacher']) && ! $request->user()->hasRole('admin'),
         ]);
     }
 
@@ -90,11 +88,15 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $user = $request->user();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+        $user = \App\Services\AccountLifecycleService::lockOpenParticipants([$request->user()->id])->get($request->user()->id);
+        if ($request->input('email') !== $user->email && ! \Illuminate\Support\Facades\Hash::check((string) $request->input('current_password'), $user->password)) {
+            throw ValidationException::withMessages(['current_password' => 'Confirma tu contraseña actual.']);
+        }
 
         $previousNormalized = User::normalizePhone($user->phone);
 
-        $user->fill($request->validated());
+        $user->fill($request->safe()->only(['name', 'email', 'phone']));
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
@@ -107,6 +109,7 @@ class ProfileController extends Controller
         }
 
         $user->save();
+        });
 
         return Redirect::route('profile.edit');
     }
@@ -147,81 +150,6 @@ class ProfileController extends Controller
         $user->phone_verification_expires_at = null;
         $user->phone_verification_attempts = 0;
         $user->whatsapp_opt_in_at = null;
-    }
-
-    /**
-     * Delete the user's account.
-     */
-    public function destroy(Request $request, CloudinaryService $cloudinary): RedirectResponse
-    {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
-
-        $user = $request->user();
-
-        // Logout first so token rotation cannot persist a model after a hard delete.
-        Auth::logout();
-
-        // F-01: la definición vive ahora en User::hasProtectedHistory(), para
-        // que TODO camino de borrado la respete (incluido el guard de
-        // User::booted()), no solo este formulario.
-        $preserveFinancialHistory = $user->hasProtectedHistory();
-
-        DB::transaction(function () use ($user, $preserveFinancialHistory) {
-            $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-
-            $user->tokens()->delete();
-            DB::table('sessions')->where('user_id', $user->id)->delete();
-            $user->syncRoles([]);
-
-            if ($preserveFinancialHistory) {
-
-                $user->forceFill([
-                    'name' => 'Cuenta eliminada',
-                    'avatar_url' => null,
-                    'email' => "deleted-{$user->id}@mova.invalid",
-                    'email_verified_at' => null,
-                    'phone' => null,
-                    'phone_verified_at' => null,
-                    'phone_verification_code_hash' => null,
-                    'phone_verification_expires_at' => null,
-                    'remember_token' => null,
-                    'password' => Str::random(64),
-                    'suspended_at' => now(),
-                    'suspension_reason' => 'Cuenta anonimizada a solicitud del usuario.',
-                ])->save();
-
-                if ($user->teacherProfile) {
-                    $user->teacherProfile->update([
-                        'bio' => null,
-                        'is_verified' => false,
-                    ]);
-                    $user->teacherProfile->classOffers()->update(['is_active' => false]);
-                }
-
-                $user->students()->get()->each(function ($student) {
-                    $student->update([
-                        'first_name' => 'Estudiante',
-                        'last_name' => "anonimizado {$student->id}",
-                        'birth_date' => null,
-                        'school' => null,
-                    ]);
-                });
-            } else {
-                $user->delete();
-            }
-        });
-
-        // P0-F: la foto es dato personal; se borra en ambos caminos
-        // (anonimización y borrado físico), fuera de la transacción porque
-        // es una llamada de red best-effort.
-        $cloudinary->deleteAvatar($user->id);
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return Redirect::to('/');
     }
 
 }

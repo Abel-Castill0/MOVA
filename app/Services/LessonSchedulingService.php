@@ -71,12 +71,12 @@ class LessonSchedulingService
             }
 
             // User del profesor ANTES que su TeacherProfile: mismo orden que
-            // la baja de cuenta (ProfileController::destroy bloquea el User y
-            // luego actualiza el perfil), así no hay ciclo de espera entre
+            // el cierre de cuenta (AccountLifecycleService::requestClosure bloquea
+            // el User y luego el perfil), así no hay ciclo de espera entre
             // ambos flujos. user_id es inmutable: leerlo sin lock es seguro.
-            $teacherSuspendedAt = User::whereKey(TeacherProfile::whereKey($teacherProfileId)->value('user_id'))
-                ->lockForUpdate()
-                ->value('suspended_at');
+            $teacherUserId = TeacherProfile::whereKey($teacherProfileId)->value('user_id');
+            $participants = AccountLifecycleService::lockOpenParticipants([$teacherUserId, $classRequest->student->parent_user_id]);
+            $teacherSuspendedAt = $participants[$teacherUserId]->suspended_at;
 
             $teacherProfile = TeacherProfile::whereKey($teacherProfileId)
                 ->lockForUpdate()

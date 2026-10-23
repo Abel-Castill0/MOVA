@@ -33,6 +33,9 @@ class ClassRequestPolicy
     // interactuar con la cola de solicitudes en absoluto, no solo con aceptar.
     public function accept(User $user, ClassRequest $classRequest): bool
     {
+        if ($user->account_closed_at !== null || $classRequest->student?->parent?->account_closed_at !== null) {
+            return false;
+        }
         $profile = $user->teacherProfile;
         if (! $profile || ! $profile->is_verified) {
             return false;

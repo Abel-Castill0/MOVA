@@ -123,7 +123,9 @@ class SafeMailChannelReliabilityTest extends TestCase
     {
         // Mismos --tries/--backoff que infra/azure/apps.bicep; backoff 0 solo
         // para que el reintento sea inmediato dentro de la prueba.
-        Artisan::call('queue:work', ['--stop-when-empty' => true, '--tries' => 3, '--backoff' => 0, '--sleep' => 0, '--timeout' => 60]);
+        // Full-suite PHPUnit memory can exceed the worker's 128 MB default.
+        // Keep the test worker alive to exercise retries, without changing production.
+        Artisan::call('queue:work', ['--stop-when-empty' => true, '--tries' => 3, '--backoff' => 0, '--sleep' => 0, '--timeout' => 60, '--memory' => 256]);
     }
 
     public function test_a_queued_mail_only_failure_is_retried_then_lands_in_failed_jobs(): void

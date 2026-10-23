@@ -57,6 +57,8 @@ class AdminController extends Controller
     public function verifyTeacher(TeacherProfile $teacher)
     {
         $teacher = DB::transaction(function () use ($teacher) {
+            $owner = \App\Models\User::whereKey($teacher->user_id)->lockForUpdate()->firstOrFail();
+            abort_if($owner->account_closed_at !== null, 409, 'La cuenta está cerrada y no puede publicarse.');
             $teacher = TeacherProfile::whereKey($teacher->id)->lockForUpdate()->firstOrFail();
 
             $teacher->update([

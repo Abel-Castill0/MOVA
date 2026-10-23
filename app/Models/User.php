@@ -43,6 +43,7 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     protected $casts = [
+        'account_closed_at' => 'datetime',
         'email_verified_at'            => 'datetime',
         'phone_verified_at'            => 'datetime',
         'password'                     => 'hashed',
@@ -88,7 +89,7 @@ class User extends Authenticatable implements MustVerifyEmail
                 throw new \RuntimeException(
                     "No se puede eliminar al usuario {$user->id}: tiene historial financiero o académico "
                     .'(ledger de créditos, recargas, clases o solicitudes). Ese historial debe preservarse. '
-                    .'Usa la anonimización de ProfileController::destroy() en su lugar.'
+                    .'Usa la solicitud de cierre de cuenta (AccountLifecycleService), que conserva ese historial.'
                 );
             }
         });

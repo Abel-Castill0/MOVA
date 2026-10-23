@@ -85,6 +85,7 @@ class DiagnosticsController extends Controller
         }
 
         $classRequest = DB::transaction(function () use ($diagnostic, $student, $user) {
+            \App\Services\AccountLifecycleService::lockOpenParticipants([$student->parent_user_id]);
             $existing = $diagnostic->classRequest()->lockForUpdate()->first();
             if ($existing) {
                 return $existing;

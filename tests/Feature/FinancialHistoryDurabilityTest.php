@@ -160,7 +160,7 @@ class FinancialHistoryDurabilityTest extends TestCase
 
     // ── El camino correcto: anonimizar, no borrar ────────────────────────
 
-    public function test_the_profile_deletion_endpoint_anonymizes_instead_of_destroying_history(): void
+    public function test_closure_preserves_history_until_a_retention_decision(): void
     {
         [$teacher, $profile] = $this->teacher();
         CreditTransaction::create([
@@ -172,14 +172,13 @@ class FinancialHistoryDurabilityTest extends TestCase
         ]);
 
         $this->actingAs($teacher)
-            ->delete(route('profile.destroy'), ['password' => 'password'])
-            ->assertRedirect('/');
+            ->delete(route('profile.destroy'), ['password' => 'password', 'confirmation' => true, 'scope' => 'account'])
+            ->assertRedirect('/cuenta/solicitud');
 
         // La cuenta sigue existiendo pero anonimizada, y el ledger intacto.
         $teacher->refresh();
-        $this->assertSame('Cuenta eliminada', $teacher->name);
-        $this->assertSame("deleted-{$teacher->id}@mova.invalid", $teacher->email);
-        $this->assertNotNull($teacher->suspended_at);
+        $this->assertNotNull($teacher->account_closed_at);
+        $this->assertDatabaseHas('account_deletion_requests', ['user_id' => $teacher->id]);
         $this->assertSame(1, CreditTransaction::where('teacher_profile_id', $profile->id)->count());
     }
 

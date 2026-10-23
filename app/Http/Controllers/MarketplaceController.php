@@ -27,7 +27,7 @@ class MarketplaceController extends Controller
     public function index()
     {
         return Inertia::render('Marketplace/Index', [
-            'teachers' => TeacherProfile::where('is_verified', true)
+            'teachers' => TeacherProfile::where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
                 // P0 encontrado y corregido en esta pasada: el allow-list de
                 // columnas iba antes como segundo argumento de paginate() —
                 // ->paginate(24, ['id','user_id','bio','hourly_rate']) — y
@@ -70,7 +70,7 @@ class MarketplaceController extends Controller
             // verdad, sin duplicar la consulta de forma distinta) — refuerzan
             // confianza sin ser un filtro ni un buscador.
             'stats' => [
-                'teachers' => TeacherProfile::where('is_verified', true)->count(),
+                'teachers' => TeacherProfile::where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))->count(),
                 'completed' => Lesson::where('status', 'completed')->count(),
             ],
         ]);

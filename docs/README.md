@@ -23,6 +23,7 @@
 | [`PROMPTS_CLAUDE_CODE.md`](PROMPTS_CLAUDE_CODE.md) | Guía y plantillas de indicaciones para Claude Code |
 | [`CLAUDE_CODE_AGENTS.md`](CLAUDE_CODE_AGENTS.md) | Subagentes, skills y hooks de Claude Code para MOVA: inventario, uso, pruebas y límites |
 | [`payments-culqi.md`](payments-culqi.md) | Culqi (API V2): integración, evidencia de sandbox, webhooks, MCP local `mova-culqi` y pasos manuales en CulqiPanel |
+| [`ACCOUNT_LIFECYCLE.md`](ACCOUNT_LIFECYCLE.md) | Perfil, configuración y «Eliminar mi cuenta» como solicitud de cierre: flujo, estados, comprobante, bandeja admin, conservación, pruebas y límites (sin borrado definitivo) |
 | [`culqi-commercial-review.md`](culqi-commercial-review.md) | Observación comercial de Culqi (catálogo, flujo de compra, evaluador, legal): qué se corrigió, URLs y pendientes del titular |
 | [`azure-secrets-configuration.md`](azure-secrets-configuration.md) | Secretos y variables en Azure: Key Vault, consumidores por contenedor, rotación, verificación y auditoría de exposición |
 | [`payments-migration-mp-to-culqi.md`](payments-migration-mp-to-culqi.md) | Mercado Pago → Culqi: historia, arquitectura, flujo de créditos, manual operativo, migración y rollback |

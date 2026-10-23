@@ -77,7 +77,7 @@ class ClassRequestController extends Controller
         $code = strtoupper(trim((string) $request->query('code', '')));
 
         $profile = $code !== '' ? TeacherProfile::where('referral_code', $code)
-            ->where('is_verified', true)
+            ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->with('user')
             ->first() : null;
 
@@ -142,7 +142,7 @@ class ClassRequestController extends Controller
         if ($rawCode !== '') {
             $code = strtoupper($rawCode);
             $teacherProfile = TeacherProfile::where('referral_code', $code)
-                ->where('is_verified', true)
+                ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
                 ->first();
 
             if (! $teacherProfile) {
@@ -165,7 +165,7 @@ class ClassRequestController extends Controller
             $offer = ClassOffer::with('teacherProfile')->findOrFail($data['class_offer_id']);
             $offerTeacherProfile = $offer->teacherProfile;
 
-            if (! ($offer->is_active && $offerTeacherProfile?->is_verified)) {
+            if (! ($offer->is_active && $offerTeacherProfile?->is_verified && $offerTeacherProfile->user?->account_closed_at === null)) {
                 throw ValidationException::withMessages([
                     'class_offer_id' => 'Esta oferta ya no está disponible.',
                 ]);
@@ -197,8 +197,16 @@ class ClassRequestController extends Controller
         // los mismos 6 campos de intención para el mismo alumno en 30s.
         // No se añade columna/idempotency-key nueva: se reutiliza el
         // propio contenido de la solicitud como huella de intención.
-        $classRequest = DB::transaction(function () use ($student, $data, $status, $teacherProfileId, $rawCode) {
+        $classRequest = DB::transaction(function () use ($student, $data, $status, $teacherProfileId, $rawCode, $offerTeacherProfile) {
             Student::whereKey($student->id)->lockForUpdate()->first();
+            $participantIds = [$student->parent_user_id];
+            if ($teacherProfileId) {
+                $participantIds[] = TeacherProfile::findOrFail($teacherProfileId)->user_id;
+            }
+            if ($offerTeacherProfile) {
+                $participantIds[] = $offerTeacherProfile->user_id;
+            }
+            \App\Services\AccountLifecycleService::lockOpenParticipants($participantIds);
 
             $duplicate = ClassRequest::where('student_id', $data['student_id'])
                 ->where('subject_id', $data['subject_id'])
@@ -268,6 +276,7 @@ class ClassRequestController extends Controller
                 ->firstOrFail();
 
             $this->authorize('view', $classRequest);
+            \App\Services\AccountLifecycleService::lockOpenParticipants([$classRequest->student->parent_user_id]);
             abort_unless(
                 $classRequest->status === 'pending_parent_approval',
                 422,
@@ -340,7 +349,7 @@ class ClassRequestController extends Controller
         // Solicitudes que ESTE profesor ya contraofreció y están esperando
         // respuesta del padre. Solo se muestran las propias del profesor
         // logueado (counteroffer_teacher_profile_id === $profile->id).
-        $counteroffered = ClassRequest::where('status', 'counteroffered')
+        $counteroffered = ClassRequest::where('status', 'counteroffered')->whereHas('student.parent', fn ($q) => $q->whereNull('account_closed_at'))
             ->where('counteroffer_teacher_profile_id', $profile->id)
             ->with(['student', 'subject'])
             ->latest()

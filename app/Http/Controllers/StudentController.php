@@ -42,7 +42,7 @@ class StudentController extends Controller
 
         // Alumno y evidencia de consentimiento nacen juntos o no nace ninguno.
         DB::transaction(function () use ($data, $request) {
-            $parent = $request->user();
+            $parent = \App\Services\AccountLifecycleService::lockOpenParticipants([$request->user()->id])->get($request->user()->id);
             $student = $parent->students()->create($data);
             StudentDataConsent::record($student, $parent, $request);
         });
@@ -68,7 +68,11 @@ class StudentController extends Controller
             'school' => 'nullable|string|max:200',
         ]);
 
-        $student->update($data);
+        DB::transaction(function () use ($student, $data) {
+            $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+            \App\Services\AccountLifecycleService::lockOpenParticipants([$student->parent_user_id]);
+            $student->update($data);
+        });
 
         return redirect()->route('students.index')->with('success', 'Estudiante actualizado.');
     }
@@ -91,6 +95,9 @@ class StudentController extends Controller
         // Con historial: se anonimizan los datos personales del menor ANTES del
         // soft delete, para que la fila que sobrevive no siga conteniendo su
         // nombre, fecha de nacimiento ni colegio.
+        DB::transaction(function () use ($student) {
+        $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
+        \App\Services\AccountLifecycleService::lockOpenParticipants([$student->parent_user_id]);
         if ($student->hasAcademicHistory()) {
             $student->anonymize();
         }
@@ -98,6 +105,7 @@ class StudentController extends Controller
         // Soft delete: desaparece de los listados del padre, pero la fila
         // permanece y las clases que la referencian siguen siendo coherentes.
         $student->delete();
+        });
 
         return redirect()->route('students.index')->with('success', 'Estudiante eliminado.');
     }

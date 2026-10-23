@@ -106,18 +106,8 @@
 
       <!-- User footer con tarjeta rounded-2xl -->
       <div class="px-3 pb-4 pt-3 space-y-1.5 border-t border-slate-100/80">
-        <div :class="['flex items-center rounded-2xl bg-slate-100/70 border border-slate-200/50 transition-all duration-300', isSidebarCompressed ? 'gap-3 px-3 py-2.5 lg:p-1.5 lg:justify-center' : 'gap-3 px-3 py-2.5']">
-          <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
-            class="w-9 h-9 rounded-xl object-cover flex-shrink-0 ring-2 ring-white shadow-xs" width="36" height="36" />
-          <div v-else :class="['w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0 shadow-xs', avatarClass]">
-            {{ user?.name?.charAt(0)?.toUpperCase() }}
-          </div>
-          <div :class="['min-w-0 flex-1', isSidebarCompressed ? 'lg:hidden' : '']">
-            <p class="text-sm font-bold text-slate-900 truncate leading-tight">{{ user?.name }}</p>
-            <p class="text-xs text-slate-400 truncate mt-0.5">{{ roleLabel(user?.roles?.[0]) }}</p>
-          </div>
-          <NotificationBell :class="['flex-shrink-0', isSidebarCompressed ? 'lg:hidden' : '']" />
-        </div>
+        <AccountMenu :compact="isSidebarCompressed" @navigate="sidebarOpen = false" />
+        <div class="flex justify-center"><NotificationBell /></div>
 
         <!-- Botón para comprimir / expandir en el mismo sidebar (Desktop) -->
         <button
@@ -141,12 +131,7 @@
           </span>
         </button>
 
-        <Link :href="route('logout')" method="post" as="button"
-          :title="isSidebarCompressed ? 'Cerrar sesión' : undefined"
-          :class="['w-full flex items-center min-h-[40px] text-left text-sm text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors font-medium', isSidebarCompressed ? 'gap-2.5 px-3 py-2 lg:justify-center lg:px-0' : 'gap-2.5 px-3 py-2']">
-          <Icon name="logout" :size="16" class="flex-shrink-0" />
-          <span :class="isSidebarCompressed ? 'lg:hidden' : ''">Cerrar sesión</span>
-        </Link>
+
       </div>
     </aside>
 
@@ -189,17 +174,7 @@
           <MoviMascot pose="saluda" :size="30" />
         </button>
 
-        <div class="lg:hidden flex items-center gap-2 flex-shrink-0 bg-slate-100/70 border border-slate-200/50 py-1 px-1 sm:px-2.5 rounded-2xl">
-          <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.name"
-            class="w-7 h-7 rounded-xl object-cover ring-1 ring-white" width="28" height="28" />
-          <div v-else class="w-7 h-7 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0 shadow-2xs">
-            {{ user?.name?.charAt(0)?.toUpperCase() }}
-          </div>
-          <div class="hidden sm:block min-w-0 leading-tight">
-            <p class="text-xs font-bold text-slate-800 max-w-[5rem] truncate">{{ user?.name }}</p>
-            <p class="text-[10px] text-slate-500 truncate">{{ roleLabel(user?.roles?.[0]) }}</p>
-          </div>
-        </div>
+        <AccountMenu class="lg:hidden" compact placement="down" @navigate="sidebarOpen = false" />
 
         <div class="lg:hidden">
           <NotificationBell placement="down-right" />
@@ -241,6 +216,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
+import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
 import ChatbotWidget from '@/Components/ChatbotWidget.vue'
 import MoviMascot from '@/Components/MoviMascot.vue'
@@ -410,6 +386,7 @@ const navItems = computed(() => {
       { href: '/admin/recharges',         icon: 'credits',          label: 'Recargas' },
       { href: '/admin/reviews',           icon: 'reviews',          label: 'Reseñas' },
       { href: '/admin/ai-usage',          icon: 'ai-usage',         label: 'Uso de IA' },
+      { href: '/admin/account-deletions', icon: 'profile', label: 'Privacidad' },
       { href: '/admin/complaints',        icon: 'reviews',          label: 'Reclamaciones' },
     ]
   }
@@ -421,7 +398,6 @@ const navItems = computed(() => {
       // Antes era el literal 'C' renderizado como texto (no un icono real) —
       // hallazgo de la auditoría de diseño, corregido aquí.
       { href: '/teacher/credits',  icon: 'credits',  label: 'Mis créditos' },
-      { href: '/teacher/profile', icon: 'profile',  label: 'Mi perfil' },
     ]
   }
   return [

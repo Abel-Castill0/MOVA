@@ -94,6 +94,12 @@ class ReminderClaimRecoveryTest extends TestCase
                 continue;
             }
 
+            // Reauthentication proof is deliberately synchronous outside any transaction;
+            // it is never dispatched by reminder claims or persisted in queue payloads.
+            if ($class === \App\Notifications\AccountClosureCode::class) {
+                continue;
+            }
+
             if (!is_subclass_of($class, ShouldQueue::class)) {
                 $offenders[] = $class;
             }

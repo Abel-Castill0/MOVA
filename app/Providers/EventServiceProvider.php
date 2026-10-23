@@ -15,6 +15,9 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 class EventServiceProvider extends ServiceProvider
 {
     protected $listen = [
+        \Illuminate\Notifications\Events\NotificationSending::class => [
+            \App\Listeners\PreventClosedAccountNotifications::class,
+        ],
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],

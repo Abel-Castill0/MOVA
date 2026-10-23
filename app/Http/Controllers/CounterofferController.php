@@ -65,6 +65,7 @@ class CounterofferController extends Controller
 
         $updated = DB::transaction(function () use ($classRequest, $startTime, $duration, $profile, $request) {
             $locked = ClassRequest::whereKey($classRequest->id)->lockForUpdate()->firstOrFail();
+            \App\Services\AccountLifecycleService::lockOpenParticipants([$request->user()->id, $locked->student->parent_user_id]);
 
             // Bajo lock: dos profesores proponiendo a la vez — solo uno gana,
             // el otro ve la solicitud ya 'counteroffered'.

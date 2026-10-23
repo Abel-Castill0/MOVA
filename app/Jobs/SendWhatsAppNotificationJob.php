@@ -38,6 +38,11 @@ class SendWhatsAppNotificationJob implements ShouldQueue
      */
     public function handle(WhatsAppService $whatsAppService): void
     {
+        // Recheck at delivery time: a job may have been queued before closure.
+        $normalized = \App\Models\User::normalizePhone($this->phone);
+        if ($normalized && \App\Models\User::whereNotNull('account_closed_at')->where('phone_verified_normalized', $normalized)->exists()) {
+            return;
+        }
         Log::info('[SendWhatsAppNotificationJob] Iniciando envío de WhatsApp asíncrono', [
             'phone'   => $this->phone,
             'attempt' => $this->attempts(),

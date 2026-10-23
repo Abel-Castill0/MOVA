@@ -215,6 +215,11 @@ class PhoneVerificationController extends Controller
         }
 
         DB::transaction(function () use ($user) {
+            // User before TeacherProfile (same order as account closure): a closed account gets no new credits.
+            $owner = User::whereKey($user->id)->lockForUpdate()->first();
+            if (! $owner || $owner->account_closed_at !== null) {
+                return;
+            }
             $teacher = TeacherProfile::where('user_id', $user->id)->lockForUpdate()->first();
 
             if (!$teacher) {

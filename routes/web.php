@@ -108,6 +108,24 @@ Route::post('/chatbot/message', [ChatbotController::class, 'message'])
 // ── Suspended account page (auth only, no suspension check) ──────────────────
 Route::middleware('auth')->get('/suspended', fn () => \Inertia\Inertia::render('Suspended'))->name('suspended');
 
+Route::get('/cuenta/solicitud', [\App\Http\Controllers\AccountLifecycleController::class, 'status'])->name('account.closure.status');
+// Privacy rights remain accessible without accepting new legal versions or
+// completing verification; sending a proof still requires a verified email.
+Route::middleware(['auth', 'admin.mfa'])->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/account/settings', [ProfileController::class, 'edit'])->name('account.settings');
+    Route::post('/profile/closure-code', [\App\Http\Controllers\AccountLifecycleController::class, 'sendCode'])
+        ->middleware('throttle:3,10,account-closure-code')->name('account.closure.code');
+    Route::delete('/profile', [\App\Http\Controllers\AccountLifecycleController::class, 'store'])
+        ->middleware('throttle:5,1,account-closure-submit')->name('profile.destroy');
+});
+
+Route::middleware(['auth', 'verified', 'role:admin', 'admin.mfa', 'not.suspended'])->group(function () {
+    Route::get('/admin/account-deletions', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'index'])->name('admin.account-deletions.index');
+    Route::patch('/admin/account-deletions/{deletion}', [\App\Http\Controllers\Admin\AccountDeletionController::class, 'update'])
+        ->middleware('throttle:20,1')->name('admin.account-deletions.update');
+});
+
 // ── Authenticated routes ─────────────────────────────────────────────────────
 // P0-C — MFA admin: enrolamiento y challenge quedan FUERA de admin.mfa
 // (son el camino para satisfacerlo); todo lo demás autenticado pasa por él.
@@ -130,7 +148,6 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:20,1')->name('profile.update');
 
     // Consentimiento de notificaciones por WhatsApp. Fuera del grupo por rol:
@@ -138,7 +155,6 @@ Route::middleware(['auth', 'verified', 'admin.mfa', 'legal.current'])->group(fun
     // baja. No afecta al OTP de verificación.
     Route::patch('/profile/notifications', [NotificationPreferencesController::class, 'update'])
         ->middleware('throttle:20,1')->name('profile.notifications.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:10,1')->name('profile.destroy');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1')->name('profile.avatar');
     Route::delete('/profile/avatar', [ProfileController::class, 'removeAvatar'])->middleware('throttle:10,1')->name('profile.avatar.remove');
 

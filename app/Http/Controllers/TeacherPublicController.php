@@ -11,7 +11,7 @@ class TeacherPublicController extends Controller
 {
     public function show(TeacherProfile $teacherProfile)
     {
-        abort_unless($teacherProfile->is_verified, 404);
+        abort_unless($teacherProfile->is_verified && $teacherProfile->user?->account_closed_at === null, 404);
 
         $teacherProfile->load([
             'user:id,name,avatar_url',

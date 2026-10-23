@@ -33,6 +33,7 @@ class ProfileTest extends TestCase
             ->patch('/profile', [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
+                'current_password' => 'password',
             ]);
 
         $response
@@ -64,33 +65,35 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
-    public function test_user_can_delete_their_account(): void
+    public function test_user_can_request_closure_without_unapproved_erasure(): void
     {
         $user = User::factory()->create();
+        $user->assignRole('parent');
 
         $response = $this
             ->actingAs($user)
             ->delete('/profile', [
-                'password' => 'password',
+                'password' => 'password', 'confirmation' => true, 'scope' => 'account',
             ]);
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect('/');
+            ->assertRedirect('/cuenta/solicitud');
 
         $this->assertGuest();
-        $this->assertNull($user->fresh());
+        $this->assertNotNull($user->fresh()->account_closed_at);
     }
 
     public function test_correct_password_must_be_provided_to_delete_account(): void
     {
         $user = User::factory()->create();
+        $user->assignRole('parent');
 
         $response = $this
             ->actingAs($user)
             ->from('/profile')
             ->delete('/profile', [
-                'password' => 'wrong-password',
+                'password' => 'wrong-password', 'confirmation' => true, 'scope' => 'account',
             ]);
 
         $response

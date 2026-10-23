@@ -837,12 +837,12 @@ class MonetizationIntegrityTest extends TestCase
             'description' => 'Consumo por clase completada',
         ]);
 
-        $this->actingAs($teacher)->delete(route('profile.destroy'), ['password' => 'password'])
-            ->assertRedirect('/');
+        $this->actingAs($teacher)->delete(route('profile.destroy'), ['password' => 'password', 'confirmation' => true, 'scope' => 'account'])
+            ->assertRedirect('/cuenta/solicitud');
 
         $teacher->refresh();
-        $this->assertNotNull($teacher->suspended_at);
-        $this->assertStringContainsString('@mova.invalid', $teacher->email);
+        $this->assertNotNull($teacher->account_closed_at);
+        $this->assertSame($originalEmail, $teacher->email);
         $this->assertDatabaseHas('credit_transactions', ['id' => $transaction->id]);
         $this->assertDatabaseHas('recharge_requests', ['id' => $recharge->id]);
         $this->assertDatabaseHas('classes', ['id' => $lesson->id]);
@@ -851,14 +851,15 @@ class MonetizationIntegrityTest extends TestCase
             'tokenable_id' => $teacher->id,
         ]);
         $this->assertDatabaseMissing('sessions', ['user_id' => $teacher->id]);
-        $this->assertDatabaseMissing('model_has_roles', [
+        $this->assertDatabaseHas('model_has_roles', [
             'model_type' => User::class,
             'model_id' => $teacher->id,
         ]);
         $this->post('/login', [
             'email' => $originalEmail,
             'password' => 'password',
-        ])->assertSessionHasErrors('email');
+        ])->assertSessionHasNoErrors();
+        $this->get('/dashboard')->assertRedirect('/cuenta/solicitud');
     }
 
     /**

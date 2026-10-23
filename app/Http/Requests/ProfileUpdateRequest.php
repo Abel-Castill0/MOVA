@@ -30,6 +30,7 @@ class ProfileUpdateRequest extends FormRequest
              * cobra su bono de 5 créditos ni recibe avisos por WhatsApp
              * (docs/MOVA_SYSTEM_MAP.md H-12, C-15).
              */
+            'current_password' => $this->input('email') !== $this->user()->email ? ['required', 'current_password'] : ['nullable'],
             'phone' => ['nullable', 'string', 'max:20', new NormalizablePhone, $this->notVerifiedByAnotherAccount()],
         ];
     }
