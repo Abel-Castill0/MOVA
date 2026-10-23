@@ -96,7 +96,9 @@ function buildFixture(string $run, string $leader, string $follower, array $opti
         if ($options['lesson'] ?? false) {
             Auth::setUser($parent);
             $lesson = app(LessonSchedulingService::class)->schedule($request->id, $teacher->id, $fixture['start'], 60, fn () => null);
-            DB::table('classes')->where('id', $lesson->id)->update(['status' => 'needs_admin_review']);
+            if (! ($options['keep_scheduled'] ?? false)) {
+                DB::table('classes')->where('id', $lesson->id)->update(['status' => 'needs_admin_review']);
+            }
             $fixture['lesson'] = $lesson->id;
         }
 
@@ -123,6 +125,9 @@ function scenarios(): array
         'pending-recharge-credit-then-closure' => ['leader' => 'credit', 'follower' => 'close-teacher', 'options' => ['recharge' => true], 'expect' => ['leader' => 'credited', 'follower' => 'closed', 'closed' => 'teacher_user', 'classes' => 0, 'credited' => true]],
         // E/F/G) settlement (scheduler path) of a class created before closure, with real notification delivery.
         'closure-then-settlement' => ['leader' => 'close', 'follower' => 'settle', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'closed', 'follower' => 'settled', 'closed' => 'parent', 'classes' => 1, 'settled' => true, 'parent_notifications' => 0]],
+        // E) a class scheduled before closure is cancelled afterwards by its (closed) owner: one refund, in both orders.
+        'closure-then-cancellation' => ['leader' => 'close', 'follower' => 'cancel', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'closed', 'follower' => 'cancelled', 'closed' => 'parent', 'classes' => 1, 'cancelled' => true]],
+        'cancellation-then-closure' => ['leader' => 'cancel', 'follower' => 'close', 'options' => ['lesson' => true, 'keep_scheduled' => true], 'expect' => ['leader' => 'cancelled', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 1, 'cancelled' => true]],
         'settlement-then-closure' => ['leader' => 'settle', 'follower' => 'close', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'settled', 'follower' => 'closed', 'closed' => 'parent', 'classes' => 1, 'settled' => true]],
     ];
 }
@@ -196,6 +201,17 @@ try {
                 $result = app(RechargeApprovalService::class)->credit(RechargeRequest::findOrFail($fixture['recharge']), $fixture['admin']);
 
                 return $result['changed'] ? 'credited' : 'already-credited';
+            }
+            if ($operation === 'cancel') {
+                // Same entry point as the route: the closed parent cancelling a class scheduled before closure.
+                Auth::setUser(User::findOrFail($fixture['parent']));
+                $http = Request::create('/lessons/'.$fixture['lesson'].'/cancel', 'POST', ['reason' => 'QA closed owner']);
+                $http->setLaravelSession(app('session')->driver());
+                $http->setUserResolver(fn () => Auth::user());
+                app()->instance('request', $http);
+                app(\App\Http\Controllers\LessonController::class)->cancel(Lesson::findOrFail($fixture['lesson']));
+
+                return 'cancelled';
             }
             if ($operation === 'settle') {
                 $lesson = app(LessonSettlementService::class)->consume(Lesson::findOrFail($fixture['lesson']), null, null, 'class_settled', true);
@@ -283,7 +299,8 @@ try {
             check($lessons->count() === $expect['classes'], 'Unexpected number of retained classes.');
             foreach ($lessons as $lesson) {
                 check($lesson->student_id === $fixture['student'] && $lesson->teacher_profile_id === $fixture['teacher'], 'Class participants changed.');
-                check(! in_array($lesson->status, ['cancelled'], true), 'Closure must not cancel the existing class.');
+                // Closure never cancels a class; only the owner's explicit cancellation does.
+                check(($lesson->status === 'cancelled') === ($expect['cancelled'] ?? false), 'Unexpected class cancellation state.');
             }
             check(ClassRequest::where('student_id', $fixture['student'])->count() === ($expect['requests'] ?? 1), 'Unexpected request history.');
             $profile = TeacherProfile::findOrFail($fixture['teacher']);
@@ -291,12 +308,16 @@ try {
             $settled = $expect['settled'] ?? false;
             $classes = $expect['classes'];
             // Credits and ledger only move through their own legitimate operation, never because of closure.
-            $expectedAvailable = 10 - $classes + ($credited ? 5 : 0);
-            $expectedReserved = $settled ? 0 : $classes;
+            $cancelled = $expect['cancelled'] ?? false;
+            $expectedAvailable = ($cancelled ? 10 : 10 - $classes) + ($credited ? 5 : 0);
+            $expectedReserved = ($settled || $cancelled) ? 0 : $classes;
             check($profile->credits_available === $expectedAvailable && $profile->credits_reserved === $expectedReserved, 'Credit balances diverged.');
             // A settled class had its reservation written during fixture setup (already in $ledgerBefore);
             // otherwise a class scheduled by the race adds one reservation. Settlement adds one consumption.
-            $expectedLedger = $ledgerBefore + ($settled ? 1 : $classes) + ($credited ? 1 : 0);
+            $expectedLedger = $ledgerBefore + (($settled || $cancelled) ? 1 : $classes) + ($credited ? 1 : 0);
+            if ($cancelled) {
+                check(CreditTransaction::where('lesson_id', $fixture['lesson'])->where('type', 'refund')->count() === 1, 'Refund must be single.');
+            }
             check(CreditTransaction::where('teacher_profile_id', $profile->id)->count() === $expectedLedger, 'Unexpected ledger mutation.');
             if ($credited) {
                 check(RechargeRequest::findOrFail($fixture['recharge'])->status === 'approved', 'Recharge must complete once.');

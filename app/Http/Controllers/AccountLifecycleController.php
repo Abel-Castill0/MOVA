@@ -85,6 +85,22 @@ class AccountLifecycleController extends Controller
             ? AccountDeletionRequest::where('user_id', $request->user()->id)->first()?->receipt()
             : AccountDeletionRequest::where('reference', $request->session()->get('closure_reference_until', 0) >= now()->timestamp ? $request->session()->get('closure_reference', '') : '')->first()?->receipt();
         abort_unless($receipt, 404);
-        return Inertia::render('Profile/ClosureStatus', ['receipt' => $receipt]);
+        return Inertia::render('Profile/ClosureStatus', [
+            'receipt' => $receipt,
+            'cancellableLessons' => $request->user() ? $this->cancellableLessons($request->user()) : [],
+        ]);
+    }
+
+    /** Classes scheduled before closure that the owner may still cancel (no student data exposed). */
+    private function cancellableLessons(\App\Models\User $user): array
+    {
+        $profileId = $user->teacherProfile?->id;
+        $students = $user->students()->withTrashed()->pluck('id');
+
+        return \App\Models\Lesson::query()->where('status', 'scheduled')
+            ->where(fn ($query) => $query->whereIn('student_id', $students)->when($profileId, fn ($q) => $q->orWhere('teacher_profile_id', $profileId)))
+            ->orderBy('start_time')->limit(50)->get(['id', 'start_time', 'duration_minutes'])
+            ->map(fn ($lesson) => ['id' => $lesson->id, 'start_time' => $lesson->start_time->toIso8601String(), 'duration_minutes' => $lesson->duration_minutes])
+            ->all();
     }
 }

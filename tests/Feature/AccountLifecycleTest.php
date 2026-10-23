@@ -191,6 +191,60 @@ class AccountLifecycleTest extends TestCase
         $this->assertSame(10, $teacher->fresh()->credits_available);
     }
 
+    private function scheduledLesson(User $parent, TeacherProfile $teacher, int $days = 2): Lesson
+    {
+        $request = $this->classRequest($parent, $teacher);
+
+        return app(LessonSchedulingService::class)->schedule($request->id, $teacher->id, now()->addDays($days)->toIso8601String(), 60, fn () => null);
+    }
+
+    public function test_closed_parent_can_cancel_a_class_scheduled_before_closure_but_nothing_else(): void
+    {
+        [$teacherUser, $teacher] = $this->teacher(); $parent = $this->user();
+        $lesson = $this->scheduledLesson($parent, $teacher);
+        $other = $this->scheduledLesson($this->user(), $teacher, 4);
+        $this->assertSame(8, $teacher->fresh()->credits_available);
+        $this->actingAs($parent)->delete('/profile', $this->closure())->assertRedirect();
+
+        $this->actingAs($parent->fresh())->get(route('account.closure.status'))->assertOk()->assertInertia(fn ($page) => $page
+            ->has('cancellableLessons', 1)->where('cancellableLessons.0.id', $lesson->id)->missing('cancellableLessons.0.student'));
+        $this->post(route('lessons.reschedule', $lesson), ['start_time' => now()->addDays(3)->toIso8601String()])->assertRedirect(route('account.closure.status'));
+        $this->get(route('lessons.join', $lesson))->assertRedirect(route('account.closure.status'));
+        $this->post(route('lessons.cancel', $other), ['reason' => 'x'])->assertForbidden();
+        $this->assertSame('scheduled', $other->fresh()->status);
+
+        $this->post(route('lessons.cancel', $lesson), ['reason' => 'Cuenta cerrada'])->assertRedirect();
+        $this->assertSame('cancelled', $lesson->fresh()->status);
+        $this->assertSame(9, $teacher->fresh()->credits_available);
+        $this->assertSame(1, $teacher->fresh()->credits_reserved);
+        $this->assertSame(1, CreditTransaction::where('lesson_id', $lesson->id)->where('type', 'refund')->count());
+        // A repeated request is rejected and never refunds twice.
+        $this->post(route('lessons.cancel', $lesson))->assertSessionHasErrors('cancel');
+        $this->assertSame(9, $teacher->fresh()->credits_available);
+        $this->assertNotNull($parent->fresh()->account_closed_at);
+        $this->assertNotNull(Student::find($lesson->student_id));
+        $this->get('/dashboard')->assertRedirect(route('account.closure.status'));
+    }
+
+    public function test_closed_teacher_can_cancel_only_her_own_classes_and_no_notice_reaches_her(): void
+    {
+        [$teacherUser, $teacher] = $this->teacher(); $parent = $this->user();
+        $lesson = $this->scheduledLesson($parent, $teacher);
+        [, $otherTeacher] = $this->teacher();
+        $foreign = $this->scheduledLesson($this->user(), $otherTeacher);
+        $noticesBefore = DB::table('notifications')->where('notifiable_id', $teacherUser->id)->count();
+        $this->actingAs($teacherUser)->delete('/profile', $this->closure())->assertRedirect();
+
+        $this->actingAs($teacherUser->fresh())->post(route('lessons.cancel', $foreign))->assertForbidden();
+        $this->assertSame('scheduled', $foreign->fresh()->status);
+        $this->post(route('lessons.cancel', $lesson))->assertRedirect();
+        $this->assertSame('cancelled', $lesson->fresh()->status);
+        $this->assertSame(10, $teacher->fresh()->credits_available);
+        $this->assertSame(0, $teacher->fresh()->credits_reserved);
+        $this->assertNotNull($lesson->student->parent->fresh());
+        $this->assertSame($noticesBefore, DB::table('notifications')->where('notifiable_id', $teacherUser->id)->count());
+    }
+
     public function test_closed_teacher_cannot_be_reverified_or_exposed_even_if_flag_is_restored(): void
     {
         [$user, $profile] = $this->teacher();

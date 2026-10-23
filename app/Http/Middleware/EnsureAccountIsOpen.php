@@ -11,7 +11,10 @@ class EnsureAccountIsOpen
     public function handle(Request $request, Closure $next): Response
     {
         if ($request->user()?->account_closed_at && ! $request->routeIs(
-            'account.closure.status', 'logout', 'legal.privacy', 'legal.terms', 'legal.refunds', 'complaints.*'
+            'account.closure.status', 'logout', 'legal.privacy', 'legal.terms', 'legal.refunds', 'complaints.*',
+            // Closing an account must not strand the other party: the owner may still cancel a class
+            // scheduled before closure (authorization and refund rules stay in LessonController::cancel).
+            'lessons.cancel'
         )) {
             if ($request->expectsJson() && ! $request->header('X-Inertia')) {
                 abort(403, 'Tu cuenta está cerrada. Puedes consultar tu solicitud de eliminación.');
