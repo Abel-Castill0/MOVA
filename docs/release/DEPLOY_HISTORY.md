@@ -4,6 +4,19 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (12) — `8a33594` (master) → producción — cuentas suspendidas o con deuda pueden cerrarse (lista de bloqueo por hash)
+
+| Campo | Valor |
+|---|---|
+| Cambio | Decisión del titular: el cierre automático ya no deriva a soporte a cuentas suspendidas o con saldo negativo; su correo y teléfono (solo hashes HMAC) van a `closure_blocklist` y el registro, el alta con Google y la verificación de teléfono los rechazan. Ver [`ACCOUNT_LIFECYCLE.md`](../ACCOUNT_LIFECYCLE.md) |
+| CI | [39958604239](https://github.com/Abel-Castill0/MOVA/actions/runs/39958604239): Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:4badbcc90f760680e1aac475031c73a4185089d419b606acfe0d349d319cd559`; workflow [39959754972](https://github.com/Abel-Castill0/MOVA/actions/runs/39959754972) **success** (etiqueta `img-20261023-8a33594`); revisión OCI = SHA completo, sin `.env` |
+| Respaldo y migración | Backup manual `predeploy-8a33594-20261023`; Job `movap-migrate`: `2026_10_23_080000_create_closure_blocklist` (tabla nueva, aditiva) DONE 153 ms; job eliminado, antes de cambiar imágenes |
+| Aplicaciones | Scheduler y web `0000034` → `0000035`, ambos Healthy, 0 errores en logs; solo `--image`; escala, secretos y worker (Stopped) sin cambios; pagos sin cambios (`mercadopago`) |
+| Pruebas | SQLite completa **1656 pruebas, 7327 aserciones, OK** (7 omitidas); `AccountLifecycleTest` 45; MySQL: 109 pruebas afectadas y 15 escenarios multiproceso OK |
+| Verificación en producción | `/readyz` ready; `/`, `/login`, `/register`, `/marketplace`, `/healthz` 200; rutas privadas → 302. Sin cierres reales ejecutados |
+| Rollback | Imagen `sha256:bea825f22e058dad19ebef92465164baf76c00f0a3cb1060c15f2c4093923df0` (`b220cd2`, revisión `0000034`); la tabla nueva es inerte para ese código (pero entonces la lista de bloqueo no se aplicaría). Sin `migrate:rollback` |
+
 ## 2026-10-23 (11) — `b220cd2` (master) → producción — eliminación automática de cuentas (autoservicio)
 
 | Campo | Valor |
