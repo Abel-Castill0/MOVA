@@ -39,6 +39,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | IA para agentes | `.claude/agents/` (solo lectura), `.claude/skills/`, `.claude/hooks/` (+ `selftest.mjs`), `.claude/rules/`, `.mcp.json` → `tools/culqi-mcp/` · guía [`CLAUDE_CODE_AGENTS.md`](CLAUDE_CODE_AGENTS.md) |
 
 ### Sistema de pagos y créditos (resumen; detalle en `payments-migration-mp-to-culqi.md`)
+- **Culqi es el único proveedor de compras nuevas; Mercado Pago está retirado para ellas** (`MERCADOPAGO_NEW_PAYMENTS_ENABLED=false`, default; desplegado 2026-10-23 en `7f69072`): si Culqi no está listo **no hay compras nuevas** (sin respaldo hacia Mercado Pago ni `fake`); Mercado Pago solo cierra lo histórico (webhook, conciliación, devoluciones). Estado real: producción tiene `PAYMENT_PROVIDER=mercadopago` (= "solo histórico", compras cerradas) hasta que existan llaves live de Culqi y se levanten los bloqueos de `payments-culqi.md` §14.1; detalle y rollback en §15.
 - `PAYMENT_PROVIDER` (`fake` por defecto · `mercadopago` · `culqi`) elige **un** proveedor para cobros nuevos; `PAYMENTS_ENABLED=false` por defecto. Cada `RechargeRequest.payment_method` y `PaymentOrder.provider` conserva su proveedor original.
 - Un `PaymentOrder` por intento. `RechargeApprovalService::credit()` (`app/Services/RechargeApprovalService.php`) es la **única** vía que acredita: transacción + `lockForUpdate` + `credit_transactions.idempotency_key` único (`recharge:{id}:deposit`). `reverse()` deja el asiento `reversal`.
 - Culqi: `CulqiCheckoutController` (UI) → `CulqiPaymentProvider` (cargos/órdenes) → `CulqiPaymentReconciliationService` (verdad vía API) ← `ProcessCulqiWebhook` ← `CulqiWebhookController`.
@@ -78,17 +79,25 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 - Estado `paid` de una orden Culqi y `expired/cancelled`: solo con dobles (nunca observado en el sandbox).
 - Yape: el token `ype_test_` se crea y el flujo de cargo está probado con dobles; **no hay un pago Yape completo confirmado**.
 - Devoluciones, contracargos, parciales: dobles con la forma real del sandbox; sin devolución real de punta a punta en navegador.
-- Idempotencia/concurrencia: tests secuenciales/reentrantes, también en MySQL; **no se probó concurrencia real entre procesos**.
+- Idempotencia/concurrencia: tests secuenciales/reentrantes y **carreras reales multi-proceso sobre MySQL** (`scripts/qa-payment-race.sh reconcile-paid|reconcile-refund|charge-attempt`, 8–12 procesos × 3: 1 depósito, 1 reversión, 1 POST); no se probó con dos procesos contra el sandbox real de Culqi.
 
 **Pendiente de configurar (propietario)**: registrar 5 webhooks en CulqiPanel con HTTPS público y activar `CULQI_WEBHOOKS_ENABLED`; excluir `/api/webhooks/culqi/` de los logs de acceso de Azure; llaves live solo en el almacén de secretos de producción; confirmar medios habilitados en live; confirmar alcance PCI por escrito con Culqi; prueba live única de S/ 1 con reembolso (AGENTS.md).
 
 **Bloqueado / sin resolver**: cifrado RSA de Culqi devuelve `crypto_error` (par de llaves a recrear en el panel); el cifrado opcional sigue desactivado (`CULQI_ENCRYPT_PAYLOADS=false`).
 
-**Riesgos conocidos** (no resueltos, heredados o aceptados): `RechargeApprovalService::credit()` notifica dentro de la transacción exterior (heredado de Mercado Pago); orden de locks Recarga→Orden (`resolveAttemptRow`) vs Orden→Recarga (`applyTruth`) puede diferir; webhook de Culqi sin firma (secreto en la ruta; se re-consulta la API); `paid:false` en ventas exitosas observado solo en test; **Culqi no está activado en producción** (`PAYMENT_PROVIDER` de producción no se ha cambiado y este repositorio no despliega solo).
+**Riesgos conocidos** (no resueltos, heredados o aceptados): (**corregido y desplegado el 2026-10-23 (`7f69072`):** `RechargeApprovalService::credit()/reverse()` enviaban el aviso dentro de la transacción exterior y un fallo SMTP con cola `sync` revertía la acreditación; ahora `notifyAfterCommit`); **bloqueo comercial: la suscripción Azure for Students es solo educativa/no comercial (`payments-culqi.md` §14.1 B-1): no activar cobros live ahí**; no hay llaves live ni comercio verificado; webhooks sin registrar; conectividad Azure→Culqi sin probar; orden de locks Recarga→Orden (`resolveAttemptRow`) vs Orden→Recarga (`applyTruth`) puede diferir; webhook de Culqi sin firma (secreto en la ruta; se re-consulta la API); `paid:false` en ventas exitosas observado solo en test; **Culqi no está activado en producción** (`PAYMENT_PROVIDER` de producción no se ha cambiado y este repositorio no despliega solo).
 
 **Hallazgos bajos de la revisión de seguridad financiera (2026-10-22, sin corregir; ninguno provoca doble crédito):** (a) un segundo intento `paid` sobre una recarga ya `approved` queda `paid` sin alerta (`CulqiPaymentReconciliationService::applyPaid`); (b) `createPaymentAttempt` lanza la búsqueda de un intento incierto sin el intervalo de 15 s, así que clics repetidos agotan el cupo de búsquedas y pasan a revisión antes de tiempo; (c) `culqi:reconcile --order=` sobre un intento `awaiting_3ds` lo trata como incierto, y el barrido automático no cierra un 3DS abandonado; (d) faltan tests de la carrera `completeThreeDs` vs `abandonThreeDs` y del segundo intento pagado. Se corrigieron en la misma revisión: redacción del secreto del webhook en trazas/spans de Sentry y relanzado de `QueryException` en `CulqiCheckoutController::run`.
 
 **Tensión documentada en reglas:** `AGENTS.md` dice «no permitas saldos negativos»; la decisión de negocio vigente (`release/MOVA_V1_DECISIONS.md` §3, tests `AdminRechargeReversalTest`/`PaymentOrderTest`) permite que una devolución **confirmada por el proveedor** deje el saldo negativo (bloquea nuevas reservas). No lo cambies sin decisión del propietario.
+
+## 6b. Infraestructura Azure y costo (resumen; detalle en [`azure-cost-optimization.md`](azure-cost-optimization.md))
+
+Producción = 2 Container Apps activas (`movap-web` min 1/max 2 y `movap-scheduler` min=max 1, que desde 2026-10-22 ejecuta cola + scheduler con `docker/mova-supervise.sh`; `movap-worker` queda **Stopped**, reversible), todas 0,25 vCPU/0,5 GiB en `mova-aca-env` + MySQL B1ms (capa gratuita) + ACR Basic + Key Vault, en `mova-prod-rg` (Azure for Students, **límite de gasto activo: al agotarse el crédito Azure deshabilita los recursos**). Ritmo medido ≈ US$ 1,15/día (≈ 34/mes) frente a ≈ US$ 55 de crédito restante (≈ 7 semanas); piso del diseño actual ≈ US$ 26/mes. Optimización aplicada el 2026-10-22: OPcache de archivos solo para el CLI (`docker/php-cli.ini`, commit `a32a1f0`) para que el scheduler deje de facturar vCPU activa; ahorro **estimado** US$ 4–8/mes, por confirmar con la facturación del 2026-10-23 (cómo en `azure-cost-optimization.md` §7). Pendientes con decisión del titular: C-1 worker+scheduler en un contenedor, C-2 web min=0, C-3 registro alternativo, presupuesto mensual. Registro de despliegues: `release/DEPLOY_HISTORY.md`.
+
+## 6c. Secretos y variables en Azure (resumen; detalle en [`azure-secrets-configuration.md`](azure-secrets-configuration.md))
+
+Los 10 secretos de producción viven en Key Vault `kv-movap-192f01` y las Container Apps los referencian con `secretref` vía la identidad `mova-apps-identity`. El `.env` local es **solo de desarrollo/sandbox** (APP_DEBUG=true, Mercado Pago y Culqi **TEST**, 24 valores distintos de producción): **no se sube nada de él a producción** y nunca va a imágenes ni a Git (verificado 2026-10-22: 0 coincidencias de sus secretos en el historial de Git, el árbol, la imagen y los logs). No hay credenciales live de Culqi en ningún sitio. Credenciales de producción verificadas en solo lectura: Mercado Pago live (titular coincide), Cloudinary, JaaS (firma RS256), `APP_KEY`, BD (`/readyz`). Pendientes: correo sin prueba de autenticación SMTP, mínimo privilegio por contenedor, `LOG_LEVEL` sin definir.
 
 ## 7. Pruebas (comandos oficiales)
 
@@ -98,6 +107,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | Pagos Culqi | `--filter 'CulqiPaymentTest|CulqiCheckoutTest|CulqiSecretsTest'` |
 | Pagos en MySQL | `php artisan mova:qa-mysql-fresh-migrate --env=testing` y `vendor/bin/phpunit -c phpunit.mysql.xml` (servicio `mysql_qa`) |
 | Frontend | `npm run build`, `npm run check:title|check:chatbot-escape|check:movi-availability|check:checkout-poll` |
+| Carreras de pagos multi-proceso (MySQL QA) | dentro de `php_qa`: `bash scripts/qa-payment-race.sh reconcile-paid\|reconcile-refund\|charge-attempt 8` (`app/Console/Commands/QaPaymentRace.php`, doble HTTP `scripts/qa/culqi-stub.php`; solo `mysql_qa`/`mova_qa`, APP_ENV=testing) |
 | MCP Culqi | `npm run check:culqi-mcp` |
 | Hooks de Claude | `node .claude/hooks/selftest.mjs` |
 | Sandbox Culqi real | `php artisan culqi:sandbox-smoke --confirm-sandbox` (solo local/testing, llaves `*_test_`, importe tope) |
@@ -112,6 +122,6 @@ Sin cobros/reembolsos reales fuera de la prueba live autorizada; sin imprimir ni
 
 1. Propietario: pasos manuales de `payments-culqi.md` §5 (webhooks, secretos, medios, PCI).
 2. Probar una orden **pagada** y Yape completo en sandbox si Culqi publica un simulador; si no, validar en la prueba live controlada.
-3. Prueba de concurrencia real de dos procesos sobre la misma recarga en MySQL (`app/Console/Commands/ConcurrencyProbe.php` es el punto de partida).
+3. ~~Prueba de concurrencia real de dos procesos sobre la misma recarga en MySQL~~ → hecha (`scripts/qa-payment-race.sh`); queda repetirla contra el sandbox real si Culqi permite cargos de prueba paralelos.
 4. Mover `credit()`/`reverse()` a notificaciones `afterCommit` y unificar el orden de locks (cambio financiero: requiere `mova-security-finance`).
 5. Plan de activación y rollback: `payments-migration-mp-to-culqi.md` §7.
