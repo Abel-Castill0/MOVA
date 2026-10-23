@@ -5,8 +5,12 @@
 > entre catálogo y panel docente; las compras históricas conservan sus snapshots. Ver [evidencia comercial vigente](culqi-commercial-review.md).
 > Las fechas 2026-10-23 de registros previos no se reinterpretan como aprobación legal: el titular aún debe aprobar
 > la política existente de siete días. No habilitar cobros live ni mezclar el evaluador de QA con producción.
+> Publicación verificada 2026-10-23 UTC: código `ae5a220`, CI completo verde, web/scheduler revisión `0000031`.
+> Teléfono de soporte configurado; cinco ofertas públicas con precios exactos. Sandbox real aprobado, rechazo y devolución
+> probados, más compra Esencial por navegador con un solo depósito. 3DS interactivo devolvió error del proveedor antes del reto.
+> QA local en 8081; aún falta URL HTTPS aislada para Culqi. Ver informe comercial e historial de despliegue para límites y rollback.
 
-> Estado: CURRENT · última verificación 2026-10-22 · rama `master` · commit de referencia: el que contiene este
+> Estado: CURRENT · última verificación 2026-10-23 UTC · rama `master` · commit de referencia: el que contiene este
 > archivo (`git log -1 -- docs/AI_HANDOFF.md`). Este documento **orienta**; el código, las migraciones y el
 > [Completion Ledger](release/MOVA_V1_COMPLETION_LEDGER.md) deciden. Si algo aquí contradice al código, está desactualizado:
 > corrígelo en el mismo cambio. No contiene secretos y no debe contenerlos.

@@ -58,6 +58,7 @@ La nota de mínimo S/3.50 bajo S/87.72 aparece vinculada a Cuotéalo/PagoEfectiv
 
 ### Evidencia ejecutada en esta actualización
 
+- GitHub Actions para **`ae5a22034f9da4586312eaf6f8fb37245026fcb5`**: [CI completo](https://github.com/Abel-Castill0/MOVA/actions/runs/39902196077) con Composer, frontend, SQLite, MySQL y E2E **success**. [Imagen GHCR](https://github.com/Abel-Castill0/MOVA/actions/runs/39902256087): **success**, etiqueta OCI comprobada contra ese SHA, recursos compilados presentes y `.env` ausente.
 - SQLite: **1611 pruebas, 6850 aserciones, 7 omitidas**, 35 avisos de deprecación PHPUnit. Primera copia aislada omitió `lang/` y falló la localización del correo; se completó la copia y se repitió con éxito. No se cambió código de correo.
 - MySQL 8.4: perfil completo **1611 pruebas, 6849 aserciones, 7 omitidas**, mismas deprecaciones, en contenedor/base QA separados. Incluye integridad, permisos, histórico MP, Culqi, rechazos, pendientes, 3DS simulado, fallos de red, webhook/reconciliación repetidos y reclamaciones.
 - Carreras MySQL, ocho procesos cada una: `reconcile-paid`, `reconcile-refund`, `charge-attempt` **GREEN**; un depósito, una reversión cuando corresponde y un solo POST de cargo al stub. Son procesos reales contra MySQL y proveedor simulado, no ocho cargos al sandbox.
@@ -67,6 +68,13 @@ La nota de mínimo S/3.50 bajo S/87.72 aparece vinculada a Cuotéalo/PagoEfectiv
 - Evidencia local ignorada por Git: `qa/reports/culqi-pricing/{sandbox-approved,catalog-desktop,pro-mobile}.png`. Cuenta creada mediante `mova:culqi-evaluator`, rol teacher no verificado, en SQLite exclusiva de evaluación; no hay datos reales de alumnos. Credencial temporal de QA no publicada. Los registros legales de la fixture QA no son aprobación del titular.
 - Pendiente externo: URL HTTPS de evaluación accesible a Culqi. El entorno local `http://localhost:8081` no es accesible al revisor; staging Azure está detenido y sin BD, y no se crean recursos nuevos ni se usan datos de producción para pruebas.
 - No verificado en esta ronda: 3DS interactivo, Yape completo, orden de efectivo pagada, tarifa contractual del comercio, hosting comercial aprobado, aceptación del modelo por Culqi. No se efectuaron cobros reales.
+- Intento adicional de 3DS con tarjeta Mastercard publicada por Culqi: el proveedor devolvió HTTP400 / `DNGA9999`, sin presentar reto. La recarga quedó fallida y no acreditó; no se atribuye una causa no demostrada. Los tests con dobles de 3DS sí pasan. La documentación de Culqi recomienda un correo específico para estas pruebas; no se sustituyó la identidad del evaluador autorizado.
+
+Archivos de implementación: `config/{credits,catalog}.php`, `app/Support/{CreditPackages,Catalog}.php`,
+`app/Http/Controllers/Teacher/CreditController.php`, `app/Services/MoviKnowledgeBase.php`,
+`resources/js/Pages/Catalog/{Index,Package}.vue`, `resources/js/Pages/Teacher/Credits/Index.vue`,
+`resources/js/Pages/Legal/Refunds.vue`. Pruebas: `tests/Feature/{CreditPackagePricingTest,CulqiCheckoutTest,CulqiPaymentTest,MoviLocalAssistantTest}.php`
+y `qa/tests/flujo-completo.spec.js`. Documentación: README principal, índice docs, AI_HANDOFF, ambos documentos de pagos, este informe e historial de despliegue.
 
 ### Matriz de entrega comercial
 
@@ -76,10 +84,10 @@ La nota de mínimo S/3.50 bajo S/87.72 aparece vinculada a Cuotéalo/PagoEfectiv
 | Botón y flujo de pago | Detalle → login → checkout; Esencial S/19.80 real sandbox | Verificado en QA; producción conserva compra cerrada |
 | Usuario de revisión | `mova:culqi-evaluator`, correo autorizado, teacher sin privilegios | Creado en QA local; acceso público y entrega privada pendientes |
 | Identidad/RUC/domicilio | Pie/legales públicos, props del servidor | Verificados presentes |
-| Contacto | Correo publicado y teléfono autorizado | Teléfono preparado para configuración; sin redes oficiales |
+| Contacto | Correo publicado y teléfono autorizado | +51916666934 publicado y visible en Devoluciones; sin redes oficiales |
 | Términos/privacidad/devoluciones | `/terminos`, `/privacidad`, `/politica-de-devoluciones` | Accesibles; aprobación jurídica pendiente |
 | Libro integrado | `/libro-de-reclamaciones`, pruebas completas | Implementado; no es formulario externo |
-| HTTPS | Dominio público de Azure | Verificado en la versión previa y a verificar tras publicación |
+| HTTPS | Dominio público de Azure | Verificado tras desplegar `ae5a220`; catálogo, cinco detalles, legales y salud HTTP200 |
 | Cobro live | Ninguno | Cerrado deliberadamente; no declarar comercio listo para cobrar |
 
 ### Borrador de respuesta a Culqi — no enviado
@@ -99,7 +107,30 @@ Quedamos atentos a sus indicaciones para completar la revisión.
 
 MOVA
 
-**Antes de enviar:** confirmar despliegue de este catálogo, aprobación legal, URL pública de QA y contraseña del evaluador por canal privado. No adjuntar llaves, tokens, contraseña ni URL secreta del webhook a este documento.
+**Antes de enviar:** completar aprobación legal, URL pública de QA y entrega de contraseña del evaluador por canal privado. El catálogo ya está desplegado y verificado. No adjuntar llaves, tokens, contraseña ni URL secreta del webhook a este documento.
+
+### Publicación verificada — 2026-10-23 UTC
+
+Código `ae5a220` publicado en `origin/master`; imagen inmutable
+`ghcr.io/abel-castill0/mova@sha256:3360c62315e5ec030a09740108360fc6d6dbc45443d838976c22f94442139c29`.
+`movap-scheduler--0000031` y `movap-web--0000031` están listas y sanas. Worker independiente sigue detenido.
+Solo cambió la imagen en ambas aplicaciones y `LEGAL_SUPPORT_PHONE` en web. Sin migraciones, secretos nuevos,
+activación de proveedores, cambios de escala ni cuentas sintéticas en producción.
+
+Comprobados por HTTPS: `/readyz`, `/healthz`, `/servicios`, los cinco detalles, `/quienes-somos`,
+Términos, Privacidad, Devoluciones y Libro, todos HTTP200. Los datos públicos del catálogo contienen
+1000/1980/2940/3880/5760 centavos, descuentos 0/1/2/3/4, teléfono autorizado y `payments.online=false`.
+Navegador confirma teléfono visible en Devoluciones. Captura: `qa/reports/culqi-pricing/production-catalog.png` (local, ignorada).
+
+Costos: suscripción Azure for Students confirmada; no se añadieron recursos ni réplicas. La lectura mensual por recurso
+devolvió cargos existentes de web (US$3.068035), scheduler (US$5.987013), worker histórico (US$2.911622) y ACR
+(US$3.6513458772). Estos importes **no son el total**. El endpoint de saldo devolvió 404 y las consultas agregadas 429:
+saldo disponible y previsión exacta no confirmados; no sustituirlos por una estimación como si fuese crédito real.
+PITR de MySQL confirmado: retención 14 días; no se ejecutaron migraciones ni restauraciones.
+
+Vista QA local disponible en `http://localhost:8081/servicios` (`mova-pricing-preview`). Contenedores temporales
+`mova-pricing-qa` y `mova-pricing-mysql` detenidos tras las pruebas; los contenedores previos del propietario no se alteraron.
+Rollback y evidencia CI: [historial de despliegue](release/DEPLOY_HISTORY.md).
 
 
 > Fecha: 2026-10-23 · Commit desplegado: `546d44c` · Estado: **subsanación técnica lista; faltan datos/decisiones del titular (§9)**.

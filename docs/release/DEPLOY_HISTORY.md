@@ -4,6 +4,25 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (8) — `ae5a220` (master) → producción — cinco paquetes y contacto autorizado
+
+| Campo | Valor |
+|---|---|
+| Código | `ae5a22034f9da4586312eaf6f8fb37245026fcb5`; implementación `ef913d9`, ajuste E2E `ae5a220` |
+| CI | [39902196077](https://github.com/Abel-Castill0/MOVA/actions/runs/39902196077): Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:3360c62315e5ec030a09740108360fc6d6dbc45443d838976c22f94442139c29`; [workflow 39902256087](https://github.com/Abel-Castill0/MOVA/actions/runs/39902256087) **success**; etiqueta `img-20261023-ae5a220`, revisión OCI comprobada, sin `.env` y con manifest de Vite |
+| Aplicaciones | Scheduler `0000030` → `0000031`, comprobado Healthy antes de actualizar web `0000030` → `0000031`; ambas Running y listas. Worker independiente permanece Stopped |
+| Cambio de configuración | Solo `LEGAL_SUPPORT_PHONE=+51916666934` en web, autorizado por el titular. Sin cambios de secretos/proveedor, escala, infraestructura o base de datos |
+| Escala conservada | Web min1/max2; scheduler min1/max1 |
+| Verificación pública | `/readyz`, `/healthz`, `/servicios`, cinco detalles, `/quienes-somos`, Términos, Privacidad, Devoluciones y Libro HTTP200; importes 1000/1980/2940/3880/5760 centavos; teléfono visible en Devoluciones; `payments.online=false` |
+| Pruebas locales | SQLite y MySQL: 1611 pruebas cada uno; siete omitidas y 35 deprecaciones. Tres carreras de ocho procesos GREEN; build, checks npm, MCP 19/19. Sandbox real aprobado/rechazo/devolución; navegador Esencial S/19.80 → diez créditos, un depósito tras conciliaciones repetidas |
+| Datos y finanzas | Sin migraciones/seeders/cobros reales/cuentas QA en producción. PITR14d confirmado. Históricos mantienen precios aceptados |
+| Costos | Sin recursos ni réplicas añadidos. Costos por recurso consultados; saldo exacto y previsión no disponibles (API404/429). No afirmar crédito restante verificado |
+| Pendientes | Revisión legal (incluida regla existente de siete días), aceptación del modelo por Culqi, QA HTTPS pública, entrega real de webhook, 3DS interactivo (HTTP400 antes del reto), tarifas contractuales y alojamiento comercial compatible |
+| Rollback | Reaplicar a ambas apps `ghcr.io/abel-castill0/mova@sha256:f5b5aa9a9f55c01ce9f42009f59fd8fc518fd5e726533e110a9f1875edbd5c0a`. Para revertir también contacto, eliminar solo `LEGAL_SUPPORT_PHONE` con `--remove-env-vars`; antes no existía. No hay rollback de BD |
+
+Evidencia y matriz comercial: [informe actualizado](../culqi-commercial-review.md). La documentación de cierre se comitea después del despliegue; el código de la imagen sigue siendo `ae5a220`.
+
 ## 2026-10-23 (7) — `546d44c` (master) → producción — catálogo público, política de devoluciones y cuenta de evaluador (revisión comercial de Culqi)
 
 | Campo | Valor |
