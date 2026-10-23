@@ -4,6 +4,22 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (11) — `b220cd2` (master) → producción — eliminación automática de cuentas (autoservicio)
+
+| Campo | Valor |
+|---|---|
+| Cambio | «Eliminar mi cuenta» cierra y suprime la cuenta sin aprobación de soporte: cancela clases futuras, republica solo solicitudes generales cuando cierra un profesor, da de baja el saldo no reembolsable con asiento `forfeiture` aceptado expresamente, anonimiza datos personales, libera correo/teléfono y revoca sesiones. Cuentas del flujo provisional reconfirman y completan por sí mismas. Detalle: [`ACCOUNT_LIFECYCLE.md`](../ACCOUNT_LIFECYCLE.md) |
+| CI | [39948857900](https://github.com/Abel-Castill0/MOVA/actions/runs/39948857900): Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:bea825f22e058dad19ebef92465164baf76c00f0a3cb1060c15f2c4093923df0`; workflow *Image (GHCR)* [39949831944](https://github.com/Abel-Castill0/MOVA/actions/runs/39949831944) **success** (etiqueta git `img-20261023-b220cd2`); revisión OCI = SHA completo, sin `.env`, con manifest de Vite y la migración |
+| Respaldo previo | Backup manual `predeploy-b220cd2-20261023` (12:00Z) además de PITR 14 d |
+| Migración | `2026_10_23_070000_automatic_account_closure` (aditiva: `users.account_erased_at`, `class_requests.republished_at`, columnas de `account_deletion_requests`, valor `forfeiture` del enum `credit_transactions.type`). Job `movap-migrate`: `migrate:status --pending` mostró solo esa; `migrate --force` → DONE 311 ms; job eliminado. Antes de cambiar imágenes (el código nuevo lee las columnas) |
+| Aplicaciones | Scheduler `0000033` → `0000034` (Healthy, 0 errores en logs) y después web `0000033` → `0000034` (Healthy, 100 %). Solo `--image`; sin cambios de variables, secretos ni escala (web 1–2, scheduler 1–1); worker **Stopped** |
+| Pagos y finanzas | Sin cambios: `PAYMENT_PROVIDER=mercadopago`, `PAYMENTS_ENABLED=true` (histórico), sin Culqi. Sin cobros, reembolsos, seeders ni cierres de cuentas reales en producción |
+| Verificación en producción | `/readyz` ready; `/`, `/login`, `/register`, `/marketplace`, `/servicios`, `/privacidad`, `/healthz` 200; rutas privadas sin sesión → 302; `/cuenta/solicitud` sin sesión → 404; el manifest incluye `ClosureStatus`; 0 errores en logs. **No verificado en producción**: el flujo autenticado de eliminación (se probó solo con datos sintéticos en QA local/MySQL) |
+| Pruebas locales | SQLite completa **1651 pruebas, 7290 aserciones, 7 omitidas, OK**; `AccountLifecycleTest` 44; perfil MySQL de PHPUnit 154 afectadas OK; **15 escenarios multiproceso MySQL** (doble cierre, cierre vs reserva/solicitud/aprobación admin/recarga/liquidación/cancelación); build y checks npm OK; navegador (profesor con clase y saldo → pantalla «cerrada»). Revisiones `mova-security-finance` (1 alto, 3 medios y bajos corregidos con pruebas; 1 decisión del titular) y `mova-vue-reviewer` |
+| Rollback | Imagen: `ghcr.io/abel-castill0/mova@sha256:be20af5505924268021980a6edefdc0cec00a85eecf282924bb2ca4aaeb7ab07` (`132b6af`, revisión `0000033`) a scheduler y web. El esquema es aditivo: **no** `migrate:rollback`. Las supresiones ya ejecutadas son irreversibles; el código anterior no conoce `forfeiture` (la conciliación del ledger lo ignoraría) y trataría una cuenta cerrada de forma restringida. Hoy no se ha ejecutado ninguna supresión real |
+| Pendientes | Redacción de Términos sobre pérdida de saldo no usado, validación legal de la retención (ledger, recargas, reclamaciones, tributaria) y del proceso de devolución de créditos reembolsables, y política para cuentas suspendidas o con deuda (hoy: soporte) |
+
 ## 2026-10-23 (10) — `132b6af` (master) → producción — una cuenta cerrada puede cancelar sus clases programadas
 
 | Campo | Valor |
