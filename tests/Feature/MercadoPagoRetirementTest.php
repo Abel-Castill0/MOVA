@@ -41,6 +41,7 @@ class MercadoPagoRetirementTest extends TestCase
             'payments.mercadopago.expected_collector_id' => '123456789',
             'payments.mercadopago.expected_live_mode' => 'false',
             'payments.mercadopago.webhooks_enabled' => true,
+            'payments.mercadopago.webhook_secret' => 'retirement-test-webhook-secret-0000000000',
         ]);
     }
 
@@ -271,6 +272,10 @@ class MercadoPagoRetirementTest extends TestCase
 
         config(['payments.culqi.private_key' => null]);
         $this->assertFalse(CheckoutProvider::culqiLegacyProcessing());
+
+        // Con Culqi como proveedor se concilia siempre (el guard de arranque ya exige sus llaves).
+        config(['payments.provider' => 'culqi']);
+        $this->assertTrue(CheckoutProvider::culqiLegacyProcessing());
     }
     // ── helpers ──────────────────────────────────────────────────────────
 

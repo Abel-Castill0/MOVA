@@ -67,9 +67,11 @@ final class CheckoutProvider
      */
     public static function culqiLegacyProcessing(): bool
     {
+        // Con Culqi como proveedor se agenda siempre (el guard de arranque ya exige sus llaves); tras un rollback, solo si
+        // hay llave secreta y el webhook de Culqi está habilitado.
         return (bool) config('payments.enabled')
-            && CulqiConfig::secretKey() !== null
-            && (config('payments.provider') === 'culqi' || (bool) config('payments.culqi.webhooks_enabled', false));
+            && (config('payments.provider') === 'culqi'
+                || (CulqiConfig::secretKey() !== null && (bool) config('payments.culqi.webhooks_enabled', false)));
     }
 
     /**
