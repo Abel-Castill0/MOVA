@@ -4,6 +4,19 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-23 (13) — `3bb67d0` (master) → producción — el correo verificado ya no es requisito de acceso
+
+| Campo | Valor |
+|---|---|
+| Causa | El middleware `verified` (`EnsureEmailIsVerified`) protegía los tres grupos autenticados de `routes/web.php` y enviaba a `verification.notice`; además un fallo de entrega del correo tras registrarse redirigía allí. Se quitó `verified` de los grupos y esa redirección; las rutas `verification.*` quedan como confirmación voluntaria (los enlaces antiguos siguen funcionando) |
+| Se conserva | contraseña, CSRF, throttling, roles/policies, `not.suspended`, cuenta cerrada, aprobación docente (`teacher_profiles.is_verified`), MFA de administradores, recuperación de contraseña, cambio de correo con contraseña actual. `email_verified_at` no se modifica ni se rellena |
+| CI | [39966710222](https://github.com/Abel-Castill0/MOVA/actions/runs/39966710222): Composer, frontend, SQLite, MySQL y E2E **success** |
+| Imagen | `ghcr.io/abel-castill0/mova@sha256:c6017b43b317832a63fce762d705e789b132cbb77366782b70c3960e35098792`; workflow [39967849069](https://github.com/Abel-Castill0/MOVA/actions/runs/39967849069) **success** (etiqueta `img-20261023-3bb67d0`); revisión OCI = SHA completo |
+| Aplicaciones | Scheduler y web `0000035` → `0000036`, Healthy, 0 errores en logs; solo `--image`; **sin migraciones**; escala, secretos, pagos y worker (Stopped) sin cambios |
+| Pruebas | SQLite completa **1667 pruebas, 7378 aserciones, OK** (7 omitidas); `OptionalEmailVerificationTest` (11, incl. MFA real de admin); build y checks npm OK; navegador local: registro de padre por el asistente → entra al panel sin verificar, 375 px sin desbordamiento |
+| Verificación en producción | `/readyz` ready; `/`, `/login`, `/register`, `/forgot-password`, `/marketplace`, `/healthz` 200; `/dashboard`, `/profile`, `/admin/operations` sin sesión → 302. No se creó ninguna cuenta real |
+| Rollback | `ghcr.io/abel-castill0/mova@sha256:4badbcc90f760680e1aac475031c73a4185089d419b606acfe0d349d319cd559` (`8a33594`, revisión `0000035`); sin cambios de esquema |
+
 ## 2026-10-23 (12) — `8a33594` (master) → producción — cuentas suspendidas o con deuda pueden cerrarse (lista de bloqueo por hash)
 
 | Campo | Valor |
