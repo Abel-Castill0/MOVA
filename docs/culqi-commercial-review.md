@@ -182,6 +182,14 @@ Comando: `php artisan mova:culqi-evaluator {create|revoke|status} <correo>` (`ap
 - Revocación: si no compró, se elimina; si ya compró, se **suspende**, se invalida la contraseña y se cierran sesiones (las recargas/ledger no se borran).
 - Sin puertas traseras: usa el login normal.
 
+### Estado del evaluador en producción (2026-10-28)
+
+- Cuenta `culqi.revision@movaeduca.me` creada en **producción** con `mova:culqi-evaluator create` (rol `teacher` exclusivo, perfil sin verificar, saldo 0, correo **sin** verificar; `email_verified_at` se dejó en `NULL` a propósito). La contraseña es aleatoria (24 caracteres), se guardó **solo su hash bcrypt** y el valor en claro vive en un archivo protegido fuera del repositorio, en el equipo del titular. Login real probado: contraseña incorrecta rechazada, correcta → dashboard; `/servicios` muestra los cinco paquetes con sus precios; sin sesión se vuelve a `/login`.
+- **El checkout sandbox NO es posible en producción**: allí `PAYMENT_PROVIDER=mercadopago` (histórico), no hay llaves `CULQI_*` y el pago en línea está cerrado. Para demostrar el cobro hace falta un entorno aislado con llaves de prueba y base propia (el staging de Azure ya no tiene base de datos). Pendiente de decisión del titular.
+- El buzón `culqi.revision@movaeduca.me` es una **propuesta**: el dominio usa reenvío de correo de Namecheap (MX `eforward*.registrar-servers.com`), que exige crear el alias en ese panel; hasta entonces no recibe mensajes ni sirve para recuperar la contraseña.
+- Al entrar por primera vez, el evaluador debe aceptar los documentos legales vigentes (no se aceptan por él).
+- Revocar: `php artisan mova:culqi-evaluator revoke culqi.revision@movaeduca.me` (Job manual, runbook).
+
 ## 7. Información del comercio y legal (públicos)
 
 | Requisito | URL / lugar | Estado |
