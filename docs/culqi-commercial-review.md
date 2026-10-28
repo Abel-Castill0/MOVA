@@ -190,6 +190,14 @@ Comando: `php artisan mova:culqi-evaluator {create|revoke|status} <correo>` (`ap
 - Al entrar por primera vez, el evaluador debe aceptar los documentos legales vigentes (no se aceptan por él).
 - Revocar: `php artisan mova:culqi-evaluator revoke culqi.revision@movaeduca.me` (Job manual, runbook).
 
+### Entorno sandbox aislado (2026-10-28)
+
+- **URL HTTPS:** `https://movaqa-culqi.whitecliff-88cda913.mexicocentral.azurecontainerapps.io` — Container App `movaqa-culqi` (`mova-prod-rg`, entorno `mova-aca-env`), imagen de producción `3bb67d0` por digest, 1 réplica de 0,25 vCPU / 0,5 GiB.
+- **Aislamiento:** base **SQLite propia dentro del contenedor** (se recrea en cada reinicio o revisión; no toca la MySQL de producción), `PAYMENT_PROVIDER=culqi` con llaves **de prueba** (`pk_test_/sk_test_`), checkout limitado por `CULQI_CHECKOUT_ALLOWLIST` al correo del evaluador, `noindex`, sin Mercado Pago live, WhatsApp, IA ni Google. Webhooks de Culqi **desactivados** hasta registrar su URL (el resultado se concilia por API).
+- **Arranque:** el contenedor migra, siembra roles y crea al evaluador con `mova:culqi-evaluator create`, fijando el **hash** de su contraseña (secreto de la app; la contraseña en claro solo existe en el archivo protegido del titular). El evaluador debe aceptar los documentos legales al entrar.
+- **Verificado:** `/readyz`, login real (contraseña incorrecta rechazada, correcta → dashboard docente), catálogo con los cinco paquetes, barra con «Servicios» para el profesor autenticado, resumen de `/comprar-creditos/esencial` (10 créditos, S/ 19.80) y apertura de la ventana segura de Culqi con S/ 19.80. **No verificado**: el pago con tarjeta dentro del iframe de Culqi; la automatización del navegador no pudo escribir en él. Falta que el titular lo complete a mano con la tarjeta oficial de prueba y compruebe 10 créditos y un solo depósito.
+- **Apagar o revocar:** `az containerapp delete -g mova-prod-rg -n movaqa-culqi` (borra también la base). Al terminar la revisión, eliminar también la cuenta de producción (`mova:culqi-evaluator revoke`).
+
 ## 7. Información del comercio y legal (públicos)
 
 | Requisito | URL / lugar | Estado |
