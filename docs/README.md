@@ -25,6 +25,7 @@
 | [`payments-culqi.md`](payments-culqi.md) | Culqi (API V2): integración, evidencia de sandbox, webhooks, MCP local `mova-culqi` y pasos manuales en CulqiPanel |
 | [`ACCOUNT_LIFECYCLE.md`](ACCOUNT_LIFECYCLE.md) | Perfil, configuración y «Eliminar mi cuenta» como solicitud de cierre: flujo, estados, comprobante, bandeja admin, conservación, pruebas y límites (sin borrado definitivo) |
 | [`culqi-commercial-review.md`](culqi-commercial-review.md) | Observación comercial de Culqi (catálogo, flujo de compra, evaluador, legal): qué se corrigió, URLs y pendientes del titular |
+| [`culqi-evaluator-handoff.md`](culqi-evaluator-handoff.md) | Staging aislado de Culqi: persistencia, webhooks, compra de prueba, alias de correo y texto de entrega a Culqi |
 | [`azure-secrets-configuration.md`](azure-secrets-configuration.md) | Secretos y variables en Azure: Key Vault, consumidores por contenedor, rotación, verificación y auditoría de exposición |
 | [`payments-migration-mp-to-culqi.md`](payments-migration-mp-to-culqi.md) | Mercado Pago → Culqi: historia, arquitectura, flujo de créditos, manual operativo, migración y rollback |
 | [`BACKUP_RESTORE_PLAYBOOK.md`](BACKUP_RESTORE_PLAYBOOK.md) · [`payments-architecture.md`](payments-architecture.md) · [`whatsapp-architecture.md`](whatsapp-architecture.md) | Referencias técnicas (verificar contra el código) |
