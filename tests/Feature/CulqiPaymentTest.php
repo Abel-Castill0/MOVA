@@ -478,6 +478,25 @@ class CulqiPaymentTest extends TestCase
         $this->postJson('/api/webhooks/culqi/', $this->event('evt_test_1'))->assertNotFound();
     }
 
+    public function test_during_a_rotation_both_the_new_and_the_previous_secret_authenticate_and_a_short_previous_one_never_does(): void
+    {
+        $previous = str_repeat('b', 48);
+        config(['payments.culqi.webhook_secret_previous' => $previous]);
+        Bus::fake();
+
+        $this->postJson('/api/webhooks/culqi/'.self::WEBHOOK_SECRET, $this->event('evt_rot_new'))->assertOk();
+        $this->postJson('/api/webhooks/culqi/'.$previous, $this->event('evt_rot_old'))->assertOk();
+        $this->postJson('/api/webhooks/culqi/'.str_repeat('c', 48), $this->event('evt_rot_other'))->assertUnauthorized();
+
+        // Revocado: sin CULQI_WEBHOOK_SECRET_PREVIOUS el secreto viejo deja de valer.
+        config(['payments.culqi.webhook_secret_previous' => null]);
+        $this->postJson('/api/webhooks/culqi/'.$previous, $this->event('evt_rot_old2'))->assertUnauthorized();
+
+        // Un «anterior» corto nunca autentica, aunque coincida.
+        config(['payments.culqi.webhook_secret_previous' => 'corto']);
+        $this->postJson('/api/webhooks/culqi/corto', $this->event('evt_rot_short'))->assertUnauthorized();
+    }
+
     public function test_malformed_webhook_with_the_right_secret_is_a_400(): void
     {
         $this->call('POST', '/api/webhooks/culqi/'.self::WEBHOOK_SECRET, [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"nope":true}')->assertStatus(400);

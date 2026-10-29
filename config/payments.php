@@ -50,6 +50,9 @@ return [
         // filtra tráfico ajeno: la verdad de un pago SIEMPRE se consulta a la
         // API de Culqi con la llave secreta antes de acreditar.
         'webhook_secret' => env('CULQI_WEBHOOK_SECRET'),
+        // Secreto ANTERIOR, aceptado solo durante una rotación: permite registrar la URL nueva en los webhooks de
+        // CulqiPanel sin perder eventos. Se quita (y el secreto viejo queda revocado) al terminar la rotación.
+        'webhook_secret_previous' => env('CULQI_WEBHOOK_SECRET_PREVIOUS'),
         'webhooks_enabled' => env('CULQI_WEBHOOKS_ENABLED', false),
         'env' => env('CULQI_ENV', 'test'),
         'base_url' => env('CULQI_BASE_URL', 'https://api.culqi.com'),

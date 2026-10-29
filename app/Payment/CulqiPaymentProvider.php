@@ -229,14 +229,21 @@ class CulqiPaymentProvider implements PaymentProviderContract
 
     public function verifyWebhook(string $rawPayload, array $headers): ?PaymentWebhookEvent
     {
-        $expected = config('payments.culqi.webhook_secret');
         $given = $headers['x-mova-webhook-token'] ?? null;
 
         // Culqi no firma sus notificaciones: el único "secreto" es el valor que MOVA
         // incluye en la URL registrada en CulqiPanel. Comparación en tiempo constante.
         // Un secreto corto (< MIN_WEBHOOK_SECRET_LENGTH) nunca autentica: sería adivinable por fuerza bruta.
-        if (! is_string($expected) || strlen($expected) < CulqiConfig::MIN_WEBHOOK_SECRET_LENGTH
-            || ! is_string($given) || ! hash_equals($expected, $given)) {
+        // Durante una rotación también vale el secreto anterior (CULQI_WEBHOOK_SECRET_PREVIOUS).
+        $authenticated = false;
+        if (is_string($given)) {
+            foreach ([config('payments.culqi.webhook_secret'), config('payments.culqi.webhook_secret_previous')] as $candidate) {
+                if (is_string($candidate) && strlen($candidate) >= CulqiConfig::MIN_WEBHOOK_SECRET_LENGTH && hash_equals($candidate, $given)) {
+                    $authenticated = true;
+                }
+            }
+        }
+        if (! $authenticated) {
             return null;
         }
 
