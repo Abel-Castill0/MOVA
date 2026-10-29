@@ -4,6 +4,16 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-29 — `5a84d8a` → producción y profesor para pruebas manuales
+
+- Solicitud del titular: actualizar Azure y crear una cuenta individual con rol profesor para pruebas manuales.
+- CI [40972630169](https://github.com/Abel-Castill0/MOVA/actions/runs/40972630169) e imagen [40972635274](https://github.com/Abel-Castill0/MOVA/actions/runs/40972635274): ambos success para `5a84d8a2935afb48427912d1e875fa3b6f50978e`.
+- Imagen verificada (revisión OCI, manifest Vite presente, `.env` ausente): `ghcr.io/abel-castill0/mova@sha256:fd751ad0c129c113338ee19182807ee406daf98ab63f42deebe298b4a7dd5e6f`.
+- Scheduler y web actualizados en ese orden a revisión `0000037`, Healthy. Solo imagen: sin migraciones, secretos, proveedor de pagos, escala ni infraestructura nueva. El cambio desde `3bb67d0` incorpora la actualización de symfony/mime y el soporte opcional del secreto anterior de webhook; no se configura ni activa esa opción en producción.
+- Cuenta nueva creada mediante transacción, solo rol `teacher`, perfil no aprobado, cero créditos y sin materias; no aparece en el catálogo público. Sin seeders, sin aceptación legal artificial y sin marcar correo como verificado. Credenciales entregadas al titular mediante archivo local privado fuera del repositorio; no se registran aquí.
+- Verificación autenticada HTTP con esa cuenta: login 302, `/profile` 200 (`Profile/Edit`, sección personal), `/account/settings` 200 (sección security), identidad correcta y roles exactamente `[teacher]`. Dashboard solicita aceptación legal vigente antes de continuar. `/readyz` y `/healthz` 200. No se realizaron compras, clases ni eliminaciones en producción.
+- Rollback de imagen: `ghcr.io/abel-castill0/mova@sha256:c6017b43b317832a63fce762d705e789b132cbb77366782b70c3960e35098792`, sin cambio de esquema. La cuenta de pruebas permanece independiente del despliegue.
+
 ## 2026-10-23 (13) — `3bb67d0` (master) → producción — el correo verificado ya no es requisito de acceso
 
 | Campo | Valor |
