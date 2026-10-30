@@ -142,13 +142,24 @@ class AppServiceProvider extends ServiceProvider
                 kind: 'WhatsApp',
                 envVarName: 'WHATSAPP_PROVIDER',
                 provider: config('services.whatsapp.provider'),
-                supportedReal: ['meta'],
+                supportedReal: ['meta', 'waha'],
                 featureEnabled: (bool) config('services.whatsapp.enabled', false),
                 environment: $this->app->environment(),
             );
 
+            // WAHA: mismo criterio fail-closed. Con el canal encendido, API key y clave HMAC son obligatorias (sin la clave
+            // HMAC no habría confirmación de entrega verificable) y la URL debe ser privada o HTTPS (WahaClient lo valida).
+            if ($provider === 'waha') {
+                ProviderGuard::requireConfig('WhatsApp (WAHA)', (bool) config('services.whatsapp.enabled', false), [
+                    'WAHA_BASE_URL' => config('services.waha.url'),
+                    'WAHA_API_KEY' => config('services.waha.api_key'),
+                    'WAHA_HOOK_HMAC_KEY' => config('services.waha.hmac_key'),
+                ]);
+            }
+
             return match ($provider) {
                 'meta'              => new MetaCloudApiProvider(),
+                'waha'              => new \App\WhatsApp\WahaProvider(),
                 ProviderGuard::FAKE => new FakeWhatsAppProvider(),
             };
         });

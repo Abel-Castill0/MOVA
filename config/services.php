@@ -31,10 +31,26 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // WAHA (WhatsApp HTTP API no oficial) como proveedor de WhatsAppChannel (WHATSAPP_PROVIDER=waha).
+    // Las credenciales (API key y clave HMAC del webhook) viven SOLO en el almacén de secretos del entorno,
+    // nunca en Git. Ver docs/whatsapp-waha.md.
     'waha' => [
         'url' => env('WAHA_BASE_URL', 'http://localhost:3000'),
         'api_key' => env('WAHA_API_KEY'),
         'session' => env('WAHA_DEFAULT_SESSION', 'default'),
+        // Clave con la que WAHA firma cada webhook (HMAC-SHA512 del cuerpo bruto). Sin ella el webhook rechaza todo.
+        'hmac_key' => env('WAHA_HOOK_HMAC_KEY'),
+        // Piloto: lista separada por comas de números autorizados (con o sin +). Si NO está vacía, MOVA no envía a nadie más.
+        'allowed_recipients' => env('WAHA_ALLOWED_RECIPIENTS'),
+        // Frenos anti-ráfaga (el número es no oficial: ritmo bajo y humano).
+        'rate_per_minute' => (int) env('WAHA_RATE_PER_MINUTE', 8),
+        'rate_wait_seconds' => (int) env('WAHA_RATE_WAIT_SECONDS', 20),
+        'max_per_recipient_per_day' => (int) env('WAHA_MAX_PER_RECIPIENT_PER_DAY', 12),
+        'typing_min_ms' => (int) env('WAHA_TYPING_MIN_MS', 1200),
+        'typing_max_ms' => (int) env('WAHA_TYPING_MAX_MS', 3200),
+        'dedupe_minutes' => (int) env('WAHA_DEDUPE_MINUTES', 30),
+        'timeout_seconds' => (int) env('WAHA_TIMEOUT_SECONDS', 12),
+        'webhook_tolerance_seconds' => (int) env('WAHA_WEBHOOK_TOLERANCE_SECONDS', 300),
     ],
 
     // WhatsApp Cloud API de Meta directo — reemplaza la integración previa

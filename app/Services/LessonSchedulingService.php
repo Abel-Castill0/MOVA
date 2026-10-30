@@ -3,13 +3,16 @@
 namespace App\Services;
 
 use App\Events\ClassConfirmed;
+use App\Exceptions\InsufficientCreditsException;
 use App\Models\ClassRequest;
 use App\Models\Lesson;
 use App\Models\Student;
 use App\Models\TeacherProfile;
 use App\Models\User;
+use App\Notifications\InsufficientCreditsNotification;
 use Closure;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -41,8 +44,43 @@ class LessonSchedulingService
 {
     /**
      * @param  Closure(ClassRequest): void  $guard  Validación bajo lock del estado esperado.
+     *
+     * Envoltorio sin lógica financiera: si el agendamiento se rechaza por créditos insuficientes (la transacción ya se
+     * revirtió por completo), avisa al profesor FUERA de la transacción y relanza la misma excepción de validación.
      */
     public function schedule(
+        int $classRequestId,
+        int $teacherProfileId,
+        string $startTime,
+        int $durationMinutes,
+        Closure $guard
+    ): Lesson {
+        try {
+            return $this->scheduleInTransaction($classRequestId, $teacherProfileId, $startTime, $durationMinutes, $guard);
+        } catch (InsufficientCreditsException $e) {
+            $this->notifyInsufficientCredits($e);
+
+            throw $e;
+        }
+    }
+
+    /** Un solo aviso cada 6 h por profesor: reintentos repetidos no deben convertirse en spam por WhatsApp/correo. */
+    private function notifyInsufficientCredits(InsufficientCreditsException $e): void
+    {
+        try {
+            if ($e->teacherProfileId === null || ! Cache::add('insufficient-credits-notice:'.$e->teacherProfileId, 1, now()->addHours(6))) {
+                return;
+            }
+
+            TeacherProfile::whereKey($e->teacherProfileId)->first()?->user?->notify(
+                new InsufficientCreditsNotification((float) $e->needed, (float) $e->available)
+            );
+        } catch (\Throwable $notificationFailure) {
+            report($notificationFailure); // el aviso es informativo: nunca altera el resultado del agendamiento
+        }
+    }
+
+    private function scheduleInTransaction(
         int $classRequestId,
         int $teacherProfileId,
         string $startTime,
@@ -98,9 +136,9 @@ class LessonSchedulingService
             if ($teacherProfile->credits_available < $creditsNeeded) {
                 // Error de negocio, no de campo — misma clave `accept` que el
                 // resto de errores no ligados a un input concreto.
-                throw ValidationException::withMessages([
+                throw InsufficientCreditsException::withMessages([
                     'accept' => 'Créditos insuficientes para esta duración. Por favor, recargue su saldo o elija una clase más corta.',
-                ]);
+                ])->forTeacher($teacherProfileId, $creditsNeeded, $teacherProfile->credits_available);
             }
 
             if ($classRequest->is_mentorship && ! $teacherProfile->hasAvailableMentorshipSlots()) {

@@ -21,7 +21,22 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
         return $channels;
+    }
+
+    /** Sin motivo libre ni datos del alumno: solo fechas y enlace (minimización de datos de menores). */
+    public function toWhatsApp($notifiable): string
+    {
+        $newDate = $this->lesson->start_time->format('d/m/Y H:i');
+        $link = $notifiable->hasRole('teacher') ? $this->appRoute('teacher.lessons') : $this->appRoute('parent.lessons');
+
+        return "MOVA — Clase reprogramada\n\n"
+            . "Hola {$notifiable->name},\n"
+            . "Su clase fue reprogramada para el {$newDate}.\n"
+            . "Revísela en MOVA: {$link}";
     }
 
     public function toMail($notifiable): MailMessage

@@ -1,0 +1,92 @@
+#cloud-config
+# MOVA — VM de WAHA (piloto). NO contiene secretos: la API key y la clave HMAC se leen del Key Vault en cada arranque con la
+# identidad administrada de la VM (rol «Key Vault Secrets User»). pilot-create.sh sustituye __KV_NAME__ y __HOOK_URL__.
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - jq
+  - curl
+  - unattended-upgrades
+
+write_files:
+  - path: /etc/waha/waha.conf
+    permissions: '0644'
+    content: |
+      KV_NAME=__KV_NAME__
+      WHATSAPP_HOOK_URL=__HOOK_URL__
+
+  - path: /usr/local/bin/waha-fetch-secrets.sh
+    permissions: '0750'
+    content: |
+      #!/usr/bin/env bash
+      # Lee los secretos del Key Vault con la identidad administrada y los escribe en /etc/waha/waha.env (0600, solo root).
+      # Nunca imprime valores.
+      set -euo pipefail
+      . /etc/waha/waha.conf
+      TOKEN=$(curl -sf -H 'Metadata:true' 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r .access_token)
+      get() { curl -sf -H "Authorization: Bearer ${TOKEN}" "https://${KV_NAME}.vault.azure.net/secrets/$1?api-version=7.4" | jq -r .value; }
+      umask 077
+      {
+        echo "WHATSAPP_API_KEY=$(get waha-api-key)"
+        echo "WHATSAPP_HOOK_HMAC_KEY=$(get waha-hook-hmac-key)"
+        echo "WHATSAPP_HOOK_URL=${WHATSAPP_HOOK_URL}"
+      } > /etc/waha/waha.env.tmp
+      mv /etc/waha/waha.env.tmp /etc/waha/waha.env
+
+  - path: /opt/waha/docker-compose.yml
+    permissions: '0644'
+    content: |
+      # Una sola sesión (número dedicado de MOVA). Imagen fijada por versión Y digest (nunca `latest`).
+      services:
+        waha:
+          image: devlikeapro/waha:noweb-arm-2026.10.1@sha256:fce6ae58ba819221521b2673704ef9e6d87f98571d67daec62eb737edd77c2c9
+          restart: unless-stopped
+          env_file: /etc/waha/waha.env
+          ports:
+            - "3000:3000"            # alcanzable solo desde la red privada (NSG deniega Internet)
+          environment:
+            WHATSAPP_DEFAULT_ENGINE: NOWEB
+            WHATSAPP_START_SESSION: default
+            WAHA_DASHBOARD_ENABLED: "false"      # el dashboard NO se expone
+            WHATSAPP_SWAGGER_ENABLED: "false"
+            WAHA_LOG_LEVEL: info
+            WHATSAPP_HOOK_EVENTS: message.ack,session.status
+            WHATSAPP_HOOK_RETRIES_POLICY: exponential
+            WHATSAPP_HOOK_RETRIES_DELAY_SECONDS: "2"
+            WHATSAPP_HOOK_RETRIES_ATTEMPTS: "5"
+          volumes:
+            - /var/lib/waha/sessions:/app/.sessions   # la sesión vinculada persiste aquí (disco de la VM)
+          mem_limit: 720m
+          healthcheck:
+            test: ["CMD-SHELL", "curl -sf -H \"X-Api-Key: $${WHATSAPP_API_KEY}\" http://localhost:3000/api/version >/dev/null || exit 1"]
+            interval: 60s
+            timeout: 10s
+            retries: 3
+
+  - path: /etc/systemd/system/waha.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=WAHA (WhatsApp HTTP API) para MOVA
+      After=docker.service network-online.target
+      Requires=docker.service
+      [Service]
+      Type=simple
+      WorkingDirectory=/opt/waha
+      ExecStartPre=/usr/local/bin/waha-fetch-secrets.sh
+      ExecStart=/usr/bin/docker compose up
+      ExecStop=/usr/bin/docker compose down
+      Restart=always
+      RestartSec=10
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - mkdir -p /var/lib/waha/sessions /etc/waha
+  - chmod 700 /var/lib/waha
+  # 1 GiB de swap en disco: absorbe picos de memoria sin que el OOM mate a WAHA en una VM de 1 GiB.
+  - fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - systemctl daemon-reload
+  - systemctl enable --now waha.service

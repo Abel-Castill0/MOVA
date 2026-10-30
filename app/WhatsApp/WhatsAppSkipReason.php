@@ -42,6 +42,9 @@ enum WhatsAppSkipReason: string
 {
     case OptOut = 'opt_out';
     case Suspended = 'suspended';
+    case AccountClosed = 'account_closed';
+    case NotAllowlisted = 'not_allowlisted';
+    case RateLimited = 'rate_limited';
 
     /**
      * Etiqueta legible para logs/soporte — no para lógica de negocio (para
@@ -52,6 +55,9 @@ enum WhatsAppSkipReason: string
         return match ($this) {
             self::OptOut => 'sin consentimiento (opt-out o nunca opt-in)',
             self::Suspended => 'cuenta suspendida',
+            self::AccountClosed => 'cuenta cerrada',
+            self::NotAllowlisted => 'destinatario fuera de la lista autorizada del piloto',
+            self::RateLimited => 'límite diario de mensajes por destinatario',
         };
     }
 }

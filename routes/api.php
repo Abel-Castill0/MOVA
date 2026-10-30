@@ -3,6 +3,7 @@
 use App\Http\Controllers\CulqiWebhookController;
 use App\Http\Controllers\JaasWebhookController;
 use App\Http\Controllers\MercadoPagoWebhookController;
+use App\Http\Controllers\WahaWebhookController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,10 @@ Route::prefix('webhooks/whatsapp')->middleware('throttle:120,1')->group(function
     Route::get('/', [WhatsAppWebhookController::class, 'verify'])->name('webhooks.whatsapp.verify');
     Route::post('/', [WhatsAppWebhookController::class, 'handle'])->name('webhooks.whatsapp.handle');
 });
+
+// Webhook de WAHA (confirmación de entrega message.ack y session.status). Autenticado por HMAC-SHA512 del cuerpo bruto
+// (X-Webhook-Hmac); sin WAHA_HOOK_HMAC_KEY rechaza todo. Solo actualiza estados de whatsapp_messages: no toca pagos ni créditos.
+Route::post('webhooks/waha', [WahaWebhookController::class, 'handle'])->middleware('throttle:120,1')->name('webhooks.waha.handle');
 
 // Webhook de Mercado Pago (Orders API) — diseñado pero INERTE hasta que
 // MERCADOPAGO_WEBHOOK_SECRET esté configurado (verifyWebhook() rechaza todo

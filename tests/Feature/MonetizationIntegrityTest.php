@@ -895,6 +895,23 @@ class MonetizationIntegrityTest extends TestCase
         $this->assertSame('open', $request->fresh()->status);
     }
 
+    /** El aviso por créditos insuficientes sale DESPUÉS del rollback, una sola vez cada 6 h, y no altera el ledger. */
+    public function test_insufficient_credits_notifies_the_teacher_once_and_leaves_the_ledger_untouched(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        [$teacher, $profile, $subject] = $this->teacher(0);
+        [, , $request] = $this->parentRequest($subject, 'open');
+        $payload = ['class_request_id' => $request->id, 'start_time' => now()->addDay()->toDateTimeString(), 'duration_minutes' => 60];
+
+        $this->actingAs($teacher)->post(route('lessons.store'), $payload)->assertSessionHasErrors('accept');
+        $this->actingAs($teacher)->post(route('lessons.store'), $payload)->assertSessionHasErrors('accept');
+
+        \Illuminate\Support\Facades\Notification::assertSentToTimes($teacher, \App\Notifications\InsufficientCreditsNotification::class, 1);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertDatabaseCount('classes', 0);
+        $this->assertSame('open', $request->fresh()->status);
+    }
+
     public function test_negative_credit_balance_blocks_new_reservations_automatically(): void
     {
         [$teacher, $profile, $subject] = $this->teacher(-3);

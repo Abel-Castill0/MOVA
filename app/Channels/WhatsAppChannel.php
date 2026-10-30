@@ -99,6 +99,16 @@ class WhatsAppChannel
         // comunicar: alguien investigando "¿por qué no le llegó el aviso a
         // este padre?" ahora tiene una fila que responde "porque no había
         // consentimiento", no una ausencia total de rastro.
+        if (($notifiable->account_closed_at ?? null) !== null) {
+            $to = $notifiable->routeNotificationFor('WhatsApp', $notification);
+            Log::debug('[WhatsApp] Skipped: cuenta cerrada para '.class_basename($notifiable).' #'.$notifiable->getKey());
+            if ($to) {
+                $this->logSkip($clientReference, $to, WhatsAppSkipReason::AccountClosed);
+            }
+
+            return;
+        }
+
         if (method_exists($notifiable, 'wantsWhatsAppNotifications')
             && !$notifiable->wantsWhatsAppNotifications()
         ) {

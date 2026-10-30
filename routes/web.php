@@ -335,7 +335,9 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         // WAHA WhatsApp companion monitoring & test panel
         Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
         Route::get('/whatsapp/status', [WhatsAppController::class, 'status'])->name('admin.whatsapp.status');
-        Route::post('/whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware('throttle:10,1')->name('admin.whatsapp.send-test');
+        Route::get('/whatsapp/qr', [WhatsAppController::class, 'qr'])->middleware(['admin.mfa:sensitive', 'throttle:30,1'])->name('admin.whatsapp.qr');
+        Route::post('/whatsapp/session/restart', [WhatsAppController::class, 'restart'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('admin.whatsapp.restart');
+        Route::post('/whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.whatsapp.send-test');
     });
 });
 

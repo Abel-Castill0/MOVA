@@ -21,7 +21,21 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
         return $channels;
+    }
+
+    /**
+     * Esta notificación llega a TODOS los profesores elegibles antes de que alguno acepte: por WhatsApp no se incluye el
+     * nombre del menor (ni siquiera el de pila); solo la asignatura. El nombre de pila sigue en el correo y la campana.
+     */
+    public function toWhatsApp($notifiable): string
+    {
+        return "MOVA — Nueva solicitud de clase\n\n"
+            . "Hola {$notifiable->name}, hay una solicitud de {$this->classRequest->subject->name} compatible con su perfil.\n"
+            . "Revísela en MOVA: " . $this->appRoute('teacher.requests');
     }
 
     /**

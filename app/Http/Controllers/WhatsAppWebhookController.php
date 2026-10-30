@@ -2,14 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\WhatsAppMessage;
-use App\Models\WhatsAppWebhookEvent;
 use App\WhatsApp\WhatsAppMessageStatus;
-use Illuminate\Database\UniqueConstraintViolationException;
+use App\WhatsApp\WhatsAppStatusRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -154,114 +151,8 @@ class WhatsAppWebhookController extends Controller
             ? Carbon::createFromTimestamp((int) $status['timestamp'])
             : now();
 
-        if (! $this->recordNewEvent($messageId, $newStatus, $status['timestamp'] ?? null)) {
-            Log::info('[WhatsApp/Webhook] Entrega de evento duplicada (Meta reenvió el mismo evento) — ignorada.', [
-                'id' => $messageId,
-                'status' => $newStatus->value,
-            ]);
-
-            return;
-        }
-
-        DB::transaction(function () use ($messageId, $newStatus, $eventAt) {
-            $message = WhatsAppMessage::where('provider', 'meta')
-                ->where('provider_message_id', $messageId)
-                ->lockForUpdate()
-                ->first();
-
-            if (! $message) {
-                Log::info('[WhatsApp/Webhook] Estado para un mensaje no registrado localmente.', ['id' => $messageId]);
-
-                return;
-            }
-
-            if (! $this->shouldApply($message->status, $newStatus)) {
-                Log::info('[WhatsApp/Webhook] Evento fuera de orden ignorado (no retrocede el estado).', [
-                    'id' => $messageId,
-                    'estado_actual' => $message->status->value,
-                    'evento_recibido' => $newStatus->value,
-                ]);
-
-                return;
-            }
-
-            $update = ['status' => $newStatus, 'status_updated_at' => $eventAt];
-            if ($newStatus === WhatsAppMessageStatus::Delivered) {
-                $update['delivered_at'] = $eventAt;
-            } elseif ($newStatus === WhatsAppMessageStatus::Read) {
-                $update['read_at'] = $eventAt;
-            }
-
-            $message->update($update);
-        });
-    }
-
-    /**
-     * true si es la primera vez que se ve este evento exacto (wamid +
-     * status + timestamp) — false si ya se procesó antes (reintento de
-     * entrega del webhook). Meta no expone un id de evento propio en los
-     * webhooks de estado, así que el hash de estos tres campos ES el
-     * identificador del evento en la práctica.
-     */
-    private function recordNewEvent(string $messageId, WhatsAppMessageStatus $status, mixed $timestamp): bool
-    {
-        $eventKey = hash('sha256', "{$messageId}:{$status->value}:{$timestamp}");
-
-        try {
-            WhatsAppWebhookEvent::create([
-                'event_key' => $eventKey,
-                'provider_message_id' => $messageId,
-                'status' => $status->value,
-                'received_at' => now(),
-            ]);
-
-            return true;
-        } catch (UniqueConstraintViolationException) {
-            return false;
-        }
-    }
-
-    /**
-     * Regla de avance: 'failed' es terminal PARA ESTE WhatsAppMessage (un
-     * intento de envío concreto) — no para el evento de negocio que lo
-     * originó. Nada impide que MOVA envíe un WhatsAppMessage #2 más
-     * adelante para el mismo recordatorio/confirmación si la política de
-     * negocio lo permite; eso simplemente sería otra fila nueva, no una
-     * reapertura de esta. 'failed' entrante solo se aplica si el mensaje
-     * no llegó ya a un estado de entrega real (delivered/read) — Meta no
-     * debería mandar 'failed' después de eso, pero si llegara, ignorarlo
-     * es lo seguro. Para sent/delivered/read: solo avanza si el rango
-     * nuevo es estrictamente mayor al actual (o el actual es 'unknown',
-     * que no tiene rango propio y siempre puede ser reemplazado por un
-     * evento real) — el timestamp del evento NUNCA decide esto por sí
-     * solo (un 'delivered' con timestamp más nuevo que un 'read' ya
-     * aplicado sigue sin poder retroceder el estado; ver
-     * test_out_of_order_delivery_timestamps_do_not_regress_status).
-     *
-     * 'skipped' es terminal por la misma razón que 'failed', y se protege
-     * con el mismo guard explícito — NO dejarlo caer en el cálculo de rango
-     * de más abajo: ahí deliveryRank() ?? 0 trata cualquier estado sin rango
-     * propio como "siempre superable", que es lo correcto para 'unknown'
-     * (un resultado incierto que un evento real debe poder resolver) pero
-     * sería incorrecto para 'skipped' (una decisión ya tomada por MOVA, no
-     * un resultado pendiente). En la práctica esta fila nunca es alcanzable
-     * por un webhook real porque provider_message_id es NULL en todo
-     * mensaje 'skipped' — pero ese hecho no debería ser lo único que evita
-     * la regresión; ver test_skipped_does_not_advance_to_delivered/read.
-     */
-    private function shouldApply(WhatsAppMessageStatus $current, WhatsAppMessageStatus $incoming): bool
-    {
-        if ($current === WhatsAppMessageStatus::Failed || $current === WhatsAppMessageStatus::Skipped) {
-            return false;
-        }
-
-        if ($incoming === WhatsAppMessageStatus::Failed) {
-            return ! in_array($current, [WhatsAppMessageStatus::Delivered, WhatsAppMessageStatus::Read], true);
-        }
-
-        $currentRank = $current->deliveryRank() ?? 0; // Unknown también entra aquí, siempre superable
-        $incomingRank = $incoming->deliveryRank();
-
-        return $incomingRank !== null && $incomingRank > $currentRank;
+        // Lógica común de todos los proveedores (dedupe, correlación por id, sin retroceso): WhatsAppStatusRecorder.
+        $eventKey = hash('sha256', "{$messageId}:{$newStatus->value}:".($status['timestamp'] ?? ''));
+        app(WhatsAppStatusRecorder::class)->record('meta', $messageId, $newStatus, $eventAt, $eventKey);
     }
 }

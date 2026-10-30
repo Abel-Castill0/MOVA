@@ -321,3 +321,8 @@ Una vez exista cuenta y plantillas aprobadas, lo único que cambia es
 configuración (`WHATSAPP_PROVIDER=meta`, `META_WHATSAPP_*`,
 `WHATSAPP_ENABLED=true`) — cero cambios de código necesarios para que
 `MetaCloudApiProvider` empiece a enviar de verdad.
+
+## Proveedor alternativo: WAHA
+
+Existe un segundo proveedor real (`WHATSAPP_PROVIDER=waha`) tras el mismo `WhatsAppChannel`, deshabilitado por defecto y sin
+infraestructura desplegada. Ver `docs/whatsapp-waha.md`.

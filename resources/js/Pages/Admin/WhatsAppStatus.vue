@@ -67,8 +67,17 @@
         <div v-if="currentStatus.status === 'SCAN_QR_CODE'" class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
           <p class="font-bold mb-1">¡Acción Requerida!</p>
           <p>
-            La sesión está lista pero requiere escanear el código QR. Entra al dashboard de WAHA en tu navegador para escanearlo desde la app de WhatsApp de tu teléfono.
+            La sesión está lista pero requiere vincular el teléfono dedicado: en WhatsApp ve a Dispositivos vinculados → Vincular un dispositivo y escanea este código (se renueva cada ~20 s; pulsa Actualizar si caduca). El dashboard de WAHA no está expuesto.
           </p>
+          <img :src="qrSrc" alt="Código QR para vincular WhatsApp" class="mt-3 h-48 w-48 rounded-lg border border-amber-200 bg-white p-1" />
+        </div>
+
+        <!-- Estado del canal y acciones explícitas (consultar el estado ya NO reinicia ni desvincula nada) -->
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+          <span class="rounded-lg bg-slate-100 px-2.5 py-1 font-mono">canal: {{ channel.enabled ? 'ACTIVADO' : 'desactivado' }} · proveedor: {{ channel.provider }}</span>
+          <span v-if="channel.allowlist" class="rounded-lg bg-amber-100 px-2.5 py-1 text-amber-800">piloto: solo destinatarios autorizados</span>
+          <span v-if="channel.pausedUntil" class="rounded-lg bg-red-100 px-2.5 py-1 text-red-800">envíos en pausa por restricción de WhatsApp hasta {{ channel.pausedUntil }}</span>
+          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 cursor-pointer" @click="restartSession">Reiniciar sesión de WAHA</button>
         </div>
       </div>
 
@@ -76,12 +85,12 @@
       <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
         <h2 class="text-lg font-bold text-slate-900 mb-1">Disparar Mensaje de Prueba</h2>
         <p class="text-xs text-slate-500 mb-6">
-          Prueba el envío a un número real (+51 Perú o internacional). Se enviará a través de la cola asíncrona <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700">SendWhatsAppNotificationJob</code>.
+          Solo se envía a usuarios registrados con teléfono verificado y consentimiento vigente, y siempre a través de <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700">WhatsAppChannel</code> (baja, suspensión, cuenta cerrada, lista del piloto y límites incluidos).
         </p>
 
         <form @submit.prevent="submitTestMessage" class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Teléfono Destino</label>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Teléfono del usuario destinatario</label>
             <input
               v-model="form.phone"
               type="text"
@@ -89,7 +98,7 @@
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 text-sm transition-all"
               required
             />
-            <p class="text-[11px] text-slate-400 mt-1">Si son 9 dígitos peruanos, el sistema agregará automáticamente el prefijo +51.</p>
+            <p class="text-[11px] text-slate-400 mt-1">Si son 9 dígitos peruanos, se agrega el prefijo +51. Si el teléfono no pertenece a un usuario con consentimiento, no se envía.</p>
           </div>
 
           <div>
@@ -111,7 +120,7 @@
               class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             />
             <label for="sync_checkbox" class="text-xs text-slate-600 font-medium">
-              Enviar de forma directa/síncrona (esperar respuesta inmediata sin encolar)
+              Procesar ahora sin encolar (el resultado queda en whatsapp_messages)
             </label>
           </div>
 
@@ -133,16 +142,19 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Head, Link, useForm } from '@inertiajs/vue3'
+import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 
 const props = defineProps({
   sessionInfo: { type: Object, default: () => ({ success: false, status: 'UNKNOWN' }) },
   wahaConfig: { type: Object, default: () => ({ session: 'default', url: '' }) },
+  channel: { type: Object, default: () => ({ enabled: false, provider: 'fake', allowlist: false, pausedUntil: null }) },
 })
 
 const currentStatus = ref(props.sessionInfo)
 const loading = ref(false)
+const qrTick = ref(Date.now())
+const qrSrc = computed(() => route('admin.whatsapp.qr') + '?t=' + qrTick.value)
 
 const form = useForm({
   phone: '',
@@ -155,8 +167,8 @@ const statusLabel = computed(() => {
   if (s === 'WORKING') return 'Conectado y Operativo'
   if (s === 'SCAN_QR_CODE') return 'Requiere Escanear Código QR'
   if (s === 'STARTING') return 'Iniciando Servicio...'
-  if (s === 'FAILED') return 'QR Expirado (Pulsa Actualizar para regenerar)'
-  if (s === 'STOPPED') return 'Sesión Detenida (Pulsa Actualizar para iniciar)'
+  if (s === 'FAILED') return 'Sesión caída (reiníciala o vincula de nuevo)'
+  if (s === 'STOPPED') return 'Sesión detenida (reiníciala)'
   if (s === 'DISCONNECTED') return 'Desconectado / Sin Conexión'
   return s || 'No disponible'
 })
@@ -175,8 +187,14 @@ const statusTextClass = computed(() => {
   return 'text-rose-700 font-bold'
 })
 
+function restartSession() {
+  if (!window.confirm('¿Reiniciar la sesión de WAHA? Los envíos se interrumpen unos segundos (no desvincula el teléfono).')) return
+  router.post(route('admin.whatsapp.restart'), {}, { preserveScroll: true })
+}
+
 async function refreshStatus() {
   loading.value = true
+  qrTick.value = Date.now()
   try {
     const res = await axios.get(route('admin.whatsapp.status'))
     currentStatus.value = res.data

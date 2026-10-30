@@ -19,7 +19,20 @@ class RechargeApprovedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        $channels = ['mail'];
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+
+        return $channels;
+    }
+
+    /** Aviso informativo: el crédito ya se asentó en el ledger; este mensaje nunca acredita ni confirma nada por sí mismo. */
+    public function toWhatsApp(object $notifiable): string
+    {
+        return "MOVA — Recarga confirmada\n\n"
+            . "Hola {$notifiable->name}, su recarga de {$this->recharge->credits} créditos fue confirmada.\n"
+            . "Consulte su saldo en MOVA: " . $this->appRoute('teacher.credits.index');
     }
 
     public function toMail(object $notifiable): MailMessage

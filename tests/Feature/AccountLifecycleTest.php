@@ -495,16 +495,26 @@ class AccountLifecycleTest extends TestCase
         $this->assertNull($user->fresh()->account_closed_at);
     }
 
-    public function test_queued_whatsapp_job_is_dropped_for_closed_account_but_not_for_others(): void
+    public function test_queued_whatsapp_delivery_is_dropped_for_closed_account_but_not_for_others(): void
     {
         $closed = $this->user();
         $closed->forceFill(['phone' => '987654321', 'phone_verified_normalized' => '+51987654321', 'account_closed_at' => now()])->save();
         $other = $this->user();
         $other->forceFill(['phone' => '912345678', 'phone_verified_normalized' => '+51912345678'])->save();
-        $service = \Mockery::mock(\App\Services\WhatsAppService::class);
-        $service->shouldReceive('sendText')->once()->with('912345678', 'hola')->andReturn(['success' => true]);
-        (new \App\Jobs\SendWhatsAppNotificationJob('987654321', 'hola'))->handle($service);
-        (new \App\Jobs\SendWhatsAppNotificationJob('912345678', 'hola'))->handle($service);
+
+        config([
+            'services.waha.url' => 'http://127.0.0.1:3000', 'services.waha.api_key' => 'k', 'services.waha.typing_min_ms' => 0, 'services.waha.typing_max_ms' => 0,
+        ]);
+        \App\WhatsApp\Waha\WahaSessionState::record('WORKING');
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['id' => 'true_51912345678@c.us_3EB0ABCDEF'], 201)]);
+
+        // Un envío encolado ANTES del cierre llega al proveedor DESPUÉS: debe descartarse al entregar.
+        $provider = new \App\WhatsApp\WahaProvider();
+        $this->assertFalse($provider->sendTemplate('987654321', 'generic_notification', ['hola']));
+        $this->assertTrue($provider->sendTemplate('912345678', 'generic_notification', ['hola']));
+
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        $this->assertSame(\App\WhatsApp\WhatsAppSkipReason::AccountClosed, \App\Models\WhatsAppMessage::where('to', '51987654321')->firstOrFail()->skip_reason);
     }
 
     public function test_closed_teacher_receives_no_welcome_bonus_even_if_verification_completes_late(): void
