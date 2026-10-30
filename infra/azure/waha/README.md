@@ -88,15 +88,24 @@ La VM los lee **una vez** al primer arranque con su identidad y los guarda en `/
 del Key Vault. La sesión vinculada vive en el disco (`/var/lib/waha/sessions`, 0700). Nada va a GitHub. Los mismos valores se cargan en
 el staging como secretos de la Container App.
 
-## Variables de MOVA (solo staging)
+## Variables de MOVA
+
+**Producción (`movap-web`, desde 2026-10-30):** panel administrativo activo, avisos a usuarios APAGADOS.
 
 ```
-WHATSAPP_ENABLED=true           # producción: false durante todo el piloto
-WHATSAPP_PROVIDER=waha
+WHATSAPP_ENABLED=false          # sin avisos a usuarios; WHATSAPP_PROVIDER sigue en fake
+WAHA_ADMIN_CONTROL_ENABLED=true # solo habilita /admin/whatsapp (estado, QR, recuperar, prueba)
 WAHA_BASE_URL=http://10.30.0.4:3000
-WAHA_SESSION=default
-WAHA_ALLOWED_RECIPIENTS=<solo números autorizados, separados por coma>
+WAHA_API_KEY / WAHA_HOOK_HMAC_KEY   # secretos de la Container App (origen: Key Vault)
+WAHA_EXPECTED_NUMBER=51905922835
+WAHA_ADMIN_TEST_RECIPIENT=51916666934   # destinatario FIJO del mensaje de prueba
+WAHA_ALLOWED_RECIPIENTS=51916666934
+WAHA_ENV_LABEL=piloto
+WAHA_PILOT_EXPIRES_AT=<etiqueta expires-at del grupo>   # solo informativo en el panel
 ```
+
+El webhook de WAHA apunta a `https://movaeduca.me/api/webhooks/waha` (HMAC-SHA512). **Staging** quedó con `WHATSAPP_ENABLED=false`.
+Cambiar el destino del webhook: editar `WHATSAPP_HOOK_URL` en `/etc/waha/waha.env` de la VM y `systemctl restart waha` (la sesión persiste en disco).
 
 ## Plan de pruebas del piloto (staging, solo números autorizados)
 
