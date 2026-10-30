@@ -423,8 +423,10 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
       // Botón destacado de recarga en la propia página de créditos — siempre
       // visible, apunta a la sección de paquetes.
-      const creditsBtn = page.getByRole('link', { name: 'Recargar créditos', exact: true });
+      // Con el pago activo se llama «Recargar créditos»; sin él, «Ver paquetes y precios» (no finge una compra).
+      const creditsBtn = page.getByTestId('recharge-cta');
       await expect(creditsBtn).toBeVisible();
+      await expect(creditsBtn).toHaveText(/Recargar créditos|Ver paquetes y precios/);
       await expect(creditsBtn).toHaveAttribute('href', '#recargas');
 
       // RECHARGES_ENABLED decide si Teacher/Credits/Index.vue renderiza los
