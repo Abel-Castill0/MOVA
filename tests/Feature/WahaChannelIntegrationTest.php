@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use RuntimeException;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -131,51 +130,5 @@ class WahaChannelIntegrationTest extends TestCase
 
         Http::assertNothingSent();
         $this->assertDatabaseCount('whatsapp_messages', 0);
-    }
-
-    // ── Panel de administración: ya no se salta nada ─────────────────────────
-
-    private function admin(): User
-    {
-        Role::findOrCreate('admin', 'web');
-        $admin = User::factory()->create(['email_verified_at' => now()]);
-        $admin->assignRole('admin');
-
-        return $admin;
-    }
-
-    public function test_admin_test_goes_only_to_registered_consenting_users_and_through_the_channel(): void
-    {
-        $user = $this->user();
-        $admin = $this->admin();
-        // El panel exige MFA/aceptación legal en producción; aquí se prueba la lógica del controlador.
-        $this->withoutMiddleware();
-
-        $this->actingAs($admin)->post(route('admin.whatsapp.send-test'), ['phone' => '987654321', 'message' => 'prueba', 'sync' => true])
-            ->assertSessionHas('success');
-        Http::assertSentCount(1);
-        $this->assertSame('waha', WhatsAppMessage::firstOrFail()->provider);
-
-        // Un número que no es de ningún usuario NO se envía.
-        $this->actingAs($admin)->post(route('admin.whatsapp.send-test'), ['phone' => '900000000', 'message' => 'x', 'sync' => true])
-            ->assertSessionHas('error');
-        // Usuario sin consentimiento: tampoco.
-        $user->forceFill(['whatsapp_opt_out_at' => now()])->save();
-        $this->actingAs($admin)->post(route('admin.whatsapp.send-test'), ['phone' => '987654321', 'message' => 'otra', 'sync' => true])
-            ->assertSessionHas('error');
-
-        Http::assertSentCount(1);
-    }
-
-    public function test_viewing_the_admin_status_never_logs_out_or_restarts_the_session(): void
-    {
-        Http::swap(new \Illuminate\Http\Client\Factory());
-        Http::fake(['*' => Http::response(['name' => 'default', 'status' => 'FAILED', 'me' => ['id' => '51987654321@c.us']], 200)]);
-        $admin = $this->admin();
-        $this->withoutMiddleware();
-
-        $this->actingAs($admin)->get(route('admin.whatsapp.status'))->assertOk()->assertJsonPath('status', 'FAILED');
-
-        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/logout') || str_contains($r->url(), '/restart'));
     }
 }

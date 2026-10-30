@@ -51,6 +51,17 @@ return [
         'dedupe_minutes' => (int) env('WAHA_DEDUPE_MINUTES', 30),
         'timeout_seconds' => (int) env('WAHA_TIMEOUT_SECONDS', 12),
         'webhook_tolerance_seconds' => (int) env('WAHA_WEBHOOK_TOLERANCE_SECONDS', 300),
+        // Control ADMINISTRATIVO de la sesión (estado, QR, recuperar, mensaje de prueba): independiente de WHATSAPP_ENABLED.
+        // WHATSAPP_ENABLED=false sigue significando «no se envía ninguna notificación a usuarios»; esta bandera solo permite
+        // que un administrador con MFA gestione la sesión y envíe UN mensaje de prueba al destinatario fijo de abajo.
+        'admin_control_enabled' => (bool) env('WAHA_ADMIN_CONTROL_ENABLED', false),
+        // Único destinatario del mensaje de prueba del panel (el propietario). No se acepta ningún otro desde la interfaz.
+        'admin_test_recipient' => env('WAHA_ADMIN_TEST_RECIPIENT'),
+        // Número dedicado de MOVA que DEBE quedar vinculado; si WAHA conecta otro, el panel lo marca como incorrecto.
+        'expected_number' => env('WAHA_EXPECTED_NUMBER'),
+        // Etiqueta del entorno que muestra el panel (piloto, staging, producción) y caducidad informativa del piloto.
+        'environment_label' => env('WAHA_ENV_LABEL', 'piloto'),
+        'pilot_expires_at' => env('WAHA_PILOT_EXPIRES_AT'),
     ],
 
     // WhatsApp Cloud API de Meta directo — reemplaza la integración previa

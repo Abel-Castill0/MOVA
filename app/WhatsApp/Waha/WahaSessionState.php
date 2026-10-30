@@ -16,6 +16,8 @@ final class WahaSessionState
 
     private const PAUSE_KEY = 'waha:paused_until';
 
+    private const LAST_WORKING_KEY = 'waha:last_working_at';
+
     /** Estado más reciente si es de hace menos de $maxAgeSeconds; si no, null (desconocido). */
     public static function status(int $maxAgeSeconds = 600): ?string
     {
@@ -35,6 +37,18 @@ final class WahaSessionState
         }
 
         Cache::put(self::STATE_KEY, ['status' => $status, 'at' => now()->getTimestamp()], now()->addDay());
+
+        if ($status === 'WORKING') {
+            Cache::put(self::LAST_WORKING_KEY, now()->getTimestamp(), now()->addDays(30));
+        }
+    }
+
+    /** Última vez que se observó la sesión en WORKING (solo informativo para el panel). */
+    public static function lastWorkingAt(): ?Carbon
+    {
+        $ts = Cache::get(self::LAST_WORKING_KEY);
+
+        return is_numeric($ts) ? Carbon::createFromTimestamp((int) $ts) : null;
     }
 
     public static function pauseUntil(Carbon $until): void

@@ -332,12 +332,15 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::get('/complaints', [ComplaintController::class, 'adminIndex'])->name('admin.complaints');
         Route::post('/complaints/{complaint}/respond', [ComplaintController::class, 'respond'])->middleware('throttle:20,1')->name('admin.complaints.respond');
 
-        // WAHA WhatsApp companion monitoring & test panel
+        // WhatsApp (WAHA): panel nativo de vinculación y administración. Consultar = solo lectura; el QR, controlar la sesión,
+        // pedir un código y el mensaje de prueba exigen MFA reciente (step-up). Ver docs/whatsapp-waha.md.
         Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
-        Route::get('/whatsapp/status', [WhatsAppController::class, 'status'])->name('admin.whatsapp.status');
-        Route::get('/whatsapp/qr', [WhatsAppController::class, 'qr'])->middleware(['admin.mfa:sensitive', 'throttle:30,1'])->name('admin.whatsapp.qr');
-        Route::post('/whatsapp/session/restart', [WhatsAppController::class, 'restart'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('admin.whatsapp.restart');
-        Route::post('/whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.whatsapp.send-test');
+        Route::get('/whatsapp/status', [WhatsAppController::class, 'status'])->middleware('throttle:90,1,waha-status')->name('admin.whatsapp.status');
+        Route::get('/whatsapp/qr', [WhatsAppController::class, 'qr'])->middleware(['admin.mfa:sensitive', 'throttle:40,1,waha-qr'])->name('admin.whatsapp.qr');
+        Route::post('/whatsapp/session/{action}', [WhatsAppController::class, 'control'])->whereIn('action', ['start', 'restart', 'reset'])
+            ->middleware(['admin.mfa:sensitive', 'throttle:6,1,waha-control'])->name('admin.whatsapp.control');
+        Route::post('/whatsapp/pairing-code', [WhatsAppController::class, 'pairingCode'])->middleware(['admin.mfa:sensitive', 'throttle:5,1,waha-pair'])->name('admin.whatsapp.pairing-code');
+        Route::post('/whatsapp/send-test', [WhatsAppController::class, 'sendTest'])->middleware(['admin.mfa:sensitive', 'throttle:10,1,waha-test'])->name('admin.whatsapp.send-test');
     });
 });
 

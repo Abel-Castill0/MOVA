@@ -54,6 +54,7 @@ import {
   RefreshCw,
   ArrowLeft,
   MessageSquareText,
+  MessageCircle,
   Send,
   Info,
   CalendarX2,
@@ -73,6 +74,7 @@ export const icons = {
   credits: CreditCard,             // 💳 "Recargas"/"Mis créditos" — reemplaza también el 'C' literal que usaba Teacher nav
   reviews: Star,                   // ⭐ "Reseñas"
   'ai-usage': Bot,                 // 🤖 "Uso de IA"
+  whatsapp: MessageCircle,         // 💬 "WhatsApp" (admin: vincular y administrar el número de MOVA)
   home: Home,                      // 🏠 "Inicio" (parent/teacher)
   // "Mis hijos" y "Profesores" conviven en el MISMO nav del rol padre — no
   // pueden compartir icono (el usuario ya no podría distinguirlos de un

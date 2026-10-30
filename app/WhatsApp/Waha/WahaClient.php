@@ -111,16 +111,80 @@ final class WahaClient
         try {
             $response = $this->http()->timeout(8)->get($this->baseUrl.'/api/sessions/'.rawurlencode($this->session));
         } catch (\Throwable $e) {
-            return ['ok' => false, 'status' => null, 'me' => null, 'data' => null, 'error' => $this->safe($e->getMessage())];
+            $kind = $e instanceof ConnectionException ? 'unreachable' : 'error';
+
+            return ['ok' => false, 'status' => null, 'me' => null, 'data' => null, 'error' => $this->safe($e->getMessage()), 'kind' => $kind];
         }
 
         if (! $response->successful()) {
-            return ['ok' => false, 'status' => null, 'me' => null, 'data' => null, 'error' => 'WAHA respondió HTTP '.$response->status()];
+            $kind = in_array($response->status(), [401, 403], true) ? 'auth' : ($response->serverError() ? 'server' : 'http');
+
+            return ['ok' => false, 'status' => null, 'me' => null, 'data' => null, 'error' => 'WAHA respondió HTTP '.$response->status(), 'kind' => $kind];
         }
 
         $data = (array) $response->json();
 
-        return ['ok' => true, 'status' => $data['status'] ?? null, 'me' => $data['me'] ?? null, 'data' => $data, 'error' => null];
+        return ['ok' => true, 'status' => $data['status'] ?? null, 'me' => $data['me'] ?? null, 'data' => $data, 'error' => null, 'kind' => null];
+    }
+
+    /**
+     * QR de vinculación como PNG VÁLIDO. Nunca devuelve JSON/HTML de error como si fuera imagen: o bytes con la firma PNG, o una
+     * causa legible. WAHA responde la imagen en binario o, con Accept JSON, {mimetype, data(base64)}; se aceptan ambas.
+     *
+     * @return array{png: ?string, reason: ?string}
+     */
+    public function qr(): array
+    {
+        try {
+            $response = Http::withHeaders($this->apiKey ? ['X-Api-Key' => $this->apiKey] : [])
+                ->accept('image/png, application/json')
+                ->withoutRedirecting()
+                ->timeout(10)
+                ->get($this->baseUrl.'/api/'.rawurlencode($this->session).'/auth/qr', ['format' => 'image']);
+        } catch (\Throwable) {
+            return ['png' => null, 'reason' => 'WAHA no responde.'];
+        }
+
+        if ($response->status() === 404 || $response->status() === 422) {
+            return ['png' => null, 'reason' => 'WAHA no tiene un QR disponible: la sesión no está esperando vinculación.'];
+        }
+
+        if (! $response->successful()) {
+            return ['png' => null, 'reason' => 'WAHA respondió HTTP '.$response->status().' al pedir el QR.'];
+        }
+
+        $body = $response->body();
+        if (str_contains((string) $response->header('Content-Type'), 'json')) {
+            $data = $response->json('data');
+            $body = is_string($data) ? (string) base64_decode($data, true) : '';
+        }
+
+        // Firma PNG (89 50 4E 47) y tamaño razonable: un QR pesa unos pocos KB.
+        if (strlen($body) < 100 || strlen($body) > 300_000 || ! str_starts_with($body, chr(0x89).'PNG')) {
+            return ['png' => null, 'reason' => 'WAHA devolvió una respuesta que no es una imagen PNG válida.'];
+        }
+
+        return ['png' => $body, 'reason' => null];
+    }
+
+    /**
+     * Código de emparejamiento de 8 caracteres (alternativa al QR). Solo bajo solicitud explícita; el código NO se registra.
+     *
+     * @return array{code: ?string, reason: ?string}
+     */
+    public function requestPairingCode(string $digits): array
+    {
+        try {
+            $response = $this->http()->timeout(20)->post($this->baseUrl.'/api/'.rawurlencode($this->session).'/auth/request-code', ['phoneNumber' => $digits]);
+        } catch (\Throwable) {
+            return ['code' => null, 'reason' => 'WAHA no responde.'];
+        }
+
+        $code = $response->successful() ? $response->json('code') : null;
+
+        return is_string($code) && $code !== ''
+            ? ['code' => $code, 'reason' => null]
+            : ['code' => null, 'reason' => 'WAHA no pudo generar el código (la sesión debe estar esperando vinculación). HTTP '.$response->status().'.'];
     }
 
     /** PNG del QR de vinculación (solo si la sesión está en SCAN_QR_CODE). Devuelve bytes o null. */
@@ -188,7 +252,8 @@ final class WahaClient
 
     private function http(): PendingRequest
     {
-        $request = Http::acceptJson()->asJson()->timeout($this->timeoutSeconds);
+        // Sin seguir redirecciones: Guzzle reenviaría X-Api-Key a otro host.
+        $request = Http::acceptJson()->asJson()->withoutRedirecting()->timeout($this->timeoutSeconds);
 
         return $this->apiKey ? $request->withHeaders(['X-Api-Key' => $this->apiKey]) : $request;
     }

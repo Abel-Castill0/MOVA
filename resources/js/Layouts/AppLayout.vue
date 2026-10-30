@@ -379,6 +379,7 @@ const navItems = computed(() => {
     return [
       { href: '/dashboard',               icon: 'dashboard',        label: 'Dashboard' },
       { href: '/admin/operations',        icon: 'under-review',     label: 'Operaciones' },
+      { href: '/admin/whatsapp',          icon: 'whatsapp',         label: 'WhatsApp' },
       { href: '/admin/users',             icon: 'users',            label: 'Usuarios' },
       { href: '/admin/pending-teachers',  icon: 'verify-teachers',  label: 'Verificar profesores' },
       { href: '/admin/requests',          icon: 'requests',         label: 'Solicitudes' },

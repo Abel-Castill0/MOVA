@@ -1,216 +1,316 @@
 <template>
-  <Head title="Estado de WhatsApp (WAHA) - Admin" />
-
-  <div class="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl mx-auto space-y-6">
+  <AppLayout title="WhatsApp — Vincular dispositivo">
+    <div class="space-y-6 max-w-4xl">
       <!-- Encabezado -->
-      <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+      <div class="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 class="text-2xl font-black text-slate-900 tracking-tight">Servicio WhatsApp (WAHA)</h1>
-          <p class="text-sm text-slate-500 mt-1">
-            Monitoreo del contenedor WAHA y prueba de envío sin restricciones de plantillas Meta.
-          </p>
+          <h2 class="text-2xl font-bold text-gray-900">WhatsApp de MOVA</h2>
+          <p class="text-sm text-slate-500 mt-1">Vincula y administra el número dedicado que enviará los avisos automáticos.</p>
         </div>
-        <Link
-          :href="route('admin.operations')"
-          class="text-xs font-semibold px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors shadow-2xs"
-        >
-          Volver a Operaciones
-        </Link>
-      </div>
-
-      <!-- Alertas de Flash Session -->
-      <div v-if="$page.props.flash?.success" class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium flex items-center justify-between">
-        <span>{{ $page.props.flash.success }}</span>
-      </div>
-      <div v-if="$page.props.flash?.error" class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium flex items-center justify-between">
-        <span>{{ $page.props.flash.error }}</span>
-      </div>
-
-      <!-- Tarjeta 1: Estado de la Sesión -->
-      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full" :class="statusDotClass"></span>
-            Estado de Conexión: <span class="capitalize" :class="statusTextClass">{{ statusLabel }}</span>
-          </h2>
-          <button
-            type="button"
-            @click="refreshStatus"
-            :disabled="loading"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Actualizar
-          </button>
-        </div>
-
-        <!-- Detalles de estado -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100 text-xs">
-          <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
-            <span class="text-slate-400 block font-medium">Sesión WAHA</span>
-            <span class="font-bold text-slate-800 text-sm">{{ wahaConfig.session }}</span>
-          </div>
-          <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
-            <span class="text-slate-400 block font-medium">URL del Servicio</span>
-            <span class="font-bold text-slate-800 text-sm truncate block" :title="wahaConfig.url">{{ wahaConfig.url }}</span>
-          </div>
-          <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
-            <span class="text-slate-400 block font-medium">Última Respuesta WAHA</span>
-            <span class="font-mono font-bold text-slate-800 text-sm">{{ currentStatus.status || 'UNKNOWN' }}</span>
-          </div>
-        </div>
-
-        <!-- Instrucciones si requiere QR -->
-        <div v-if="currentStatus.status === 'SCAN_QR_CODE'" class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-          <p class="font-bold mb-1">¡Acción Requerida!</p>
-          <p>
-            La sesión está lista pero requiere vincular el teléfono dedicado: en WhatsApp ve a Dispositivos vinculados → Vincular un dispositivo y escanea este código (se renueva cada ~20 s; pulsa Actualizar si caduca). El dashboard de WAHA no está expuesto.
-          </p>
-          <img :src="qrSrc" alt="Código QR para vincular WhatsApp" class="mt-3 h-48 w-48 rounded-lg border border-amber-200 bg-white p-1" />
-        </div>
-
-        <!-- Estado del canal y acciones explícitas (consultar el estado ya NO reinicia ni desvincula nada) -->
-        <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-          <span class="rounded-lg bg-slate-100 px-2.5 py-1 font-mono">canal: {{ channel.enabled ? 'ACTIVADO' : 'desactivado' }} · proveedor: {{ channel.provider }}</span>
-          <span v-if="channel.allowlist" class="rounded-lg bg-amber-100 px-2.5 py-1 text-amber-800">piloto: solo destinatarios autorizados</span>
-          <span v-if="channel.pausedUntil" class="rounded-lg bg-red-100 px-2.5 py-1 text-red-800">envíos en pausa por restricción de WhatsApp hasta {{ channel.pausedUntil }}</span>
-          <button type="button" class="rounded-lg border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 cursor-pointer" @click="restartSession">Reiniciar sesión de WAHA</button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-3 py-1 text-xs font-bold rounded-lg border bg-brand-50 text-brand-700 border-brand-200 uppercase">{{ p.environment.label }}</span>
+          <span v-if="pilotLeft" class="px-3 py-1 text-xs font-bold rounded-lg border bg-amber-50 text-amber-700 border-amber-200">{{ pilotLeft }}</span>
+          <span :class="['px-3 py-1 text-xs font-bold rounded-lg border',
+            p.notifications.enabled ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200']">
+            {{ p.notifications.enabled ? 'AVISOS A USUARIOS ACTIVOS' : 'AVISOS A USUARIOS DESACTIVADOS' }}
+          </span>
         </div>
       </div>
 
-      <!-- Tarjeta 2: Formulario de Prueba de Envío -->
-      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
-        <h2 class="text-lg font-bold text-slate-900 mb-1">Disparar Mensaje de Prueba</h2>
-        <p class="text-xs text-slate-500 mb-6">
-          Solo se envía a usuarios registrados con teléfono verificado y consentimiento vigente, y siempre a través de <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700">WhatsAppChannel</code> (baja, suspensión, cuenta cerrada, lista del piloto y límites incluidos).
-        </p>
-
-        <form @submit.prevent="submitTestMessage" class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Teléfono del usuario destinatario</label>
-            <input
-              v-model="form.phone"
-              type="text"
-              placeholder="Ej: 916666934 o +51916666934"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 text-sm transition-all"
-              required
-            />
-            <p class="text-[11px] text-slate-400 mt-1">Si son 9 dígitos peruanos, se agrega el prefijo +51. Si el teléfono no pertenece a un usuario con consentimiento, no se envía.</p>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Contenido del Mensaje</label>
-            <textarea
-              v-model="form.message"
-              rows="3"
-              placeholder="¡Hola! Este es un mensaje de prueba automatizado desde MOVA Educa."
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 text-sm transition-all"
-              required
-            ></textarea>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input
-              id="sync_checkbox"
-              v-model="form.sync"
-              type="checkbox"
-              class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            <label for="sync_checkbox" class="text-xs text-slate-600 font-medium">
-              Procesar ahora sin encolar (el resultado queda en whatsapp_messages)
-            </label>
-          </div>
-
-          <div class="pt-2">
-            <button
-              type="submit"
-              :disabled="form.processing"
-              class="w-full sm:w-auto px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50"
-            >
-              <span v-if="form.processing">Enviando mensaje...</span>
-              <span v-else>Enviar WhatsApp de Prueba</span>
-            </button>
-          </div>
-        </form>
+      <div v-if="!p.controlEnabled" class="p-4 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-sm">
+        El control administrativo de WhatsApp está desactivado en este entorno (<code>WAHA_ADMIN_CONTROL_ENABLED</code>).
       </div>
+
+      <template v-else>
+        <!-- MFA reciente -->
+        <div v-if="!stepUp.valid" class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span>Para ver el QR y controlar la sesión debes confirmar tu verificación en dos pasos (MFA) recientemente.</span>
+          <a :href="stepUp.challengeUrl" class="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">Verificar MFA</a>
+        </div>
+
+        <div v-if="notice" :class="['p-4 rounded-xl border text-sm font-medium', notice.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800']" role="status">
+          {{ notice.text }}
+        </div>
+
+        <!-- 1. Estado -->
+        <section class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-estado">
+          <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <h3 id="wa-estado" class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <span :class="['w-3 h-3 rounded-full', meta.dot]"></span>
+              Estado: <span :class="meta.text">{{ meta.label }}</span>
+            </h3>
+            <span class="text-xs text-slate-500">Actualizado {{ updatedAgo }}</span>
+          </div>
+          <p v-if="p.error" class="text-sm text-slate-600 mb-4">{{ p.error }}</p>
+          <dl class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Número dedicado de MOVA</dt><dd class="font-semibold text-slate-800">{{ p.number.expected || 'Sin configurar' }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Número conectado</dt><dd class="font-semibold" :class="p.state === 'wrong_number' ? 'text-rose-700' : 'text-slate-800'">{{ p.number.connected || '—' }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Estado de WAHA</dt><dd class="font-semibold text-slate-800">{{ p.rawStatus || '—' }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Servidor</dt><dd class="font-semibold" :class="p.server.reachable ? 'text-emerald-700' : 'text-rose-700'">{{ p.server.reachable ? 'Disponible' : 'No disponible' }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Última conexión</dt><dd class="font-semibold text-slate-800">{{ p.lastConnectedAt ? fmt(p.lastConnectedAt) : 'Sin registro' }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Lista autorizada</dt><dd class="font-semibold text-slate-800">{{ p.notifications.allowlistActive ? 'Activa' : 'No configurada' }}</dd></div>
+          </dl>
+        </section>
+
+        <!-- 2. Vincular (QR) -->
+        <section v-if="showLink" class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-vincular">
+          <h3 id="wa-vincular" class="text-base font-bold text-slate-800 mb-4">Vincular WhatsApp de MOVA</h3>
+
+          <div class="grid md:grid-cols-2 gap-6 items-start">
+            <div class="flex flex-col items-center">
+              <!-- QR real de WAHA -->
+              <div v-if="p.state === 'waiting_qr'" class="w-64 h-64 rounded-xl border border-gray-200 bg-white flex items-center justify-center overflow-hidden">
+                <img v-if="qrUrl" :src="qrUrl" alt="Código QR real de WhatsApp para vincular el número de MOVA" class="w-full h-full" style="image-rendering: pixelated" />
+                <p v-else class="text-sm text-slate-500 px-4 text-center">{{ qrMessage || 'Cargando QR…' }}</p>
+              </div>
+              <p v-if="p.state === 'waiting_qr' && qrUrl" class="text-xs text-slate-500 mt-2">QR renovado hace {{ qrAge }} s · se actualiza solo (caduca a los ~20 s)</p>
+              <p v-if="p.state === 'waiting_qr' && qrMessage && !qrUrl" class="text-xs text-rose-600 mt-2">{{ qrMessage }}</p>
+
+              <div v-else-if="p.state === 'starting'" class="w-64 h-64 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-sm text-slate-500">Iniciando la sesión…</div>
+              <div v-else-if="p.state !== 'waiting_qr'" class="w-64 h-64 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-sm text-slate-500 text-center px-6">
+                {{ p.state === 'unavailable' ? 'Sin conexión con WAHA' : p.state === 'unverified_number' ? 'Verificando el número vinculado…' : 'Aún no hay un QR: inicia la vinculación' }}
+              </div>
+            </div>
+
+            <div class="text-sm text-slate-700 space-y-4">
+              <ol class="list-decimal pl-5 space-y-1.5">
+                <li>Abre WhatsApp en el celular <strong>{{ p.number.expected || 'dedicado de MOVA' }}</strong>.</li>
+                <li>Entra a <strong>Dispositivos vinculados</strong> (Ajustes).</li>
+                <li>Selecciona <strong>Vincular un dispositivo</strong>.</li>
+                <li>Escanea el QR que aparece en pantalla.</li>
+                <li>Espera la confirmación: aquí cambiará a «Conectado».</li>
+              </ol>
+              <p class="text-xs text-slate-500">WAHA solo espera unos 2–3 minutos el escaneo; si expira, inicia una nueva vinculación (no se reinicia sola).</p>
+
+              <div class="flex flex-wrap gap-2">
+                <button v-if="p.actions.start" type="button" :disabled="busy" @click="run('start')" :class="btn.primary">Iniciar vinculación</button>
+                <button v-if="p.actions.restart" type="button" :disabled="busy" @click="run('restart')" :class="btn.secondary">Recuperar sesión</button>
+                <button v-if="p.actions.reset" type="button" :disabled="busy" @click="resetOpen = !resetOpen" :class="btn.danger">Restablecer vinculación</button>
+                <button v-if="p.actions.pair" type="button" :disabled="busy" @click="pair" :class="btn.secondary">Vincular mediante código</button>
+              </div>
+
+              <div v-if="resetOpen" class="p-3 rounded-lg border border-rose-200 bg-rose-50 space-y-2">
+                <p class="text-xs text-rose-800">Descarta las credenciales guardadas de esta sesión (si había una vinculación a medias o de otro número) y arranca limpia. Solo úsalo si «Recuperar sesión» no funcionó. Escribe <strong>RESTABLECER</strong> para confirmar.</p>
+                <div class="flex gap-2">
+                  <input v-model="resetText" aria-label="Escribe RESTABLECER para confirmar" type="text" autocomplete="off" class="flex-1 rounded-lg border border-rose-300 px-3 py-1.5 text-sm" placeholder="RESTABLECER" />
+                  <button type="button" :disabled="busy || resetText !== 'RESTABLECER'" @click="doReset" :class="btn.danger">Confirmar</button>
+                </div>
+              </div>
+
+              <div v-if="pairCode" class="p-4 rounded-lg border border-brand-200 bg-brand-50 text-center">
+                <p class="text-xs text-brand-800 mb-1">En WhatsApp: Dispositivos vinculados → Vincular un dispositivo → <em>Vincular con el número de teléfono</em></p>
+                <p class="text-3xl font-black tracking-widest text-brand-800 font-mono">{{ pairCode }}</p>
+                <p class="text-xs text-slate-500 mt-1">Caduca en pocos minutos. No lo compartas.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Conectado + prueba -->
+        <section v-if="p.state === 'connected'" class="bg-white rounded-xl border border-emerald-200 p-5" aria-labelledby="wa-ok">
+          <h3 id="wa-ok" class="text-base font-bold text-emerald-800">✅ WhatsApp conectado</h3>
+          <p class="text-sm text-slate-600 mt-1">Número: <strong>{{ p.number.connected }}</strong>. El QR ya no se muestra.</p>
+        </section>
+
+        <section class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-prueba">
+          <h3 id="wa-prueba" class="text-base font-bold text-slate-800">Enviar mensaje de prueba</h3>
+          <p class="text-sm text-slate-600 mt-1">Destinatario autorizado: <strong>{{ p.test.recipient || '—' }}</strong> (fijo; no se puede cambiar desde aquí).</p>
+          <blockquote class="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-sm text-slate-700">{{ p.test.message }}</blockquote>
+          <p v-if="p.test.blockedReason" class="text-xs text-slate-500 mt-2">{{ p.test.blockedReason }}</p>
+          <button type="button" :class="[btn.primary, 'mt-3']" :disabled="busy || !p.test.canSend" @click="sendTest">Enviar mensaje de prueba</button>
+
+          <div v-if="last" class="mt-4 border-t border-gray-100 pt-4 text-sm">
+            <p class="font-semibold text-slate-800 mb-2">Último envío de prueba</p>
+            <ul class="space-y-1.5">
+              <li :class="stepClass(true)">① Solicitud registrada · {{ fmt(last.at) }}</li>
+              <li :class="stepClass(['sent','delivered','read'].includes(last.status))">② Aceptado por WAHA<span v-if="last.messageId"> · id <code class="text-xs">{{ last.messageId }}</code></span></li>
+              <li :class="stepClass(['delivered','read'].includes(last.status))">③ Entregado (ACK){{ last.deliveredAt ? ' · ' + fmt(last.deliveredAt) : ' · pendiente de confirmación' }}</li>
+              <li :class="stepClass(last.status === 'read')">④ Leído{{ last.readAt ? ' · ' + fmt(last.readAt) : '' }}</li>
+            </ul>
+            <p v-if="['failed','skipped','unknown'].includes(last.status)" class="mt-2 text-rose-700">
+              Resultado: <strong>{{ last.status }}</strong>{{ last.skipReason ? ' (' + last.skipReason + ')' : '' }}{{ last.error ? ' — ' + last.error : '' }}
+            </p>
+            <p class="mt-2 text-xs text-slate-500">«Aceptado» no significa «entregado»: la entrega solo se confirma cuando llega el ACK del dispositivo.</p>
+          </div>
+        </section>
+      </template>
     </div>
-  </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Head, Link, router, useForm } from '@inertiajs/vue3'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import axios from 'axios'
+import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
-  sessionInfo: { type: Object, default: () => ({ success: false, status: 'UNKNOWN' }) },
-  wahaConfig: { type: Object, default: () => ({ session: 'default', url: '' }) },
-  channel: { type: Object, default: () => ({ enabled: false, provider: 'fake', allowlist: false, pausedUntil: null }) },
+  panel: { type: Object, required: true },
+  stepUp: { type: Object, required: true },
 })
 
-const currentStatus = ref(props.sessionInfo)
-const loading = ref(false)
-const qrTick = ref(Date.now())
-const qrSrc = computed(() => route('admin.whatsapp.qr') + '?t=' + qrTick.value)
+const p = ref(props.panel)
+const stepUp = ref(props.stepUp)
+const busy = ref(false)
+const notice = ref(null)
+const qrUrl = ref(null)
+const qrMessage = ref('')
+const qrAt = ref(0)
+const now = ref(Date.now())
+const pairCode = ref('')
+const resetOpen = ref(false)
+const resetText = ref('')
+let statusTimer = null
+let qrTimer = null
+let clock = null
+let pairTimer = null
 
-const form = useForm({
-  phone: '',
-  message: '¡Hola! Este es un mensaje de prueba automatizado desde MOVA Educa.',
-  sync: false,
-})
-
-const statusLabel = computed(() => {
-  const s = currentStatus.value?.status
-  if (s === 'WORKING') return 'Conectado y Operativo'
-  if (s === 'SCAN_QR_CODE') return 'Requiere Escanear Código QR'
-  if (s === 'STARTING') return 'Iniciando Servicio...'
-  if (s === 'FAILED') return 'Sesión caída (reiníciala o vincula de nuevo)'
-  if (s === 'STOPPED') return 'Sesión detenida (reiníciala)'
-  if (s === 'DISCONNECTED') return 'Desconectado / Sin Conexión'
-  return s || 'No disponible'
-})
-
-const statusDotClass = computed(() => {
-  const s = currentStatus.value?.status
-  if (s === 'WORKING') return 'bg-emerald-500'
-  if (s === 'SCAN_QR_CODE') return 'bg-amber-500 animate-pulse'
-  return 'bg-rose-500'
-})
-
-const statusTextClass = computed(() => {
-  const s = currentStatus.value?.status
-  if (s === 'WORKING') return 'text-emerald-700 font-bold'
-  if (s === 'SCAN_QR_CODE') return 'text-amber-700 font-bold'
-  return 'text-rose-700 font-bold'
-})
-
-function restartSession() {
-  if (!window.confirm('¿Reiniciar la sesión de WAHA? Los envíos se interrumpen unos segundos (no desvincula el teléfono).')) return
-  router.post(route('admin.whatsapp.restart'), {}, { preserveScroll: true })
+const btn = {
+  primary: 'px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed',
+  secondary: 'px-4 py-2 rounded-lg bg-white text-slate-700 text-sm font-semibold border border-gray-300 hover:bg-gray-50 disabled:opacity-50',
+  danger: 'px-4 py-2 rounded-lg bg-white text-rose-700 text-sm font-semibold border border-rose-300 hover:bg-rose-50 disabled:opacity-50',
 }
 
-async function refreshStatus() {
-  loading.value = true
-  qrTick.value = Date.now()
+const META = {
+  connected: { label: 'Conectado', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  waiting_qr: { label: 'Esperando QR', dot: 'bg-amber-500 animate-pulse', text: 'text-amber-700' },
+  starting: { label: 'Iniciando', dot: 'bg-amber-500 animate-pulse', text: 'text-amber-700' },
+  disconnected: { label: 'Desconectado', dot: 'bg-slate-400', text: 'text-slate-600' },
+  error: { label: 'Error de sesión', dot: 'bg-rose-500', text: 'text-rose-700' },
+  wrong_number: { label: 'Número incorrecto', dot: 'bg-rose-500', text: 'text-rose-700' },
+  unverified_number: { label: 'Verificando número', dot: 'bg-amber-500 animate-pulse', text: 'text-amber-700' },
+  unavailable: { label: 'Servicio no disponible', dot: 'bg-rose-500', text: 'text-rose-700' },
+  disabled: { label: 'Control desactivado', dot: 'bg-slate-400', text: 'text-slate-600' },
+}
+const meta = computed(() => META[p.value.state] ?? META.unavailable)
+const showLink = computed(() => p.value.state !== 'connected')
+const last = computed(() => p.value.test.last)
+const qrAge = computed(() => Math.max(0, Math.round((now.value - qrAt.value) / 1000)))
+const updatedAgo = computed(() => {
+  const s = Math.max(0, Math.round((now.value - new Date(p.value.generatedAt).getTime()) / 1000))
+  return s < 3 ? 'ahora' : `hace ${s} s`
+})
+const pilotLeft = computed(() => {
+  const exp = p.value.environment.pilotExpiresAt
+  if (!exp) return ''
+  const ms = new Date(exp).getTime() - now.value
+  if (ms <= 0) return 'Piloto vencido'
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  return `Piloto: quedan ${h} h ${m} min`
+})
+
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' }) : '')
+const stepClass = (done) => (done ? 'text-emerald-700' : 'text-slate-400')
+
+function setNotice(ok, text) {
+  notice.value = { ok, text }
+  setTimeout(() => { if (notice.value?.text === text) notice.value = null }, 9000)
+}
+
+async function loadStatus() {
   try {
-    const res = await axios.get(route('admin.whatsapp.status'))
-    currentStatus.value = res.data
-  } catch (e) {
-    currentStatus.value = { success: false, status: 'DISCONNECTED', error: e.message }
-  } finally {
-    loading.value = false
+    const { data } = await axios.get(route('admin.whatsapp.status'))
+    p.value = data.panel
+    stepUp.value = data.stepUp
+  } catch {
+    /* se conserva el último estado; el siguiente ciclo reintenta */
+  }
+  if (p.value.state !== 'waiting_qr') clearQr()
+  if (p.value.state === 'connected') { pairCode.value = ''; resetOpen.value = false }
+}
+
+function clearQr() {
+  if (qrUrl.value) URL.revokeObjectURL(qrUrl.value)
+  qrUrl.value = null
+  qrMessage.value = ''
+}
+
+async function loadQr() {
+  if (p.value.state !== 'waiting_qr' || !stepUp.value.valid || document.hidden) return
+  try {
+    const res = await axios.get(route('admin.whatsapp.qr'), { responseType: 'blob', validateStatus: () => true, params: { t: Date.now() } })
+    if (res.status === 200 && res.data.type === 'image/png') {
+      const url = URL.createObjectURL(res.data)
+      if (qrUrl.value) URL.revokeObjectURL(qrUrl.value)
+      qrUrl.value = url
+      qrAt.value = Date.now()
+      qrMessage.value = ''
+      return
+    }
+    let msg = 'No se pudo obtener el QR.'
+    try { msg = JSON.parse(await res.data.text()).message || msg } catch { /* respuesta no JSON */ }
+    if (res.status === 403) { stepUp.value = { ...stepUp.value, valid: false }; msg = 'Confirma tu MFA para ver el QR.' }
+    if (qrUrl.value) { URL.revokeObjectURL(qrUrl.value); qrUrl.value = null }
+    qrMessage.value = msg
+  } catch {
+    qrMessage.value = 'No se pudo contactar al servidor.'
   }
 }
 
-function submitTestMessage() {
-  form.post(route('admin.whatsapp.send-test'), {
-    preserveScroll: true,
-    onSuccess: () => {
-      form.message = ''
-    },
-  })
+async function post(name, params, body = {}) {
+  busy.value = true
+  try {
+    const res = await axios.post(route(name, params), body, { validateStatus: () => true })
+    if (res.status === 403 && !res.data?.ok) {
+      stepUp.value = { ...stepUp.value, valid: false }
+      setNotice(false, 'Confirma tu verificación MFA y vuelve a intentarlo.')
+      return null
+    }
+    if (res.data?.panel) p.value = res.data.panel
+    return res
+  } catch {
+    setNotice(false, 'No se pudo contactar al servidor.')
+    return null
+  } finally {
+    busy.value = false
+  }
 }
+
+async function run(action) {
+  const text = action === 'start'
+    ? '¿Iniciar una nueva vinculación? Tendrás unos 2–3 minutos para escanear el QR.'
+    : '¿Recuperar la sesión? Reinicia la sesión de WAHA (no desvincula el teléfono).'
+  if (!window.confirm(text)) return
+  const res = await post('admin.whatsapp.control', { action }, { confirm: true })
+  if (res) setNotice(res.data.ok, res.data.message)
+  await loadStatus()
+}
+
+async function doReset() {
+  const res = await post('admin.whatsapp.control', { action: 'reset' }, { confirm: resetText.value })
+  if (res) setNotice(res.data.ok, res.data.message)
+  resetOpen.value = false
+  resetText.value = ''
+  await loadStatus()
+}
+
+async function pair() {
+  const res = await post('admin.whatsapp.pairing-code', {})
+  if (!res) return
+  if (res.data.ok) {
+    pairCode.value = res.data.code.length === 8 ? `${res.data.code.slice(0, 4)}-${res.data.code.slice(4)}` : res.data.code
+    clearTimeout(pairTimer)
+    pairTimer = setTimeout(() => { pairCode.value = '' }, 180000) // el código no queda en pantalla
+  } else {
+    setNotice(false, res.data.message || 'No se pudo generar el código.')
+  }
+}
+
+async function sendTest() {
+  if (!window.confirm(`¿Enviar el mensaje de prueba a ${p.value.test.recipient}?`)) return
+  const res = await post('admin.whatsapp.send-test', {})
+  if (res) setNotice(res.data.ok, res.data.message)
+}
+
+onMounted(() => {
+  statusTimer = setInterval(() => { if (!document.hidden) loadStatus() }, 3000)
+  qrTimer = setInterval(loadQr, 4000)
+  clock = setInterval(() => { now.value = Date.now() }, 1000)
+  loadQr()
+})
+
+onBeforeUnmount(() => {
+  clearInterval(statusTimer); clearInterval(qrTimer); clearInterval(clock); clearTimeout(pairTimer)
+  clearQr()
+})
 </script>

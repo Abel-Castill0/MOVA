@@ -13,7 +13,7 @@ use Illuminate\Console\Command;
  */
 class WahaCheck extends Command
 {
-    protected $signature = 'mova:waha-check';
+    protected $signature = 'mova:waha-check {--qr : Comprueba además que WAHA entrega un QR PNG válido (no imprime su contenido)}';
 
     protected $description = 'Comprueba que MOVA alcanza la API de WAHA y muestra el estado de la sesión (solo lectura)';
 
@@ -32,6 +32,13 @@ class WahaCheck extends Command
         }
 
         $this->info('Alcanzable. Estado de la sesión: '.($info['status'] ?? 'desconocido'));
+
+        if ($this->option('qr')) {
+            $qr = WahaClient::fromConfig()->qr();
+            $qr['png'] !== null
+                ? $this->info('QR: PNG válido ('.strlen($qr['png']).' bytes)')
+                : $this->warn('QR no disponible: '.$qr['reason']);
+        }
 
         return self::SUCCESS;
     }

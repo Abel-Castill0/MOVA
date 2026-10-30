@@ -660,8 +660,8 @@ class WhatsAppConsentTest extends TestCase
         // Búsqueda global fijada como test: si un admin controller, un job, un
         // comando o un futuro caso de uso llamara a sendTemplate() sin pasar
         // por WhatsAppChannel, evadiría el consentimiento sin que nadie lo
-        // notara. Hoy solo hay DOS llamadores en todo `app/`, y el segundo es
-        // el OTP, deliberadamente exento (ver el docblock de WhatsAppChannel).
+        // notara. Hoy solo hay TRES llamadores en todo `app/`: el canal, el OTP
+        // (deliberadamente exento, ver el docblock de WhatsAppChannel) y el mensaje de prueba fijo del panel de administración.
         // Si este test falla, alguien añadió un tercer camino: revisar si
         // también necesita respetar wantsWhatsAppNotifications().
         $callers = [];
@@ -682,14 +682,26 @@ class WhatsAppConsentTest extends TestCase
         $allowed = [
             'Channels'.DIRECTORY_SEPARATOR.'WhatsAppChannel.php',
             'Http'.DIRECTORY_SEPARATOR.'Controllers'.DIRECTORY_SEPARATOR.'Auth'.DIRECTORY_SEPARATOR.'PhoneVerificationController.php',
+            // Excepción acotada y revisada: el mensaje de PRUEBA del panel de administración (MFA reciente). Texto y destinatario
+            // FIJOS por configuración (el propietario), sin entrada del usuario; pasa por WahaProvider (lista autorizada,
+            // deduplicado, ritmo, sesión WORKING) y nunca envía a usuarios de MOVA. Ver WahaAdminPanel::sendTest.
+            'WhatsApp'.DIRECTORY_SEPARATOR.'Waha'.DIRECTORY_SEPARATOR.'WahaAdminPanel.php',
         ];
 
         $unexpected = array_diff($callers, $allowed);
 
+        // La excepción del panel es de UNA sola llamada, con el texto fijo: cualquier otra rompe el guardián.
+        $panel = file_get_contents(app_path('WhatsApp/Waha/WahaAdminPanel.php'));
+        $this->assertSame(1, substr_count($panel, '->sendTemplate('), 'WahaAdminPanel solo puede llamar una vez a sendTemplate().');
+        $needle = <<<'TXT'
+->sendTemplate($recipient, 'generic_notification', [self::TEST_MESSAGE], $reference)
+TXT;
+        $this->assertStringContainsString($needle, $panel);
+
         $this->assertSame(
             [],
             $unexpected,
-            'Nuevo(s) llamador(es) de sendTemplate() fuera de los dos esperados: '.implode(', ', $unexpected)
+            'Nuevo(s) llamador(es) de sendTemplate() fuera de los tres esperados: '.implode(', ', $unexpected)
             .'. Si es intencional, confirma si también debe respetar wantsWhatsAppNotifications().'
         );
     }
