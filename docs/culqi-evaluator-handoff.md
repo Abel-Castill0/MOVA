@@ -82,3 +82,10 @@ El dominio usa **Email Forwarding** de Namecheap (MX `eforward1–5.registrar-se
 ## 9. Estado y pendientes
 
 Ver la tabla final del informe de la sesión (2026-10-28). Pendientes del titular: registrar los cinco webhooks (§4), hacer la compra manual (§5), crear el alias (§7) y autorizar el envío a Culqi (§8).
+
+## 10. Actualización 2026-10-29 — recorrido desde «Mis créditos»
+
+- Staging corre la imagen `ghcr.io/abel-castill0/mova@sha256:f40303a8…` (commit `b9e1308`), revisión `movaqa-culqi--0000002`; solo cambió la imagen (secretos `culqi-webhook`/`culqi-webhook-previous` y datos del evaluador intactos).
+- Recorrido: login evaluador → dashboard → **Mis créditos** → **Recargar créditos** → 5 paquetes (Inicio 5/S/10,00; Esencial 10/S/19,80; Impulso 15/S/29,40; Avance 20/S/38,80; Pro 30/S/57,60) → **Pagar en línea** → checkout de Culqi (etiqueta «Entorno de pruebas — no se realizarán cargos reales») → tarjeta de prueba → saldo + historial (pestañas «Historial de Transacciones» y «Estado de Recargas»). Alternativa: `/servicios` → `/comprar-creditos/esencial`.
+- Cuentas de profesor que no sean el evaluador **no** pueden comprar en staging (allowlist); verán los paquetes en solo lectura.
+- Compra de prueba: ver el estado en el informe de la sesión; hasta que se complete, **NO VERIFICADA**.

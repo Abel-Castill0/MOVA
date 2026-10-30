@@ -4,6 +4,14 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-29 (2) — `b9e1308` → staging `movaqa-culqi` y producción — «Mis créditos» honesto
+
+- Cambio: `Teacher/Credits/Index.vue` muestra siempre los 5 paquetes; CTA «Ver paquetes y precios» sin compra cuando el pago está cerrado; banner «Entorno de pruebas — no se realizarán cargos reales»; enlaces legales en el checkout de Culqi. Sin migraciones, secretos, proveedor de pagos ni cambios de dinero. Causa y pruebas: `payments-culqi.md` §16.
+- Imagen: tag `img-20261029-b9e1308`, `ghcr.io/abel-castill0/mova@sha256:f40303a8207885d754502519730f37ca51eda8b7fe26c5732d5fc711b55ad66f`. CI de `b9e1308`: e2e falló por una expectativa de Playwright del texto del botón; corregida en `1abb38d` (spec). PHPUnit dirigido (69) y build Vite OK.
+- Staging `movaqa-culqi`: revisión `0000002` Healthy, `/readyz` 200, evaluador y secretos de webhook conservados (1 réplica SQLite).
+- Producción: `movap-scheduler` `0000038` y luego `movap-web` `0000038`, Healthy; `/readyz`, `/servicios`, `/comprar-creditos/esencial`, `/login` 200. Pagos siguen cerrados (`PAYMENT_PROVIDER=mercadopago`, compras nuevas retiradas).
+- Rollback: `ghcr.io/abel-castill0/mova@sha256:fd751ad0c129c113338ee19182807ee406daf98ab63f42deebe298b4a7dd5e6f` (`az containerapp update --image`, sin migraciones).
+
 ## 2026-10-29 — `5a84d8a` → producción y profesor para pruebas manuales
 
 - Solicitud del titular: actualizar Azure y crear una cuenta individual con rol profesor para pruebas manuales.

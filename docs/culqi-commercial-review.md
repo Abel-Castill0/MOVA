@@ -234,3 +234,7 @@ Pago en línea cerrado en producción; ninguna transacción live; la web no se a
 ## 11. Verificación en producción (2026-10-23, `546d44c`)
 
 `/`, `/servicios`, `/comprar-creditos/{inicio,impulso,pro}`, `/politica-de-devoluciones`, `/libro-de-reclamaciones`, `/terminos`, `/privacidad`, `/sitemap.xml`, `/readyz` y `/healthz` responden 200 por HTTPS; un paquete inexistente da 404; `POST /teacher/credits/checkout` sin sesión redirige (302). La web muestra «Pago en línea en activación» (el pago sigue cerrado) y el pie **no** muestra razón social/RUC/domicilio porque no están configurados en producción (§9.3). Configuración financiera sin cambios (`PAYMENT_PROVIDER=mercadopago` histórico, sin `CULQI_*`). La cuenta de evaluador **no** existe todavía en producción (§9.4).
+
+## 12. Recorrido de compra desde «Mis créditos» (2026-10-29)
+
+El botón «Recargar créditos» no llevaba a ninguna compra donde el checkout está cerrado (producción, o un profesor fuera de la allowlist de staging): ahora **Mis créditos muestra siempre los cinco paquetes** y, con el pago activo, cada tarjeta abre el checkout real de Culqi (ventana de integración). **Producción sigue sin cobros** (sin llaves live ni aprobación comercial): allí la pantalla dice «Ver paquetes y precios» y explica que el pago está en activación; no hay botón de compra que no responda. El recorrido evaluable (evaluador → Mis créditos → Recargar créditos → Esencial → Pagar → Culqi → 10 créditos → historial) es el de **staging** (`culqi-evaluator-handoff.md`). Causa y pruebas: `payments-culqi.md` §16.
