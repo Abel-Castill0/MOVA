@@ -1,0 +1,3 @@
+# Estado local del piloto (ids y líneas base); nunca va a Git.
+pilot-state.env
+pilot-baseline*.txt

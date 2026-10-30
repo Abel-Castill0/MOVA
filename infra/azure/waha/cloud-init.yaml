@@ -1,6 +1,7 @@
 #cloud-config
-# MOVA — VM de WAHA (piloto). NO contiene secretos: la API key y la clave HMAC se leen del Key Vault en cada arranque con la
-# identidad administrada de la VM (rol «Key Vault Secrets User»). pilot-create.sh sustituye __KV_NAME__ y __HOOK_URL__.
+# MOVA — VM de WAHA (piloto). NO contiene secretos: la API key y la clave HMAC se leen del Key Vault con la identidad
+# administrada de la VM (solo en el primer arranque; después pilot-create.sh retira ese permiso).
+# pilot-create.sh sustituye los marcadores __…__.
 package_update: true
 package_upgrade: true
 packages:
@@ -16,24 +17,68 @@ write_files:
     content: |
       KV_NAME=__KV_NAME__
       WHATSAPP_HOOK_URL=__HOOK_URL__
+      SUB_ID=__SUB_ID__
+      PILOT_RG=__PILOT_RG__
+      HUB_PEERING_ID=__HUB_PEERING_ID__
+      EXPIRES_AT=__EXPIRES_AT__
 
+  # ── Secretos: solo si todavía no existen en disco (0600, solo root). Nunca imprime valores. ──
   - path: /usr/local/bin/waha-fetch-secrets.sh
     permissions: '0750'
     content: |
       #!/usr/bin/env bash
-      # Lee los secretos del Key Vault con la identidad administrada y los escribe en /etc/waha/waha.env (0600, solo root).
-      # Nunca imprime valores.
       set -euo pipefail
+      [ -s /etc/waha/waha.env ] && exit 0
       . /etc/waha/waha.conf
       TOKEN=$(curl -sf -H 'Metadata:true' 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net' | jq -r .access_token)
-      get() { curl -sf -H "Authorization: Bearer ${TOKEN}" "https://${KV_NAME}.vault.azure.net/secrets/$1?api-version=7.4" | jq -r .value; }
+      get() { curl -sf -H "Authorization: Bearer ${TOKEN}" "https://${KV_NAME}.vault.azure.net/secrets/$1?api-version=7.4" | jq -er .value; }
       umask 077
+      API_KEY=$(get waha-api-key)
+      HMAC_KEY=$(get waha-hook-hmac-key)
       {
-        echo "WHATSAPP_API_KEY=$(get waha-api-key)"
-        echo "WHATSAPP_HOOK_HMAC_KEY=$(get waha-hook-hmac-key)"
+        echo "WHATSAPP_API_KEY=${API_KEY}"
+        echo "WAHA_API_KEY=${API_KEY}"
+        echo "WHATSAPP_HOOK_HMAC_KEY=${HMAC_KEY}"
         echo "WHATSAPP_HOOK_URL=${WHATSAPP_HOOK_URL}"
       } > /etc/waha/waha.env.tmp
       mv /etc/waha/waha.env.tmp /etc/waha/waha.env
+
+  # ── Caducidad: al llegar EXPIRES_AT la propia VM borra el peering y TODO el grupo de recursos del piloto. ──
+  # Su identidad solo tiene Contributor sobre ese grupo y Network Contributor sobre ese peering: no puede tocar nada más de MOVA.
+  - path: /usr/local/bin/waha-expire.sh
+    permissions: '0750'
+    content: |
+      #!/usr/bin/env bash
+      set -uo pipefail
+      . /etc/waha/waha.conf
+      [ "$(date +%s)" -lt "${EXPIRES_AT}" ] && exit 0
+      logger -t waha-expire "Piloto caducado: eliminando peering y grupo de recursos ${PILOT_RG}"
+      TOKEN=$(curl -sf -H 'Metadata:true' 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' | jq -r .access_token) || exit 1
+      auth=(-H "Authorization: Bearer ${TOKEN}")
+      curl -s -m 60 -o /dev/null -w 'peering delete HTTP %{http_code}\n' -X DELETE "${auth[@]}" "https://management.azure.com${HUB_PEERING_ID}?api-version=2023-09-01" | logger -t waha-expire
+      curl -s -m 60 -o /dev/null -w 'resource group delete HTTP %{http_code}\n' -X DELETE "${auth[@]}" "https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${PILOT_RG}?api-version=2021-04-01" | logger -t waha-expire
+
+  - path: /etc/systemd/system/waha-expire.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Caducidad del piloto de WAHA (borra el grupo de recursos)
+      After=network-online.target
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/waha-expire.sh
+
+  - path: /etc/systemd/system/waha-expire.timer
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Comprueba cada 5 min si el piloto de WAHA caducó
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=5min
+      Persistent=true
+      [Install]
+      WantedBy=timers.target
 
   - path: /opt/waha/docker-compose.yml
     permissions: '0644'
@@ -59,11 +104,6 @@ write_files:
           volumes:
             - /var/lib/waha/sessions:/app/.sessions   # la sesión vinculada persiste aquí (disco de la VM)
           mem_limit: 720m
-          healthcheck:
-            test: ["CMD-SHELL", "curl -sf -H \"X-Api-Key: $${WHATSAPP_API_KEY}\" http://localhost:3000/api/version >/dev/null || exit 1"]
-            interval: 60s
-            timeout: 10s
-            retries: 3
 
   - path: /etc/systemd/system/waha.service
     permissions: '0644'
@@ -72,6 +112,7 @@ write_files:
       Description=WAHA (WhatsApp HTTP API) para MOVA
       After=docker.service network-online.target
       Requires=docker.service
+      StartLimitIntervalSec=0
       [Service]
       Type=simple
       WorkingDirectory=/opt/waha
@@ -89,4 +130,5 @@ runcmd:
   # 1 GiB de swap en disco: absorbe picos de memoria sin que el OOM mate a WAHA en una VM de 1 GiB.
   - fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
   - systemctl daemon-reload
+  - systemctl enable --now waha-expire.timer
   - systemctl enable --now waha.service
