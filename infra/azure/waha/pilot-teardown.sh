@@ -5,6 +5,8 @@
 #   --delete-secrets  además borra del Key Vault los 2 secretos exclusivos del piloto (soft-delete; no purga).
 set -euo pipefail
 cd "$(dirname "$0")"
+export PYTHONUTF8=1 LC_ALL=C.UTF-8   # az (Python) falla con tildes si el locale es latin-1
+
 
 [ "${1:-}" = "--confirm" ] || { echo "Uso: $0 --confirm [--delete-secrets]"; exit 2; }
 [ -f pilot-state.env ] && . ./pilot-state.env

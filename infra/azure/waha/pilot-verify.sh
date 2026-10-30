@@ -3,6 +3,7 @@
 # Sale con código 1 si algo falla. No usa Cost Management (sus cargos llegan con 8–24 h de retraso): comprueba el estado real.
 set -uo pipefail
 cd "$(dirname "$0")"
+export PYTHONUTF8=1 LC_ALL=C.UTF-8
 [ -f pilot-state.env ] && . ./pilot-state.env
 PILOT_RG="${PILOT_RG:-mova-waha-pilot-rg}"; HUB_RG="${HUB_RG:-mova-prod-rg}"; HUB_VNET="${HUB_VNET:-mova-vnet}"; KV="${KV:-kv-movap-192f01}"
 FAIL=0

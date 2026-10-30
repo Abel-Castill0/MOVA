@@ -1,7 +1,7 @@
 #cloud-config
-# MOVA — VM de WAHA (piloto). NO contiene secretos: la API key y la clave HMAC se leen del Key Vault con la identidad
-# administrada de la VM (solo en el primer arranque; después pilot-create.sh retira ese permiso).
-# pilot-create.sh sustituye los marcadores __…__.
+# MOVA - VM de WAHA (piloto). NO contiene secretos: la API key y la clave HMAC se leen del Key Vault con la identidad
+# administrada de la VM (solo en el primer arranque; despues pilot-create.sh retira ese permiso).
+# pilot-create.sh sustituye los marcadores __...__.
 package_update: true
 package_upgrade: true
 packages:
@@ -21,7 +21,7 @@ write_files:
       PILOT_RG=__PILOT_RG__
       EXPIRES_AT=__EXPIRES_AT__
 
-  # ── Secretos: solo si todavía no existen en disco (0600, solo root). Nunca imprime valores. ──
+  # -- Secretos: solo si todavia no existen en disco (0600, solo root). Nunca imprime valores. --
   - path: /usr/local/bin/waha-fetch-secrets.sh
     permissions: '0750'
     content: |
@@ -42,9 +42,9 @@ write_files:
       } > /etc/waha/waha.env.tmp
       mv /etc/waha/waha.env.tmp /etc/waha/waha.env
 
-  # ── Caducidad de respaldo: al llegar EXPIRES_AT la propia VM borra TODO el grupo de recursos del piloto. ──
-  # La limpieza principal es EXTERNA (workflow waha-pilot-janitor, no depende de esta VM); esto es una segunda línea.
-  # Su identidad solo tiene Contributor sobre ese grupo: no puede tocar nada más de MOVA (ni el peering: eso lo hace el janitor).
+  # -- Caducidad de respaldo: al llegar EXPIRES_AT la propia VM borra TODO el grupo de recursos del piloto. --
+  # La limpieza principal es EXTERNA (workflow waha-pilot-janitor, no depende de esta VM); esto es una segunda linea.
+  # Su identidad solo tiene Contributor sobre ese grupo: no puede tocar nada mas de MOVA (ni el peering: eso lo hace el janitor).
   - path: /usr/local/bin/waha-expire.sh
     permissions: '0750'
     content: |
@@ -71,7 +71,7 @@ write_files:
     permissions: '0644'
     content: |
       [Unit]
-      Description=Comprueba cada 5 min si el piloto de WAHA caducó
+      Description=Comprueba cada 5 min si el piloto de WAHA caduco
       [Timer]
       OnBootSec=2min
       OnUnitActiveSec=5min
@@ -82,7 +82,7 @@ write_files:
   - path: /opt/waha/docker-compose.yml
     permissions: '0644'
     content: |
-      # Una sola sesión (número dedicado de MOVA). Imagen fijada por versión Y digest (nunca `latest`).
+      # Una sola sesion (numero dedicado de MOVA). Imagen fijada por version Y digest (nunca `latest`).
       services:
         waha:
           image: devlikeapro/waha:noweb-arm-2026.10.1@sha256:fce6ae58ba819221521b2673704ef9e6d87f98571d67daec62eb737edd77c2c9
@@ -101,7 +101,7 @@ write_files:
             WHATSAPP_HOOK_RETRIES_DELAY_SECONDS: "2"
             WHATSAPP_HOOK_RETRIES_ATTEMPTS: "5"
           volumes:
-            - /var/lib/waha/sessions:/app/.sessions   # la sesión vinculada persiste aquí (disco de la VM)
+            - /var/lib/waha/sessions:/app/.sessions   # la sesion vinculada persiste aqui (disco de la VM)
           mem_limit: 720m
 
   - path: /etc/systemd/system/waha.service

@@ -13,6 +13,8 @@
 # sin mostrarlos). Este script no los crea ni los imprime.
 set -euo pipefail
 cd "$(dirname "$0")"
+export PYTHONUTF8=1 LC_ALL=C.UTF-8   # az (Python) falla con tildes si el locale es latin-1
+
 
 [ "${1:-}" = "--confirm" ] || { echo "Uso: HOOK_URL=https://<host-staging>/api/webhooks/waha $0 --confirm"; exit 2; }
 
@@ -34,6 +36,9 @@ STATE="./pilot-state.env"                           # local, ignorado por Git: i
 SUB_ID="$(az account show --query id -o tsv)"
 HUB_ID="$(az network vnet show -g "$HUB_RG" -n "$HUB_VNET" --query id -o tsv)"
 KV_ID="$(az keyvault show -n "$KV" --query id -o tsv)"
+
+# El CLI de Azure envia el custom-data en latin-1: cualquier caracter no ASCII rompe el YAML de cloud-init en la VM.
+if [ -n "$(LC_ALL=C tr -d '[:print:][:space:]' < cloud-init.yaml)" ]; then echo "ABORTA: cloud-init.yaml contiene caracteres no ASCII."; exit 1; fi
 
 echo "[pre] Condiciones de seguridad: la limpieza externa debe estar viva ANTES de crear nada…"
 [ "$EXPIRES_AT" -lt "$WINDOW_END" ] || { echo "ABORTA: la caducidad queda fuera de la ventana del cron del janitor; ajusta el workflow primero."; exit 1; }
