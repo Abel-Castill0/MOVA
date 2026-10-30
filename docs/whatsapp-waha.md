@@ -37,7 +37,7 @@ Con `WHATSAPP_ENABLED=true` y `WHATSAPP_PROVIDER=waha`, falta de URL/clave/HMAC 
 ## Desactivar / revertir
 
 `WHATSAPP_ENABLED=false` (y/o `WHATSAPP_PROVIDER=fake`): el canal omite todo. No afecta a Culqi, ledger, scheduler ni colas.
-Para retirar la VM: `infra/azure/waha/pilot-teardown.sh --confirm` y comprobar con `pilot-verify.sh` (el piloto además caduca solo a las 47 h 45 min borrando su grupo `mova-waha-pilot-rg`). Alcance desde MOVA: `php artisan mova:waha-check` (solo lectura).
+Para retirar la VM: `infra/azure/waha/pilot-teardown.sh --confirm` y comprobar con `pilot-verify.sh` (la limpieza principal es EXTERNA: el workflow `waha-pilot-janitor` borra `mova-waha-pilot-rg` a las 47 h aunque la VM falle; la VM lo hace como respaldo a las 47 h 30 min). Alcance desde MOVA: `php artisan mova:waha-check` (solo lectura).
 
 ## Pruebas
 

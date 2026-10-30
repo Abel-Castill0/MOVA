@@ -26,7 +26,8 @@ Todo lo exclusivo vive en **un grupo propio**, `mova-waha-pilot-rg` (northcentra
 
 **Fuera del grupo, lo único que se crea** (todo exclusivo del piloto y retirado por la limpieza):
 peering `to-waha` en `mova-vnet`; rol *Key Vault Secrets User*
-de la VM (lo retira `pilot-create.sh` tras el primer arranque); rol *Contributor* de la VM sobre **su propio grupo**.
+de la VM (lo retira `pilot-create.sh` tras el primer arranque); rol *Contributor* de la VM y del janitor externo sobre **ese mismo grupo**.
+Permanentes y sin coste (se crearon para la limpieza externa): `mova-waha-janitor-rg` + identidad `mova-waha-janitor`, el rol propio de peerings y sus 3 asignaciones de mínimo privilegio.
 No hay NAT Gateway, Load Balancer, Bastion, almacenamiento ni cambios en Culqi, ledger, `movap-web`, `movap-scheduler`, colas ni base de datos.
 
 ## Alcance privado desde Azure Container Apps (verificado)
@@ -54,21 +55,31 @@ No hay NAT Gateway, Load Balancer, Bastion, almacenamiento ni cambios en Culqi, 
 El peering se cobra en **ambos** sentidos y en **ambos** extremos. El tráfico está acotado por diseño: el límite de 8 mensajes/min
 (≈ 2 KB cada uno) da como máximo ≈ 46 MB en 48 h ⇒ ≈ US$0.003; se presupuestan 100 MB. Quedan por debajo de US$1 incluso sin el beneficio.
 
-## Caducidad y limpieza (no depende de una etiqueta ni de alertas)
+## Caducidad y limpieza en tres capas independientes
 
-1. **Caducidad en la propia VM:** `waha-expire.timer` (cada 5 min) compara con `EXPIRES_AT` (creación + 47 h 45 min). Al llegar, la VM
-   llama a la API de Azure con su identidad administrada y borra el peering `to-waha` y el grupo `mova-waha-pilot-rg` completo.
-   Su identidad solo puede tocar ese grupo y ese peering.
-2. **Respaldo manual, idempotente:** `./pilot-teardown.sh --confirm [--delete-secrets]` — se niega a borrar un grupo que no lleve
-   `purpose=waha-pilot` o que sea el compartido; borra el grupo, el peering huérfano y los roles de la identidad.
-3. **Verificación (solo lectura, sale 1 si hay restos):** `./pilot-verify.sh` comprueba que el grupo no existe, que no queda ningún
-   recurso con `purpose=waha-pilot` en la suscripción, que `to-waha` no existe, que no quedan roles de la identidad y que los
-   recursos y peerings de `mova-prod-rg`/`mova-vnet` son **idénticos a la línea base** capturada antes de crear nada.
-4. **Control de gasto:** Cost Management llega con 8–24 h de retraso, así que no es el control. El gasto está acotado por construcción
-   (recursos de precio fijo + caducidad dura < 48 h) y se vigila con el estado real: `az resource list -g mova-waha-pilot-rg` y el
-   estado de la VM en cada comprobación; la factura solo confirma después. Si algo no se aplica (p. ej. el beneficio gratuito) y la
-   proyección superara US$1, se apaga y se elimina sin esperar.
-5. **Staging:** al terminar se revierte (`WHATSAPP_ENABLED=false`, sin `WAHA_*`). Producción nunca se toca.
+| Capa | Dónde corre | Cuándo | Qué hace |
+|---|---|---|---|
+| **1. Janitor externo** (principal) | GitHub Actions `waha-pilot-janitor`, OIDC, **fuera de la VM y de Azure Container Apps** | cron cada 15 min en la ventana 29-oct…4-nov-2026, y a mano (`force`) | A las **47 h** (etiqueta `expires-at`): elimina el peering `to-waha`, retira roles temporales y borra `mova-waha-pilot-rg`; después **verifica** y registra |
+| 2. Respaldo en la VM | `waha-expire.timer` | a las **47 h 30 min** | Borra `mova-waha-pilot-rg` con la identidad de la VM (solo tiene Contributor sobre su grupo) |
+| 3. Emergencia manual | tu terminal | cuando quieras | `./pilot-teardown.sh --confirm [--delete-secrets]` y `./pilot-verify.sh` |
+
+**Janitor externo — diseño**
+- *Independiente de la VM:* no usa nada de la VM; si esta se apaga, falla o pierde red, el janitor igual borra el grupo.
+- *Alternativa descartada:* Azure Automation (cuenta propia, límite de 1 h entre horarios y minutos de ejecución) frente a Actions: el repo es público ⇒ minutos gratis, cron de 15 min y menos piezas. El tenant bloquea registrar aplicaciones de Entra, así que la federación OIDC se hace sobre una **identidad administrada asignada por el usuario** (`mova-waha-janitor`, en `mova-waha-janitor-rg`; coste US$0).
+- *Permisos mínimos de esa identidad:* `Reader` en la suscripción (para comprobar ausencia de restos); un rol propio (`MOVA WAHA Pilot Peering Cleaner`: solo leer/borrar peerings) en `mova-vnet`; `Role Based Access Control Administrator` en el Key Vault **con condición** (solo puede asignar/retirar *Key Vault Secrets User*); y `Contributor` **solo sobre `mova-waha-pilot-rg`**, concedido por `pilot-create.sh` y que desaparece con el grupo. No puede tocar `mova-prod-rg`, Culqi, el ledger ni la base de datos.
+- *Confianza:* la credencial federada solo acepta tokens de `repo:Abel-Castill0/MOVA:ref:refs/heads/master`. Sin secretos en GitHub.
+- *Registro:* resumen de la ejecución en Actions + artefacto `janitor-log-<run>` (30 días).
+- *Comprobación de lo facturable:* tras limpiar exige 0 grupos `mova-waha-pilot-rg`, 0 recursos con `purpose=waha-pilot`, 0 recursos `movap-waha*` (VM, disco, IP, NIC, VNet, NSG…) en toda la suscripción, 0 peering `to-waha` y 0 roles de la identidad de la VM; sale con error si queda algo.
+- *Salvaguarda de creación:* `pilot-create.sh` **se niega a crear nada** si la última ejecución del janitor no fue exitosa, si su identidad no tiene `Reader` o si la caducidad cae fuera de la ventana del cron.
+- *Límite conocido:* GitHub puede retrasar tareas programadas varios minutos; por eso el respaldo de la VM llega 30 min después y ambos quedan por debajo de 48 h.
+- *Si el repo quedara inactivo 60 días* GitHub desactiva los cron; no aplica a esta ventana de días.
+
+**Verificación manual (solo lectura):** `./pilot-verify.sh` — además compara `mova-prod-rg` y los peerings de `mova-vnet` con una línea base capturada antes de crear nada.
+
+**Control de gasto:** Cost Management llega con 8–24 h de retraso, así que no es el control. El gasto está acotado por construcción
+(recursos de precio fijo + caducidad dura < 48 h) y se vigila con el estado real (`az resource list -g mova-waha-pilot-rg`); la factura solo confirma después.
+Si la proyección superara US$1 (p. ej. no se aplica el beneficio gratuito y hay desvíos), se apaga y se elimina sin esperar.
+**Staging:** al terminar se revierte (`WHATSAPP_ENABLED=false`, sin `WAHA_*`). Producción nunca se toca.
 
 ## Secretos
 

@@ -9,6 +9,12 @@ on:
     # Minutos descentralizados (GitHub retrasa los cron a hora en punto). Ventana: 29-oct a 4-nov de 2026 (UTC).
     - cron: '7,22,37,52 * 29,30,31 10 *'
     - cron: '7,22,37,52 * 1,2,3,4 11 *'
+  push:
+    # Al cambiar el propio janitor se ejecuta una vez (validación inmediata; solo limpia lo ya caducado).
+    branches: [master]
+    paths:
+      - '.github/workflows/waha-pilot-janitor.yml'
+      - 'infra/azure/waha/pilot-janitor.sh'
   workflow_dispatch:
     inputs:
       force:
