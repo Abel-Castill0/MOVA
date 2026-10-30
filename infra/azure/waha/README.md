@@ -25,7 +25,7 @@ Todo lo exclusivo vive en **un grupo propio**, `mova-waha-pilot-rg` (northcentra
 | Peering | `to-mova` (en el grupo) | lado WAHA |
 
 **Fuera del grupo, lo único que se crea** (todo exclusivo del piloto y retirado por la limpieza):
-peering `to-waha` en `mova-vnet`; rol *Network Contributor* de la VM **solo sobre ese peering**; rol *Key Vault Secrets User*
+peering `to-waha` en `mova-vnet`; rol *Key Vault Secrets User*
 de la VM (lo retira `pilot-create.sh` tras el primer arranque); rol *Contributor* de la VM sobre **su propio grupo**.
 No hay NAT Gateway, Load Balancer, Bastion, almacenamiento ni cambios en Culqi, ledger, `movap-web`, `movap-scheduler`, colas ni base de datos.
 

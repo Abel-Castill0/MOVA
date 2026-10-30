@@ -3,9 +3,10 @@
 #
 # Todo lo exclusivo del piloto vive en UN grupo de recursos propio (mova-waha-pilot-rg, northcentralus):
 #   VNet · NSG · IP pública Standard (solo salida) · NIC · VM Standard_B2pts_v2 · disco SO · peering to-mova.
-# Fuera de ese grupo solo se crean 3 cosas, todas exclusivas del piloto y retiradas por el teardown:
-#   · peering `to-waha` en mova-vnet · rol «Network Contributor» de la VM sobre ESE peering · rol «Key Vault Secrets User»
-#   de la VM (solo hasta su primer arranque; este script lo retira) · y la VM tiene «Contributor» sobre su propio grupo.
+# Fuera de ese grupo solo se crean estas cosas, todas exclusivas del piloto y retiradas por el janitor o el teardown:
+#   · peering `to-waha` en mova-vnet · rol «Key Vault Secrets User»
+#   de la VM (solo hasta su primer arranque; este script lo retira) · la VM tiene «Contributor» sobre su propio grupo · y el janitor
+#   externo (identidad mova-waha-janitor) recibe «Contributor» sobre ese mismo grupo para poder borrarlo.
 # No toca Culqi, el ledger, movap-web/scheduler, la base de datos ni ningún otro recurso compartido.
 #
 # Los secretos `waha-api-key` y `waha-hook-hmac-key` deben existir ya en el Key Vault (se generan con `openssl rand` y se cargan
@@ -21,15 +22,25 @@ KV="${KV:-kv-movap-192f01}"
 VM="movap-waha"; VNET="movap-waha-vnet"; SUBNET="default"; NSG="movap-waha-nsg"; PIP="movap-waha-pip"; NIC="movap-waha-nic"
 PRIV_IP="10.30.0.4"
 HOOK_URL="${HOOK_URL:?Define HOOK_URL=https://<host-del-staging>/api/webhooks/waha}"
-EXPIRES_AT="$(( $(date +%s) + ${PILOT_SECONDS:-171900} ))"   # caducidad dura: 47 h 45 min (<48 h) desde ahora
-EXPIRES_ISO="$(date -u -d "@${EXPIRES_AT}" +%FT%TZ)"
+NOW_EPOCH="$(date +%s)"
+JANITOR_AT="$(( NOW_EPOCH + 169200 ))"                 # limpieza EXTERNA (GitHub Actions): a las 47 h
+EXPIRES_AT="$(( NOW_EPOCH + 171000 ))"                 # respaldo dentro de la VM: a las 47 h 30 min (<48 h)
+EXPIRES_ISO="$(date -u -d "@${JANITOR_AT}" +%FT%TZ)"   # etiqueta que lee el janitor
+WINDOW_END="$(date -u -d '2026-11-05T00:00:00Z' +%s)"  # fin de la ventana del cron de .github/workflows/waha-pilot-janitor.yml
+JANITOR_PRINCIPAL="${JANITOR_PRINCIPAL:-68bde2d1-3cb2-4893-90cc-dedacd9d3700}"   # identidad mova-waha-janitor
 TAGS="purpose=waha-pilot expires-at=${EXPIRES_ISO} owner=mova"
 STATE="./pilot-state.env"                           # local, ignorado por Git: ids para verificar/retirar roles
 
 SUB_ID="$(az account show --query id -o tsv)"
 HUB_ID="$(az network vnet show -g "$HUB_RG" -n "$HUB_VNET" --query id -o tsv)"
-HUB_PEERING_ID="${HUB_ID}/virtualNetworkPeerings/to-waha"
 KV_ID="$(az keyvault show -n "$KV" --query id -o tsv)"
+
+echo "[pre] Condiciones de seguridad: la limpieza externa debe estar viva ANTES de crear nada…"
+[ "$EXPIRES_AT" -lt "$WINDOW_END" ] || { echo "ABORTA: la caducidad queda fuera de la ventana del cron del janitor; ajusta el workflow primero."; exit 1; }
+az role assignment list --all --query "[?principalId=='${JANITOR_PRINCIPAL}'].roleDefinitionName" -o tsv | grep -q Reader   || { echo "ABORTA: la identidad janitor no tiene Reader en la suscripción."; exit 1; }
+LAST="$(curl -s "https://api.github.com/repos/Abel-Castill0/MOVA/actions/workflows/waha-pilot-janitor.yml/runs?per_page=1" | tr -d '
+ ' | grep -o '"conclusion":"[a-z_]*"' | head -1)"
+[ "$LAST" = '"conclusion":"success"' ] || { echo "ABORTA: la última ejecución del workflow janitor no fue exitosa (${LAST:-sin ejecuciones}); valídalo primero."; exit 1; }
 
 echo "[0/9] Línea base de recursos compartidos (para demostrar al final que no cambiaron)…"
 az resource list -g "$HUB_RG" --query "[].id" -o tsv | sort > pilot-baseline.txt
@@ -65,17 +76,17 @@ az network vnet peering create -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha -
 echo "[6/9] VM Standard_B2pts_v2 (ARM64) con caducidad en ${EXPIRES_ISO}…"
 CI="$(mktemp)"; trap 'rm -f "$CI"' EXIT
 sed -e "s#__KV_NAME__#${KV}#" -e "s#__HOOK_URL__#${HOOK_URL}#" -e "s#__SUB_ID__#${SUB_ID}#" -e "s#__PILOT_RG__#${PILOT_RG}#" \
-    -e "s#__HUB_PEERING_ID__#${HUB_PEERING_ID}#" -e "s#__EXPIRES_AT__#${EXPIRES_AT}#" cloud-init.yaml > "$CI"
+    -e "s#__EXPIRES_AT__#${EXPIRES_AT}#" cloud-init.yaml > "$CI"
 az vm create -g "$PILOT_RG" -n "$VM" -l "$LOC" --size Standard_B2pts_v2 --image Canonical:ubuntu-24_04-lts:server-arm64:latest \
   --nics "$NIC" --os-disk-size-gb 32 --storage-sku StandardSSD_LRS --admin-username mova --authentication-type ssh --generate-ssh-keys \
   --assign-identity '[system]' --custom-data "$CI" --tags $TAGS -o none
 
-echo "[7/9] Permisos mínimos de la identidad de la VM…"
+echo "[7/9] Permisos mínimos (VM sobre su grupo; janitor externo sobre el mismo grupo)…"
 PRINCIPAL="$(az vm show -g "$PILOT_RG" -n "$VM" --query identity.principalId -o tsv)"
 { echo "PILOT_RG=${PILOT_RG}"; echo "PRINCIPAL=${PRINCIPAL}"; echo "KV=${KV}"; echo "KV_ID=${KV_ID}"; echo "HUB_RG=${HUB_RG}"; echo "HUB_VNET=${HUB_VNET}"; echo "EXPIRES_AT=${EXPIRES_AT}"; } > "$STATE"
 RG_ID="$(az group show -n "$PILOT_RG" --query id -o tsv)"
 az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal --role "Contributor" --scope "$RG_ID" -o none
-az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal --role "Network Contributor" --scope "$HUB_PEERING_ID" -o none
+az role assignment create --assignee-object-id "$JANITOR_PRINCIPAL" --assignee-principal-type ServicePrincipal --role "Contributor" --scope "$RG_ID" -o none   # solo para que el janitor externo pueda borrar este grupo
 az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal --role "Key Vault Secrets User" --scope "$KV_ID" -o none
 
 echo "[8/9] Esperando el primer arranque de WAHA (la VM descarga los secretos con su identidad)…"
@@ -91,4 +102,4 @@ az role assignment delete --assignee "$PRINCIPAL" --role "Key Vault Secrets User
 
 echo
 echo "Piloto creado. API privada para MOVA: http://${PRIV_IP}:3000  (WAHA_BASE_URL)."
-echo "Caduca solo (la VM borra el grupo ${PILOT_RG}) el ${EXPIRES_ISO}. Respaldo manual: ./pilot-teardown.sh --confirm ; comprobación: ./pilot-verify.sh"
+echo "Limpieza externa (GitHub Actions) a partir de ${EXPIRES_ISO}; respaldo en la VM 30 min después. Respaldo manual: ./pilot-teardown.sh --confirm ; comprobación: ./pilot-verify.sh"

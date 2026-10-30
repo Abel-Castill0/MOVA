@@ -19,7 +19,6 @@ write_files:
       WHATSAPP_HOOK_URL=__HOOK_URL__
       SUB_ID=__SUB_ID__
       PILOT_RG=__PILOT_RG__
-      HUB_PEERING_ID=__HUB_PEERING_ID__
       EXPIRES_AT=__EXPIRES_AT__
 
   # ── Secretos: solo si todavía no existen en disco (0600, solo root). Nunca imprime valores. ──
@@ -43,8 +42,9 @@ write_files:
       } > /etc/waha/waha.env.tmp
       mv /etc/waha/waha.env.tmp /etc/waha/waha.env
 
-  # ── Caducidad: al llegar EXPIRES_AT la propia VM borra el peering y TODO el grupo de recursos del piloto. ──
-  # Su identidad solo tiene Contributor sobre ese grupo y Network Contributor sobre ese peering: no puede tocar nada más de MOVA.
+  # ── Caducidad de respaldo: al llegar EXPIRES_AT la propia VM borra TODO el grupo de recursos del piloto. ──
+  # La limpieza principal es EXTERNA (workflow waha-pilot-janitor, no depende de esta VM); esto es una segunda línea.
+  # Su identidad solo tiene Contributor sobre ese grupo: no puede tocar nada más de MOVA (ni el peering: eso lo hace el janitor).
   - path: /usr/local/bin/waha-expire.sh
     permissions: '0750'
     content: |
@@ -52,17 +52,16 @@ write_files:
       set -uo pipefail
       . /etc/waha/waha.conf
       [ "$(date +%s)" -lt "${EXPIRES_AT}" ] && exit 0
-      logger -t waha-expire "Piloto caducado: eliminando peering y grupo de recursos ${PILOT_RG}"
+      logger -t waha-expire "Piloto caducado: eliminando el grupo de recursos ${PILOT_RG}"
       TOKEN=$(curl -sf -H 'Metadata:true' 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F' | jq -r .access_token) || exit 1
       auth=(-H "Authorization: Bearer ${TOKEN}")
-      curl -s -m 60 -o /dev/null -w 'peering delete HTTP %{http_code}\n' -X DELETE "${auth[@]}" "https://management.azure.com${HUB_PEERING_ID}?api-version=2023-09-01" | logger -t waha-expire
       curl -s -m 60 -o /dev/null -w 'resource group delete HTTP %{http_code}\n' -X DELETE "${auth[@]}" "https://management.azure.com/subscriptions/${SUB_ID}/resourcegroups/${PILOT_RG}?api-version=2021-04-01" | logger -t waha-expire
 
   - path: /etc/systemd/system/waha-expire.service
     permissions: '0644'
     content: |
       [Unit]
-      Description=Caducidad del piloto de WAHA (borra el grupo de recursos)
+      Description=Caducidad de respaldo del piloto de WAHA (borra el grupo de recursos)
       After=network-online.target
       [Service]
       Type=oneshot

@@ -1,0 +1,50 @@
+name: waha-pilot-janitor
+
+# Limpieza EXTERNA del piloto de WAHA: independiente de la VM. Autenticación OIDC (sin secretos) con una identidad administrada de
+# Azure cuyos únicos permisos son: leer la suscripción, borrar el peering `to-waha` de mova-vnet, retirar roles de Key Vault Secrets User
+# y —solo mientras existe el piloto— Contributor sobre `mova-waha-pilot-rg`. No puede tocar mova-prod-rg ni Culqi.
+# Solo corre en la ventana del piloto (cron acotado a fechas) o a mano; si el grupo no existe, no hace nada.
+on:
+  schedule:
+    # Minutos descentralizados (GitHub retrasa los cron a hora en punto). Ventana: 29-oct a 4-nov de 2026 (UTC).
+    - cron: '7,22,37,52 * 29,30,31 10 *'
+    - cron: '7,22,37,52 * 1,2,3,4 11 *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Limpiar YA aunque no haya caducado (emergencia)'
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: waha-pilot-janitor
+  cancel-in-progress: false
+
+jobs:
+  janitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: b5a5e33c-1dcb-4d27-a1df-a536b9b2b9d7
+          tenant-id: c4a66c34-2bb7-451f-8be1-b2c26a430158
+          subscription-id: 8335a575-9f4c-456d-8005-3769007602ba
+      - name: Limpiar y verificar
+        run: |
+          set -o pipefail
+          mkdir -p out
+          bash infra/azure/waha/pilot-janitor.sh ${{ inputs.force && '--force' || '' }} 2>&1 | tee "out/janitor-${{ github.run_id }}.log"
+      - name: Registro de la limpieza
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: janitor-log-${{ github.run_id }}
+          path: out/
+          retention-days: 30
+          if-no-files-found: ignore
