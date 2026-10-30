@@ -11,6 +11,7 @@
 - Staging `movaqa-culqi`: revisión `0000002` Healthy, `/readyz` 200, evaluador y secretos de webhook conservados (1 réplica SQLite).
 - Producción: `movap-scheduler` `0000038` y luego `movap-web` `0000038`, Healthy; `/readyz`, `/servicios`, `/comprar-creditos/esencial`, `/login` 200. Pagos siguen cerrados (`PAYMENT_PROVIDER=mercadopago`, compras nuevas retiradas).
 - Rollback: `ghcr.io/abel-castill0/mova@sha256:fd751ad0c129c113338ee19182807ee406daf98ab63f42deebe298b4a7dd5e6f` (`az containerapp update --image`, sin migraciones).
+- Compra de prueba en staging (evaluador, Esencial): verificada — recarga `approved`, orden `paid`, 1 depósito de 10 créditos, saldo 10, cargo de 1980 céntimos PEN confirmado por la API de Culqi y webhook real `charge.creation.succeeded` procesado (ver `culqi-evaluator-handoff.md` §10).
 
 ## 2026-10-29 — `5a84d8a` → producción y profesor para pruebas manuales
 

@@ -107,7 +107,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 
 **Tensión documentada en reglas:** `AGENTS.md` dice «no permitas saldos negativos»; la decisión de negocio vigente (`release/MOVA_V1_DECISIONS.md` §3, tests `AdminRechargeReversalTest`/`PaymentOrderTest`) permite que una devolución **confirmada por el proveedor** deje el saldo negativo (bloquea nuevas reservas). No lo cambies sin decisión del propietario.
 
-**«Recargar créditos» (2026-10-29):** «Mis créditos» ya muestra siempre los 5 paquetes; sin checkout activo para el usuario (producción, o profesor fuera de `CULQI_CHECKOUT_ALLOWLIST`) el CTA es «Ver paquetes y precios» y no hay compra. Causa, control de acceso y pruebas: `payments-culqi.md` §16; despliegue (`b9e1308`, staging `0000002`, producción `0000038`): `release/DEPLOY_HISTORY.md`. La compra sandbox de Esencial con el evaluador sigue **sin verificar de punta a punta** hasta que el titular la complete.
+**«Recargar créditos» (2026-10-29):** «Mis créditos» ya muestra siempre los 5 paquetes; sin checkout activo para el usuario (producción, o profesor fuera de `CULQI_CHECKOUT_ALLOWLIST`) el CTA es «Ver paquetes y precios» y no hay compra. Causa, control de acceso y pruebas: `payments-culqi.md` §16; despliegue (`b9e1308`, staging `0000002`, producción `0000038`): `release/DEPLOY_HISTORY.md`. La compra sandbox de Esencial con el evaluador **quedó verificada de punta a punta el 2026-10-29** (1 depósito, 10 créditos, cargo de 1980 céntimos PEN en la API de Culqi; detalle en `culqi-evaluator-handoff.md` §10).
 
 ## 6b. Infraestructura Azure y costo (resumen; detalle en [`azure-cost-optimization.md`](azure-cost-optimization.md))
 
