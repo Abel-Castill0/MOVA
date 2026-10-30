@@ -55,8 +55,20 @@ class WahaWatchdogTest extends TestCase
         Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
     }
 
+    public function test_a_session_that_never_connected_is_left_to_the_admin_panel(): void
+    {
+        $this->waha('FAILED');
+        $this->artisan('mova:waha-watchdog');
+        $this->waha('STOPPED');
+        $this->artisan('mova:waha-watchdog');
+
+        Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
+        $this->assertDatabaseMissing('operational_alerts', ['alert_key' => 'waha:link_lost']);
+    }
+
     public function test_a_stopped_session_is_started_with_the_official_endpoint_and_respects_the_backoff(): void
     {
+        WahaSessionState::record('WORKING');
         $this->waha('STOPPED');
 
         $this->artisan('mova:waha-watchdog');
@@ -81,6 +93,7 @@ class WahaWatchdogTest extends TestCase
 
     public function test_recovery_attempts_stop_after_the_backoff_schedule_is_exhausted(): void
     {
+        WahaSessionState::record('WORKING');
         $this->waha('FAILED');
 
         for ($i = 0; $i < 6; $i++) {

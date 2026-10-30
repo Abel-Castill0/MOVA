@@ -67,7 +67,7 @@ class WahaWatchdog extends Command
 
         match ($status) {
             'WORKING' => $this->recovered($alerts),
-            'STOPPED' => $this->attempt('start', $alerts),
+            'STOPPED' => $this->stopped($alerts),
             'FAILED' => $this->failed($alerts),
             'SCAN_QR_CODE' => $this->needsReauth($alerts),
             default => null, // STARTING y desconocidos: esperar y conservar el diagnóstico
@@ -92,11 +92,23 @@ class WahaWatchdog extends Command
         }
     }
 
-    private function failed(OperationalAlertService $alerts): void
+    /**
+     * Solo se recupera una sesión que YA estuvo conectada. Una que nunca llegó a WORKING (vinculación a medias, QR sin escanear) la
+     * gestiona el administrador desde el panel: reintentar login con credenciales incompletas no sirve y podría pisar una vinculación en curso.
+     */
+    private function stopped(OperationalAlertService $alerts): void
     {
         if (WahaSessionState::lastWorkingAt() !== null) {
-            $this->raiseLost($alerts, 'FAILED');
+            $this->attempt('start', $alerts);
         }
+    }
+
+    private function failed(OperationalAlertService $alerts): void
+    {
+        if (WahaSessionState::lastWorkingAt() === null) {
+            return;
+        }
+        $this->raiseLost($alerts, 'FAILED');
         $this->attempt('restart', $alerts);
     }
 
