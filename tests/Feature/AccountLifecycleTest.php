@@ -509,6 +509,7 @@ class AccountLifecycleTest extends TestCase
         \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['id' => 'true_51912345678@c.us_3EB0ABCDEF'], 201)]);
 
         // Un envío encolado ANTES del cierre llega al proveedor DESPUÉS: debe descartarse al entregar.
+        config(['services.waha.require_user_initiated' => false, 'services.waha.warmup_minutes' => 0]);
         $provider = new \App\WhatsApp\WahaProvider();
         $this->assertFalse($provider->sendTemplate('987654321', 'generic_notification', ['hola']));
         $this->assertTrue($provider->sendTemplate('912345678', 'generic_notification', ['hola']));

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\RechargeRequest;
+use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class RechargeRejectedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, BuildsAppUrls;
 
     public function __construct(private RechargeRequest $recharge, private ?string $reason = null)
     {
@@ -18,7 +19,18 @@ class RechargeRejectedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        $channels = ['mail'];
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+
+        return $channels;
+    }
+
+    /** Aviso informativo: no promete devoluciones ni créditos; el detalle y los pasos siguientes están en MOVA. */
+    public function toWhatsApp(object $notifiable): string
+    {
+        return "MOVA: Tuvimos un problema con tu solicitud de recarga. Revisa el detalle y los pasos siguientes desde tu panel.\n".$this->appRoute('teacher.credits.index');
     }
 
     public function toMail(object $notifiable): MailMessage

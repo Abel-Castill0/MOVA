@@ -131,6 +131,10 @@ final class WahaAdminPanel
                 'allowlistActive' => trim((string) config('services.waha.allowed_recipients', '')) !== '',
                 'pausedUntil' => WahaSessionState::pausedUntil()?->toIso8601String(),
             ],
+            'link' => $this->linkBlock($state),
+            'delivery' => $this->deliveryBlock(),
+            'persistence' => $this->persistenceBlock(),
+            'infra' => $this->infraBlock(),
             'actions' => [
                 'start' => $state === 'disconnected',
                 'restart' => in_array($state, ['error', 'starting', 'waiting_qr', 'disconnected'], true),
@@ -147,6 +151,72 @@ final class WahaAdminPanel
                 'message' => self::TEST_MESSAGE,
                 'last' => $this->lastTest(),
             ],
+        ];
+    }
+
+    // ── Bloques informativos del panel (solo lectura, sin secretos) ──────────────────────────────────
+
+    /** Política anti-restricción, calentamiento, restricciones de WhatsApp y alerta de vinculación perdida. */
+    private function linkBlock(string $state): array
+    {
+        $lost = WahaSessionState::linkLost();
+        $paused = WahaSessionState::pausedUntil();
+
+        return [
+            'requireUserInitiated' => (bool) config('services.waha.require_user_initiated', true),
+            'warmupRemainingMinutes' => WahaSessionState::warmupRemainingMinutes(),
+            'linkedAt' => WahaSessionState::linkedAt()?->toIso8601String(),
+            'contactedCount' => WahaSessionState::contactedCount(),
+            'restrictedUntil' => $paused?->toIso8601String(),
+            // «Pérdida» = estuvo conectada y WAHA reporta FAILED/STOPPED; se limpia sola al volver a WORKING.
+            'lost' => ($lost !== null && ! in_array($state, ['connected', 'unverified_number'], true))
+                ? ['status' => $lost['status'], 'at' => $lost['at']->toIso8601String()]
+                : null,
+            'needsReauth' => in_array($state, ['error', 'disconnected', 'waiting_qr', 'wrong_number'], true),
+        ];
+    }
+
+    /** Conteo de mensajes de los últimos 7 días por estado (aceptado = sent; «entregado» solo con ACK). */
+    private function deliveryBlock(): array
+    {
+        try {
+            $rows = WhatsAppMessage::where('created_at', '>=', now()->subDays(7))->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
+        } catch (\Throwable) {
+            $rows = collect();
+        }
+
+        $get = fn (string $k) => (int) ($rows[$k] ?? 0);
+
+        return [
+            'days' => 7,
+            'accepted' => $get('sent'), 'delivered' => $get('delivered'), 'read' => $get('read'),
+            'failed' => $get('failed'), 'skipped' => $get('skipped'), 'unknown' => $get('unknown'),
+        ];
+    }
+
+    private function persistenceBlock(): array
+    {
+        $backup = WahaSessionState::lastBackup();
+
+        return [
+            'storage' => 'Volumen persistente en el disco de la VM (/app/.sessions), fuera del contenedor y de la imagen',
+            'restartPolicy' => 'Docker unless-stopped + systemd (arranque automático)',
+            'autoRecovery' => 'Vigilante no destructivo: reinicia con backoff y alerta; nunca borra credenciales',
+            'backupOffVm' => (bool) config('services.waha.backup_off_vm', false),
+            'lastBackupAt' => $backup ? $backup['at']->toIso8601String() : null,
+            'lastBackupBytes' => $backup['bytes'] ?? null,
+            'lastBackupFingerprint' => $backup['sha'] ?? null,
+        ];
+    }
+
+    private function infraBlock(): array
+    {
+        $monthly = config('services.waha.infra_monthly_usd');
+
+        return [
+            'type' => (string) config('services.waha.infra_label', 'VM Azure ARM64 (piloto)'),
+            'monthlyUsd' => is_numeric($monthly) ? (float) $monthly : null,
+            'pilotExpiresAt' => $this->pilotExpiresAt(),
         ];
     }
 
@@ -204,6 +274,7 @@ final class WahaAdminPanel
             'reset' => $client->logoutSession() && $this->startAfterLogout($client),
         };
 
+        WahaSessionState::noteAdminAction();
         Log::notice('[WhatsApp/Admin] Acción de control sobre la sesión', ['action' => $action, 'admin_id' => $admin->id, 'from_state' => $state, 'accepted' => $ok]);
         Cache::forget('waha:admin:session');
 
@@ -279,7 +350,7 @@ final class WahaAdminPanel
 
         return match ($row->status->value) {
             'unknown' => 'Resultado incierto: puede haber salido. No se reintenta para evitar un duplicado; revisa el ACK.',
-            'skipped' => 'No se envió: '.($row->skip_reason?->value ?? 'omitido por una regla de seguridad').'.',
+            'skipped' => 'No se envió: '.($row->skip_reason?->label() ?? 'omitido por una regla de seguridad').'.',
             default => 'No se envió: '.($row->error ? mb_substr($row->error, 0, 160) : 'WAHA rechazó el envío').'.',
         };
     }
@@ -297,6 +368,15 @@ final class WahaAdminPanel
         }
         if (! $this->isAllowlisted($recipient)) {
             return 'El destinatario de prueba no está en la lista autorizada del piloto.';
+        }
+        if (! WahaSessionState::hasContacted($recipient)) {
+            $mustInitiate = (bool) config('services.waha.require_user_initiated', true);
+            if ($mustInitiate) {
+                return 'Para no poner en riesgo la vinculación, primero escribe un «Hola» desde '.$this->pretty($recipient).' al número de MOVA; luego MOVA le responde.';
+            }
+            if (($left = WahaSessionState::warmupRemainingMinutes()) > 0) {
+                return 'Número recién vinculado en calentamiento: faltan '.$left.' min (o escribe primero desde el destinatario).';
+            }
         }
 
         return null;

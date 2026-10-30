@@ -32,6 +32,8 @@ class WahaChannelIntegrationTest extends TestCase
         Cache::flush();
         RateLimiter::clear('waha:global');
         config([
+            'services.waha.require_user_initiated' => false, // la política se prueba en WahaOutreachGuardTest
+            'services.waha.warmup_minutes' => 0,
             'services.whatsapp.enabled' => true,
             'services.whatsapp.provider' => 'waha',
             'services.waha.url' => 'http://127.0.0.1:3000',

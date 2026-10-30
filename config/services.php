@@ -60,6 +60,21 @@ return [
         // Número dedicado de MOVA que DEBE quedar vinculado; si WAHA conecta otro, el panel lo marca como incorrecto.
         'expected_number' => env('WAHA_EXPECTED_NUMBER'),
         // Etiqueta del entorno que muestra el panel (piloto, staging, producción) y caducidad informativa del piloto.
+        // Política anti-restricción: WhatsApp penaliza a los clientes no oficiales que inician chats con desconocidos y puede
+        // revocar la vinculación y aplicar un «reachout timelock». Con require_user_initiated=true MOVA SOLO escribe a quien ya
+        // escribió primero al número (alta por «escribe ACTIVAR»); si no, durante warmup_minutes tras vincular no se inicia
+        // ningún chat nuevo.
+        'require_user_initiated' => (bool) env('WAHA_REQUIRE_USER_INITIATED', true),
+        'warmup_minutes' => (int) env('WAHA_WARMUP_MINUTES', 1440),
+        'contacted_ttl_days' => (int) env('WAHA_CONTACTED_TTL_DAYS', 90),
+        // Clave del HMAC con el que se guardan los teléfonos que escribieron primero. Si no se define se usa APP_KEY; rotar APP_KEY
+        // sin definir esta clave obliga a que todos vuelvan a escribir (falla en modo seguro: nadie recibe un primer mensaje).
+        'contact_hash_key' => env('WAHA_CONTACT_HASH_KEY'),
+        // true cuando los respaldos cifrados se copian FUERA de la VM (si no, mueren con ella). Solo informativo para el panel.
+        'backup_off_vm' => (bool) env('WAHA_BACKUP_OFF_VM', false),
+        // Solo informativo para el panel (no cambia el comportamiento).
+        'infra_label' => env('WAHA_INFRA_LABEL', 'VM Azure ARM64 (piloto)'),
+        'infra_monthly_usd' => env('WAHA_INFRA_MONTHLY_USD'),
         'environment_label' => env('WAHA_ENV_LABEL', 'piloto'),
         'pilot_expires_at' => env('WAHA_PILOT_EXPIRES_AT'),
     ],

@@ -82,7 +82,19 @@ final class WahaProvider implements WhatsAppProviderContract
             return false;
         }
 
-        if (($until = WahaSessionState::pausedUntil()) !== null) {
+        // Protección de la vinculación: WhatsApp revoca el dispositivo de los clientes no oficiales que inician chats con
+        // desconocidos (restricción «reachout timelock» + cierre de la sesión). Responder a quien escribió primero es seguro.
+        $initiated = WahaSessionState::hasContacted($digits);
+        if (! $initiated) {
+            $mustInitiate = (bool) config('services.waha.require_user_initiated', true);
+            if ($mustInitiate || WahaSessionState::warmupRemainingMinutes() > 0) {
+                $this->skip($digits, $templateKey, $mustInitiate ? WhatsAppSkipReason::NotInitiated : WhatsAppSkipReason::WarmingUp, $clientReference);
+
+                return false;
+            }
+        }
+
+        if (! $initiated && ($until = WahaSessionState::pausedUntil()) !== null) {
             $this->recordOnly($digits, $templateKey, WhatsAppMessageStatus::Failed, 'WhatsApp restringe temporalmente los envíos hasta '.$until->toDateTimeString().' UTC', $clientReference);
 
             return false;

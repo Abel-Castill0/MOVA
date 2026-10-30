@@ -37,6 +37,8 @@ class WahaAdminPanelTest extends TestCase
         RateLimiter::clear('waha-admin-control');
         RateLimiter::clear('waha-admin-pair');
         config([
+            'services.waha.require_user_initiated' => false, // la política se prueba en WahaOutreachGuardTest
+            'services.waha.warmup_minutes' => 0,
             'services.whatsapp.enabled' => false,   // los avisos a usuarios siguen APAGADOS
             'services.whatsapp.provider' => 'fake',
             'services.waha.admin_control_enabled' => true,

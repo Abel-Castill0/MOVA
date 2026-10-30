@@ -32,6 +32,12 @@
           {{ notice.text }}
         </div>
 
+        <!-- Alerta: la vinculación se perdió -->
+        <div v-if="p.link.lost" class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-sm" role="alert">
+          <p class="font-bold">La vinculación de WhatsApp se perdió ({{ p.link.lost.status }} desde {{ fmt(p.link.lost.at) }}).</p>
+          <p class="mt-1">Causas habituales: WhatsApp revocó el dispositivo (p. ej. tras escribir a un contacto nuevo), alguien lo quitó en el celular, o el celular principal estuvo más de 14 días sin usarse. No se borró nada automáticamente. Revisa «Dispositivos vinculados» en el celular +51 905 922 835 y, si ya no aparece, usa «Restablecer vinculación» y escanea de nuevo.</p>
+        </div>
+
         <!-- 1. Estado -->
         <section class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-estado">
           <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
@@ -131,6 +137,51 @@
               Resultado: <strong>{{ last.status }}</strong>{{ last.skipReason ? ' (' + last.skipReason + ')' : '' }}{{ last.error ? ' — ' + last.error : '' }}
             </p>
             <p class="mt-2 text-xs text-slate-500">«Aceptado» no significa «entregado»: la entrega solo se confirma cuando llega el ACK del dispositivo.</p>
+          </div>
+        </section>
+
+        <!-- Política de envío (protege la vinculación) -->
+        <section class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-politica">
+          <h3 id="wa-politica" class="text-base font-bold text-slate-800">Política de envío que protege la vinculación</h3>
+          <ul class="mt-2 text-sm text-slate-700 space-y-1.5 list-disc pl-5">
+            <li>WhatsApp revoca los dispositivos de clientes no oficiales que <strong>inician chats con desconocidos</strong>. {{ p.link.requireUserInitiated ? 'MOVA solo escribe a quien escribió primero al número.' : 'MOVA no inicia chats nuevos durante el calentamiento.' }}</li>
+            <li>Para activar los avisos, cada usuario escribe «ACTIVAR» al {{ p.number.expected || 'número de MOVA' }} desde su WhatsApp; desde entonces MOVA puede responderle.</li>
+            <li>Contactos que ya escribieron: <strong>{{ p.link.contactedCount }}</strong>.</li>
+            <li v-if="p.link.warmupRemainingMinutes > 0" class="text-amber-700">Calentamiento tras vincular: faltan <strong>{{ Math.ceil(p.link.warmupRemainingMinutes / 60) }} h</strong> sin iniciar chats nuevos.</li>
+            <li v-if="p.link.restrictedUntil" class="text-rose-700">WhatsApp aplicó una restricción de contactos nuevos hasta {{ fmt(p.link.restrictedUntil) }}; solo se responde a quien ya escribió.</li>
+          </ul>
+        </section>
+
+        <!-- Mensajes -->
+        <section class="bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="wa-mensajes">
+          <h3 id="wa-mensajes" class="text-base font-bold text-slate-800">Mensajes de los últimos {{ p.delivery.days }} días</h3>
+          <dl class="mt-3 grid grid-cols-3 lg:grid-cols-6 gap-3 text-center text-sm">
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Aceptados</dt><dd class="font-bold text-slate-800">{{ p.delivery.accepted }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Entregados</dt><dd class="font-bold text-emerald-700">{{ p.delivery.delivered }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Leídos</dt><dd class="font-bold text-emerald-700">{{ p.delivery.read }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Fallidos</dt><dd class="font-bold text-rose-700">{{ p.delivery.failed }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Omitidos</dt><dd class="font-bold text-slate-800">{{ p.delivery.skipped }}</dd></div>
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-100"><dt class="text-xs text-slate-500">Inciertos</dt><dd class="font-bold text-amber-700">{{ p.delivery.unknown }}</dd></div>
+          </dl>
+        </section>
+
+        <!-- Persistencia e infraestructura -->
+        <section class="grid md:grid-cols-2 gap-4" aria-label="Persistencia e infraestructura">
+          <div class="bg-white rounded-xl border border-gray-200 p-5 text-sm text-slate-700">
+            <h3 class="text-base font-bold text-slate-800 mb-2">Persistencia de la sesión</h3>
+            <p>{{ p.persistence.storage }}.</p>
+            <p class="mt-1">{{ p.persistence.restartPolicy }}.</p>
+            <p class="mt-1">{{ p.persistence.autoRecovery }}.</p>
+            <p class="mt-2 font-semibold" :class="p.persistence.lastBackupAt ? 'text-emerald-700' : 'text-amber-700'">
+              Último respaldo cifrado: {{ p.persistence.lastBackupAt ? fmt(p.persistence.lastBackupAt) + ' · huella ' + p.persistence.lastBackupFingerprint : 'ninguno registrado' }}
+            </p>
+            <p v-if="!p.persistence.backupOffVm" class="mt-1 text-xs text-amber-700">Los respaldos están solo en la VM: se eliminan con ella. Falta un destino fuera de la VM (requiere tu aprobación).</p>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-5 text-sm text-slate-700">
+            <h3 class="text-base font-bold text-slate-800 mb-2">Infraestructura</h3>
+            <p>{{ p.infra.type }}</p>
+            <p class="mt-1">Costo mensual estimado: <strong>{{ p.infra.monthlyUsd !== null ? 'US$ ' + p.infra.monthlyUsd.toFixed(2) : 'sin definir' }}</strong></p>
+            <p v-if="p.infra.pilotExpiresAt" class="mt-1 text-amber-700">Piloto con caducidad: {{ fmt(p.infra.pilotExpiresAt) }}. La limpieza automática eliminará la VM y la sesión que contiene si no se migra antes.</p>
           </div>
         </section>
       </template>

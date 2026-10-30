@@ -25,7 +25,20 @@ class TeacherClosedAccountNotification extends Notification implements ShouldQue
 
     public function via(object $notifiable): array
     {
-        return $notifiable->email_verified_at ? ['database', 'mail'] : ['database'];
+        $channels = $notifiable->email_verified_at ? ['database', 'mail'] : ['database'];
+        // WhatsApp solo si el canal lo permite (consentimiento, teléfono verificado, política de envío). Sin nombres ni datos del alumno.
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
+
+        return $channels;
+    }
+
+    public function toWhatsApp(object $notifiable): string
+    {
+        return $this->republished
+            ? "ℹ️ MOVA: Tu profesor ya no está disponible. Tu solicitud volvió a la búsqueda de otro profesor; no se te ha cobrado nada. Revisa los detalles en tu panel.\n".$this->appRoute('class-requests.index')
+            : "ℹ️ MOVA: Tu profesor ya no está disponible. Confirma una nueva solicitud cuando quieras desde tu panel.\n".$this->appRoute('class-requests.create');
     }
 
     public function toMail(object $notifiable): MailMessage

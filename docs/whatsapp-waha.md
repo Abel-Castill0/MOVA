@@ -72,6 +72,66 @@ Para retirar la VM: `infra/azure/waha/pilot-teardown.sh --confirm` y comprobar c
 `WahaProviderTest`, `WahaWebhookTest`, `WahaChannelIntegrationTest`, `WahaNotificationsTest` + ajustes en
 `MonetizationIntegrityTest` y `AccountLifecycleTest` (todo con `Http::fake`; **no hay prueba contra un WAHA real** hasta el piloto).
 
+## Incidente 2026-10-30: WhatsApp revocó la vinculación (causa y política resultante)
+
+- **Qué pasó (evidencia: registros de WAHA):** 07:15 se restableció la vinculación desde el panel; 07:15:58 vinculada; 07:16:44 se envió el primer mensaje (prueba) a un
+  número que nunca había escrito al número de MOVA; 07:16:46.9 WhatsApp aplicó una restricción de contacto nuevo (`reachout timelock`, 6 h) y cerró la sesión
+  (`Stream Errored (conflict)`). Desde entonces cada inicio de sesión falla (`Connection Failure`): las credenciales ya no valen y hay que **volver a vincular**.
+  El mensaje sí llegó al teléfono; el ACK de entrega quedó «pendiente» porque la conexión murió 2 s después del envío (los webhooks sí llegaban y se aceptaron con 200).
+- **Lección:** un cliente no oficial que **inicia** chats con desconocidos (y más recién vinculado) se considera sospechoso de spam. Es una causa **evitable**.
+- **Política implementada (anti-restricción):**
+  1. `WAHA_REQUIRE_USER_INITIATED=true` (por defecto): MOVA solo escribe a quien **escribió primero** al número (evento `message` entrante: se guarda únicamente el número, nunca el texto).
+     El alta de avisos es «escribe ACTIVAR al +51 905 922 835»; el consentimiento y el opt-out de MOVA siguen aplicando encima.
+  2. Calentamiento: tras una vinculación **nueva** (no tras un reinicio) `WAHA_WARMUP_MINUTES=1440` min sin iniciar chats (los que escribieron primero sí reciben respuesta).
+  3. Con una restricción activa (`reachoutTimelock`/`messageCapping`) solo se responde a quien ya escribió.
+  4. El mensaje de prueba del panel solo va a un destinatario que ya escribió al número: primero envía un «Hola» desde +51 916 666 934 al +51 905 922 835.
+- **Si WhatsApp vuelve a revocar:** alerta crítica a los administradores (`mova:waha-watchdog`) y banner en `/admin/whatsapp`; nada se borra solo; se restablece desde el panel.
+
+## Persistencia de la sesión
+
+- NOWEB guarda la autenticación en `/app/.sessions/noweb/` (`waha.sqlite3` + WAL y archivos por sesión). En la VM es un **bind mount** `/var/lib/waha/sessions` (disco de la VM, no el
+  sistema de archivos efímero del contenedor, ni la imagen, ni Git). Nombre de sesión estable: `default`. Directorio `0700`, ≈ 3.7 MB, 22 % del disco usado.
+- **Reinicios:** `docker compose` con `restart: unless-stopped`, `waha.service` habilitado (systemd, `Restart=always`) y Docker habilitado: VM → Docker → WAHA carga la sesión del disco.
+- **Qué puede cerrar la sesión** (y solo estas rutas): `WahaClient::logoutSession()`, llamado únicamente por la acción **Restablecer vinculación** del panel (POST, MFA reciente, confirmación escrita,
+  bloqueado si está conectada); `pilot-teardown.sh`/*janitor* (borran la VM); nada más. Un GET, un health check o un error temporal **nunca** reinician ni desvinculan; el vigilante solo hace
+  `start`/`restart` (que conservan las credenciales), con backoff.
+- **Recuperación por estados (`mova:waha-watchdog`, cada 5 min):** WORKING → no toca; STARTING → espera; STOPPED → `start` oficial con backoff (10 min, 1 h, 6 h, 12 h; máx. 4 por episodio);
+  FAILED → alerta crítica si estuvo conectada y un único `restart` por intento con el mismo backoff; SCAN_QR_CODE tras haber estado conectada → alerta de reautenticación; servidor inalcanzable → alerta
+  tras 3 fallos seguidos. Nunca logout, nunca borrado.
+- **Respaldo cifrado** (`infra/azure/waha/backup/`): `waha-session-backup.sh` (para WAHA ~10 s para un tar consistente, cifra con AES-256-CBC+PBKDF2, verifica el SHA-256 y que el tar descifre,
+  conserva 7, **solo si la sesión está en WORKING**, aviso firmado al panel con huella y tamaño) y `waha-session-restore.sh` (se niega a restaurar con WAHA corriendo o sobre una sesión existente salvo
+  `--replace`, verifica huella y descifrado antes de tocar nada, deja copia `.previo`). Temporizador semanal (domingo 03:30 UTC) instalado con `install-backup.sh`; clave en `/etc/waha/backup.key` (0600) y
+  copia en Key Vault (`waha-session-backup-key`). Por defecto los respaldos **quedan en la VM** (`UPLOAD=0`): subirlos fuera exige un destino durable aprobado (ver `whatsapp-waha-costos-migracion.md`).
+- **Probado:** la mecánica (3 respaldos con retención, cifrado sin texto claro, restauración idéntica bit a bit, rechazo de pisar una sesión, de un respaldo alterado y de una clave equivocada) con
+  archivos de sesión simulados en un contenedor aislado. **No** se ha probado aún con una sesión real vinculada (la vinculación se perdió) ni la restauración sobre otra VM.
+
+## Requisitos del teléfono principal y límites de WhatsApp
+
+- El celular **no** actúa como servidor y puede estar apagado o sin Internet: el dispositivo vinculado (WAHA) sigue conectado de forma independiente.
+- Sin embargo WhatsApp **desvincula** los dispositivos si el teléfono principal no se usa durante un periodo prolongado (14 días según el lanzamiento multidispositivo; algunas fuentes citan 30 días de inactividad del
+  dispositivo vinculado). No se elude: abre WhatsApp en el celular +51 905 922 835 al menos una vez por semana.
+- No hay garantía absoluta: Meta puede revocar credenciales, suspender el número o cambiar el protocolo (WAHA es no oficial). Para avisos a desconocidos la vía segura es la Cloud API oficial.
+
+## Catálogo de eventos de WhatsApp (todos por `WhatsAppChannel`, sin datos de menores)
+
+| # | Evento | Destinatario | Estado en código |
+|---|---|---|---|
+| 1 | Nueva solicitud de clase | profesores elegibles con consentimiento | `NewClassRequestNotification` |
+| 3 | Propuesta de nuevo horario | padre | `CounterofferProposedNotification` |
+| 5 | Familia rechaza el horario | profesor | `CounterofferRejectedNotification` (nuevo) |
+| 6 | Clase confirmada | ambas partes | `ClassConfirmedNotification` |
+| 7 | Recordatorios | ambas partes | `ClassReminderNotification` |
+| 8 | Cancelación | partes afectadas | `ClassCancelledNotification` |
+| 9 | Reprogramación | ambas partes | `ClassRescheduledNotification` |
+| 11 | Créditos insuficientes (enfriamiento 6 h) | profesor | `InsufficientCreditsNotification` |
+| 12 | Recarga aprobada | profesor | `RechargeApprovedNotification` |
+| 13 | Recarga rechazada | profesor | `RechargeRejectedNotification` (nuevo, informativo) |
+| 2, 4 | Aceptación del profesor / de la familia (la reserva queda confirmada) | ambas partes | cubiertos por `ClassConfirmedNotification` (listener `SendClassConfirmationNotifications`, tras la confirmación) |
+| 10 | Profesor no disponible (cierre de cuenta) | padre | `TeacherClosedAccountNotification` (WhatsApp añadido) |
+
+Con `WHATSAPP_ENABLED=false` **ninguno** envía; con él activo siguen aplicando consentimiento (`whatsapp_opt_in_at`/`whatsapp_opt_out_at`), teléfono verificado, suspensión, cuenta cerrada,
+la política de «escribió primero», límites, deduplicado y ACK.
+
 ## Pendiente de validar en el piloto (no demostrado)
 
 Vinculación por QR, persistencia de la sesión tras reinicio, entrega y `message.ack` reales, RAM/CPU reales de NOWEB en 1 GiB,

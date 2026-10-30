@@ -96,7 +96,7 @@ write_files:
             WAHA_DASHBOARD_ENABLED: "false"      # el dashboard NO se expone
             WHATSAPP_SWAGGER_ENABLED: "false"
             WAHA_LOG_LEVEL: info
-            WHATSAPP_HOOK_EVENTS: message.ack,session.status
+            WHATSAPP_HOOK_EVENTS: message.ack,session.status,message
             WHATSAPP_HOOK_RETRIES_POLICY: exponential
             WHATSAPP_HOOK_RETRIES_DELAY_SECONDS: "2"
             WHATSAPP_HOOK_RETRIES_ATTEMPTS: "5"

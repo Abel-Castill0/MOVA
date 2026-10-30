@@ -45,6 +45,8 @@ enum WhatsAppSkipReason: string
     case AccountClosed = 'account_closed';
     case NotAllowlisted = 'not_allowlisted';
     case RateLimited = 'rate_limited';
+    case NotInitiated = 'not_initiated';
+    case WarmingUp = 'warming_up';
 
     /**
      * Etiqueta legible para logs/soporte — no para lógica de negocio (para
@@ -58,6 +60,8 @@ enum WhatsAppSkipReason: string
             self::AccountClosed => 'cuenta cerrada',
             self::NotAllowlisted => 'destinatario fuera de la lista autorizada del piloto',
             self::RateLimited => 'límite diario de mensajes por destinatario',
+            self::NotInitiated => 'el destinatario aún no ha escrito al número de MOVA (WhatsApp restringe iniciar chats)',
+            self::WarmingUp => 'número recién vinculado en calentamiento (solo se responde a quien escribió primero)',
         };
     }
 }

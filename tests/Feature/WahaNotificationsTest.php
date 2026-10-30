@@ -10,6 +10,8 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use App\Notifications\ClassRescheduledNotification;
+use App\Notifications\CounterofferRejectedNotification;
+use App\Notifications\RechargeRejectedNotification;
 use App\Notifications\InsufficientCreditsNotification;
 use App\Notifications\NewClassRequestNotification;
 use App\Notifications\RechargeApprovedNotification;
@@ -46,6 +48,33 @@ class WahaNotificationsTest extends TestCase
         $this->assertStringContainsString($lesson->start_time->format('d/m/Y H:i'), $text);
         $this->assertStringNotContainsString('enferma', $text);
         $this->assertContains(WhatsAppChannel::class, $notification->via($this->user('parent')));
+    }
+
+    public function test_a_rejected_schedule_proposal_notifies_the_teacher_without_student_data(): void
+    {
+        $teacher = $this->user('teacher');
+        $notification = new CounterofferRejectedNotification(7, 'Matemática');
+
+        $text = $notification->toWhatsApp($teacher);
+
+        $this->assertStringContainsString('Tu propuesta de horario no fue aceptada', $text);
+        $this->assertStringNotContainsString('Matemática', $text);
+        $this->assertContains(WhatsAppChannel::class, $notification->via($teacher));
+        $this->assertNotContains(WhatsAppChannel::class, $notification->via($this->user('teacher', ['phone_verified_at' => null])));
+    }
+
+    public function test_a_rejected_recharge_is_informative_and_promises_nothing(): void
+    {
+        $teacher = $this->user('teacher');
+        $recharge = new RechargeRequest();
+        $notification = new RechargeRejectedNotification($recharge, 'motivo interno sensible');
+
+        $text = $notification->toWhatsApp($teacher);
+
+        $this->assertStringContainsString('problema con tu solicitud de recarga', $text);
+        $this->assertStringNotContainsString('motivo interno sensible', $text);
+        $this->assertStringNotContainsStringIgnoringCase('devol', $text);
+        $this->assertContains(WhatsAppChannel::class, $notification->via($teacher));
     }
 
     public function test_class_rescheduled_does_not_use_whatsapp_without_a_verified_phone(): void

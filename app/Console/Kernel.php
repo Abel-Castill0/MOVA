@@ -231,6 +231,10 @@ class Kernel extends ConsoleKernel
             ->hourlyAt(30)
             ->withoutOverlapping();
 
+        // Vigilante de WAHA (recuperación no destructiva con backoff + alerta). Se auto-desactiva si el control administrativo
+        // de WhatsApp no está habilitado; jamás hace logout ni borra credenciales.
+        $schedule->command('mova:waha-watchdog')->everyFiveMinutes()->withoutOverlapping(10)->runInBackground();
+
         // mova:reconcile-whatsapp NO se agenda en esta fase, a propósito.
         //
         // Es igual de read-only que los dos anteriores, pero su valor depende de

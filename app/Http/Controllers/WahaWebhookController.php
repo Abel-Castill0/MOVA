@@ -53,6 +53,8 @@ class WahaWebhookController extends Controller
         match ($event) {
             'message.ack' => $this->handleAck($payload),
             'session.status' => $this->handleSessionStatus($payload),
+            'message' => $this->handleInbound($payload),
+            'mova.backup' => $this->handleBackup($payload),
             default => null,
         };
 
@@ -122,6 +124,69 @@ class WahaWebhookController extends Controller
             $eventAt,
             hash('sha256', "waha:{$messageId}:{$status->value}"),
         );
+    }
+
+    /**
+     * Mensaje ENTRANTE: solo se anota QUIÉN escribió primero (número, sin contenido, sin registrar el texto). Responder a quien
+     * ya escribió al número es un chat existente; iniciar chats con desconocidos es lo que WhatsApp castiga en los clientes no
+     * oficiales. Grupos, estados y mensajes propios se ignoran.
+     */
+    private function handleInbound(array $payload): void
+    {
+        $data = (array) ($payload['payload'] ?? []);
+        if (($data['fromMe'] ?? false) === true) {
+            return;
+        }
+
+        $digits = $this->phoneFrom($data);
+        if ($digits !== null) {
+            WahaSessionState::markContacted($digits);
+        }
+    }
+
+    /**
+     * Número de un chat INDIVIDUAL. Los grupos, estados, difusiones y canales se descartan por completo (el autor dentro de un
+     * grupo no «escribió primero» a MOVA). Para chats @lid se usa el número alterno que informa el motor.
+     */
+    private function phoneFrom(array $data): ?string
+    {
+        $from = $data['from'] ?? null;
+        if (! is_string($from) || ! empty($data['participant'])) {
+            return null;
+        }
+
+        $jid = null;
+        if (str_ends_with($from, '@c.us') || str_ends_with($from, '@s.whatsapp.net')) {
+            $jid = $from;
+        } elseif (str_ends_with($from, '@lid')) {
+            foreach ([data_get($data, '_data.key.remoteJidAlt'), data_get($data, '_data.key.senderPn')] as $alt) {
+                if (is_string($alt) && (str_ends_with($alt, '@s.whatsapp.net') || str_ends_with($alt, '@c.us'))) {
+                    $jid = $alt;
+                    break;
+                }
+            }
+        }
+        if ($jid === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', explode(':', explode('@', $jid)[0])[0]) ?? '';
+
+        return strlen($digits) >= 10 && strlen($digits) <= 15 ? $digits : null;
+    }
+
+    /** Aviso firmado de la VM tras un respaldo cifrado de la sesión: solo huella corta y tamaño (nunca el contenido). */
+    private function handleBackup(array $payload): void
+    {
+        $data = (array) ($payload['payload'] ?? []);
+        $sha = (string) ($data['sha256'] ?? '');
+        $bytes = (int) ($data['bytes'] ?? 0);
+        $ts = (int) ($data['ts'] ?? 0);
+
+        // `ts` va DENTRO del cuerpo firmado: un aviso viejo capturado no puede reenviarse para aparentar respaldos al día.
+        if (preg_match('/^[0-9a-f]{64}$/', $sha) === 1 && $bytes > 0 && abs(now()->getTimestamp() - $ts) <= 600) {
+            WahaSessionState::recordBackup($sha, $bytes, $ts);
+        }
     }
 
     private function handleSessionStatus(array $payload): void

@@ -28,8 +28,17 @@ class CounterofferRejectedNotification extends Notification implements ShouldQue
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
+        // WhatsApp solo si el canal lo permite (consentimiento, teléfono verificado, política de envío); sin datos del alumno.
+        if ($notifiable->phone_verified_at) {
+            $channels[] = \App\Channels\WhatsAppChannel::class;
+        }
 
         return $channels;
+    }
+
+    public function toWhatsApp(object $notifiable): string
+    {
+        return "📋 MOVA: Tu propuesta de horario no fue aceptada. Revisa las opciones desde tu panel.\n".$this->appRoute('teacher.requests');
     }
 
     public function toMail($notifiable): MailMessage
