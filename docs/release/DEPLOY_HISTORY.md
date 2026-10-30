@@ -4,6 +4,14 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-30 — `fd8c93a` → producción — panel administrativo de WhatsApp (WAHA), avisos a usuarios APAGADOS
+
+- Cambio: Sidebar → WhatsApp (`/admin/whatsapp`): estado real, QR PNG real servido por Laravel, recuperar/restablecer con confirmación, código de emparejamiento y mensaje de prueba fijo. Ver `docs/whatsapp-waha.md`.
+- Imagen: tag `img-waha-panel-20261030`, `ghcr.io/abel-castill0/mova@sha256:2e1ec0b409936e629df0bfe790956a7b5b665cfb0e2d2305961dbf2bad9b0c04`. CI y workflow de imagen en verde.
+- Producción: `movap-web` y `movap-scheduler` `0000039` Healthy; `/`, `/login` 200 y `/admin/whatsapp` → 302 a login. Nuevas variables solo en `movap-web`: `WAHA_ADMIN_CONTROL_ENABLED=true`, `WAHA_BASE_URL` (red privada), secretos `waha-api-key` y `waha-hook-hmac-key`, número esperado y destinatario de prueba fijo. `WHATSAPP_ENABLED=false` y `WHATSAPP_PROVIDER=fake` sin cambios. Webhook de WAHA → `/api/webhooks/waha` de producción (sin firma/firma inválida 403, firma válida 200).
+- Sin migraciones; Culqi, ledger y colas sin cambios.
+- Rollback: `ghcr.io/abel-castill0/mova@sha256:f40303a8207885d754502519730f37ca51eda8b7fe26c5732d5fc711b55ad66f` (`az containerapp update --image` en `movap-web` y `movap-scheduler`; quitar las variables `WAHA_*` si se desea).
+
 ## 2026-10-29 (2) — `b9e1308` → staging `movaqa-culqi` y producción — «Mis créditos» honesto
 
 - Cambio: `Teacher/Credits/Index.vue` muestra siempre los 5 paquetes; CTA «Ver paquetes y precios» sin compra cuando el pago está cerrado; banner «Entorno de pruebas — no se realizarán cargos reales»; enlaces legales en el checkout de Culqi. Sin migraciones, secretos, proveedor de pagos ni cambios de dinero. Causa y pruebas: `payments-culqi.md` §16.

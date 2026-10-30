@@ -43,7 +43,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | Autorización | Roles `parent`, `teacher`, `admin` (Spatie; se crean en una migración/arranque, ver `database/migrations`) · Policies en `app/Policies/` · middleware `app/Http/Middleware/` (`EnsureAdminMfa`, `EnsureNotSuspended`, `EnsureCurrentLegalAcceptance`, `SecurityHeaders`…) |
 | Servicios de negocio | `app/Services/` (`RechargeApprovalService`, `LessonSettlementService`, `LessonSchedulingService`, `JaasService`, `PaymentWebhookService`, `OperationalAlertService`, conciliaciones de pago…) |
 | Pagos | `app/Payment/` (`Contracts/`, `MercadoPago/`, `Culqi/`, `FakePaymentProvider`, `Money`) · selección y guard en `app/Providers/AppServiceProvider.php` + `app/Support/ProviderGuard.php`, `CheckoutProvider.php`, `CheckoutAllowlist.php`, `CreditPackages.php` · config `config/payments.php`, `config/credits.php` |
-| Jobs / cola | `app/Jobs/` (`ProcessCulqiWebhook`, `ProcessMercadoPagoWebhook`, `SendWhatsAppNotificationJob`, `WorkerHeartbeatJob`) |
+| Jobs / cola | `app/Jobs/` (`ProcessCulqiWebhook`, `ProcessMercadoPagoWebhook`, `WorkerHeartbeatJob`) |
 | Scheduler | `app/Console/Kernel.php` (liquidación de lecciones, `mercadopago:reconcile` o `culqi:reconcile` **según el proveedor activo**, health-check…) |
 | Comandos | `app/Console/Commands/` (`culqi:diagnose|webhook-url|reconcile|sandbox-smoke`, `mercadopago:*`, `mova:settle-lessons`, `mova:qa-mysql-fresh-migrate`, `ledger` y concurrencia…) |
 | Modelos / BD | `app/Models/` (`RechargeRequest`, `PaymentOrder`, `PaymentWebhook`, `CreditTransaction`, `TeacherProfile`, `Lesson`…) · `database/migrations/` (~104) · ER y estados en [`architecture/`](architecture/README.md) |
@@ -71,7 +71,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | Estados y flujos de negocio | `architecture/03-state-machines.md`, `04-flows.md` · `MOVA_SYSTEM_MAP.md` (parcialmente superado) |
 | Perfil, cuentas, cierre/eliminación | `ACCOUNT_LIFECYCLE.md` (todo) · `scripts/qa-account-closure-race.php` |
 | UI | `../DESIGN.md`, `../PRODUCT.md`, `WEB_INTERFACE_GUIDELINES.md`, `.claude/rules/frontend-vue.md` |
-| WhatsApp | `whatsapp-architecture.md` |
+| WhatsApp | `whatsapp-architecture.md`; WAHA y panel `/admin/whatsapp` (vincular el número por QR, MFA, piloto con limpieza externa): `whatsapp-waha.md` y `../infra/azure/waha/README.md` |
 | Estado del lanzamiento | `release/MOVA_V1_COMPLETION_LEDGER.md` |
 
 ## 5. Cómo trabajar
