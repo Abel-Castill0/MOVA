@@ -87,6 +87,14 @@ Para retirar la VM: `infra/azure/waha/pilot-teardown.sh --confirm` y comprobar c
   4. El mensaje de prueba del panel solo va a un destinatario que ya escribió al número: primero envía un «Hola» desde +51 916 666 934 al +51 905 922 835.
 - **Si WhatsApp vuelve a revocar:** alerta crítica a los administradores (`mova:waha-watchdog`) y banner en `/admin/whatsapp`; nada se borra solo; se restablece desde el panel.
 
+## Despliegue de esta funcionalidad (orden obligatorio)
+
+1. Imagen nueva (tag `img-*` → workflow *Image (GHCR)*), digest fijo en `movap-web` y `movap-scheduler`.
+2. **`php artisan migrate --force` inmediatamente** (crea `waha_state` y `waha_contacts`; aditiva): `docker/entrypoint.sh` nunca migra y `/readyz` falla con «Migraciones pendientes» hasta que corra.
+   Si las tablas faltan, el código no lanza: avisa en el log (máx. 1 cada 5 min), bloquea los primeros mensajes (fail-closed) y descarta la restricción/estado recibidos hasta que existan.
+3. Variables del vigilante en el scheduler: `WAHA_ADMIN_CONTROL_ENABLED=true`, `WAHA_BASE_URL`, secreto `WAHA_API_KEY`. `WHATSAPP_ENABLED` sigue en `false` (no envía nada).
+4. Rollback: volver al digest anterior; las tablas nuevas pueden quedarse.
+
 ## Persistencia de la sesión
 
 - NOWEB guarda la autenticación en `/app/.sessions/noweb/` (`waha.sqlite3` + WAL y archivos por sesión). En la VM es un **bind mount** `/var/lib/waha/sessions` (disco de la VM, no el

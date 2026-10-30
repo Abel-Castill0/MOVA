@@ -107,6 +107,13 @@ WAHA_PILOT_EXPIRES_AT=<etiqueta expires-at del grupo>   # solo informativo en el
 El webhook de WAHA apunta a `https://movaeduca.me/api/webhooks/waha` (HMAC-SHA512). **Staging** quedó con `WHATSAPP_ENABLED=false`.
 Cambiar el destino del webhook: editar `WHATSAPP_HOOK_URL` en `/etc/waha/waha.env` de la VM y `systemctl restart waha` (la sesión persiste en disco).
 
+## Respaldo cifrado de la sesión (`backup/`)
+
+`install-backup.sh --confirm` (operador) instala en la VM `waha-session-backup.sh`, `waha-session-restore.sh`, la clave (Key Vault `waha-session-backup-key` → `/etc/waha/backup.key`, rol temporal sobre ese
+secreto que el script retira y verifica) y un temporizador semanal (domingo 03:30 UTC). Por defecto los respaldos quedan **solo en la VM** (`/etc/waha/backup.env` → `UPLOAD=0`): se pierden con el grupo del piloto;
+subirlos fuera exige un destino durable aprobado (`docs/whatsapp-waha-costos-migracion.md`). La restauración exige `--origen-detenido` (nunca dos instancias con la misma identidad) y se niega a pisar una sesión viva.
+WAHA recibe también los mensajes entrantes (`WHATSAPP_HOOK_EVENTS=message.ack,session.status,message`) únicamente para saber QUIÉN escribió primero.
+
 ## Plan de pruebas del piloto (staging, solo números autorizados)
 
 Alcance privado (`mova:waha-check`) · imagen ARM64 fija arrancada · vinculación por QR · reinicio de VM y persistencia de la sesión ·

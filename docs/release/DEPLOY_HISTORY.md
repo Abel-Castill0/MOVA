@@ -4,6 +4,15 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-30 (2) — `f9946fd` → producción — política anti-restricción de WhatsApp, estado durable, vigilante y respaldo
+
+- Contexto: WhatsApp revocó la vinculación de WAHA 2 s después del primer mensaje a un contacto que nunca había escrito al número (restricción «reachout timelock» + `conflict`). Ver `docs/whatsapp-waha.md`.
+- Cambio: MOVA solo escribe a quien escribió primero (evento entrante, solo se guarda un HMAC del número); calentamiento tras vinculación nueva; estado durable en las tablas nuevas `waha_state` y `waha_contacts` (la caché se vacía en cada arranque); vigilante `mova:waha-watchdog` cada 5 min (start/restart con backoff, alertas, nunca logout); `/admin/whatsapp` con alerta de pérdida, política, conteos, persistencia e infraestructura; WhatsApp en 3 notificaciones más; scripts de respaldo cifrado y restauración (`infra/azure/waha/backup/`).
+- Imagen: tag `img-waha-guard2-20261030`, `ghcr.io/abel-castill0/mova@sha256:138704e337cca6bf8d0f729b63e9ed27a7a243a35f18a475922cd5f5adaab2a5`. CI y workflow de imagen en verde. Suite completa 1771 OK (7 omitidas) y perfil MySQL de las pruebas WAHA OK.
+- **Migración aditiva** `2026_10_30_100000_create_waha_state_tables` ejecutada con `php artisan migrate --force` dentro de la réplica de `movap-web--0000040` (el entrypoint nunca migra; `/readyz` devolvía 503 hasta entonces). Orden correcto la próxima vez: desplegar la imagen y migrar inmediatamente, o migrar primero.
+- Producción: `movap-web` y `movap-scheduler` `0000041` Healthy. El scheduler recibió `WAHA_ADMIN_CONTROL_ENABLED=true`, `WAHA_BASE_URL` y el secreto `waha-api-key` (solo para que el vigilante consulte/recupere; **no envía nada**). `WHATSAPP_ENABLED=false`, `WHATSAPP_PROVIDER=fake`, `PAYMENT_PROVIDER=mercadopago` sin cambios. Culqi, ledger y colas financieras sin tocar.
+- Rollback: `ghcr.io/abel-castill0/mova@sha256:2e1ec0b409936e629df0bfe790956a7b5b665cfb0e2d2305961dbf2bad9b0c04` (revisión anterior del panel) o `...f40303a8207885d754502519730f37ca51eda8b7fe26c5732d5fc711b55ad66f` (antes del panel); las dos tablas nuevas son inofensivas y pueden quedarse.
+
 ## 2026-10-30 — `fd8c93a` → producción — panel administrativo de WhatsApp (WAHA), avisos a usuarios APAGADOS
 
 - Cambio: Sidebar → WhatsApp (`/admin/whatsapp`): estado real, QR PNG real servido por Laravel, recuperar/restablecer con confirmación, código de emparejamiento y mensaje de prueba fijo. Ver `docs/whatsapp-waha.md`.
