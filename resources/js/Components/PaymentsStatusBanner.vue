@@ -24,8 +24,8 @@ const state = computed(() => {
   if (p.online && p.testMode) {
     return {
       tone: 'border-amber-300 bg-amber-50 text-amber-900',
-      title: 'Entorno de pruebas',
-      text: 'El pago funciona en modo de integración con Culqi: no se realizan cobros reales ni se descuenta dinero de ninguna tarjeta.',
+      title: 'Entorno de pruebas — no se realizarán cargos reales',
+      text: 'El pago funciona en modo de integración con Culqi: usa solo tarjetas de prueba; no se descuenta dinero de ninguna tarjeta real.',
     }
   }
   if (p.online) return null

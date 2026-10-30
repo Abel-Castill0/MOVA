@@ -62,6 +62,11 @@
             <Icon name="secure-payment" :size="14" class="mt-0.5 flex-shrink-0" />
             El pago se completa en la ventana segura de Culqi. MOVA nunca ve ni guarda el número completo, CVV ni fecha de tu tarjeta.
           </p>
+          <p class="text-xs text-slate-500">
+            Al pagar aceptas los <a :href="route('legal.terms')" target="_blank" rel="noopener" class="font-semibold text-brand-600 hover:underline">Términos y Condiciones</a>,
+            la <a :href="route('legal.privacy')" target="_blank" rel="noopener" class="font-semibold text-brand-600 hover:underline">Política de Privacidad</a> y la
+            <a :href="route('legal.refunds')" target="_blank" rel="noopener" class="font-semibold text-brand-600 hover:underline">Política de devoluciones</a> vigentes.
+          </p>
         </div>
 
         <!-- 3DS: el banco pide una verificación adicional (ventana de Culqi). No se muestra "aprobado" por esto. -->

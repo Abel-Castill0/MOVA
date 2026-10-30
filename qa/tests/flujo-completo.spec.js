@@ -454,7 +454,9 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
         }
         await expect(page.getByRole('button', { name: automaticEnabled ? /Pagar en línea|Pagar con/ : 'Comprar' }).first()).toBeVisible();
       } else {
-        await expect(page.getByText('Las recargas se habilitarán próximamente.')).toBeVisible();
+        // Sin pago activo la pantalla no finge una compra: explica el estado y muestra los paquetes en solo lectura.
+        await expect(page.getByTestId('recharge-unavailable')).toBeVisible();
+        await expect(page.getByTestId('recharge-cta')).toHaveText(/Ver paquetes y precios/);
       }
     });
 

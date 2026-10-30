@@ -6,9 +6,13 @@
           <h2 class="text-xl font-black text-slate-900">Mis créditos MOVA</h2>
           <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
         </div>
+        <!-- Con el pago activo es el acceso a la compra; si no lo está, NO finge serlo: lleva a ver paquetes y precios. -->
         <a href="#recargas"
-          class="flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20">
-          <Icon name="credits" :size="18" /> Recargar créditos
+          data-testid="recharge-cta"
+          :class="anyRechargeMethodEnabled
+            ? 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20'
+            : 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-brand-200 bg-white text-brand-700 text-sm font-bold rounded-xl hover:bg-brand-50 active:scale-95 transition-all'">
+          <Icon name="credits" :size="18" /> {{ anyRechargeMethodEnabled ? 'Recargar créditos' : 'Ver paquetes y precios' }}
         </a>
       </div>
 
@@ -27,17 +31,17 @@
       </div>
 
       <section id="recargas" class="space-y-3 scroll-mt-24">
-        <PaymentsStatusBanner v-if="$page.props.payments?.online" />
+        <PaymentsStatusBanner />
         <div>
           <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
-          <p v-if="!anyRechargeMethodEnabled" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-            Las recargas se habilitarán próximamente.
+          <p v-if="!anyRechargeMethodEnabled" class="mt-1 text-sm text-slate-500" data-testid="recharge-unavailable">
+            Estos son los paquetes y precios vigentes. La compra desde tu cuenta aún no está activa: todavía no se puede pagar y no se te cobrará nada.
           </p>
           <p v-else-if="automaticCheckoutEnabled" class="text-sm text-slate-500">{{ automaticCheckoutHelp }}</p>
           <p v-else class="text-sm text-slate-500">Realiza el pago al destino indicado y registra el número de operación para revisión administrativa.</p>
         </div>
 
-        <div v-if="anyRechargeMethodEnabled" class="grid gap-4 lg:grid-cols-3">
+        <div class="grid gap-4 lg:grid-cols-3">
           <article v-for="pack in packages" :key="pack.code" class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -49,10 +53,14 @@
               </div>
               <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
             </div>
+            <p v-if="pack.description" class="mt-3 text-sm text-slate-600">{{ pack.description }}</p>
             <p v-if="pack.code === 'pro'" class="mt-3 text-sm font-bold text-brand-700">Mayor ahorro</p>
             <p class="mt-3 text-sm text-slate-600">Precio base: S/ {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
             <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
             <p class="text-sm text-brand-700">Ahorro: S/ {{ pack.saving_pen }}</p>
+            <p v-if="!anyRechargeMethodEnabled" class="mt-5 rounded-xl bg-slate-50 px-4 py-2.5 text-center text-xs font-semibold text-slate-600">
+              La compra estará disponible cuando se active el pago en línea
+            </p>
 
             <button
               v-if="automaticCheckoutEnabled"
@@ -77,6 +85,9 @@
             >
               {{ automaticCheckoutEnabled ? 'Pagar manualmente y esperar revisión' : 'Comprar' }}
             </button>
+            <Link :href="route('catalog.package', pack.code)" class="mt-3 block text-center text-xs font-semibold text-brand-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              Ver detalle y condiciones del paquete {{ pack.name }}
+            </Link>
           </article>
         </div>
       </section>
@@ -252,7 +263,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useForm, router } from '@inertiajs/vue3'
+import { useForm, router, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'

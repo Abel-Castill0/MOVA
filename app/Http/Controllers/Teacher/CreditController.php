@@ -47,7 +47,8 @@ class CreditController extends Controller
             // ajustaba config/credits.php, esa línea mentía al profesor
             // justo en la pantalla donde decide comprar.
             'packages' => collect(CheckoutProvider::active(auth()->user()) !== null ? CreditPackages::forCheckout(auth()->user()) : config('credits.packages'))
-                ->map(fn (array $package, string $code) => CreditPackages::pricing($code, $package))
+                ->map(fn (array $package, string $code) => CreditPackages::pricing($code, $package)
+                    + ['description' => (string) config("catalog.packages.{$code}.description", '')])
                 ->values(),
             'currency' => 'S/',
             'paymentMethods' => config('credits.payment_methods'),
