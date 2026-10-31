@@ -8,7 +8,7 @@ import UpdateAvatarForm from './Partials/UpdateAvatarForm.vue'
 import NotificationPreferencesForm from './Partials/NotificationPreferencesForm.vue'
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue'
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue'
-const props = defineProps({ mustVerifyEmail: Boolean, status: String, section: String, accountSummary: Object, canRequestClosure: Boolean })
+const props = defineProps({ mustVerifyEmail: Boolean, status: String, section: String, accountSummary: Object, canRequestClosure: Boolean, whatsappChat: { type: Object, default: null } })
 const user = computed(() => usePage().props.auth.user)
 const active = ref(props.section || 'personal')
 watch(() => props.section, value => { active.value = value || 'personal' })
@@ -47,7 +47,7 @@ function moveTab(event, index) {
         <div class="profile-card"><UpdatePasswordForm /><p class="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-500">Al cambiar tu contraseña, las otras sesiones deberán iniciar sesión de nuevo. Si accedes con Google y no tienes contraseña, puedes usar «Olvidé mi contraseña» al iniciar sesión.</p></div>
       </section>
       <section v-show="active === 'privacy'" id="profile-panel-privacy" role="tabpanel" aria-labelledby="profile-tab-privacy" class="space-y-5">
-        <div class="profile-card"><NotificationPreferencesForm /></div>
+        <div class="profile-card"><NotificationPreferencesForm :chat="whatsappChat" /></div>
         <div class="profile-card"><h2 class="text-lg font-bold text-slate-900">Tú decides sobre tus datos</h2><p class="mt-2 text-sm leading-relaxed text-slate-600">Usamos tu información para gestionar tu cuenta y tus clases. Puedes consultar las condiciones y contactar con soporte para ejercer tus derechos sobre tus datos personales.</p><div class="mt-4 flex flex-wrap gap-x-5 gap-y-3 text-sm font-bold text-brand-600"><a :href="route('legal.privacy')" target="_blank" rel="noopener">Política de Privacidad ↗</a><a :href="route('legal.terms')" target="_blank" rel="noopener">Términos y Condiciones ↗</a><a :href="`mailto:${$page.props.support.email}`">Contactar con soporte</a></div></div>
         <div v-if="canRequestClosure" class="profile-card border-rose-100"><DeleteUserForm :summary="accountSummary" :status="status" /></div>
       </section>

@@ -40,6 +40,26 @@
         Verifica tu teléfono para poder recibir avisos por WhatsApp.
       </p>
 
+      <!-- Con WAHA, MOVA solo puede responder a quien le escribió primero: este paso lo hace la persona, no MOVA. -->
+      <div v-if="chat && optedIn" class="mt-3 border-t border-gray-100 pt-3 text-sm" aria-live="polite">
+        <p v-if="chat.opened" class="font-semibold text-emerald-700">Chat con MOVA activado. Ya podemos avisarte por WhatsApp.</p>
+        <template v-else>
+          <p class="text-gray-700">
+            Para recibir los avisos, escribe <span class="font-semibold">ACTIVAR</span> al número oficial de MOVA
+            (<span class="whitespace-nowrap font-semibold">{{ chat.number }}</span>) desde el teléfono que verificaste.
+          </p>
+          <a
+            :href="chat.link"
+            target="_blank"
+            rel="noopener"
+            class="mt-2 inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          >Abrir WhatsApp</a>
+          <p class="mt-2 text-xs text-gray-500">
+            Hasta que lo hagas, recibirás los avisos por correo electrónico. Recarga esta página después de escribir para ver el estado.
+          </p>
+        </template>
+      </div>
+
       <p v-if="error" class="mt-3 text-sm font-semibold text-red-600">{{ error }}</p>
 
       <Transition
@@ -57,6 +77,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
+
+defineProps({ chat: { type: Object, default: null } })
 
 const page = usePage()
 const optedIn = computed(() => page.props.auth?.user?.whatsapp_opt_in ?? false)

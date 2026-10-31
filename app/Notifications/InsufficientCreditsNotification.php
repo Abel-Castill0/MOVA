@@ -18,6 +18,8 @@ class InsufficientCreditsNotification extends Notification implements ShouldQueu
 
     public function __construct(private float $needed, private float $available)
     {
+        // Se encola después del commit: el worker no debe ver el aviso antes que los datos que lo originan.
+        $this->afterCommit();
     }
 
     public function via($notifiable): array

@@ -13,7 +13,11 @@ class ClassReminderNotification extends Notification implements ShouldQueue
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public Lesson $lesson, public string $interval = '10m') {}
+    public function __construct(public Lesson $lesson, public string $interval = '10m')
+    {
+        // Se encola después del commit: el worker no debe ver el aviso antes que los datos que lo originan.
+        $this->afterCommit();
+    }
 
     public function via($notifiable): array
     {

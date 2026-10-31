@@ -620,6 +620,39 @@ class WhatsAppConsentTest extends TestCase
         $response->assertInertia(fn ($page) => $page->where('auth.user.whatsapp_opt_in', false));
     }
 
+    public function test_the_profile_hides_the_activation_step_unless_waha_is_the_provider(): void
+    {
+        config(['services.whatsapp.provider' => 'fake', 'services.waha.expected_number' => '905922835']);
+
+        $this->actingAs($this->verifiedUser())->get(route('profile.edit'))
+            ->assertInertia(fn ($page) => $page->where('whatsappChat', null));
+    }
+
+    public function test_the_profile_explains_the_activation_step_and_reflects_when_the_chat_was_opened(): void
+    {
+        config(['services.whatsapp.provider' => 'waha', 'services.waha.expected_number' => '905922835']);
+        $user = $this->verifiedUser();
+
+        $this->actingAs($user)->get(route('profile.edit'))->assertInertia(fn ($page) => $page
+            ->where('whatsappChat.number', '+51905922835')
+            ->where('whatsappChat.link', 'https://wa.me/51905922835?text=ACTIVAR')
+            ->where('whatsappChat.opened', false));
+
+        \App\WhatsApp\Waha\WahaSessionState::markContacted('51987654321');
+
+        $this->actingAs($user)->get(route('profile.edit'))
+            ->assertInertia(fn ($page) => $page->where('whatsappChat.opened', true));
+    }
+
+    public function test_the_activation_state_is_unknown_without_a_verified_phone(): void
+    {
+        config(['services.whatsapp.provider' => 'waha', 'services.waha.expected_number' => '905922835']);
+        $user = $this->verifiedUser(['phone_verified_at' => null]);
+
+        $this->actingAs($user)->get(route('profile.edit'))
+            ->assertInertia(fn ($page) => $page->where('whatsappChat.opened', null));
+    }
+
     // ── Un usuario verificado ANTES de este cambio también puede activarlo ─
 
     public function test_an_account_verified_long_before_this_feature_existed_can_still_opt_in(): void

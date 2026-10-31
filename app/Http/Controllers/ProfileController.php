@@ -27,7 +27,30 @@ class ProfileController extends Controller
             'section' => $request->routeIs('account.settings') ? 'security' : 'personal',
             'accountSummary' => app(\App\Services\AccountLifecycleService::class)->summary($request->user()),
             'canRequestClosure' => $request->user()->hasAnyRole(['parent', 'teacher']) && ! $request->user()->hasRole('admin'),
+            'whatsappChat' => $this->whatsappChat($request->user()),
         ]);
+    }
+
+    /**
+     * Con WAHA, MOVA solo puede escribir a quien escribió primero al número oficial: el perfil explica ese paso («ACTIVAR») y
+     * muestra si ya está hecho. `null` cuando el proveedor no es WAHA o no hay número configurado (no hay nada que mostrar).
+     *
+     * @return array{number: string, link: string, opened: bool|null}|null
+     */
+    private function whatsappChat(User $user): ?array
+    {
+        $number = \App\WhatsApp\Waha\WahaClient::digits((string) config('services.waha.expected_number', ''));
+        if (config('services.whatsapp.provider') !== 'waha' || strlen($number) < 11) {
+            return null;
+        }
+
+        $phone = $user->phone_verified_at !== null ? (string) $user->phone : '';
+
+        return [
+            'number' => '+'.$number,
+            'link' => 'https://wa.me/'.$number.'?text='.rawurlencode('ACTIVAR'),
+            'opened' => $phone === '' ? null : \App\WhatsApp\Waha\WahaSessionState::hasContacted(\App\WhatsApp\Waha\WahaClient::digits($phone)),
+        ];
     }
 
     public function updateAvatar(Request $request, CloudinaryService $cloudinary): RedirectResponse
