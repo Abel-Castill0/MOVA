@@ -71,7 +71,7 @@ Plataforma peruana de clases particulares en línea: **padres** registran alumno
 | Estados y flujos de negocio | `architecture/03-state-machines.md`, `04-flows.md` · `MOVA_SYSTEM_MAP.md` (parcialmente superado) |
 | Perfil, cuentas, cierre/eliminación | `ACCOUNT_LIFECYCLE.md` (todo) · `scripts/qa-account-closure-race.php` |
 | UI | `../DESIGN.md`, `../PRODUCT.md`, `WEB_INTERFACE_GUIDELINES.md`, `.claude/rules/frontend-vue.md` |
-| WhatsApp | `whatsapp-architecture.md`; WAHA y panel `/admin/whatsapp` (vincular el número por QR, MFA, piloto con limpieza externa): `whatsapp-waha.md` y `../infra/azure/waha/README.md` |
+| WhatsApp | `whatsapp-architecture.md`; WAHA y panel `/admin/whatsapp` (vincular el número por QR, MFA, piloto con limpieza externa): `whatsapp-waha.md` y `../infra/azure/waha/README.md`. **Estado 2026-10-30:** código y panel en producción con avisos apagados (`WHATSAPP_ENABLED=false`); vinculación perdida por WhatsApp (causa y política anti-restricción en `whatsapp-waha.md`, «Incidente»); revincular y decidir costo antes de la limpieza del piloto (2026-11-01 04:25 UTC); costos en `whatsapp-waha-costos-migracion.md` |
 | Estado del lanzamiento | `release/MOVA_V1_COMPLETION_LEDGER.md` |
 
 ## 5. Cómo trabajar

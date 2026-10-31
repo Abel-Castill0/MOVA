@@ -140,6 +140,24 @@ Para retirar la VM: `infra/azure/waha/pilot-teardown.sh --confirm` y comprobar c
 Con `WHATSAPP_ENABLED=false` **ninguno** envía; con él activo siguen aplicando consentimiento (`whatsapp_opt_in_at`/`whatsapp_opt_out_at`), teléfono verificado, suspensión, cuenta cerrada,
 la política de «escribió primero», límites, deduplicado y ACK.
 
+### Consentimiento en el perfil y encolado (commit `6089a0e`)
+
+- **Mi perfil → Privacidad y cuenta → Notificaciones:** con `WHATSAPP_PROVIDER=waha` y `WAHA_EXPECTED_NUMBER`, quien activa los avisos ve el número oficial, la instrucción «escribe ACTIVAR» y un botón
+  `wa.me/<número>?text=ACTIVAR`. La tarjeta pasa a «Chat con MOVA activado» cuando el evento entrante de ese teléfono verificado ya está registrado (`WahaSessionState::hasContacted`). Prop Inertia `whatsappChat`
+  (`ProfileController::whatsappChat`); `null` con otro proveedor o sin número configurado (es el caso de producción hoy, proveedor `fake`).
+- **Encolado seguro:** 12 notificaciones con WhatsApp llaman a `afterCommit()` en su constructor para que el worker no las procese antes de que existan los datos que las originan. Las de recargas
+  (`RechargeApproved/Rejected`) no se tocaron: ya se despachan con `DB::afterCommit` desde `RechargeApprovalService`.
+- **No hay aún:** prioridades/agrupación/ventanas de silencio entre avisos, ni deduplicado durable por evento/modelo/destinatario/versión más allá del existente de `WahaProvider`; categorías por evento en el perfil
+  (hoy un único interruptor de WhatsApp). Son mejoras futuras, no bloqueantes.
+
+## Estado y pendientes (cierre 2026-10-30)
+
+- **Producción:** `6089a0e`, `movap-web`/`movap-scheduler` revisión `0000042`; `WHATSAPP_ENABLED=false`, `WHATSAPP_PROVIDER=fake`; panel `/admin/whatsapp` y vigilante activos (`WAHA_ADMIN_CONTROL_ENABLED=true`).
+- **Sesión de WhatsApp:** la vinculación del +51 905 922 835 está **perdida** (`FAILED`); el propietario debe revincular desde el panel (Restablecer vinculación + QR).
+- **Pruebas reales pendientes tras revincular y pasar el calentamiento:** reinicio de Docker, reinicio de la VM, celular sin Internet (lo hace el propietario), respaldo real y restauración en copia aislada,
+  mensaje real con ACK, eventos con usuarios sintéticos.
+- **Decisiones del propietario:** WAHA permanente (≈US$6–12/mes) o Cloud API para avisos a desconocidos; destino de respaldo fuera de la VM. La limpieza del piloto borrará la VM el 2026-11-01 04:25 UTC (+30 min de reserva).
+
 ## Pendiente de validar en el piloto (no demostrado)
 
 Vinculación por QR, persistencia de la sesión tras reinicio, entrega y `message.ack` reales, RAM/CPU reales de NOWEB en 1 GiB,
