@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-10-30 (3) — `6089a0e` → producción — paso «ACTIVAR» en el perfil y avisos de WhatsApp tras el commit
+
+- Cambio: el perfil (Privacidad → Notificaciones) explica «escribe ACTIVAR al número oficial» y muestra si el chat ya está abierto (solo con proveedor WAHA; en producción `fake`, no se ve); 12 notificaciones de WhatsApp llaman a `afterCommit()` (las de recargas no se tocaron). Sin migraciones.
+- Imagen: tag `img-waha-consent-20261030`, `ghcr.io/abel-castill0/mova@sha256:9a463681b4299143e45c1bfc890740355b172faf016f4e5571a3710fbc0102ad`. CI e imagen en verde; suite completa 1782 OK (7 omitidas).
+- Producción: `movap-web` y `movap-scheduler` `0000042`; `/readyz` 200, `/login` 200, `/admin/whatsapp` 302. `WHATSAPP_ENABLED=false`, `WHATSAPP_PROVIDER=fake`, `PAYMENT_PROVIDER=mercadopago` sin cambios.
+- Rollback: `ghcr.io/abel-castill0/mova@sha256:138704e337cca6bf8d0f729b63e9ed27a7a243a35f18a475922cd5f5adaab2a5`.
+
 ## 2026-10-30 (2) — `f9946fd` → producción — política anti-restricción de WhatsApp, estado durable, vigilante y respaldo
 
 - Contexto: WhatsApp revocó la vinculación de WAHA 2 s después del primer mensaje a un contacto que nunca había escrito al número (restricción «reachout timelock» + `conflict`). Ver `docs/whatsapp-waha.md`.
