@@ -15,9 +15,11 @@ El historial en `MOVA_PRODUCTION_READINESS.md` corresponde a un snapshot antiguo
    contra la base por defecto. Ambos requieren explícitamente
    `--connection=mysql_qa`, entorno `local`/`testing` y nombre de esquema
    **exactamente** `mova_qa`. El guard revisa también que la configuración
-   efectiva de Laravel utilice un host TCP loopback, incluso si procede de
-   `.env`. El runner además exige `APP_ENV=testing`, `DB_CONNECTION=mysql_qa`
-   y `DB_HOST` local y explícito (`localhost` o `127.0.0.1`).
+   efectiva de Laravel utilice loopback incluso si procede de `.env`, o bien
+   el servicio interno `mysql_qa` si `docker-compose.qa.yml` identifica
+   explícitamente el contenedor como `MOVA_QA_COMPOSE=1` y el proceso detecte
+   que está dentro de Docker (`/.dockerenv`). El runner además
+   exige `APP_ENV=testing`, `DB_CONNECTION=mysql_qa` y un `DB_HOST` explícito.
 3. Dos sondas compartían la materia `ConcurrencyProbe` y `--cleanup` borraba
    todos sus registros sin mirar el ID. Ahora cada escenario tiene materia
    sintética única; limpieza requiere `--scenario=ID`, valida la pertenencia
@@ -47,6 +49,9 @@ APP_ENV=testing DB_CONNECTION=mysql_qa DB_HOST=127.0.0.1 bash scripts/concurrenc
 La variante antigua `scripts/concurrency-probe-qa.sh` delega en el mismo
 runner protegido. El job `mysql` de GitHub Actions ejecuta las cinco carreras
 después de PHPUnit, junto con las carreras de Culqi con HTTP simulado.
+También son compatibles con `php_qa` del `docker-compose.qa.yml`: allí
+`DB_HOST=mysql_qa` es un servicio Docker **efímero, con tmpfs**, no un host
+externo, y el Compose suministra la identidad QA adicional requerida.
 
 ## Verificación y límites
 

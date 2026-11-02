@@ -54,6 +54,11 @@ services:
       mysql_qa:
         condition: service_healthy
     environment:
+      # Identidad EXCLUSIVA del contenedor QA, exigida por los runners cuando
+      # DB_HOST=mysql_qa (DNS interno Docker en vez de TCP loopback).
+      MOVA_QA_COMPOSE: "1"
+      APP_ENV: testing
+      DB_CONNECTION: mysql_qa
       DB_HOST: mysql_qa
       DB_PORT: "3306"
       DB_USERNAME: root

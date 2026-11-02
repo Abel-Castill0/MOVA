@@ -31,7 +31,7 @@ class ConcurrencyVerify extends Command
         if ($this->option('connection') !== 'mysql_qa') {
             throw new \RuntimeException('MOVA QA GUARD: mova:concurrency-verify exige --connection=mysql_qa. Abortado sin tocar datos.');
         }
-        QaDatabaseGuard::assertLoopbackConnection('mysql_qa');
+        QaDatabaseGuard::assertLocalQaConnection('mysql_qa');
         QaDatabaseGuard::assertDatabase('mysql_qa', 'mova_qa');
         config(['database.default' => 'mysql_qa']);
 

@@ -10,6 +10,7 @@
 #   ./scripts/concurrency-probe.sh accept-lesson 5
 # Ejecutar únicamente en un MySQL QA local y descartable, con:
 #   APP_ENV=testing DB_CONNECTION=mysql_qa DB_HOST=127.0.0.1
+# En php_qa de docker-compose.qa.yml: DB_HOST=mysql_qa y MOVA_QA_COMPOSE=1.
 set -euo pipefail
 
 OPERATION="${1:-accept-lesson}"
@@ -24,7 +25,8 @@ if [[ "${APP_ENV:-}" != testing || "${DB_CONNECTION:-}" != mysql_qa ]]; then
 fi
 case "${DB_HOST:-}" in
   127.0.0.1|localhost) ;;
-  *) echo 'Runner QA abortado: DB_HOST debe ser loopback.' >&2; exit 1 ;;
+  mysql_qa) if [[ "${MOVA_QA_COMPOSE:-}" != 1 || ! -f /.dockerenv ]]; then echo 'Runner QA: falta identidad de Compose QA.' >&2; exit 1; fi ;;
+  *) echo 'Runner QA abortado: DB_HOST no es loopback ni servicio Compose QA.' >&2; exit 1 ;;
 esac
 
 case "$OPERATION" in

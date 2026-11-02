@@ -40,18 +40,25 @@ final class QaDatabaseGuard
     }
 
     /**
-     * Los runners financieros multi-proceso solo se admiten sobre MySQL QA
-     * local. Verificar la CONFIGURACIÓN RESUELTA por Laravel, no solo el
-     * DB_HOST del shell (puede venir de .env o de config:cache).
+     * Los runners financieros multiproceso solo se admiten contra MySQL QA
+     * local o el servicio exclusivo del docker-compose.qa.yml. Verificar la
+     * CONFIGURACIÓN RESUELTA por Laravel, no solo DB_HOST del shell (puede
+     * proceder de .env o config:cache). El flag MOVA_QA_COMPOSE se declara
+     * EXCLUSIVAMENTE en el servicio php_qa del Compose de QA, nunca en prod.
      */
-    public static function assertLoopbackConnection(string $connection): void
+    public static function assertLocalQaConnection(string $connection): void
     {
         self::assertSafeEnvironment();
 
         $settings = config("database.connections.{$connection}", []);
-        if (!in_array($settings['host'] ?? null, ['127.0.0.1', 'localhost'], true)
+        $host = $settings['host'] ?? null;
+        $local = in_array($host, ['127.0.0.1', 'localhost'], true);
+        $qaCompose = $host === 'mysql_qa'
+            && getenv('MOVA_QA_COMPOSE') === '1'
+            && is_file('/.dockerenv');
+        if ((!$local && !$qaCompose)
             || !empty($settings['unix_socket'])) {
-            throw new RuntimeException('MOVA QA GUARD: la conexión de concurrencia debe resolver a MySQL loopback por TCP. Abortado.');
+            throw new RuntimeException('MOVA QA GUARD: la conexión debe resolver a loopback o al servicio mysql_qa del Compose QA identificado. Abortado.');
         }
     }
 
