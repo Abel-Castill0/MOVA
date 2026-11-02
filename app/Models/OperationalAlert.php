@@ -108,7 +108,9 @@ class OperationalAlert extends Model
         // es el mensaje de la excepción y no hay forma barata de garantizar que
         // no arrastre datos del proveedor. El admin ya sabe qué webhook falló y
         // el detalle técnico vive en el log y en Sentry, que es donde debe estar.
-        self::TYPE_RECONCILIATION_FAILURE => ['PaymentWebhook'],
+        // ProcessMercadoPagoWebhook + CulqiReconcile: solo IDs o recuentos,
+        // nunca mensajes de excepción ni respuestas de las pasarelas.
+        self::TYPE_RECONCILIATION_FAILURE => ['PaymentWebhook', 'Órdenes fallidas', 'Órdenes revisadas'],
     ];
 
     /**
