@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\PaymentOrder;
+use App\Models\RechargeRequest;
 use App\Payment\CulqiPaymentProvider;
 use App\Services\CulqiPaymentReconciliationService;
 use Illuminate\Console\Command;
@@ -30,15 +31,24 @@ class CulqiReconcile extends Command
 
     public function handle(CulqiPaymentReconciliationService $reconciler): int
     {
-        $query = PaymentOrder::where('provider', CulqiPaymentProvider::PROVIDER)->where('status', 'pending');
+        $query = PaymentOrder::where('provider', CulqiPaymentProvider::PROVIDER);
 
         if ($this->option('order') !== null) {
             $query->whereKey((int) $this->option('order'));
         } else {
+            $query->where('status', 'pending');
             $minutes = (int) ($this->option('minutes') ?? config('payments.culqi.recovery.stuck_order_minutes', 15));
             $query->whereNull('review_reason')
-                ->whereIn('submission_status', ['submitting', 'uncertain', 'submitted'])
-                ->where('created_at', '<=', now()->subMinutes($minutes));
+                ->where(function ($q) use ($minutes) {
+                    $q->where(function ($pending) use ($minutes) {
+                        $pending->whereIn('submission_status', ['submitting', 'uncertain', 'submitted'])
+                            ->where('created_at', '<=', now()->subMinutes($minutes));
+                    })->orWhere(function ($expired3ds) {
+                        $expired3ds->where('submission_status', 'awaiting_3ds')
+                            ->whereNotNull('three_ds_expires_at')
+                            ->where('three_ds_expires_at', '<=', now());
+                    });
+                });
         }
 
         $batch = (int) config('payments.culqi.recovery.batch_size', 100);
@@ -62,9 +72,20 @@ class CulqiReconcile extends Command
         $counts = [];
         foreach ($orders as $order) {
             try {
-                $outcome = $order->provider_order_id === null
-                    ? $reconciler->reconcileUncertainSubmission($order)
-                    : $reconciler->reconcile($order);
+                if ($order->submission_status === 'awaiting_3ds') {
+                    if ($order->three_ds_expires_at === null || $order->three_ds_expires_at->isFuture()) {
+                        $outcome = 'awaiting_3ds';
+                    } else {
+                        app(CulqiPaymentProvider::class)->abandonThreeDs(
+                            RechargeRequest::findOrFail($order->recharge_request_id), '3ds_expired'
+                        );
+                        $outcome = 'expired_3ds';
+                    }
+                } else {
+                    $outcome = $order->provider_order_id === null
+                        ? $reconciler->reconcileUncertainSubmission($order)
+                        : $reconciler->reconcile($order);
+                }
             } catch (Throwable $e) {
                 $outcome = 'error';
                 $this->warn("PaymentOrder#{$order->id}: ".class_basename($e));

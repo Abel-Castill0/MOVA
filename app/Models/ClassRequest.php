@@ -78,6 +78,17 @@ class ClassRequest extends Model
         return $this->belongsTo(TeacherProfile::class);
     }
 
+    /** Rechazos individuales de una solicitud pública (sin cerrar la solicitud global). */
+    public function teacherDeclines()
+    {
+        return $this->hasMany(ClassRequestTeacherDecline::class);
+    }
+
+    public function scopeNotDeclinedBy(Builder $query, int $teacherProfileId): Builder
+    {
+        return $query->whereDoesntHave('teacherDeclines', fn ($q) => $q->where('teacher_profile_id', $teacherProfileId));
+    }
+
     /**
      * Solicitudes que un profesor puede ver/gestionar: vinculadas
      * directamente a él por código de referido, O sin vínculo directo y que
@@ -141,6 +152,7 @@ class ClassRequest extends Model
         }
 
         return TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+            ->whereNotIn('id', $this->teacherDeclines()->select('teacher_profile_id'))
             ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->with('user')
             ->get()
@@ -167,6 +179,11 @@ class ClassRequest extends Model
             $profile = $this->classOffer?->teacherProfile;
 
             return (bool) ($profile?->is_verified && $profile->user_id === $user->id);
+        }
+
+        $profileId = $user->teacherProfile?->id;
+        if ($profileId && $this->teacherDeclines()->where('teacher_profile_id', $profileId)->exists()) {
+            return false;
         }
 
         return TeacherProfile::where('user_id', $user->id)

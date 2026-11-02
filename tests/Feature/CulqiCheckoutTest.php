@@ -362,6 +362,32 @@ class CulqiCheckoutTest extends TestCase
         $this->assertSame(0, $profile->fresh()->credits_available);
     }
 
+    public function test_scheduled_reconciliation_closes_expired_3ds_without_searching_for_a_charge(): void
+    {
+        [$user, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+        $this->fakeCulqi(postCharge: fn () => Http::response($this->threeDsRequired(), 200));
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'token' => self::TOKEN, 'device_fingerprint_id' => self::DEVICE,
+        ])->assertJson(['status' => 'pending']);
+
+        $order = PaymentOrder::firstOrFail();
+        $this->assertSame('awaiting_3ds', $order->submission_status);
+        $this->artisan('culqi:reconcile', ['--order' => $order->id])->assertExitCode(0);
+        $this->assertSame('awaiting_3ds', $order->fresh()->submission_status, 'El barrido manual no cierra un reto vigente.');
+        $this->assertSame(0, $order->fresh()->recovery_attempts);
+
+        $this->travel(15)->minutes();
+        $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(0);
+
+        $this->assertSame('failed', $order->fresh()->status);
+        $this->assertNull($order->fresh()->submission_status);
+        $this->assertSame('3ds_expired', $order->fresh()->provider_status_detail);
+        $this->assertSame(0, $order->fresh()->recovery_attempts);
+        $this->assertSame(1, $this->culqiCalls['POST /v2/charges'], 'No se reenvía un cargo al expirar el 3DS.');
+        $this->assertSame(0, $profile->fresh()->credits_available);
+    }
+
     public function test_a_second_3ds_request_or_a_yape_token_without_device_never_loops(): void
     {
         [$user, $profile] = $this->teacher();

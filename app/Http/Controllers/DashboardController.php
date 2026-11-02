@@ -110,6 +110,7 @@ class DashboardController extends Controller
                     // código de referido).
                     return ClassRequest::where('status', 'open')
                         ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
+                        ->notDeclinedBy($profile->id)
                         ->count();
                 })() : 0,
                 'pending_reports'    => $pendingReports,

@@ -191,6 +191,29 @@ class LessonSettlementScenariosTest extends TestCase
         $this->assertTrue($settledAt->equalTo($lesson->fresh()->credits_settled_at));
     }
 
+    public function test_review_and_settlement_roll_back_together_when_reserved_credit_is_inconsistent(): void
+    {
+        [, $profile, $lesson, $parent] = $this->lesson('pending_parent_confirmation', now()->subDays(2));
+        $this->reportFor($lesson);
+        $profile->update(['credits_reserved' => 0]);
+
+        // La liquidación no puede fabricar un saldo faltante. La reseña no
+        // queda persistida en una transacción previa si hay que reintentar.
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs($parent)->post(route('reviews.store', $lesson), ['rating' => 5]);
+            $this->fail('La liquidación con saldo reservado insuficiente debe fallar.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('credits_reserved', $e->getMessage());
+        }
+
+        $this->assertDatabaseCount('teacher_reviews', 0);
+        $this->assertNull($lesson->fresh()->credits_settled_at);
+        $this->assertDatabaseMissing('credit_transactions', [
+            'idempotency_key' => "lesson:{$lesson->id}:consumption",
+        ]);
+    }
+
     // ── E: escalado de 'scheduled' sin confirmar — cero movimiento financiero ──
 
     public function test_scheduled_lesson_past_unconfirmed_window_escalates_with_zero_financial_movement(): void

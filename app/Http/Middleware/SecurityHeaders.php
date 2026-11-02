@@ -29,6 +29,15 @@ class SecurityHeaders
             $headers->set('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'self'");
         }
 
+        // Primer paso hacia script-src: evaluar en Report-Only la diferencia
+        // entre código propio y scripts embebidos/externos (Culqi 3DS, JaaS,
+        // Vite) sin bloquear el checkout ni las videollamadas existentes.
+        // Activar una CSP ejecutable exige recolectar y validar los reportes
+        // en staging, construir la allowlist real y pasar regresión E2E.
+        if (! $headers->has('Content-Security-Policy-Report-Only')) {
+            $headers->set('Content-Security-Policy-Report-Only', "script-src 'self'; script-src-attr 'none'");
+        }
+
         if (app()->environment('production') && $request->isSecure()) {
             $headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains', false);
         }

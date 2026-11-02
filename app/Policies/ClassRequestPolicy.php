@@ -33,11 +33,20 @@ class ClassRequestPolicy
     // interactuar con la cola de solicitudes en absoluto, no solo con aceptar.
     public function accept(User $user, ClassRequest $classRequest): bool
     {
+        return $this->eligibleTeacher($user, $classRequest, false);
+    }
+
+    private function eligibleTeacher(User $user, ClassRequest $classRequest, bool $allowPriorDecline): bool
+    {
         if ($user->account_closed_at !== null || $classRequest->student?->parent?->account_closed_at !== null) {
             return false;
         }
         $profile = $user->teacherProfile;
         if (! $profile || ! $profile->is_verified) {
+            return false;
+        }
+
+        if (! $allowPriorDecline && $classRequest->teacherDeclines()->where('teacher_profile_id', $profile->id)->exists()) {
             return false;
         }
 
@@ -60,7 +69,9 @@ class ClassRequestPolicy
     // Teacher rejecting an open request (matches route teacher.requests.reject).
     public function reject(User $user, ClassRequest $classRequest): bool
     {
-        return $this->accept($user, $classRequest);
+        // Repetir el mismo POST tras un timeout debe ser idempotente.
+        // Un descarte previo solo bloquea aceptar/contraofertar, no re-declinar.
+        return $this->eligibleTeacher($user, $classRequest, true);
     }
 
     // Teacher proposing an alternative time: exactly the same eligibility as

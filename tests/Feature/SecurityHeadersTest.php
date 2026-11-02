@@ -16,7 +16,8 @@ class SecurityHeadersTest extends TestCase
                 ->assertHeader('X-Content-Type-Options', 'nosniff')
                 ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
                 ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-                ->assertHeader('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'self'");
+                ->assertHeader('Content-Security-Policy', "base-uri 'self'; object-src 'none'; frame-ancestors 'self'")
+                ->assertHeader('Content-Security-Policy-Report-Only', "script-src 'self'; script-src-attr 'none'");
         }
     }
 

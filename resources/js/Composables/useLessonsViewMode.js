@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue'
+import { readLocalPreference, writeLocalPreference } from '../utils/safeLocalStorage.js'
 
 // Preferencia compartida "Lista"/"Calendario" entre las vistas de clases del
 // padre y del profesor. Es intencional que padre y profesor compartan la
@@ -14,11 +15,11 @@ const STORAGE_KEY = 'mova_lessons_view'
  * idéntica en los dos roles — divergir aquí sería un bug silencioso.
  */
 export function useLessonsViewMode() {
-  const stored = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
+  const stored = readLocalPreference(STORAGE_KEY)
   const viewMode = ref(stored === 'list' ? 'list' : 'calendar')
 
   watch(viewMode, (value) => {
-    window.localStorage.setItem(STORAGE_KEY, value)
+    writeLocalPreference(STORAGE_KEY, value)
   })
 
   const tabListRef = ref(null)

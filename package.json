@@ -9,6 +9,7 @@
         "check:chatbot-escape": "node scripts/check-chatbot-escape.mjs",
         "check:movi-availability": "node scripts/check-movi-availability-status.mjs",
         "check:checkout-poll": "node scripts/check-checkout-poll.mjs",
+        "check:local-storage": "node --test tests/Frontend/safeLocalStorage.test.mjs",
         "check:culqi-mcp": "node --test tools/culqi-mcp/test.mjs",
         "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
         "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1"
@@ -16,15 +17,15 @@
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",
         "@tailwindcss/forms": "^0.5.3",
-        "@vitejs/plugin-vue": "^5.0.0",
+        "@vitejs/plugin-vue": "^6.0.10",
         "autoprefixer": "^10.4.12",
         "axios": "^1.20.0",
         "laravel-echo": "^2.4.0",
-        "laravel-vite-plugin": "^1.0.0",
+        "laravel-vite-plugin": "^3.2.0",
         "postcss": "^8.4.31",
         "pusher-js": "^8.5.0",
         "tailwindcss": "^3.2.1",
-        "vite": "^5.0.0",
+        "vite": "^8.3.5",
         "vue": "^3.4.0"
     },
     "dependencies": {

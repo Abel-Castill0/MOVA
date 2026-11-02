@@ -164,6 +164,34 @@ class ClassRequestVerificationPrivacyTest extends TestCase
         $this->assertSame(0, ClassRequest::count());
     }
 
+    public function test_preferred_times_reject_unknown_duplicate_and_excessive_values(): void
+    {
+        [$parent, $student] = $this->parentWithStudent();
+        $payload = [
+            'student_id' => $student->id,
+            'subject_id' => $this->subject->id,
+            'help_needed' => 'Necesita repasar fracciones.',
+        ];
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload + [
+            'preferred_times' => ['morning_weekday', 'inventado'],
+        ])->assertSessionHasErrors('preferred_times.1');
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload + [
+            'preferred_times' => ['morning_weekday', 'morning_weekday'],
+        ])->assertSessionHasErrors('preferred_times.1');
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload + [
+            'preferred_times' => array_fill(0, 7, 'flexible'),
+        ])->assertSessionHasErrors('preferred_times');
+
+        $this->actingAs($parent)->post(route('class-requests.store'), $payload + [
+            'preferred_times' => ['campo_inventado' => 'flexible'],
+        ])->assertSessionHasErrors('preferred_times');
+
+        $this->assertSame(0, ClassRequest::count());
+    }
+
     public function test_offer_and_matching_referral_code_are_accepted(): void
     {
         $offerTeacher = $this->teacher('OFFERA');

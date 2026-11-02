@@ -2,8 +2,10 @@
 
 > Evidencia: `LessonSchedulingService`, `LessonSettlementService`,
 > `MercadoPagoPaymentProvider`, `MercadoPagoPaymentReconciliationService`,
+> `CulqiPaymentProvider`, `CulqiPaymentReconciliationService`,
 > `PaymentWebhookService`, `app/Console/Kernel.php`. Dinero real en MOVA = **solo
-> la recarga de créditos del profesor** (Mercado Pago). El pago padre→profesor por
+> la recarga de créditos del profesor** (Culqi para compras nuevas, aún no activado
+> en producción; Mercado Pago solo para operaciones históricas). El pago padre→profesor por
 > la clase **no existe en MOVA**: ocurre fuera (Yape/Plin) y el padre solo lo declara.
 
 ## 1. Solicitud, aceptación y reserva de créditos
@@ -56,7 +58,38 @@ flowchart TD
 La liquidación es **solo ledger interno de créditos**; en producción corre en
 `live` desde 2026-10-06 y es reversible a `dry_run`.
 
-## 3. Recarga de créditos con Mercado Pago
+## 3. Recarga de créditos (Culqi y legado Mercado Pago)
+
+El checkout actual de compras nuevas usa `CulqiPaymentProvider` cuando
+`PAYMENT_PROVIDER=culqi` y las protecciones de entorno/allowlist permiten pagos.
+Se ha verificado en **sandbox**, no en producción. Mercado Pago no admite compras
+nuevas (`MERCADOPAGO_NEW_PAYMENTS_ENABLED=false`) pero sus cargos y devoluciones
+históricos siguen conciliándose. Flujo de Culqi:
+
+```mermaid
+sequenceDiagram
+    actor T as Profesor
+    participant W as MOVA
+    participant C as Culqi API
+    participant DB as MySQL
+    T->>W: Paquete y token de Culqi.js
+    W->>DB: Recarga pending e intento preparado
+    W->>DB: Claim atómico prepared a submitting
+    W->>C: POST cargo (una sola vez)
+    alt 3DS requerido
+        C-->>W: action_code
+        W->>DB: awaiting_3ds, con vencimiento
+        T->>W: Completa 3DS con mismo token/dispositivo
+        W->>C: Segundo POST con autenticación 3DS
+    else timeout o resultado incierto
+        W->>DB: uncertain; no reenviar POST
+    end
+    C-->>W: Verdad consultable por API
+    W->>DB: Lock recarga e intento
+    W->>DB: paid y depósito idempotente
+```
+
+El siguiente diagrama describe **solo el procesamiento legado de Mercado Pago**:
 
 ```mermaid
 sequenceDiagram
@@ -96,9 +129,10 @@ sequenceDiagram
   propietario; el único intento live fue rechazado con **2072** y sigue sin
   causa raíz (caso en [MERCADOPAGO_SUPPORT_CASE_2072](../release/MERCADOPAGO_SUPPORT_CASE_2072.md),
   sin enviar). No se reintenta ni se cambia el importe por conjetura.
-- **Culqi no existe**: `CulqiPaymentProvider` es un stub que lanza `RuntimeException`;
-  desde 2026-10-19 no figura en `supported_providers`, así que
-  `PAYMENT_PROVIDER=culqi` aborta el arranque (ver [05](05-claims-verification.md)).
+- `culqi:reconcile` recupera intentos inciertos y verifica devoluciones de
+  cargos pagados; también cierra retos 3DS vencidos. Una doble confirmación de
+  cargos diferentes dispara una alerta de revisión, sin duplicar créditos.
+  Ver [integración y límites](../payments-culqi.md).
 
 ## 4. Tareas programadas (scheduler único)
 
@@ -108,6 +142,7 @@ sequenceDiagram
 | `mova:settle-lessons` | cada hora | consumo automático / escalado (`--dry-run` si no es `live`) |
 | `mova:expire-class-requests` | cada hora, minuto 30 | expira solicitudes `open` tras 24 h |
 | `mercadopago:reconcile` | cada 5 min | reconcilia pagos y webhooks (si los pagos están activos) |
+| `culqi:reconcile` | cada 5 min | recupera intentos Culqi, verifica devoluciones y cierra 3DS vencidos (si está habilitado el procesamiento Culqi) |
 | `mova:health-check --alert` | cada hora | alertas operativas (`operational_alerts`) |
 | `mova:reconcile-ledger --alert` | diaria 03:10 | compara saldos y ledger |
 | heartbeat | cada minuto | `system_heartbeats` para `/readyz` y el Operations Center |

@@ -51,6 +51,7 @@ class PaymentOrder extends Model
         'currency',
         'expires_at',
         'paid_at',
+        'refunded_at',
         'last_verified_at',
     ];
 
@@ -62,6 +63,7 @@ class PaymentOrder extends Model
         'expires_at' => 'datetime',
         'three_ds_expires_at' => 'datetime',
         'paid_at' => 'datetime',
+        'refunded_at' => 'datetime',
         'last_verified_at' => 'datetime',
         'review_detected_at' => 'datetime',
         'review_resolved_at' => 'datetime',
