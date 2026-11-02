@@ -168,6 +168,18 @@ jobs:
           bash scripts/concurrency-probe.sh refund 6
           bash scripts/concurrency-probe.sh approve-recharge 6
           bash scripts/concurrency-probe.sh reminder-claim 6
+      # MFA (mismo código TOTP/recovery simultáneo) y contador anual de
+      # reclamaciones (vacío y previamente sembrado). Cada año se reserva
+      # solo para el escenario QA; ningún runner borra el año real.
+      - name: Security multi-process races (MySQL QA only)
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql_qa
+        run: |
+          bash scripts/qa-security-race.sh totp 6
+          bash scripts/qa-security-race.sh recovery 6
+          bash scripts/qa-security-race.sh complaints-empty 6
+          bash scripts/qa-security-race.sh complaints-seeded 6
 
   e2e:
     needs: [sqlite]
