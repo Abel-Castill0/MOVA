@@ -65,6 +65,7 @@
       <div class="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
         <div class="text-sm text-slate-300">
           <p>© {{ year }} MOVA · Abel Castillo & Elias Paz · Todos los derechos reservados.</p>
+          <p class="mt-1 text-xs text-slate-400">Desarrollo web: <a href="https://portafolio-henna-mu.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-slate-300 hover:text-white underline underline-offset-4 transition-colors">Portafolio de Abel Castillo</a></p>
           <p v-if="$page.props.merchant?.business_name" class="mt-1 text-xs text-slate-400" data-testid="merchant-identity">
             {{ $page.props.merchant.business_name }}<template v-if="$page.props.merchant.ruc"> · RUC {{ $page.props.merchant.ruc }}</template><template v-if="$page.props.merchant.address"> · {{ $page.props.merchant.address }}</template>
           </p>
