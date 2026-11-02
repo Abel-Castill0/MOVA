@@ -93,7 +93,10 @@ class QaPaymentRace extends Command
                 'charge-attempt' => $this->attemptCharge(),
             };
         } catch (Throwable $e) {
-            $result = 'error:'.class_basename($e).':'.Str::limit(str_replace(["\n", "\r"], ' ', $e->getMessage()), 110);
+            // Un error inesperado de SQL/HTTP no es un perdedor legítimo
+            // de la carrera. Tampoco imprimir su mensaje: podría incluir
+            // una sentencia o un dato del proveedor.
+            $result = 'error:'.class_basename($e);
         }
 
         $this->line("worker={$this->option('worker')} result={$result}");
@@ -229,10 +232,34 @@ class QaPaymentRace extends Command
         try {
             $order = (new CulqiPaymentProvider())->createPaymentAttempt($recharge, new CardPaymentInstrument('tkn_test_QARaceToken0001', 'visa'));
         } catch (RuntimeException $e) {
-            return 'rejected:'.Str::limit(str_replace(["\n", "\r"], ' ', $e->getMessage()), 90);
+            if (! $this->isExpectedConcurrentRejection($e)) {
+                // Dejar que handle() lo clasifique como result=error; un
+                // deadlock/timeout de MySQL nunca debe hacer GREEN al gate.
+                throw $e;
+            }
+
+            return 'rejected:concurrent_attempt';
         }
 
         return 'accepted status='.$order->status;
+    }
+
+    /** Solo rechazos de negocio previstos al perder la carrera por la misma recarga. */
+    protected function isExpectedConcurrentRejection(RuntimeException $e): bool
+    {
+        $message = $e->getMessage();
+
+        if (str_starts_with($message, 'CulqiPaymentProvider: otro proceso ya está enviando este intento')) {
+            return true;
+        }
+
+        if (! preg_match('/^CulqiPaymentProvider: RechargeRequest#\\d+ /', $message)) {
+            return false;
+        }
+
+        return str_contains($message, ' no admite un cobro (')
+            || str_contains($message, ' ya tiene un intento en estado ')
+            || str_contains($message, ' tiene un intento previo con resultado incierto ');
     }
 
     /**

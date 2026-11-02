@@ -52,7 +52,7 @@ echo "  $VERIFY"
 
 field() { sed -n "s/.*$1=\([^ ]*\).*/\1/p" <<<"$VERIFY"; }
 ERRORS="$(grep -Ec 'result=error' <<<"$OUT" || true)"
-DEPOSITS="$(field deposits)"; REVERSALS="$(field reversals)"; CREDITS="$(field credits_available)"; RECHARGE="$(field recharge)"
+DEPOSITS="$(field deposits)"; REVERSALS="$(field reversals)"; CREDITS="$(field credits_available)"; RECHARGE="$(field recharge)"; ORDERS="$(field orders)"
 echo "operation=$OPERATION workers=$WORKERS errors=$ERRORS deposits=$DEPOSITS reversals=$REVERSALS credits=$CREDITS recharge=$RECHARGE"
 
 STATUS=0
@@ -65,7 +65,9 @@ case "$OPERATION" in
     POSTS="$(grep -c 'POST /v2/charges' "$STUB_LOG" 2>/dev/null || true)"
     ACCEPTED="$(grep -c 'result=accepted' <<<"$OUT" || true)"
     echo "stub_post_charges=$POSTS accepted=$ACCEPTED"
-    [ "$POSTS" -eq 1 ] && [ "$ACCEPTED" -eq 1 ] && [ "$DEPOSITS" -eq 1 ] && [ "${CREDITS%.*}" -eq 5 ] && [ "$RECHARGE" = approved ] || STATUS=1 ;;
+    # También comprobar los PERDEDORES: antes un worker podía lanzar
+    # result=error y el gate seguía GREEN si otro sí había cobrado una vez.
+    [ "$ERRORS" -eq 0 ] && [ "$POSTS" -eq 1 ] && [ "$ACCEPTED" -eq 1 ] && [ "$ORDERS" -eq 1 ] && [ "$DEPOSITS" -eq 1 ] && [ "$REVERSALS" -eq 0 ] && [ "${CREDITS%.*}" -eq 5 ] && [ "$RECHARGE" = approved ] || STATUS=1 ;;
 esac
 
 [ "$STATUS" -eq 0 ] && echo "GREEN" || echo "RED"
