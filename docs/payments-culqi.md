@@ -67,6 +67,11 @@ mientras quede otro cargo pagado sin devolución; el incidente permanece en
 revisión humana. Solo al verificarse la devolución del último cargo se aplica
 `reverse()` exactamente una vez. El barrido también cierra 3DS vencidos sin
 consultar cargos inexistentes ni gastar búsquedas de conciliación.
+El cierre periódico de 3DS bloquea la recarga y **la fila específica del
+intento vencido** (no el intento más reciente), por lo que una anomalía
+histórica con intentos posteriores no altera otro intento. Una orden en
+`prepared` nunca enviada no consume búsquedas de recuperación, incluso con
+`culqi:reconcile --order=...`.
 
 ## 3. Evidencia de sandbox (2026-10-22) — lo que difiere de la documentación
 

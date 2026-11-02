@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\PaymentOrder;
-use App\Models\RechargeRequest;
 use App\Payment\CulqiPaymentProvider;
 use App\Services\CulqiPaymentReconciliationService;
 use Illuminate\Console\Command;
@@ -76,11 +75,14 @@ class CulqiReconcile extends Command
                     if ($order->three_ds_expires_at === null || $order->three_ds_expires_at->isFuture()) {
                         $outcome = 'awaiting_3ds';
                     } else {
-                        app(CulqiPaymentProvider::class)->abandonThreeDs(
-                            RechargeRequest::findOrFail($order->recharge_request_id), '3ds_expired'
-                        );
-                        $outcome = 'expired_3ds';
+                        $outcome = app(CulqiPaymentProvider::class)->expireThreeDsOrder($order)
+                            ? 'expired_3ds' : 'already_resolved';
                     }
+                } elseif ($order->provider_order_id === null && $order->status !== 'pending') {
+                    // --order también admite pagados/revisados, pero una orden
+                    // terminal sin id remoto no debe gastar búsquedas de un
+                    // intento que MOVA ya cerró sin cargo identificable.
+                    $outcome = 'no_remote_id';
                 } else {
                     $outcome = $order->provider_order_id === null
                         ? $reconciler->reconcileUncertainSubmission($order)

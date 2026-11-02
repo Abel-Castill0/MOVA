@@ -154,6 +154,34 @@ class CulqiPaymentProvider implements PaymentProviderContract
     }
 
     /**
+     * Barrido de recuperación: cierra exactamente el intento 3DS vencido.
+     * No se debe usar abandonThreeDs(), que siempre toma el intento más
+     * reciente y podría afectar a otro si quedan filas históricas atascadas.
+     */
+    public function expireThreeDsOrder(PaymentOrder $order): bool
+    {
+        return DB::transaction(function () use ($order) {
+            // Mismo orden global de locks financiero: Recarga → Orden.
+            RechargeRequest::whereKey($order->recharge_request_id)->lockForUpdate()->firstOrFail();
+            $locked = PaymentOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->provider !== self::PROVIDER
+                || $locked->recharge_request_id !== $order->recharge_request_id
+                || $locked->status !== 'pending'
+                || $locked->submission_status !== 'awaiting_3ds'
+                || $locked->provider_order_id !== null
+                || $locked->three_ds_expires_at === null
+                || $locked->three_ds_expires_at->isFuture()) {
+                return false;
+            }
+
+            $this->closeAwaitingThreeDs($locked, '3ds_expired');
+
+            return true;
+        });
+    }
+
+    /**
      * Orden de pago (PagoEfectivo, billeteras móviles, banca móvil, agentes, Cuotéalo): se crea la
      * orden en Culqi con confirm=false y el cliente elige el medio en el checkout de Culqi. NO
      * acredita nada: solo `state=paid` confirmado por la API (webhook order.status.changed o
