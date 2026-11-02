@@ -115,3 +115,9 @@ qa/tests
 - No ejecutar Playwright contra producción sin autorización.
 - IA, WhatsApp y liquidaciones reales permanecen apagados; pagos live solo para la cuenta de prueba del titular (ver `AGENTS.md`).
 - Para dinero, créditos y recargas usar transacciones, locks y ledger de auditoría.
+
+---
+
+### Desarrollado por
+
+**Abel Castillo** · 🌐 [Portafolio profesional](https://portafolio-henna-mu.vercel.app/)
