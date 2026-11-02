@@ -155,6 +155,19 @@ jobs:
           bash scripts/qa-payment-race.sh reconcile-paid 8
           bash scripts/qa-payment-race.sh reconcile-refund 8
           bash scripts/qa-payment-race.sh charge-attempt 8
+      # Incluye además las cinco carreras históricas de lecciones, recargas y
+      # recordatorios. El runner crea una materia única por escenario, valida
+      # los ganadores y limpia solo ese ID; nunca apunta a otros esquemas.
+      - name: Core financial multi-process races (MySQL QA only)
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql_qa
+        run: |
+          bash scripts/concurrency-probe.sh accept-lesson 6
+          bash scripts/concurrency-probe.sh settle 6
+          bash scripts/concurrency-probe.sh refund 6
+          bash scripts/concurrency-probe.sh approve-recharge 6
+          bash scripts/concurrency-probe.sh reminder-claim 6
 
   e2e:
     needs: [sqlite]
