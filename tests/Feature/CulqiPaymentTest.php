@@ -871,6 +871,113 @@ class CulqiPaymentTest extends TestCase
         $this->assertSame('paid', $reviewed->fresh()->status);
     }
 
+    public function test_reconcile_command_alerts_once_on_provider_outage_and_resolves_after_recovery(): void
+    {
+        $order = $this->orderWithChargeId($this->recharge(), 'chr_test_OUTAGE000000001');
+        $outage = true;
+        $this->fakeApi(get: function (Request $request) use (&$outage, $order) {
+            return $outage
+                ? Http::response(['object' => 'error'], 503)
+                : Http::response($this->chargeFor($this->payloadFor($order), [
+                    'id' => $order->provider_order_id,
+                ]), 200);
+        });
+
+        foreach ([1, 2] as $occurrences) {
+            $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(1);
+            $alert = OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole();
+            $this->assertSame($occurrences, $alert->occurrences);
+            $this->assertNull($alert->resolved_at);
+            $this->assertSame(1, $alert->context['Órdenes fallidas']);
+            $this->assertSame(1, OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->count());
+            $this->assertSame('pending', $order->fresh()->status);
+            $this->assertSame(0, $this->deposits($order->rechargeRequest));
+        }
+
+        // El barrido manual es diagnóstico, no puede cerrar la alerta global
+        // aunque una orden aislada se recupere.
+        $outage = false;
+        $this->artisan('culqi:reconcile', ['--order' => $order->id])->assertExitCode(0);
+        $this->assertNull(OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole()->resolved_at);
+
+        // Al estar actualizado last_verified_at, este barrido no realiza
+        // ningún GET remoto. Debe mantener abierta la incidencia.
+        $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(0);
+        $this->assertNull(OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole()->resolved_at);
+
+        // Una consulta remota REAL exitosa sí demuestra recuperación.
+        $order->update(['last_verified_at' => now()->subHours(2)]);
+        $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(0);
+        $this->assertNotNull(OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole()->resolved_at);
+        $this->assertSame('paid', $order->fresh()->status);
+        $this->assertSame(1, $this->deposits($order->rechargeRequest));
+    }
+
+    public function test_culqi_list_outage_does_not_consume_search_attempts_or_hide_operational_alert(): void
+    {
+        $orders = [];
+        foreach (['card', 'order'] as $channel) {
+            $order = $this->orderWithChargeId($this->recharge(), 'chr_test_UNKNOWN'.$channel);
+            $order->update([
+                'provider_order_id' => null,
+                'payment_channel' => $channel,
+                'submission_status' => 'uncertain',
+            ]);
+            $orders[] = $order;
+        }
+
+        Http::swap(new HttpFactory);
+        Http::fake(fn () => Http::response(['object' => 'error'], 503));
+
+        // Con la versión anterior cada caída 503 consumía una búsqueda y,
+        // al agotar el presupuesto, abandonaba el barrido sin localizar el pago.
+        foreach (range(1, 3) as $attempt) {
+            $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(1);
+            foreach ($orders as $order) {
+                $this->assertSame(0, $order->fresh()->recovery_attempts);
+                $this->assertNull($order->fresh()->review_reason);
+                $this->assertSame('pending', $order->fresh()->status);
+                $this->assertSame(0, $this->deposits($order->rechargeRequest));
+            }
+            $alert = OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole();
+            $this->assertNull($alert->resolved_at);
+            $this->assertSame($attempt, $alert->occurrences);
+            $this->assertSame(2, $alert->context['Órdenes fallidas']);
+        }
+        Http::assertSent(fn (Request $r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/v2/charges'));
+        Http::assertSent(fn (Request $r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/v2/orders'));
+
+        // Un HTTP 200 sin data[] válido también es resultado inconcluyente,
+        // NO equivale a «se consultó correctamente y no apareció el cargo».
+        foreach ([
+            ['object' => 'error'],
+            ['data' => ['wrong' => ['id' => 'chr_test_INVALID']]],
+            ['data' => [null]],
+            'not valid JSON',
+        ] as $malformed) {
+            Http::swap(new HttpFactory);
+            Http::fake(fn () => Http::response($malformed, 200));
+            $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(1);
+            foreach ($orders as $order) {
+                $this->assertSame(0, $order->fresh()->recovery_attempts);
+                $this->assertNull($order->fresh()->review_reason);
+            }
+            $this->assertNull(OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole()->resolved_at);
+        }
+
+        // Una búsqueda exitosa sin coincidencias NO asegura que no hubo
+        // cobro, pero SÍ demuestra que la API volvió a responder. Se consume
+        // entonces una búsqueda real y se cierra solo la alerta de outage.
+        Http::swap(new HttpFactory);
+        Http::fake(fn () => Http::response(['data' => []], 200));
+        $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(0);
+        foreach ($orders as $order) {
+            $this->assertSame(1, $order->fresh()->recovery_attempts);
+            $this->assertSame('pending', $order->fresh()->status);
+        }
+        $this->assertNotNull(OperationalAlert::where('alert_key', 'culqi:reconcile:failure')->sole()->resolved_at);
+    }
+
     public function test_sandbox_smoke_requires_explicit_confirmation_and_a_qa_environment(): void
     {
         Http::fake();

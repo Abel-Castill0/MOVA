@@ -176,12 +176,34 @@ class CulqiPaymentReconciliationService
 
         $result = $isOrderChannel ? $this->client->listOrders($query) : $this->client->listCharges($query);
 
-        if (! $result->successful()) {
-            return $this->bumpSearchAttempt($order, 'búsqueda no concluyente (HTTP '.$result->status.')');
+        // HTTP 200 no basta: un JSON con object=error o sin data[] no es
+        // una búsqueda vacía válida. Tampoco lo son candidatos sin un id.
+        $entries = $result->body['data'] ?? null;
+        $validList = is_array($entries) && array_is_list($entries);
+        if ($validList) {
+            foreach ($entries as $entry) {
+                if (! is_array($entry) || ! is_string($entry['id'] ?? null) || $entry['id'] === '') {
+                    $validList = false;
+                    break;
+                }
+            }
         }
 
-        foreach (($result->body['data'] ?? []) as $candidate) {
-            if (is_array($candidate) && $this->metadataMatches($candidate, $order)) {
+        if (! $result->successful() || ! $validList) {
+            // Un HTTP 503/429/timeout NO significa «se buscó y no existe».
+            // No gastar el presupuesto de búsquedas: tras cinco caídas de
+            // red se mandaba un posible cobro real a revisión y se dejaba de
+            // reintentar desde el barrido automático.
+            Log::warning('[Culqi/Reconcile] Búsqueda remota indisponible; se conserva el intento incierto.', [
+                'payment_order_id' => $order->id,
+                'http_status' => $result->status,
+            ]);
+
+            return 'provider_unavailable';
+        }
+
+        foreach ($entries as $candidate) {
+            if ($this->metadataMatches($candidate, $order)) {
                 $order->update(['provider_order_id' => (string) $candidate['id'], 'submission_status' => 'submitted']);
 
                 return $this->applyTruth($order->fresh(), null, $candidate);

@@ -2,10 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Models\OperationalAlert;
 use App\Models\PaymentOrder;
 use App\Payment\CulqiPaymentProvider;
 use App\Services\CulqiPaymentReconciliationService;
+use App\Services\OperationalAlertService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -69,6 +72,7 @@ class CulqiReconcile extends Command
         }
 
         $counts = [];
+        $verifiedRemotely = false;
         foreach ($orders as $order) {
             try {
                 if ($order->submission_status === 'awaiting_3ds') {
@@ -84,19 +88,57 @@ class CulqiReconcile extends Command
                     // intento que MOVA ya cerró sin cargo identificable.
                     $outcome = 'no_remote_id';
                 } else {
-                    $outcome = $order->provider_order_id === null
-                        ? $reconciler->reconcileUncertainSubmission($order)
-                        : $reconciler->reconcile($order);
+                    if ($order->provider_order_id === null) {
+                        $outcome = $reconciler->reconcileUncertainSubmission($order);
+                        // 'uncertain'/'review' solo salen tras un listado
+                        // remoto correcto; un HTTP fallido devuelve ahora
+                        // 'provider_unavailable' sin agotar el presupuesto.
+                        $verifiedRemotely = $verifiedRemotely || in_array($outcome, ['paid', 'failed', 'reversed', 'uncertain', 'review'], true);
+                    } else {
+                        $outcome = $reconciler->reconcile($order);
+                        // reconcile() solo retorna después de un GET correcto
+                        // y applyTruth(); ante error HTTP lanza excepción.
+                        $verifiedRemotely = true;
+                    }
                 }
             } catch (Throwable $e) {
                 $outcome = 'error';
+                // El scheduler ejecuta en background y descarta stdout: un warn()
+                // aislado ocultaba la caída de la API o de la conciliación.
+                // No incluir el mensaje: podría arrastrar URL o datos del proveedor.
+                Log::error('[Culqi/Reconcile] Fallo al conciliar un intento.', [
+                    'payment_order_id' => $order->id,
+                    'exception_class' => class_basename($e),
+                ]);
                 $this->warn("PaymentOrder#{$order->id}: ".class_basename($e));
             }
             $counts[$outcome] = ($counts[$outcome] ?? 0) + 1;
         }
 
+        $errors = ($counts['error'] ?? 0) + ($counts['provider_unavailable'] ?? 0);
+        if ($this->option('order') === null) {
+            // Una sola incidencia por barrido, aunque Culqi falle para 100
+            // cargos: se evita notificar 100 veces al administrador.
+            $alerts = app(OperationalAlertService::class);
+            if ($errors > 0) {
+                $alerts->raise(
+                    key: 'culqi:reconcile:failure',
+                    type: OperationalAlert::TYPE_RECONCILIATION_FAILURE,
+                    title: 'Culqi: fallos en la conciliación automática',
+                    message: 'No se pudo verificar al menos un pago con Culqi. Los créditos permanecen sin cambios hasta recuperar la verdad del proveedor.',
+                    context: ['Órdenes fallidas' => $errors, 'Órdenes revisadas' => $orders->count()],
+                    severity: OperationalAlert::SEVERITY_WARNING,
+                );
+            } elseif ($verifiedRemotely) {
+                // No cerrar una alerta de caída si la pasada solo expiró 3DS
+                // localmente o no encontró órdenes: no hay prueba de que
+                // Culqi haya vuelto a responder correctamente.
+                $alerts->resolve('culqi:reconcile:failure');
+            }
+        }
+
         $this->info('Revisados: '.$orders->count().($counts ? ' · '.collect($counts)->map(fn ($n, $k) => "{$k}={$n}")->implode(' ') : ''));
 
-        return self::SUCCESS;
+        return $errors > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

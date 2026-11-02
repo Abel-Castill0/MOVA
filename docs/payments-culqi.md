@@ -73,6 +73,24 @@ histórica con intentos posteriores no altera otro intento. Una orden en
 `prepared` nunca enviada no consume búsquedas de recuperación, incluso con
 `culqi:reconcile --order=...`.
 
+Observabilidad del barrido (2026-11-02): una excepción al verificar una orden
+se registra en el log solo con el ID local y la clase de error (sin URL ni
+payload). `culqi:reconcile` devuelve código de salida distinto de cero si
+alguna consulta falló. El barrido **automático** agrupa todos los fallos de
+una pasada en la incidencia deduplicada `culqi:reconcile:failure`, visible
+en el Centro de Operaciones; solo se resuelve tras otra pasada sin errores
+que haya confirmado al menos un pago mediante una consulta remota exitosa.
+Un barrido sin candidatos o limitado a expirar 3DS locales no la cierra.
+La comprobación manual `--order` no cierra esa alerta global. Ningún fallo
+de observabilidad altera estados financieros ni acredita créditos.
+Si el listado de cargos/órdenes de un intento `uncertain` responde con
+503/429/timeout, el servicio devuelve `provider_unavailable`: el barrido lo
+cuenta como fallo, alerta y **no incrementa `recovery_attempts`**. Solo un
+listado HTTP satisfactorio sin coincidencias consume el presupuesto de
+búsquedas; así una caída del proveedor no fuerza una revisión humana falsa.
+Se exige además `data` como lista de objetos con identificador; HTTP 200
+con JSON malformado o `object=error` tampoco cuenta como búsqueda válida.
+
 ## 3. Evidencia de sandbox (2026-10-22) — lo que difiere de la documentación
 
 | Aspecto | Documentación OpenAPI | Sandbox real | Decisión |
