@@ -19,41 +19,48 @@ use Illuminate\Console\Command;
  */
 class ConcurrencyVerify extends Command
 {
-    protected $signature = 'mova:concurrency-verify {operation} {scenario} {--connection= : nombre de conexión de base de datos a usar en vez de la de por defecto (MOVA MYSQL QA GATE: solo se acepta si resuelve exactamente a la base de datos mova_qa; falla cerrado en cualquier otro caso)}';
+    protected $signature = 'mova:concurrency-verify {operation} {scenario} {--connection= : obligatorio mysql_qa (base fija mova_qa); no se admite la conexión por defecto}';
 
     protected $description = 'GAP-03: comprueba que N procesos simultáneos produjeron exactamente una mutación';
 
     public function handle(): int
     {
-        // MOVA MYSQL QA GATE: incondicional, ANTES de la rama --connection —
-        // mismo motivo que ConcurrencyProbe. Sin esto, omitir --connection
-        // dejaba este comando corriendo (incluida la escritura de
-        // LedgerReconciliation) contra la conexión por defecto sin ningún
-        // guard, sin importar el entorno. El uso histórico en local/testing
-        // sigue igual.
+        // La verificación también debe usar exclusivamente el esquema QA.
         QaDatabaseGuard::assertSafeEnvironment();
 
-        if ($connection = $this->option('connection')) {
-            config(['database.default' => $connection]);
-            QaDatabaseGuard::assertDatabase($connection, 'mova_qa');
+        if ($this->option('connection') !== 'mysql_qa') {
+            throw new \RuntimeException('MOVA QA GUARD: mova:concurrency-verify exige --connection=mysql_qa. Abortado sin tocar datos.');
         }
+        QaDatabaseGuard::assertLoopbackConnection('mysql_qa');
+        QaDatabaseGuard::assertDatabase('mysql_qa', 'mova_qa');
+        config(['database.default' => 'mysql_qa']);
 
         $operation = $this->argument('operation');
         $id = (int) $this->argument('scenario');
 
         $ok = match ($operation) {
             'accept-lesson' => $this->verifyAcceptLesson($id),
-            'settle' => $this->verifyLedgerEntry($id, 'consumption'),
-            'refund' => $this->verifyLedgerEntry($id, 'refund'),
+            'settle' => $this->verifyLedgerEntry($id, 'consumption', 'completed'),
+            'refund' => $this->verifyLedgerEntry($id, 'refund', 'cancelled'),
             'approve-recharge' => $this->verifyRecharge($id),
             'reminder-claim' => $this->verifyReminderClaim($id),
             default => false,
         };
 
+        // Una anomalía antigua de OTRO perfil no puede volver roja esta
+        // carrera. Solo se comprueba el ledger del perfil del escenario.
+        $profileId = match ($operation) {
+            'accept-lesson' => ClassRequest::find($id)?->subject?->teachers()->value('teacher_profiles.id'),
+            'approve-recharge' => RechargeRequest::whereKey($id)->value('teacher_profile_id'),
+            'settle', 'refund', 'reminder-claim' => Lesson::whereKey($id)->value('teacher_profile_id'),
+            default => null,
+        };
         $report = app(LedgerReconciliation::class)->run();
-        $ledgerOk = $report['healthy'] ?? false;
+        $ledgerOk = $profileId !== null
+            && ! collect($report['anomalies'])->contains(fn ($row) => (int) $row['teacher_profile_id'] === (int) $profileId)
+            && ! collect($report['profile_mismatches'])->contains(fn ($row) => (int) $row['teacher_profile_id'] === (int) $profileId);
 
-        $this->line('ledger sano: '.($ledgerOk ? 'SI' : 'NO'));
+        $this->line('ledger del escenario sano: '.($ledgerOk ? 'SI' : 'NO'));
 
         if ($ok && $ledgerOk) {
             $this->info('GREEN — exactamente una mutación y ledger consistente.');
@@ -68,24 +75,33 @@ class ConcurrencyVerify extends Command
 
     private function verifyAcceptLesson(int $requestId): bool
     {
+        $lesson = Lesson::where('class_request_id', $requestId)->first();
         $lessons = Lesson::where('class_request_id', $requestId)->count();
         $reservations = CreditTransaction::whereIn('lesson_id', Lesson::where('class_request_id', $requestId)->pluck('id'))
             ->where('type', 'reservation')->count();
-        $status = ClassRequest::find($requestId)?->status;
+        $request = ClassRequest::find($requestId);
+        $status = $request?->status;
+        $expectedTeacher = $request?->subject?->teachers()->value('teacher_profiles.id');
 
         $this->line("lecciones creadas: {$lessons} (esperado 1)");
         $this->line("reservas en ledger: {$reservations} (esperado 1)");
         $this->line("estado de la solicitud: {$status} (esperado accepted)");
+        $this->line('docente del escenario: '.($lesson?->teacher_profile_id === $expectedTeacher ? 'SI' : 'NO'));
 
-        return $lessons === 1 && $reservations === 1 && $status === 'accepted';
+        return $lessons === 1 && $reservations === 1 && $status === 'accepted'
+            && $lesson?->teacher_profile_id !== null
+            && (int) $lesson->teacher_profile_id === (int) $expectedTeacher;
     }
 
-    private function verifyLedgerEntry(int $lessonId, string $type): bool
+    private function verifyLedgerEntry(int $lessonId, string $type, string $expectedStatus): bool
     {
         $count = CreditTransaction::where('lesson_id', $lessonId)->where('type', $type)->count();
+        $lesson = Lesson::find($lessonId);
         $this->line("asientos '{$type}': {$count} (esperado 1)");
+        $this->line('estado terminal: '.($lesson?->status ?? 'inexistente')." (esperado {$expectedStatus})");
+        $this->line('liquidación registrada: '.($lesson?->credits_settled_at ? 'SI' : 'NO'));
 
-        return $count === 1;
+        return $count === 1 && $lesson?->status === $expectedStatus && $lesson?->credits_settled_at !== null;
     }
 
     private function verifyRecharge(int $rechargeId): bool
@@ -97,7 +113,7 @@ class ConcurrencyVerify extends Command
         $this->line("depósitos: {$deposits} (esperado 1)");
         $this->line("créditos abonados: {$credits} (esperado 5)");
 
-        return $deposits === 1 && (int) $credits === 5;
+        return $deposits === 1 && $recharge?->status === 'approved' && (int) $credits === 5;
     }
 
     private function verifyReminderClaim(int $lessonId): bool

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\ClassRequest;
+use App\Models\ClassEvent;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
 use App\Models\LessonReport;
@@ -13,6 +14,7 @@ use App\Services\RechargeApprovalService;
 use App\Support\QaDatabaseGuard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * GAP-03 — Sonda de concurrencia REAL.
@@ -27,8 +29,8 @@ use Illuminate\Support\Facades\DB;
  * `&` y espera a todas; después se comprueba el estado final. Es concurrencia
  * de verdad: procesos separados, conexiones separadas, locks reales de MySQL.
  *
- * SOLO LECTURA sobre datos existentes: cada operación crea su propio escenario
- * aislado con --scenario y lo limpia con --cleanup. Nunca toca datos previos.
+ * Exclusivamente en mysql_qa/mova_qa: crea escenarios sintéticos que luego
+ * elimina. No debe apuntar a datos de desarrollo ni de producción.
  */
 class ConcurrencyProbe extends Command
 {
@@ -38,36 +40,43 @@ class ConcurrencyProbe extends Command
         {--setup : crea el escenario y devuelve su id}
         {--cleanup : elimina el escenario}
         {--worker=0 : identificador del proceso, solo para el log}
-        {--connection= : nombre de conexión de base de datos a usar en vez de la de por defecto (MOVA MYSQL QA GATE: solo se acepta si resuelve exactamente a la base de datos mova_qa; falla cerrado en cualquier otro caso)}';
+        {--connection= : obligatorio mysql_qa (base fija mova_qa); no se admite la conexión por defecto}';
 
     protected $description = 'GAP-03: ejecuta un intento de una operación financiera para pruebas de concurrencia real';
 
     public function handle(): int
     {
-        // MOVA MYSQL QA GATE: incondicional, ANTES de la rama --connection.
-        // Sin esto, omitir --connection dejaba este comando mutando
-        // operaciones financieras reales (accept-lesson, settle, refund,
-        // approve-recharge) contra la conexión por defecto sin ningún guard
-        // — incluyendo, en teoría, un entorno APP_ENV=production. El uso
-        // histórico contra la conexión por defecto en local/testing sigue
-        // funcionando igual: assertSafeEnvironment() solo bloquea fuera de
-        // esos dos entornos, nunca exige mova_qa cuando --connection no se
-        // pasó.
+        // Crea y borra usuarios, clases y asientos sintéticos: local/testing
+        // por sí solo NO garantiza que la BD tenga exclusivamente datos QA.
         QaDatabaseGuard::assertSafeEnvironment();
 
-        if ($connection = $this->option('connection')) {
-            config(['database.default' => $connection]);
-            QaDatabaseGuard::assertDatabase($connection, 'mova_qa');
+        if ($this->option('connection') !== 'mysql_qa') {
+            throw new \RuntimeException('MOVA QA GUARD: mova:concurrency-probe exige --connection=mysql_qa. Abortado sin tocar datos.');
         }
+        QaDatabaseGuard::assertLoopbackConnection('mysql_qa');
+        QaDatabaseGuard::assertDatabase('mysql_qa', 'mova_qa');
+        config(['database.default' => 'mysql_qa']);
 
         $operation = $this->argument('operation');
+        if (!in_array($operation, ['accept-lesson', 'settle', 'refund', 'approve-recharge', 'reminder-claim'], true)) {
+            $this->error('Operación QA desconocida; no se crean ni borran datos.');
+
+            return self::FAILURE;
+        }
 
         if ($this->option('setup')) {
             return $this->setupScenario($operation);
         }
 
         if ($this->option('cleanup')) {
-            return $this->cleanupScenario();
+            $scenario = (int) $this->option('scenario');
+            if ($scenario < 1) {
+                $this->error('La limpieza exige --scenario con el ID exacto de la sonda.');
+
+                return self::FAILURE;
+            }
+
+            return $this->cleanupScenario($operation, $scenario);
         }
 
         $scenario = (int) $this->option('scenario');
@@ -92,11 +101,11 @@ class ConcurrencyProbe extends Command
 
             return self::SUCCESS;
         } catch (\Throwable $e) {
-            // Perder la carrera es un resultado esperado, no un error: se
-            // reporta para que el runner pueda contar ganadores y perdedores.
-            $this->line("worker={$worker} result=LOST reason=".str_replace("\n", ' ', substr($e->getMessage(), 0, 120)));
+            // Un deadlock, SQL error o fallo de servicio NO es una derrota
+            // esperada: abortar el runner. Nunca volcar texto SQL/PII aquí.
+            $this->error("worker={$worker} result=ERROR type=".class_basename($e));
 
-            return self::SUCCESS;
+            return self::FAILURE;
         }
     }
 
@@ -128,10 +137,12 @@ class ConcurrencyProbe extends Command
             ]);
         }
 
-        $subject = \App\Models\Subject::firstOrCreate(
-            ['name' => 'ConcurrencyProbe'],
-            ['level' => 'secundaria']
-        );
+        // Materia EXCLUSIVA del escenario. Compartir la materia entre
+        // pruebas permitía que cleanup(A) borrara entidades de la prueba B.
+        $subject = \App\Models\Subject::create([
+            'name' => 'ConcurrencyProbe_'.Str::uuid(),
+            'level' => 'secundaria',
+        ]);
         $profile->subjects()->syncWithoutDetaching([$subject->id]);
 
         $parent = \App\Models\User::factory()->create();
@@ -220,55 +231,57 @@ class ConcurrencyProbe extends Command
         return self::SUCCESS;
     }
 
-    private function cleanupScenario(): int
+    private function cleanupScenario(string $operation, int $scenario): int
     {
-        // Limpieza acotada a lo que crea esta sonda, nunca a datos reales.
-        DB::transaction(function () {
-            $subject = \App\Models\Subject::where('name', 'ConcurrencyProbe')->first();
-            if (!$subject) {
-                return;
+        // Resolve ownership ANTES de borrar. Un ID inexistente o una materia
+        // no generada por esta herramienta jamás autoriza un borrado.
+        DB::transaction(function () use ($operation, $scenario) {
+            $request = match ($operation) {
+                'accept-lesson' => ClassRequest::find($scenario),
+                'settle', 'refund', 'reminder-claim' => ClassRequest::find(Lesson::find($scenario)?->class_request_id),
+                default => null,
+            };
+            $profile = $operation === 'approve-recharge'
+                ? RechargeRequest::find($scenario)?->teacherProfile
+                : null;
+
+            $subject = $request?->subject;
+            if (!$subject && $profile) {
+                $subject = $profile->subjects->first(
+                    fn ($candidate) => str_starts_with($candidate->name, 'ConcurrencyProbe_')
+                );
+            }
+
+            if (!$subject || !str_starts_with($subject->name, 'ConcurrencyProbe_')) {
+                throw new \RuntimeException('MOVA QA GUARD: escenario sin identidad sintética válida; limpieza abortada.');
             }
 
             $requestIds = ClassRequest::where('subject_id', $subject->id)->pluck('id');
-            // Ownership EXACTA del/de los Student de este escenario: el
-            // student_id ya está en el propio ClassRequest que acabamos de
-            // acotar por subject_id — ninguna necesidad de buscar por
-            // nombre. Capturado ANTES de borrar el ClassRequest, que es
-            // donde vive esta relación.
             $studentIds = ClassRequest::where('subject_id', $subject->id)->pluck('student_id')->unique();
             $lessonIds = Lesson::whereIn('class_request_id', $requestIds)->pluck('id');
+            $profileIds = TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $subject->id))->pluck('id');
 
+            if ($profileIds->count() !== 1 || $requestIds->count() !== 1) {
+                throw new \RuntimeException('MOVA QA GUARD: cardinalidad sintética inesperada; limpieza abortada.');
+            }
+            if ($operation === 'approve-recharge' && (int) $profileIds->first() !== (int) $profile->id) {
+                throw new \RuntimeException('MOVA QA GUARD: recarga y perfil no coinciden; limpieza abortada.');
+            }
+
+            $parentUserIds = \App\Models\Student::withTrashed()->whereIn('id', $studentIds)->pluck('parent_user_id');
+            $teacherUserIds = TeacherProfile::whereIn('id', $profileIds)->pluck('user_id');
+
+            // class_events carece de FK (son referencias históricas); borrar
+            // solo sus filas de este escenario evita residuos QA huérfanos.
+            ClassEvent::whereIn('lesson_id', $lessonIds)
+                ->orWhereIn('class_request_id', $requestIds)
+                ->delete();
             CreditTransaction::whereIn('lesson_id', $lessonIds)->delete();
             Lesson::whereIn('id', $lessonIds)->forceDelete();
             ClassRequest::whereIn('id', $requestIds)->delete();
-
-            $profileIds = TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $subject->id))->pluck('id');
             CreditTransaction::whereIn('teacher_profile_id', $profileIds)->delete();
             RechargeRequest::whereIn('teacher_profile_id', $profileIds)->delete();
             DB::table('teacher_subject')->whereIn('teacher_profile_id', $profileIds)->delete();
-
-            // BUG FIJADO (MOVA MYSQL QA GATE, ronda 1): setupScenario() crea
-            // un User sintético como padre de cada Student de la sonda
-            // ('parent_user_id' => User::factory()->create()->id) — antes,
-            // ese id nunca se capturaba y el padre quedaba huérfano tras la
-            // limpieza.
-            //
-            // BUG FIJADO (ronda 2 — ownership): la primera versión de este
-            // fix buscaba el Student por first_name='Probe', igual que la
-            // línea de borrado de abajo ya hacía. Ese selector NO tiene
-            // ninguna relación con el escenario actual — coincide con
-            // CUALQUIER Student de TODA la tabla que se llame así, real o
-            // no. Un Student real con ese nombre de pila (plausible, a
-            // diferencia de 'ConcurrencyProbe') habría hecho que este
-            // comando borrara a un padre real y, por el cascadeOnDelete()
-            // de students.parent_user_id, a CUALQUIER OTRO hijo real de ese
-            // padre — no solo al que coincidió por accidente. Reemplazado
-            // por $studentIds (ver arriba), la única relación EXACTA
-            // disponible desde la raíz del escenario (Subject -> ClassRequest
-            // .student_id), capturada antes de borrar el ClassRequest.
-            $parentUserIds = \App\Models\Student::withTrashed()->whereIn('id', $studentIds)->pluck('parent_user_id');
-
-            $teacherUserIds = TeacherProfile::whereIn('id', $profileIds)->pluck('user_id');
             TeacherProfile::whereIn('id', $profileIds)->delete();
             \App\Models\Student::withTrashed()->whereIn('id', $studentIds)->forceDelete();
             \App\Models\User::whereIn('id', $teacherUserIds->merge($parentUserIds)->unique())->forceDelete();

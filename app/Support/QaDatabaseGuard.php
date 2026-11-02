@@ -40,6 +40,22 @@ final class QaDatabaseGuard
     }
 
     /**
+     * Los runners financieros multi-proceso solo se admiten sobre MySQL QA
+     * local. Verificar la CONFIGURACIÓN RESUELTA por Laravel, no solo el
+     * DB_HOST del shell (puede venir de .env o de config:cache).
+     */
+    public static function assertLoopbackConnection(string $connection): void
+    {
+        self::assertSafeEnvironment();
+
+        $settings = config("database.connections.{$connection}", []);
+        if (!in_array($settings['host'] ?? null, ['127.0.0.1', 'localhost'], true)
+            || !empty($settings['unix_socket'])) {
+            throw new RuntimeException('MOVA QA GUARD: la conexión de concurrencia debe resolver a MySQL loopback por TCP. Abortado.');
+        }
+    }
+
+    /**
      * Comprobado por separado (no solo dentro de assertDatabase()) para que
      * un comando pueda fallar cerrado por entorno incluso antes de intentar
      * resolver ninguna conexión de base de datos.
