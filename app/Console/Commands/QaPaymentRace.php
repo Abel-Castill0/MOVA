@@ -39,7 +39,7 @@ class QaPaymentRace extends Command
         {operation : reconcile-paid|reconcile-refund|charge-attempt}
         {--setup : crea el escenario y lo imprime como "scenario=<recharge_id>"}
         {--verify : imprime el estado final del escenario}
-        {--cleanup : elimina los escenarios de este comando}
+        {--cleanup : elimina únicamente --scenario=<id>}
         {--scenario= : id de la recarga}
         {--at= : epoch (float) en que todos los procesos disparan a la vez}
         {--worker=0}
@@ -64,13 +64,26 @@ class QaPaymentRace extends Command
             throw new RuntimeException('MOVA QA GUARD: mova:qa-payment-race exige --connection='.self::QA_CONNECTION.'. Abortado sin tocar datos.');
         }
 
+        QaDatabaseGuard::assertLocalQaConnection(self::QA_CONNECTION);
         QaDatabaseGuard::assertDatabase(self::QA_CONNECTION, 'mova_qa');
         config(['database.default' => self::QA_CONNECTION]);
 
         $operation = $this->argument('operation');
+        if (!in_array($operation, ['reconcile-paid', 'reconcile-refund', 'charge-attempt'], true)) {
+            $this->error('Operación de carrera de pago no admitida.');
+
+            return self::FAILURE;
+        }
 
         if ($this->option('cleanup')) {
-            return $this->cleanup();
+            $scenario = (int) $this->option('scenario');
+            if ($scenario < 1) {
+                $this->error('Cleanup exige --scenario=<id> del escenario QA exacto.');
+
+                return self::FAILURE;
+            }
+
+            return $this->cleanup($scenario);
         }
         if ($this->option('setup')) {
             return $this->setup($operation);
@@ -101,59 +114,64 @@ class QaPaymentRace extends Command
 
         $this->line("worker={$this->option('worker')} result={$result}");
 
-        return self::SUCCESS;
+        return str_starts_with($result, 'error:') ? self::FAILURE : self::SUCCESS;
     }
 
     private function setup(string $operation): int
     {
-        Role::findOrCreate('teacher', 'web');
-        $user = User::create([
-            'name' => 'QA Pay Race',
-            'email' => self::EMAIL_PREFIX.Str::lower(Str::random(10)).'@mova.test',
-            'password' => Str::random(40),
-            'phone' => '987654321',
-            'email_verified_at' => now(),
-        ]);
-        $user->assignRole('teacher');
-        $profile = TeacherProfile::create(['user_id' => $user->id, 'is_verified' => true, 'credits_available' => 0, 'credits_reserved' => 0]);
+        // Si falla la preparación antes de imprimir scenario=<id>, el runner
+        // no conoce qué filas limpiar. Todo el escenario es atómico para que
+        // un setup parcial nunca deje un User/Profile/RechargeRequest QA suelto.
+        return DB::transaction(function () use ($operation) {
+            Role::findOrCreate('teacher', 'web');
+            $user = User::create([
+                'name' => 'QA Pay Race',
+                'email' => self::EMAIL_PREFIX.Str::lower(Str::random(10)).'@mova.test',
+                'password' => Str::random(40),
+                'phone' => '987654321',
+                'email_verified_at' => now(),
+            ]);
+            $user->assignRole('teacher');
+            $profile = TeacherProfile::create(['user_id' => $user->id, 'is_verified' => true, 'credits_available' => 0, 'credits_reserved' => 0]);
 
-        $recharge = RechargeRequest::create([
-            'teacher_profile_id' => $profile->id,
-            'package_code' => 'inicio',
-            'package_name' => 'Inicio',
-            'credits' => self::CREDITS,
-            'amount_pen' => '10.00',
-            'payment_method' => 'culqi',
-            'operation_number' => null,
-            'operation_number_normalized' => null,
-            'status' => 'pending',
-        ]);
-
-        // charge-attempt crea su propia fila con 'prepared' (la reclama el proveedor); los otros dos parten de un
-        // intento ya enviado, tal como lo deja el checkout tras el POST /v2/charges.
-        if ($operation !== 'charge-attempt') {
-            $order = PaymentOrder::create([
-                'recharge_request_id' => $recharge->id,
-                'attempt_number' => 1,
-                'idempotency_key' => (string) Str::uuid(),
-                'provider' => 'culqi',
-                'provider_order_id' => 'chr_test_RACE'.Str::upper(Str::random(12)),
-                'submission_status' => 'submitted',
+            $recharge = RechargeRequest::create([
+                'teacher_profile_id' => $profile->id,
+                'package_code' => 'inicio',
+                'package_name' => 'Inicio',
+                'credits' => self::CREDITS,
+                'amount_pen' => '10.00',
+                'payment_method' => 'culqi',
+                'operation_number' => null,
+                'operation_number_normalized' => null,
                 'status' => 'pending',
-                'amount_minor' => self::AMOUNT_MINOR,
-                'currency' => 'PEN',
-                'payment_channel' => 'card',
             ]);
 
-            if ($operation === 'reconcile-refund') {
-                // Estado previo realista: pagado y acreditado una vez, de forma secuencial.
-                $this->applyTruth($this->paidCharge($order));
+            // charge-attempt crea su propia fila con 'prepared' (la reclama el proveedor); los otros dos parten de un
+            // intento ya enviado, tal como lo deja el checkout tras el POST /v2/charges.
+            if ($operation !== 'charge-attempt') {
+                $order = PaymentOrder::create([
+                    'recharge_request_id' => $recharge->id,
+                    'attempt_number' => 1,
+                    'idempotency_key' => (string) Str::uuid(),
+                    'provider' => 'culqi',
+                    'provider_order_id' => 'chr_test_RACE'.Str::upper(Str::random(12)),
+                    'submission_status' => 'submitted',
+                    'status' => 'pending',
+                    'amount_minor' => self::AMOUNT_MINOR,
+                    'currency' => 'PEN',
+                    'payment_channel' => 'card',
+                ]);
+
+                if ($operation === 'reconcile-refund') {
+                    // Estado previo realista: pagado y acreditado una vez, de forma secuencial.
+                    $this->applyTruth($this->paidCharge($order));
+                }
             }
-        }
 
-        $this->line("scenario={$recharge->id}");
+            $this->line("scenario={$recharge->id}");
 
-        return self::SUCCESS;
+            return self::SUCCESS;
+        });
     }
 
     private function verify(): int
@@ -263,23 +281,30 @@ class QaPaymentRace extends Command
     }
 
     /**
-     * OJO: borra filas de credit_transactions (el ledger es append-only en producción). Es aceptable SOLO porque este
-     * comando corre únicamente contra la base QA `mova_qa` y limita el borrado a los usuarios `qa-pay-race-*@mova.test`;
-     * no copiar este patrón fuera de un arnés QA.
+     * Exclusivamente mysql_qa: borra el único escenario sintético solicitado.
+     * Nunca usar un prefijo de correo como selector global de borrado:
+     * la prueba A no debe eliminar a la prueba B cuando corren simultáneas.
      */
-    private function cleanup(): int
+    private function cleanup(int $scenario): int
     {
-        $users = User::where('email', 'like', self::EMAIL_PREFIX.'%@mova.test')->get();
-        foreach ($users as $user) {
-            $profileIds = TeacherProfile::where('user_id', $user->id)->pluck('id');
-            $rechargeIds = RechargeRequest::whereIn('teacher_profile_id', $profileIds)->pluck('id');
-            DB::table('payment_orders')->whereIn('recharge_request_id', $rechargeIds)->delete();
-            DB::table('credit_transactions')->whereIn('teacher_profile_id', $profileIds)->delete();
-            DB::table('recharge_requests')->whereIn('id', $rechargeIds)->delete();
-            DB::table('teacher_profiles')->whereIn('id', $profileIds)->delete();
+        DB::transaction(function () use ($scenario) {
+            $recharge = RechargeRequest::whereKey($scenario)->lockForUpdate()->firstOrFail();
+            $profile = TeacherProfile::whereKey($recharge->teacher_profile_id)->lockForUpdate()->firstOrFail();
+            $user = User::whereKey($profile->user_id)->lockForUpdate()->firstOrFail();
+
+            if (!preg_match('/^qa-pay-race-[a-z0-9]{10}@mova\.test$/', $user->email)
+                || TeacherProfile::where('user_id', $user->id)->count() !== 1
+                || RechargeRequest::where('teacher_profile_id', $profile->id)->count() !== 1) {
+                throw new RuntimeException('MOVA QA GUARD: identidad sintética o cardinalidad inesperada; cleanup abortado.');
+            }
+
+            DB::table('payment_orders')->where('recharge_request_id', $recharge->id)->delete();
+            DB::table('credit_transactions')->where('teacher_profile_id', $profile->id)->delete();
+            $recharge->delete();
+            $profile->delete();
             $user->syncRoles([]);
             $user->delete();
-        }
+        });
 
         return self::SUCCESS;
     }
