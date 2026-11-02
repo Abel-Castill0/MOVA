@@ -669,7 +669,7 @@ La familia va a students.create; el profesor a teacher.setup. La identidad exter
 |---|---|---|
 | **Cancelación** | Solo desde `scheduled`. Devuelve créditos (asiento `refund`), libera cupo de acompañamiento, registra `ClassEvent`, notifica a la contraparte | `LessonController::cancel` |
 | **Reprogramación** | Solo desde `scheduled`. **Cambiar `duration_minutes` está explícitamente prohibido** (evita alterar el coste en créditos ya reservado). Revalida solapamiento bajo lock. Guarda `original_start_time` la primera vez | `LessonController::reschedule:300-304` |
-| **Rechazo del profesor** | `open → teacher_rejected` con motivo ≥10. `ClassRequestRejectedNotification` al padre. La solicitud **no vuelve a `open`**: el padre debe crear otra | `ClassRequestController::teacherReject` |
+| **Rechazo del profesor** | Solicitud dirigida por código/oferta: `open → teacher_rejected`, aviso al padre. Solicitud pública: permanece `open`, crea `class_request_teacher_declines` y solo se oculta de la bandeja del profesor que la descartó (sin aviso terminal al padre). Motivo ≥10. | `ClassRequestController::teacherReject` |
 | **Expiración de solicitud** | R-12 RESUELTO EN FASE 2A: open → expired tras 24 h desde created_at; auditoría y aviso al padre | §14.1 |
 | **Pago fallido** | No aplica al padre (paga fuera de MOVA) | — |
 | **Profesor no disponible** | El padre no lo ve: no hay agenda pública. Se entera si el profesor rechaza o nunca responde | §15 |
@@ -926,7 +926,7 @@ stateDiagram-v2
     open --> expired: plazo vencido
     expired --> [*]
     open --> accepted: profesor agenda (LessonController::store)
-    open --> teacher_rejected: profesor rechaza con motivo
+    open --> teacher_rejected: profesor destinatario rechaza con motivo
     accepted --> [*]
     rejected --> [*]
     teacher_rejected --> [*]
@@ -935,10 +935,10 @@ stateDiagram-v2
 | Estado | Viene de | Va a | Acción | Actor | Validación | Side effects |
 |---|---|---|---|---|---|---|
 | `pending_parent_approval` | creación | `open`, `rejected` | approve / reject | padre | `ClassRequestPolicy::view` + estado revalidado bajo lock | `ParentApprovalRequestNotification` al crearse |
-| `open` | creación o aprobación | `accepted`, `teacher_rejected` | agendar / rechazar | profesor | `ClassRequestPolicy::accept` (verificado + elegible) | Al crearse: `NewClassRequestNotification` a elegibles. A las 12 h: `UnansweredRequestNotification` |
+| `open` | creación o aprobación | `accepted`, `teacher_rejected` solo si dirigida; `open` si declinada individualmente | agendar / rechazar | profesor | `ClassRequestPolicy` (verificado + elegible) | Al crearse: `NewClassRequestNotification` a elegibles. A las 12 h: `UnansweredRequestNotification` solo a no declinantes |
 | `accepted` | `open` | — **terminal** | — | — | — | Crea `Lesson`, reserva créditos |
 | `rejected` | `pending_parent_approval` | — terminal | — | — | — | ninguno |
-| `teacher_rejected` | `open` | — terminal | — | — | motivo 10–500 | `ClassEvent('request_rejected')`, `ClassRequestRejectedNotification` |
+| `teacher_rejected` | `open` dirigida | — terminal | — | — | motivo 10–500 | `ClassEvent('request_rejected')`, `ClassRequestRejectedNotification`. El rechazo público usa `class_request_teacher_declines` y evento `request_declined_by_teacher`, sin transición global |
 | `expired` | `open` | terminal | scheduler | lock + plazo | — | ClassEvent request_expired; notifica al padre |
 | `completed` | **nunca** | — | — | — | — | **ESTADO MUERTO (H-09)** |
 

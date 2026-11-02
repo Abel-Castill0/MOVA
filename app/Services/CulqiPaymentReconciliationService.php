@@ -92,8 +92,10 @@ class CulqiPaymentReconciliationService
     public function applyTruth(PaymentOrder $order, ?PaymentWebhook $webhook, array $charge): string
     {
         return DB::transaction(function () use ($order, $webhook, $charge) {
-            $order = PaymentOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // Orden global de locks Recarga → Orden, igual que resolveAttemptRow()
+            // y RechargeApprovalService: evita un deadlock checkout ↔ webhook.
             $recharge = RechargeRequest::whereKey($order->recharge_request_id)->lockForUpdate()->firstOrFail();
+            $order = PaymentOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             $mismatch = $this->contextMismatch($charge, $order, $recharge);
             if ($mismatch !== null) {
@@ -130,6 +132,13 @@ class CulqiPaymentReconciliationService
 
         if ($order->provider_order_id !== null) {
             return $this->reconcile($order);
+        }
+
+        // Un reto 3DS aún no ha generado cargo. No buscarlo como pago incierto
+        // ni consumir el presupuesto de recuperación; el barrido expira estos
+        // intentos mediante CulqiPaymentProvider::abandonThreeDs().
+        if ($order->submission_status === 'awaiting_3ds') {
+            return 'awaiting_3ds';
         }
 
         // Otra petición (doble clic) o el cron coinciden con un POST todavía en vuelo: aún no es
@@ -221,7 +230,14 @@ class CulqiPaymentReconciliationService
 
     private function applyPaid(PaymentOrder $order, RechargeRequest $recharge, array $charge): string
     {
+        $differentPaidAttempt = $recharge->status === 'approved'
+            && PaymentOrder::where('recharge_request_id', $recharge->id)
+                ->where('status', 'paid')->whereNull('refunded_at')->where('id', '!=', $order->id)->exists();
+
         if ($order->status === 'paid') {
+            if ($differentPaidAttempt) {
+                return $this->reviewAndReturn($order, null, 'Otro intento de esta recarga también está pagado en Culqi: posible doble cobro, revisar devolución del excedente.', $charge);
+            }
             $this->recordResolvedTruth($order, $charge);
 
             return 'paid'; // idempotente: ya procesado por otro evento/barrido
@@ -252,6 +268,13 @@ class CulqiPaymentReconciliationService
         $this->recordResolvedTruth($order, $charge);
         app(RechargeApprovalService::class)->credit($recharge, null);
 
+        if ($differentPaidAttempt) {
+            // Dos cargos reales pueden existir aunque la clave única impida
+            // un segundo depósito. Registrar ambos como pagados y alertar;
+            // ninguna devolución se inicia sin revisión humana.
+            return $this->reviewAndReturn($order, null, 'Otro intento de esta recarga también está pagado en Culqi: posible doble cobro, revisar devolución del excedente.', $charge);
+        }
+
         return 'paid';
     }
 
@@ -272,6 +295,19 @@ class CulqiPaymentReconciliationService
 
     private function applyReversed(PaymentOrder $order, RechargeRequest $recharge, ?PaymentWebhook $webhook, array $charge): string
     {
+        if (CulqiChargeMapper::refundedMinor($charge) !== $order->amount_minor) {
+            return $this->reviewAndReturn($order, $webhook, 'La devolución de Culqi no coincide con el importe cobrado — requiere revisión manual.', $charge);
+        }
+
+        // Un PaymentOrder representa un cargo; RechargeRequest representa
+        // los créditos de una compra. No se debe revertir la recarga si
+        // queda otro cargo distinto aún pagado, ni confundir la devolución
+        // del cobro excedente con la de la compra completa.
+        $order->update(['refunded_at' => $order->refunded_at ?? now()]);
+        $otherActiveCharge = PaymentOrder::where('recharge_request_id', $recharge->id)
+            ->where('provider', 'culqi')->where('status', 'paid')
+            ->whereNull('refunded_at')->where('id', '!=', $order->id)->exists();
+
         if ($recharge->status === 'reversed') {
             $this->recordResolvedTruth($order, $charge);
 
@@ -282,8 +318,9 @@ class CulqiPaymentReconciliationService
             return $this->reviewAndReturn($order, $webhook, "Devolución total en Culqi pero la recarga #{$recharge->id} no está 'approved' (está '{$recharge->status}') — requiere revisión manual.", $charge);
         }
 
-        if (CulqiChargeMapper::refundedMinor($charge) !== $order->amount_minor) {
-            return $this->reviewAndReturn($order, $webhook, 'La devolución de Culqi no coincide con el importe cobrado — requiere revisión manual.', $charge);
+        if ($otherActiveCharge) {
+            return $this->reviewAndReturn($order, $webhook,
+                'Cargo de Culqi devuelto, pero otro cargo de esta recarga sigue pagado: conservar créditos y revisar el incidente de cobro duplicado.', $charge);
         }
 
         app(RechargeApprovalService::class)->reverse(

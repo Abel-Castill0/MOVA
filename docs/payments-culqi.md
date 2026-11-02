@@ -59,6 +59,15 @@ Un `credit()` por recarga aunque lleguen N webhooks, N barridos o N `applyTruth`
 del mismo cargo y reentrada concurrente). Devolución **total** ⇒ `reverse()`; **parcial**, disputa, cargo sin capturar o
 resultado desconocido ⇒ `review` + alerta operativa, sin acción financiera.
 
+Corrección de integridad (2026-11-02): `payment_orders.refunded_at` distingue un
+**cargo completamente devuelto** del estado financiero de la recarga. Si se
+confirmaron dos cargos distintos por una misma recarga, el segundo no duplica
+créditos y genera alerta. Devolver uno de los cargos **no revierte** los créditos
+mientras quede otro cargo pagado sin devolución; el incidente permanece en
+revisión humana. Solo al verificarse la devolución del último cargo se aplica
+`reverse()` exactamente una vez. El barrido también cierra 3DS vencidos sin
+consultar cargos inexistentes ni gastar búsquedas de conciliación.
+
 ## 3. Evidencia de sandbox (2026-10-22) — lo que difiere de la documentación
 
 | Aspecto | Documentación OpenAPI | Sandbox real | Decisión |

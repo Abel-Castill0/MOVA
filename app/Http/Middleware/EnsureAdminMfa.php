@@ -25,7 +25,8 @@ class EnsureAdminMfa
     {
         $user = $request->user();
 
-        if (! $user || ! $user->hasRole('admin') || app()->environment('local')) {
+        // Incluso en local: un entorno mal etiquetado no debe desactivar MFA.
+        if (! $user || ! $user->hasRole('admin')) {
             return $next($request);
         }
 

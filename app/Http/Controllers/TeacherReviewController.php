@@ -49,11 +49,12 @@ class TeacherReviewController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
 
-        $review = DB::transaction(function () use ($lesson, $data) {
+        $legacyUnsettledLessonId = null;
+        [$review, $lesson] = DB::transaction(function () use ($lesson, $data, &$legacyUnsettledLessonId) {
             $locked = Lesson::whereKey($lesson->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked);
 
-            return TeacherReview::create([
+            $review = TeacherReview::create([
                 'lesson_id'          => $locked->id,
                 'teacher_profile_id' => $locked->teacher_profile_id,
                 'parent_id'          => auth()->id(),
@@ -62,41 +63,30 @@ class TeacherReviewController extends Controller
                 'comment'            => $data['comment'] ?? null,
                 'is_visible'         => true,
             ]);
-        });
 
-        $lesson = $lesson->fresh();
-
-        if ($lesson->credits_settled_at === null) {
-            // Nadie la había liquidado todavía (ni el scheduler, ni un admin):
-            // esta reseña es lo que cierra la clase. maxAllowedRate() dentro de
-            // consume() ya ve esta reseña recién creada, así que la tarifa
-            // queda correcta sin recalcularla dos veces.
-            //
-            // consume() exige status ∈ CONSUMABLE_STATES. Casi siempre se
-            // cumple aquí (assertReviewable ya filtró a
-            // pending_parent_confirmation/completed), PERO una lección
-            // 'completed' heredada de antes de C-1 sin ledger (NO_LEDGER —
-            // el backfill la deja intacta a propósito, ver la migración) no
-            // es consumible y consume() lanzaría RuntimeException. La reseña
-            // en sí YA se guardó (transacción propia, arriba) — dejar que
-            // esa excepción reviente la respuesta le mostraría un 500 al
-            // padre por una anomalía que no causó y que no puede resolver.
-            // Se registra para que un admin la investigue (síntoma de una
-            // lección que ya estaba mal antes de esta entrega) sin romper el
-            // flujo de quien solo quería calificar.
-            try {
-                $lesson = app(LessonSettlementService::class)->consume($lesson, auth()->id());
-            } catch (\RuntimeException $e) {
-                report($e);
-                $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)->firstOrFail();
+            // La reseña, el ledger y el recálculo de tarifa comparten la MISMA
+            // transacción: un error inesperado revierte todo y permite reintentar.
+            if ($locked->status === 'completed' && $locked->credits_settled_at === null) {
+                // Solo legado NO_LEDGER. No llamar a consume() con un estado
+                // deliberadamente no consumible ni suprimir fallos reales.
+                $legacyUnsettledLessonId = $locked->id;
+                $teacherProfile = TeacherProfile::whereKey($locked->teacher_profile_id)->lockForUpdate()->firstOrFail();
+                $teacherProfile->update(['hourly_rate' => $teacherProfile->maxAllowedRate()]);
+            } elseif ($locked->credits_settled_at === null) {
+                $locked = app(LessonSettlementService::class)->consume($locked, auth()->id());
+            } else {
+                // Auto-liquidada o liquidada por admin: la reseña cambia la
+                // valoración, nunca crea un segundo consumo de créditos.
+                $teacherProfile = TeacherProfile::whereKey($locked->teacher_profile_id)->lockForUpdate()->firstOrFail();
                 $teacherProfile->update(['hourly_rate' => $teacherProfile->maxAllowedRate()]);
             }
-        } else {
-            // Ya estaba liquidada (auto-settlement o admin). La reseña NO mueve
-            // dinero — pero sí cambió avgRating(), así que la tarifa dinámica
-            // debe recalcularse igual.
-            $teacherProfile = TeacherProfile::whereKey($lesson->teacher_profile_id)->firstOrFail();
-            $teacherProfile->update(['hourly_rate' => $teacherProfile->maxAllowedRate()]);
+
+            return [$review, $locked];
+        });
+
+        // La telemetría se emite después del commit, fuera de locks de dinero.
+        if ($legacyUnsettledLessonId !== null) {
+            report(new \RuntimeException("Lección {$legacyUnsettledLessonId} completada sin asiento de liquidación histórico: revisión manual requerida."));
         }
 
         // Notify teacher

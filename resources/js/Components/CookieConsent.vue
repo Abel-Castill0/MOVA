@@ -32,6 +32,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import { readLocalPreference, writeLocalPreference } from '../utils/safeLocalStorage.js'
 
 // C-P2-COOKIE-TRUTH: MOVA no tiene cookies opcionales (ni analítica ni
 // publicidad), así que esto es un AVISO informativo, no un consentimiento:
@@ -62,7 +63,7 @@ watch(visible, (isVisible) => {
 })
 
 onMounted(() => {
-  if (localStorage.getItem(STORAGE_KEY) !== 'accepted') {
+  if (readLocalPreference(STORAGE_KEY) !== 'accepted') {
     visible.value = true
   }
   window.addEventListener('resize', reserveSpace)
@@ -73,7 +74,7 @@ onUnmounted(() => {
 })
 
 function accept() {
-  localStorage.setItem(STORAGE_KEY, 'accepted')
+  writeLocalPreference(STORAGE_KEY, 'accepted')
   visible.value = false
 }
 </script>

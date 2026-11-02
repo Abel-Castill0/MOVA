@@ -39,8 +39,8 @@ jobs:
           key: composer-${{ hashFiles('composer.lock') }}
       - run: composer install --no-dev --no-scripts --no-interaction --no-progress --prefer-dist
       - run: npm ci
-      - name: npm audit (runtime deps, high+)
-        run: npm audit --omit=dev --audit-level=high
+      - name: npm audit (runtime + build toolchain, moderate+)
+        run: npm audit --audit-level=moderate
       - run: npm run build
       # Reproduce exactamente el build de la imagen Docker (sin VITE_APP_NAME
       # definido) — confirma que el fallback del título es 'MOVA', nunca el
@@ -52,6 +52,7 @@ jobs:
       # cuando el backend lo declara disponible (C-P2-CI-MOVI).
       - run: npm run check:movi-availability
       - run: npm run check:checkout-poll
+      - run: npm run check:local-storage
       # MCP local de Culqi (sin red real: servidor HTTP falso).
       - run: npm run check:culqi-mcp
       - uses: actions/upload-artifact@v4

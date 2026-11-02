@@ -6,6 +6,7 @@ use App\Events\ClassRequestCreated;
 use App\Models\ClassEvent;
 use App\Models\ClassOffer;
 use App\Models\ClassRequest;
+use App\Models\ClassRequestTeacherDecline;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherProfile;
@@ -14,6 +15,7 @@ use App\Services\ClassRequestNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ClassRequestController extends Controller
@@ -110,7 +112,11 @@ class ClassRequestController extends Controller
             'teacher_referral_code' => 'nullable|string|max:6',
             'is_mentorship' => 'sometimes|boolean',
             'help_needed' => 'required|string|max:2000',
-            'preferred_times' => 'nullable|array',
+            'preferred_times' => 'nullable|array|list|max:6',
+            'preferred_times.*' => ['required', 'string', 'distinct', Rule::in([
+                'morning_weekday', 'afternoon_weekday', 'evening_weekday',
+                'morning_weekend', 'afternoon_weekend', 'flexible',
+            ])],
         ]);
 
         // Ensure the student belongs to the authenticated parent
@@ -343,6 +349,7 @@ class ClassRequestController extends Controller
 
         $open = ClassRequest::where('status', 'open')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
+            ->notDeclinedBy($profile->id)
             ->with(['student', 'subject'])
             ->latest()->get();
 
@@ -362,13 +369,35 @@ class ClassRequestController extends Controller
             ->take(10)
             ->get();
 
+        // En solicitudes públicas cada profesor conserva su propio rechazo; los
+        // demás docentes siguen viendo la solicitud abierta para aceptarla.
+        $publicDeclines = ClassRequest::where('status', 'open')
+            ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
+            ->whereHas('teacherDeclines', fn ($q) => $q->where('teacher_profile_id', $profile->id))
+            ->with(['student', 'subject', 'teacherDeclines' => fn ($q) => $q->where('teacher_profile_id', $profile->id)])
+            ->latest()
+            ->take(10)
+            ->get();
+
+        $rejectedSummaries = $rejected->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r));
+        $publicDeclineSummaries = $publicDeclines->map(function (ClassRequest $r) {
+            $decline = $r->teacherDeclines->first();
+
+            return [
+                ...$this->teacherRequestSummary($r),
+                'status' => 'teacher_rejected', // Vista individual, no estado persistido de la solicitud.
+                'teacher_rejected_at' => $decline?->declined_at,
+                'teacher_rejection_reason' => $decline?->reason,
+            ];
+        });
+
         // P0-B: el profesor solo ve lo necesario para decidir. Nunca
         // birth_date, school ni parent_user_id del menor — y, antes de que la
         // clase exista, tampoco su apellido (teacherRequestSummary).
         return Inertia::render('ClassRequests/TeacherIndex', [
             'requests'               => $open->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
             'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
-            'rejectedRequests'       => $rejected->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
+            'rejectedRequests'       => $publicDeclineSummaries->concat($rejectedSummaries)->take(10)->values(),
             'verificationPending'    => false,
         ]);
     }
@@ -424,26 +453,42 @@ class ClassRequestController extends Controller
 
         // Bajo lock: una aceptación o contraoferta concurrente que ya sacó la
         // solicitud de 'open' no puede ser sobrescrita por este rechazo.
-        DB::transaction(function () use ($classRequest, $data) {
+        $isPublicRequest = false;
+        DB::transaction(function () use ($classRequest, $data, &$isPublicRequest) {
             $locked = ClassRequest::whereKey($classRequest->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->status === 'open', 422, 'Solo se pueden rechazar solicitudes abiertas.');
+
+            $isPublicRequest = $locked->teacher_profile_id === null && $locked->class_offer_id === null;
+            if ($isPublicRequest) {
+                $decline = ClassRequestTeacherDecline::firstOrCreate(
+                    ['class_request_id' => $locked->id, 'teacher_profile_id' => auth()->user()->teacherProfile->id],
+                    ['reason' => $data['reason'], 'declined_at' => now()]
+                );
+
+                if ($decline->wasRecentlyCreated) {
+                    ClassEvent::log('request_declined_by_teacher', auth()->id(), null, $locked->id, $data['reason']);
+                }
+
+                return;
+            }
 
             $locked->update([
                 'status'                     => 'teacher_rejected',
                 'teacher_rejected_at'        => now(),
                 'teacher_rejection_reason'   => $data['reason'],
             ]);
+            ClassEvent::log('request_rejected', auth()->id(), null, $locked->id, $data['reason']);
         });
 
         $classRequest->refresh()->load(['student.parent', 'subject']);
 
-        ClassEvent::log('request_rejected', auth()->id(), null, $classRequest->id, $data['reason']);
-
-        if ($classRequest->student?->parent) {
+        if (! $isPublicRequest && $classRequest->student?->parent) {
             $classRequest->student->parent->notify(new ClassRequestRejectedNotification($classRequest));
         }
 
-        return back()->with('success', 'Solicitud rechazada. El padre ha sido notificado.');
+        return back()->with('success', $isPublicRequest
+            ? 'Has descartado esta solicitud. Sigue disponible para otros profesores.'
+            : 'Solicitud rechazada. El padre ha sido notificado.');
     }
 
     public function accept(ClassRequest $classRequest)

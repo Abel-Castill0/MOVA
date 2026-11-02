@@ -93,6 +93,85 @@ class CulqiPaymentTest extends TestCase
         $this->assertSame(5, $recharge->teacherProfile->fresh()->credits_available);
     }
 
+    public function test_two_distinct_confirmed_culqi_charges_raise_review_without_double_credit(): void
+    {
+        $recharge = $this->recharge();
+        $first = $this->orderWithChargeId($recharge, 'chr_test_DOUBLECHARGE0001');
+        $second = PaymentOrder::create([
+            'recharge_request_id' => $recharge->id,
+            'attempt_number' => 2,
+            'idempotency_key' => (string) Str::uuid(),
+            'provider' => 'culqi',
+            'provider_order_id' => 'chr_test_DOUBLECHARGE0002',
+            'submission_status' => 'submitted',
+            'status' => 'pending',
+            'amount_minor' => 1000,
+            'currency' => 'PEN',
+        ]);
+        $service = app(CulqiPaymentReconciliationService::class);
+
+        $this->assertSame('paid', $service->applyTruth($first, null, $this->chargeFor(
+            $this->payloadFor($first), ['id' => $first->provider_order_id]
+        )));
+        $this->assertSame('review', $service->applyTruth($second, null, $this->chargeFor(
+            $this->payloadFor($second), ['id' => $second->provider_order_id]
+        )));
+
+        $this->assertSame('paid', $first->fresh()->status);
+        $this->assertSame('paid', $second->fresh()->status, 'Los dos cargos se reflejan como pagados en auditoría.');
+        $this->assertNotNull($second->fresh()->review_reason);
+        $this->assertSame(1, $this->deposits($recharge));
+        $this->assertSame(5, $recharge->teacherProfile->fresh()->credits_available);
+        $this->assertTrue(OperationalAlert::where('type', OperationalAlert::TYPE_PAYMENT_REVIEW)->exists());
+
+        // El mismo webhook de pago repetido no puede cerrar accidentalmente
+        // la alerta de un segundo cargo todavía pendiente de revisión humana.
+        $this->assertSame('review', $service->applyTruth($second->fresh(), null, $this->chargeFor(
+            $this->payloadFor($second), ['id' => $second->provider_order_id]
+        )));
+        $this->assertNotNull($second->fresh()->review_reason);
+
+        // El reembolso del cargo extra NO puede quitar los créditos de la
+        // venta original, que sigue pagada en Culqi.
+        $secondRefunded = $this->chargeFor($this->payloadFor($second), [
+            'id' => $second->provider_order_id,
+            'amount_refunded' => 1000,
+            'current_amount' => 0,
+        ]);
+        $this->fakeApi(get: fn (Request $r) => Http::response(
+            basename(parse_url($r->url(), PHP_URL_PATH)) === $second->provider_order_id
+                ? $secondRefunded
+                : $this->chargeFor($this->payloadFor($first), ['id' => $first->provider_order_id]), 200
+        ));
+        PaymentOrder::whereKey($second->id)->update(['last_verified_at' => now()->subHours(2)]);
+        $this->artisan('culqi:reconcile')->assertExitCode(0);
+        $this->assertNotNull($second->fresh()->refunded_at);
+        $this->artisan('culqi:reconcile', ['--order' => $second->id])->assertExitCode(0);
+        $this->assertSame('approved', $recharge->fresh()->status);
+        $this->assertSame(1, $this->deposits($recharge));
+        $this->assertSame(0, CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'reversal')->count());
+
+        // Solo al comprobar que ya NO queda otro cargo pagado se revierte
+        // el crédito exactamente una vez, incluso con webhook duplicado.
+        $firstRefunded = $this->chargeFor($this->payloadFor($first), [
+            'id' => $first->provider_order_id,
+            'amount_refunded' => 1000,
+            'current_amount' => 0,
+        ]);
+        $this->fakeApi(get: fn (Request $r) => Http::response(
+            basename(parse_url($r->url(), PHP_URL_PATH)) === $first->provider_order_id
+                ? $firstRefunded : $secondRefunded, 200
+        ));
+        PaymentOrder::whereKey($first->id)->update(['last_verified_at' => now()->subHours(2)]);
+        $this->artisan('culqi:reconcile')->assertExitCode(0);
+        $this->assertNotNull($first->fresh()->refunded_at);
+        $this->assertSame('reversed', $service->applyTruth($first->fresh(), null, $firstRefunded));
+        $this->assertSame('reversed', $service->applyTruth($first->fresh(), null, $firstRefunded));
+        $this->assertSame('reversed', $recharge->fresh()->status);
+        $this->assertSame(1, CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'reversal')->count());
+        $this->assertSame(0, $recharge->teacherProfile->fresh()->credits_available);
+    }
+
     public function test_amount_currency_email_and_metadata_are_decided_server_side_and_no_card_data_is_sent(): void
     {
         $recharge = $this->recharge(amountPen: '10.00');

@@ -41,6 +41,20 @@ class AdminMfaTest extends TestCase
         $this->actingAs($admin)->post(route('admin.users.suspend', $admin))->assertRedirect(route('admin.mfa.setup'));
     }
 
+    public function test_local_environment_does_not_bypass_admin_mfa(): void
+    {
+        $admin = $this->admin();
+        $previousEnv = app()->environment();
+
+        try {
+            app()->detectEnvironment(fn () => 'local');
+            $this->actingAs($admin)->get(route('admin.users'))
+                ->assertRedirect(route('admin.mfa.setup'));
+        } finally {
+            app()->detectEnvironment(fn () => $previousEnv);
+        }
+    }
+
     public function test_enrolled_admin_without_session_verification_gets_challenge(): void
     {
         $admin = $this->admin();

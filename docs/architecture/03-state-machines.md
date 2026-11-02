@@ -17,7 +17,7 @@ stateDiagram-v2
     pending_parent_approval --> rejected: el padre rechaza
     open --> accepted: profesor acepta (reserva creditos y crea la clase)
     open --> counteroffered: profesor propone otro horario
-    open --> teacher_rejected: profesor rechaza
+    open --> teacher_rejected: profesor asignado rechaza (codigo u oferta)
     open --> expired: mova expire-class-requests tras 24 h
     counteroffered --> accepted: padre acepta la contraoferta
     counteroffered --> open: padre rechaza la contraoferta
@@ -37,6 +37,14 @@ stateDiagram-v2
 - Visibilidad al profesor (`scopeVisibleToTeacher`): con `teacher_profile_id`
   (código de referido) solo ese profesor; con `class_offer_id` el dueño de la
   oferta; sin ambos, todos los verificados de la materia.
+- El rechazo de una solicitud **pública** no cambia `status=open`: añade una
+  fila única por profesor en `class_request_teacher_declines` y la oculta solo
+  de la bandeja/recordatorios de ese profesor. Otros profesores siguen pudiendo
+  aceptarla. Solo las dirigidas por código u oferta transitan a
+  `teacher_rejected`, con aviso de rechazo terminal al padre.
+- Los antiguos `teacher_rejected` públicos persistidos antes de esta migración
+  **no se reabren automáticamente**: deben revisarse individualmente antes
+  de alterar su visibilidad (protección de datos de menores).
 
 ## `classes.status` (modelo `Lesson`)
 
