@@ -8,17 +8,33 @@
  *                       pausa de 300 ms que ensancha la ventana de carrera; anota cada POST en $CULQI_STUB_LOG.
  *   GET  /v2/charges/{id} → el último cargo creado con ese id (por si la conciliación lo consulta).
  */
-$log = getenv('CULQI_STUB_LOG') ?: sys_get_temp_dir().'/culqi_stub_posts.log';
-$dir = sys_get_temp_dir().'/culqi_stub_charges';
-@mkdir($dir, 0777, true);
+$log = getenv('CULQI_STUB_LOG');
+$dir = getenv('CULQI_STUB_DIR');
+$runId = getenv('CULQI_STUB_RUN_ID');
+if (!$log || !$dir || !$runId || !is_dir($dir)) {
+    http_response_code(503);
+    header('Content-Type: application/json');
+    echo json_encode(['object' => 'error', 'type' => 'qa_stub_not_configured']);
+
+    return;
+}
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 header('Content-Type: application/json');
 
+if ($method === 'GET' && $path === '/ping') {
+    // Identidad inequívoca de ESTA instancia, para evitar conectar por
+    // accidente contra otro servidor local que ocupe el mismo puerto.
+    header('Content-Type: text/plain');
+    echo $runId;
+
+    return;
+}
+
 if ($method === 'POST' && $path === '/v2/charges') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
-    file_put_contents($log, 'POST /v2/charges '.json_encode(['token_prefix' => substr((string) ($body['source_id'] ?? ''), 0, 8), 'amount' => $body['amount'] ?? null])."\n", FILE_APPEND | LOCK_EX);
+    file_put_contents($log, 'POST /v2/charges '.json_encode(['amount' => $body['amount'] ?? null])."\n", FILE_APPEND | LOCK_EX);
     usleep(300_000);
 
     $id = 'chr_test_'.bin2hex(random_bytes(8));
