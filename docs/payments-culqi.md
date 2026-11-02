@@ -295,6 +295,23 @@ Nuevo comando QA `mova:qa-payment-race` + `scripts/qa-payment-race.sh` (+ doble 
 
 La primera ejecución encontró un defecto real (ver §14.7) y se corrigió antes de la serie verde. Uso: `bash scripts/qa-payment-race.sh <operación> <procesos>` dentro de `php_qa` (APP_ENV=testing).
 
+Desde la auditoría del 2026-11-02, las tres carreras (`reconcile-paid`,
+`reconcile-refund`, `charge-attempt`) se ejecutan también automáticamente
+con **8 procesos PHP independientes** en el job `mysql` de `.github/workflows/ci.yml`,
+después de PHPUnit. El CI usa el servicio MySQL 8.4 efímero y la conexión
+`mysql_qa` con base fija `mova_qa`; el cargo se sirve desde un stub HTTP en
+`127.0.0.1`, **nunca** desde Culqi real. Si una carrera incumple los invariantes,
+el job y la PR fallan. Esto convierte la verificación manual en una regresión
+obligatoria para cada commit y futura refactorización financiera.
+El runner `charge-attempt` exige, además, **cero errores en todos los workers**,
+exactamente una orden y ninguna reversión: comprobar solo el ganador permitía
+un falso `GREEN` si los demás procesos terminaban con excepciones.
+`QaPaymentRace::attemptCharge()` ahora clasifica como `rejected` solamente
+los conflictos de negocio reconocibles al perder el mismo intento; errores SQL,
+de transporte o excepciones inesperadas se reportan como `result=error`
+(solo la clase de excepción, sin mensajes potencialmente sensibles). La
+clasificación tiene una regresión unitaria propia.
+
 ### 14.7 Defecto encontrado y corregido: el aviso por correo podía revertir una acreditación
 
 `RechargeApprovalService::credit()`/`reverse()` enviaban el aviso al profesor con `->notify()` **dentro de la transacción exterior** de `applyTruth`. Con la cola `sync` (la del web en producción) un fallo SMTP lanzaba `MailDeliveryException` y **revertía la acreditación de un pago ya confirmado** (se recuperaba después por el barrido, con retraso). Corrección mínima: `notifyAfterCommit()` (`DB::afterCommit` + `try/catch` + `report()`): el aviso solo sale tras el commit y su fallo nunca afecta al ledger. `changed` sigue garantizando un único aviso. Pruebas: `RechargeNotificationResilienceTest` (3; las dos primeras fallan sin el arreglo). **Esta corrección está en el repositorio pero NO desplegada en Azure** hasta que el titular decida el siguiente despliegue.

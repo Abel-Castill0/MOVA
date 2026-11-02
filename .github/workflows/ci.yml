@@ -142,6 +142,19 @@ jobs:
           APP_ENV: testing
           DB_CONNECTION: mysql_qa
       - run: vendor/bin/phpunit -c phpunit.mysql.xml --no-progress
+      # MySQL PHPUnit usa un proceso por test; eso no prueba dos procesos
+      # compitiendo por el mismo lock. Estas sondas crean exclusivamente
+      # escenarios sintéticos en mysql_qa/mova_qa y un HTTP stub loopback.
+      # Cada runner verifica el ledger y falla el job si detecta doble
+      # depósito, doble reversión o dos POST del mismo intento de cobro.
+      - name: Culqi multi-process financial races (MySQL QA only)
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql_qa
+        run: |
+          bash scripts/qa-payment-race.sh reconcile-paid 8
+          bash scripts/qa-payment-race.sh reconcile-refund 8
+          bash scripts/qa-payment-race.sh charge-attempt 8
 
   e2e:
     needs: [sqlite]
