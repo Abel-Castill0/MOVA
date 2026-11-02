@@ -388,6 +388,42 @@ class CulqiCheckoutTest extends TestCase
         $this->assertSame(0, $profile->fresh()->credits_available);
     }
 
+    public function test_reconcile_expires_the_selected_old_3ds_without_modifying_a_newer_attempt(): void
+    {
+        [$user, $profile] = $this->teacher();
+        $recharge = $this->recharge($profile);
+        $this->fakeCulqi(postCharge: fn () => Http::response($this->threeDsRequired(), 200));
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.pay', $recharge), [
+            'token' => self::TOKEN, 'device_fingerprint_id' => self::DEVICE,
+        ])->assertJson(['status' => 'pending']);
+        $old = PaymentOrder::firstOrFail();
+        $this->travel(15)->minutes();
+
+        // Fila anómala pero posible en datos heredados/recuperación manual:
+        // el último intento ya NO es el 3DS vencido. Nunca tocar al nuevo.
+        $newer = PaymentOrder::create([
+            'recharge_request_id' => $recharge->id,
+            'attempt_number' => 2,
+            'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'provider' => 'culqi',
+            'status' => 'pending',
+            'submission_status' => 'prepared',
+            'amount_minor' => $old->amount_minor,
+            'currency' => $old->currency,
+        ]);
+
+        $this->artisan('culqi:reconcile', ['--minutes' => 0])->assertExitCode(0);
+
+        $this->assertSame('failed', $old->fresh()->status);
+        $this->assertSame('3ds_expired', $old->fresh()->provider_status_detail);
+        $this->assertSame('pending', $newer->fresh()->status);
+        $this->assertSame('prepared', $newer->fresh()->submission_status);
+        $this->assertSame(0, $newer->fresh()->recovery_attempts);
+        $this->assertSame(0, $profile->fresh()->credits_available);
+        $this->assertFalse(app(\App\Payment\CulqiPaymentProvider::class)->expireThreeDsOrder($old->fresh()),
+            'Repetir el barrido no debe cambiar un intento ya cerrado.');
+    }
+
     public function test_a_second_3ds_request_or_a_yape_token_without_device_never_loops(): void
     {
         [$user, $profile] = $this->teacher();

@@ -134,9 +134,15 @@ class CulqiPaymentReconciliationService
             return $this->reconcile($order);
         }
 
+        // Un intento solo preparado JAMÁS salió a Culqi; tampoco puede ser
+        // recuperado por listado, ni debe agotar el presupuesto de búsquedas.
+        if ($order->submission_status === 'prepared') {
+            return 'not_submitted';
+        }
+
         // Un reto 3DS aún no ha generado cargo. No buscarlo como pago incierto
         // ni consumir el presupuesto de recuperación; el barrido expira estos
-        // intentos mediante CulqiPaymentProvider::abandonThreeDs().
+        // intentos mediante CulqiPaymentProvider::expireThreeDsOrder().
         if ($order->submission_status === 'awaiting_3ds') {
             return 'awaiting_3ds';
         }

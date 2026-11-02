@@ -857,6 +857,15 @@ class CulqiPaymentTest extends TestCase
         $this->assertSame('pending', $reviewed->fresh()->status, 'Una orden en revisión humana no se reprocesa en el barrido.');
         $this->assertSame('prepared', $prepared->fresh()->submission_status);
 
+        // Ni siquiera --order debe buscar cargos de una orden preparada
+        // que nunca se envió al proveedor.
+        $this->artisan('culqi:reconcile', ['--order' => $prepared->id])->assertExitCode(0);
+        $this->assertSame('prepared', $prepared->fresh()->submission_status);
+        $this->assertSame(0, $prepared->fresh()->recovery_attempts);
+        $prepared->update(['status' => 'failed', 'submission_status' => null]);
+        $this->artisan('culqi:reconcile', ['--order' => $prepared->id])->assertExitCode(0);
+        $this->assertSame(0, $prepared->fresh()->recovery_attempts);
+
         // La re-comprobación puntual SÍ puede tomar una orden en revisión.
         $this->artisan('culqi:reconcile', ['--order' => $reviewed->id])->assertExitCode(0);
         $this->assertSame('paid', $reviewed->fresh()->status);
