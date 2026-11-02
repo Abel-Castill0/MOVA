@@ -223,8 +223,11 @@ class QaSecurityRaceGuardTest extends TestCase
         $this->assertSame(0, Artisan::call('mova:qa-security-race', [
             'operation' => $operation, '--setup' => true, '--connection' => 'mysql_qa',
         ]));
-        $this->assertMatchesRegularExpression('/scenario=([^ ]+)/', Artisan::output());
-        preg_match('/scenario=([^ ]+)/', Artisan::output(), $matches);
+        // Artisan::output() consume el buffer: reutilizar el snapshot exacto
+        // para la aserción y la captura del ID.
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/scenario=([^ ]+)/', $output);
+        preg_match('/scenario=([^ ]+)/', $output, $matches);
 
         return $matches[1];
     }
