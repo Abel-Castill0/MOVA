@@ -1,6 +1,6 @@
 # Entregabilidad del correo de MOVA (auditoría 2026-11-03)
 
-Estado (2026-11-03): **aplicada**. Producción envía por Resend (SMTP) desde `MOVA <notificaciones@movaeduca.me>` con el dominio verificado (DKIM propio). Falta que el titular confirme en Gmail la carpeta de llegada y comparta las cabeceras (§9).
+Estado (2026-11-03): **aplicada**. Producción envía por Resend (SMTP) desde `MOVA <notificaciones@movaeduca.me>` con el dominio verificado (DKIM propio). Los mensajes de prueba llegaron a Recibidos en Gmail (confirmado por el titular); las cabeceras de autenticación no se han revisado (§9).
 
 ## 1. Cómo envía hoy producción (evidencia: Azure CLI de solo lectura + DNS público)
 
@@ -94,11 +94,12 @@ No se añadió el MX de recepción de Resend (`Enable receiving` queda apagado):
 | Alerta operativa real «WAHA no responde» (la dispara el vigilante; el piloto WAHA ya no existe) | 2 envíos, uno por administrador, *Delivered*; sin repetición en los minutos siguientes | Carpeta de Gmail |
 | Bienvenida, notificación de clase, envío por cola con usuario sintético | **No ejecutadas** en producción: `az containerapp exec` no ejecutó el comando en las réplicas (la conexión abre pero no corre nada) | — |
 
-La confirmación de Recibidos/Spam y de `Authentication-Results` (SPF, DKIM, DMARC y su alineación) depende de abrir el mensaje en Gmail (⋮ → Mostrar original): pendiente del titular.
+**Confirmado por el titular (2026-11-03): los tres mensajes (prueba SMTP, restablecer contraseña y alerta de WAHA) llegaron a Recibidos en Gmail.** Las cabeceras `Authentication-Results` (SPF, DKIM, DMARC y su alineación) no se han revisado: no se compartieron.
 
 ## 10. Pendiente
 
-- Cabeceras de uno de los tres mensajes de prueba y carpeta donde cayó.
+- Opcional: cabeceras de uno de los mensajes (⋮ → Mostrar original) para documentar SPF/DKIM/DMARC y la alineación.
+- Probar también Outlook (no se ha probado).
 - `rua` en DMARC (informes agregados) con un buzón real del titular; hoy `p=none` sin informes. No pasar a `quarantine`/`reject` sin revisar informes.
 - Reply-To por código (`MAIL_REPLY_TO_ADDRESS`, commit `9faccf3`): no desplegado porque `master` ya contiene 16 commits de otros cambios (seguridad, Culqi, tests) que no son parte de este trabajo; hasta entonces las respuestas van a `notificaciones@` que reenvía a soporte.
 - Límite del plan gratuito de Resend: 100 correos/día, 3.000/mes. Si MOVA lo supera, pasar a Brevo (300/día) por el mismo método SMTP.
