@@ -161,6 +161,16 @@ return [
     ],
 
     /*
+    | Reply-To global opcional (MAIL_REPLY_TO_ADDRESS); Laravel lo aplica solo a todos los mailers. Permite enviar desde un
+    | remitente autenticado del dominio (p. ej. el de un proveedor transaccional) y que las respuestas lleguen a un buzón de
+    | soporte real. Vacío = sin Reply-To. Un valor que no sea un correo válido se descarta: no debe romper todos los envíos.
+    */
+    'reply_to' => [
+        'address' => filter_var(trim((string) env('MAIL_REPLY_TO_ADDRESS')), FILTER_VALIDATE_EMAIL) ?: null,
+        'name' => env('MAIL_REPLY_TO_NAME', env('MAIL_FROM_NAME', 'MOVA')),
+    ],
+
+    /*
     |--------------------------------------------------------------------------
     | Allowlist de destinatarios (staging / entornos no productivos)
     |--------------------------------------------------------------------------
