@@ -2,9 +2,10 @@
 
 /**
  * Real MySQL lock races, independent PHP processes. No migrations or providers.
- * Run against an already migrated disposable database, never alongside a suite:
+ * Run against an already migrated disposable local database, never alongside a suite:
  * APP_ENV=testing DB_CONNECTION=mysql_qa php scripts/qa-account-closure-race.php [scenario]
  * Synthetic fixtures remain in mova_qa for inspection; this script never purges.
+ * mysql_qa must resolve to loopback or the identified QA Compose service.
  *
  * Each scenario starts a "leader" process that performs one operation and keeps
  * its transaction (and locks) open, then a "follower" that must wait on those
@@ -46,10 +47,13 @@ $app->make(Kernel::class)->bootstrap();
 
 const CLOSED_MESSAGE = 'Una de las cuentas ya no está disponible para nuevas clases.';
 
+/** Solo estas aserciones controladas pueden imprimir su mensaje en CI. */
+class QaRaceAssertionException extends RuntimeException {}
+
 function check(bool $condition, string $message): void
 {
     if (! $condition) {
-        throw new RuntimeException($message);
+        throw new QaRaceAssertionException($message);
     }
 }
 
@@ -64,9 +68,9 @@ function barrier(string $path): void
 }
 
 /** Synthetic fixture shared by every scenario; optional pieces are keyed by $options. */
-function buildFixture(string $run, string $leader, string $follower, array $options): array
+function buildFixture(string $run, string $scenario, string $leader, string $follower, array $options): array
 {
-    return DB::transaction(function () use ($run, $leader, $follower, $options): array {
+    return DB::transaction(function () use ($run, $scenario, $leader, $follower, $options): array {
         foreach (['parent', 'teacher', 'admin'] as $role) {
             Role::findOrCreate($role, 'web');
         }
@@ -79,10 +83,13 @@ function buildFixture(string $run, string $leader, string $follower, array $opti
         $teacher = TeacherProfile::create(['user_id' => $teacherUser->id, 'is_verified' => $options['teacher_verified'] ?? true, 'hourly_rate' => 20, 'credits_available' => 10, 'credits_reserved' => 0]);
         CreditTransaction::create(['teacher_profile_id' => $teacher->id, 'idempotency_key' => 'qa:'.$run, 'type' => 'deposit', 'amount' => 10, 'description' => 'QA account closure race']);
         $student = Student::create(['parent_user_id' => $parent->id, 'first_name' => 'QA', 'last_name' => 'Closure race', 'grade_level' => 'primaria']);
-        $subject = Subject::firstOrCreate(['name' => 'QA closure race'], ['level' => 'Primaria']);
+        // Identidad inmutable del run: la anonimización del cierre elimina
+        // los emails/nombres, pero la materia y ledger conservan el UUID.
+        $subject = Subject::firstOrCreate(['name' => 'QA closure race '.$run], ['level' => 'Primaria']);
         $teacher->subjects()->sync([$subject->id]);
         $request = ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'duration_minutes' => 60, 'help_needed' => 'QA synthetic concurrency', 'status' => 'open']);
         $fixture = [
+            'run' => $run, 'scenario' => $scenario,
             'parent' => $parent->id, 'teacher_user' => $teacherUser->id, 'admin' => $admin->id, 'teacher' => $teacher->id,
             'student' => $student->id, 'subject' => $subject->id, 'request' => $request->id,
             'referral_code' => $teacher->fresh()->referral_code ?? '',
@@ -148,9 +155,72 @@ function scenarios(): array
     ];
 }
 
+/** Nunca ejecutar un cierre QA sobre IDs fabricados en un fixture externo. */
+function assertWorkerFixtureOwned(array $fixture): void
+{
+    $run = $fixture['run'];
+    $definition = scenarios()[$fixture['scenario'] ?? ''] ?? null;
+    check($definition !== null
+        && ($fixture['leader'] ?? null) === $definition['leader']
+        && ($fixture['follower'] ?? null) === $definition['follower']
+        && ($fixture['real_notifications'] ?? null) === ($definition['options']['real_notifications'] ?? false),
+        'QA fixture does not match a declared race scenario.');
+    foreach (['parent', 'teacher_user', 'admin', 'teacher', 'student', 'subject', 'request'] as $field) {
+        check(isset($fixture[$field]) && is_int($fixture[$field]) && $fixture[$field] > 0,
+            'QA fixture is missing a valid identity.');
+    }
+    check(in_array($fixture['leader'] ?? null, ['close', 'close-teacher', 'verify', 'store', 'credit', 'cancel', 'settle', 'schedule'], true)
+        && in_array($fixture['follower'] ?? null, ['close', 'close-teacher', 'verify', 'store', 'credit', 'cancel', 'settle', 'schedule'], true),
+        'QA fixture contains an unsupported worker operation.');
+
+    $parent = User::find($fixture['parent']);
+    $teacher = User::find($fixture['teacher_user']);
+    $admin = User::find($fixture['admin']);
+    $isSynthetic = static function (?User $user, string $role) use ($run): bool {
+        if ($user === null) {
+            return false;
+        }
+        if ($user->email === "closure-{$role}-{$run}@example.test") {
+            return true;
+        }
+
+        // Los seguidores pueden empezar después de que el líder haya
+        // anonimizado a su usuario; aceptar solo la identidad cerrada.
+        return $role !== 'admin' && $user->account_closed_at !== null
+            && $user->email === "deleted-{$user->id}@mova.invalid";
+    };
+
+    check($isSynthetic($parent, 'parent') && $isSynthetic($teacher, 'teacher')
+        && $isSynthetic($admin, 'admin')
+        && Subject::whereKey($fixture['subject'])->where('name', 'QA closure race '.$run)->exists()
+        && TeacherProfile::whereKey($fixture['teacher'])->where('user_id', $fixture['teacher_user'])->exists()
+        && Student::withTrashed()->whereKey($fixture['student'])->where('parent_user_id', $fixture['parent'])->exists()
+        && ClassRequest::whereKey($fixture['request'])
+            ->where('student_id', $fixture['student'])->where('subject_id', $fixture['subject'])->exists()
+        && CreditTransaction::where('teacher_profile_id', $fixture['teacher'])->where('idempotency_key', 'qa:'.$run)->exists(),
+        'QA fixture does not own all referenced accounts and records.');
+    $usesRecharge = $definition['options']['recharge'] ?? false;
+    $usesLesson = $definition['options']['lesson'] ?? false;
+    check(($usesRecharge === isset($fixture['recharge']))
+        && (! $usesRecharge || (is_int($fixture['recharge'])
+            && RechargeRequest::whereKey($fixture['recharge'])->where('teacher_profile_id', $fixture['teacher'])->exists()))
+        && ($usesLesson === isset($fixture['lesson']))
+        && (! $usesLesson || (is_int($fixture['lesson'])
+            && Lesson::whereKey($fixture['lesson'])
+                ->where('class_request_id', $fixture['request'])->where('teacher_profile_id', $fixture['teacher'])->exists())),
+        'QA fixture contains a foreign recharge or lesson.');
+}
+
 try {
     check(app()->environment('testing'), 'Requires APP_ENV=testing.');
     check(config('database.default') === 'mysql_qa', 'Requires DB_CONNECTION=mysql_qa.');
+    // El nombre mova_qa también puede existir en un servidor remoto. Negar
+    // ese destino antes de abrir una conexión o crear fixtures sintéticos.
+    try {
+        QaDatabaseGuard::assertLocalQaConnection('mysql_qa');
+    } catch (RuntimeException) {
+        throw new QaRaceAssertionException('QA connection host rejected: only loopback or identified QA Compose is allowed.');
+    }
     QaDatabaseGuard::assertDatabase('mysql_qa', 'mova_qa');
     check(DB::connection()->getDriverName() === 'mysql', 'Requires MySQL.');
     check(DB::selectOne('SELECT DATABASE() AS db')->db === 'mova_qa', 'Actual database must be mova_qa.');
@@ -165,9 +235,19 @@ try {
     }
 
     if ($isWorker) {
-        $directory = $argv[2];
-        $position = $argv[3];
+        $directory = $argv[2] ?? '';
+        $position = $argv[3] ?? '';
+        check(in_array($position, ['leader', 'follower'], true), 'Invalid worker position.');
+        $directory = realpath($directory) ?: '';
+        $tmpRoot = realpath(sys_get_temp_dir());
+        check($tmpRoot !== false && str_starts_with($directory, $tmpRoot.'/mova-closure-race-'),
+            'Worker fixture outside QA temporary directory.');
         $fixture = json_decode(file_get_contents($directory.'/fixture.json'), true, flags: JSON_THROW_ON_ERROR);
+        check(is_array($fixture) && isset($fixture['run'])
+            && preg_match('/^[a-f0-9-]{36}$/D', (string) $fixture['run']) === 1
+            && $directory === $tmpRoot.'/mova-closure-race-'.$fixture['run'],
+            'Worker fixture does not match its QA scenario directory.');
+        assertWorkerFixtureOwned($fixture);
         $operation = $position === 'leader' ? $fixture['leader'] : $fixture['follower'];
         if (! $fixture['real_notifications']) {
             Notification::fake();
@@ -185,6 +265,7 @@ try {
                 return 'closed';
             }
             if ($operation === 'verify') {
+                Auth::setUser(User::findOrFail($fixture['admin']));
                 try {
                     app(\App\Http\Controllers\AdminController::class)->verifyTeacher(TeacherProfile::findOrFail($fixture['teacher']));
 
@@ -285,13 +366,15 @@ try {
     }
 
     $only = $argv[1] ?? null;
+    check($only === null || array_key_exists($only, scenarios()),
+        'Unknown account-closure race scenario.');
     foreach (scenarios() as $scenario => $definition) {
         if ($only !== null && $only !== $scenario) {
             continue;
         }
         $expect = $definition['expect'];
         $run = (string) Str::uuid();
-        $fixture = buildFixture($run, $definition['leader'], $definition['follower'], $definition['options']);
+        $fixture = buildFixture($run, $scenario, $definition['leader'], $definition['follower'], $definition['options']);
         $directory = sys_get_temp_dir().'/mova-closure-race-'.$run;
         check(mkdir($directory, 0700), 'Cannot create worker directory.');
         file_put_contents($directory.'/fixture.json', json_encode($fixture, JSON_THROW_ON_ERROR));
@@ -303,7 +386,10 @@ try {
             $follower->start();
             $leader->wait();
             $follower->wait();
-            check($leader->isSuccessful() && $follower->isSuccessful(), 'Worker failed in '.$scenario.' (inspect scenario fixtures; no provider calls were made): '.substr(trim($leader->getErrorOutput().' | '.$follower->getErrorOutput()), 0, 400));
+            // Nunca incrustar stderr del proceso hijo: un error SQL/SDK
+            // puede contener parámetros, una URL privada o datos de prueba.
+            check($leader->isSuccessful() && $follower->isSuccessful(),
+                'Worker failed in '.$scenario.' (exit leader='.$leader->getExitCode().', follower='.$follower->getExitCode().').');
             $leaderResult = json_decode(trim($leader->getOutput()), true, flags: JSON_THROW_ON_ERROR);
             $followerResult = json_decode(trim($follower->getOutput()), true, flags: JSON_THROW_ON_ERROR);
             check($followerResult['elapsed_ms'] >= 500, 'Follower did not demonstrate waiting for the held lock in '.$scenario.'.');
@@ -354,6 +440,10 @@ try {
                 check((bool) $profile->is_verified === $expect['verified'], 'Closed teacher must not remain published.');
                 check(! $profile->classOffers()->where('is_active', true)->exists(), 'Closed teacher offers must stay inactive.');
             }
+            if (in_array('verified', [$leaderResult['result'], $followerResult['result']], true)) {
+                check((int) $profile->reviewed_by === $fixture['admin'],
+                    'Teacher verification must be attributed to the synthetic QA admin.');
+            }
             if (array_key_exists('parent_notifications', $expect) && $definition['leader'] === 'close') {
                 check(DB::table('notifications')->where('notifiable_id', $fixture['parent'])->count() === $expect['parent_notifications'], 'Closed account received a routine notification.');
             }
@@ -372,7 +462,7 @@ try {
 } catch (Throwable $exception) {
     // Avoid exposing SQL bindings, connection strings or credentials in failures.
     fwrite(STDERR, 'Account closure race failed: '.get_class($exception).PHP_EOL);
-    if ($exception instanceof RuntimeException && ! $exception instanceof \Illuminate\Database\QueryException) {
+    if ($exception instanceof QaRaceAssertionException) {
         fwrite(STDERR, $exception->getMessage().PHP_EOL);
     }
     exit(1);
