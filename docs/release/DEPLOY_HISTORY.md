@@ -4,6 +4,10 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-03 — configuración de correo → Resend (sin cambio de imagen)
+
+- `movap-web` y `movap-scheduler` `0000043`: `MAIL_HOST=smtp.resend.com`, `MAIL_FROM_ADDRESS=notificaciones@movaeduca.me`; secretos `mail-username`/`mail-password` con nueva versión en Key Vault. Imagen sin cambios (`sha256:9a463681…`). DNS y reenvíos en Namecheap. Detalle y rollback: `docs/email-deliverability.md` §8.
+
 ## 2026-10-30 (3) — `6089a0e` → producción — paso «ACTIVAR» en el perfil y avisos de WhatsApp tras el commit
 
 - Cambio: el perfil (Privacidad → Notificaciones) explica «escribe ACTIVAR al número oficial» y muestra si el chat ya está abierto (solo con proveedor WAHA; en producción `fake`, no se ve); 12 notificaciones de WhatsApp llaman a `afterCommit()` (las de recargas no se tocaron). Sin migraciones.

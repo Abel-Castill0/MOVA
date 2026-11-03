@@ -1,6 +1,6 @@
 # Entregabilidad del correo de MOVA (auditoría 2026-11-03)
 
-Estado: **diagnóstico hecho, corrección pendiente de dos accesos del titular** (cuenta del proveedor transaccional y sesión de Namecheap). Nada de DNS ni de Azure se ha modificado todavía.
+Estado (2026-11-03): **aplicada**. Producción envía por Resend (SMTP) desde `MOVA <notificaciones@movaeduca.me>` con el dominio verificado (DKIM propio). Falta que el titular confirme en Gmail la carpeta de llegada y comparta las cabeceras (§9).
 
 ## 1. Cómo envía hoy producción (evidencia: Azure CLI de solo lectura + DNS público)
 
@@ -63,3 +63,43 @@ En Gmail, abrir uno de los correos que cayeron en Spam → ⋮ → **Mostrar ori
 - `config/mail.php`: `reply_to` opcional desde `MAIL_REPLY_TO_ADDRESS` / `MAIL_REPLY_TO_NAME` (Laravel lo aplica solo; un valor no válido se descarta). Prueba: `tests/Feature/MailReplyToTest.php`.
 - Variables nuevas en Azure (web y scheduler) cuando exista el proveedor: `MAIL_HOST=smtp.resend.com`, `MAIL_PORT=587`, `MAIL_ENCRYPTION=tls`, `MAIL_USERNAME=resend`, `MAIL_PASSWORD` (secreto `mail-password`), `MAIL_FROM_ADDRESS=notificaciones@movaeduca.me`, `MAIL_FROM_NAME=MOVA`, `MAIL_REPLY_TO_ADDRESS=<soporte real>`.
 - Rollback: restaurar `MAIL_HOST=smtp.gmail.com`, `MAIL_USERNAME`/`MAIL_PASSWORD` (el valor anterior queda en Key Vault versionado; no se sobrescribe, se crea una versión nueva) y `MAIL_FROM_ADDRESS=m0v4class@gmail.com`.
+
+## 8. Cambios aplicados (2026-11-03)
+
+**Resend** (plan gratuito, US$ 0): cuenta del titular, dominio `movaeduca.me` región São Paulo, estado *Verified*, *Forge* habilitado, tracking de clics/aperturas desactivado (los enlaces no se reescriben), TLS oportunista. Clave API «MOVA produccion SMTP» con permiso *Sending access*; la clave solo existe en Key Vault.
+
+**DNS (Namecheap BasicDNS, zona autoritativa)** — registros añadidos, el resto no se tocó (A `@`, CNAME `www`/`staging`, TXT `asuid*`, MX y SPF del apex de reenvío intactos; verificado después por DNS público):
+
+| Tipo | Host | Valor | Motivo |
+|---|---|---|---|
+| TXT | `resend._domainkey` | `p=MIGfMA0GCSq…` (clave pública DKIM de Resend, 1024 bits) | Firma DKIM alineada con `movaeduca.me` |
+| CNAME | `rsend` | `rsend-sae1.forge.rmta.net` | Return-Path / rebotes |
+| CNAME | `send` | `send.forge.rmta.net` | SPF y rebotes del subdominio |
+| TXT | `_dmarc` | `v=DMARC1; p=none;` | Monitoreo (sin `rua` todavía) |
+
+No se añadió el MX de recepción de Resend (`Enable receiving` queda apagado): habría desplazado el reenvío de Namecheap.
+
+**Reenvío de correo (Namecheap, «Redirect Email»)**: no había ningún reenviador definido. Se crearon `soporte@movaeduca.me` y `notificaciones@movaeduca.me` → `m0v4class@gmail.com` (el buzón de soporte que ya figuraba en la app), para que las respuestas al remitente lleguen a alguien.
+
+**Azure (sin cambio de imagen)**: Key Vault `kv-movap-192f01`, nuevas versiones de `mail-password` (clave de Resend) y `mail-username` (`resend`); `movap-web` y `movap-scheduler` revisión `0000043` con `MAIL_HOST=smtp.resend.com` y `MAIL_FROM_ADDRESS=notificaciones@movaeduca.me` (`MAIL_PORT=587`, `MAIL_ENCRYPTION=tls` sin cambios). Los secretos son referencias a Key Vault sin versión: una revisión nueva toma la última versión.
+
+**Rollback**: `az containerapp update` de web y scheduler con `MAIL_HOST=smtp.gmail.com` y `MAIL_FROM_ADDRESS=m0v4class@gmail.com`, y volver a publicar en Key Vault los valores de las versiones anteriores (`mail-password` `27c6aa1e…`, `mail-username` `166ac816…`; siguen almacenadas): `az keyvault secret show --id <versión>` y `az keyvault secret set` con ese valor. Luego una revisión nueva.
+
+## 9. Evidencia de las pruebas (2026-11-03)
+
+| Prueba | Resultado observable | Lo que NO demuestra |
+|---|---|---|
+| SMTP directo a Resend (`smtp.resend.com:587`, STARTTLS) desde `notificaciones@movaeduca.me` | Aceptado (`rechazados: {}`); en Resend: *Delivered* | Carpeta de Gmail |
+| Restablecer contraseña real en producción (`/forgot-password`, cuenta del titular) | La página confirmó; en Resend: *Delivered*, remitente `"MOVA" <notificaciones@movaeduca.me>` | Carpeta de Gmail |
+| Alerta operativa real «WAHA no responde» (la dispara el vigilante; el piloto WAHA ya no existe) | 2 envíos, uno por administrador, *Delivered*; sin repetición en los minutos siguientes | Carpeta de Gmail |
+| Bienvenida, notificación de clase, envío por cola con usuario sintético | **No ejecutadas** en producción: `az containerapp exec` no ejecutó el comando en las réplicas (la conexión abre pero no corre nada) | — |
+
+La confirmación de Recibidos/Spam y de `Authentication-Results` (SPF, DKIM, DMARC y su alineación) depende de abrir el mensaje en Gmail (⋮ → Mostrar original): pendiente del titular.
+
+## 10. Pendiente
+
+- Cabeceras de uno de los tres mensajes de prueba y carpeta donde cayó.
+- `rua` en DMARC (informes agregados) con un buzón real del titular; hoy `p=none` sin informes. No pasar a `quarantine`/`reject` sin revisar informes.
+- Reply-To por código (`MAIL_REPLY_TO_ADDRESS`, commit `9faccf3`): no desplegado porque `master` ya contiene 16 commits de otros cambios (seguridad, Culqi, tests) que no son parte de este trabajo; hasta entonces las respuestas van a `notificaciones@` que reenvía a soporte.
+- Límite del plan gratuito de Resend: 100 correos/día, 3.000/mes. Si MOVA lo supera, pasar a Brevo (300/día) por el mismo método SMTP.
+- Probar bienvenida, clase y cola cuando exista un mecanismo de ejecución remota que funcione.
