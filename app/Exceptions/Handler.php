@@ -17,6 +17,28 @@ class Handler extends ExceptionHandler
         'current_password',
         'password',
         'password_confirmation',
+        // Las validaciones de Laravel redirigen con old input por defecto.
+        // MOVA procesa OTP de MFA/teléfono/cierre y tokens de pagos/recuperación:
+        // ninguno debe persistir en _old_input (sesión).
+        'code',
+        'otp',
+        'verification_code',
+        'recovery_code',
+        'two_factor_code',
+        'two_factor_recovery_code',
+        'two_factor_secret',
+        'token',
+        'card_token',
+        'payment_token',
+        // Culqi 3DS entrega criptogramas anidados bajo esta clave de primer nivel.
+        'parameters3DS',
+        'device_fingerprint_id',
+        'access_token',
+        'refresh_token',
+        'client_secret',
+        'api_key',
+        'cvv',
+        'cvc',
     ];
 
     /**

@@ -8,7 +8,9 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -34,7 +36,7 @@ class ComplaintController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'type'             => ['required', Rule::in(Complaint::TYPES)],
             'consumer_name'    => ['required', 'string', 'max:150'],
             'document_type'    => ['required', Rule::in(Complaint::DOCUMENT_TYPES)],
@@ -61,6 +63,20 @@ class ComplaintController extends Controller
             'consumer_request' => 'pedido',
         ]);
 
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                throw new ValidationException($validator);
+            }
+
+            // No guardar DNI, dirección, correo, teléfono, datos del menor ni
+            // texto libre de reclamación en _old_input (sesión persistente).
+            // El formulario Inertia useForm mantiene los campos en memoria
+            // durante la visita y recibe los errores como antes.
+            return back()->withErrors($validator)
+                ->withInput($this->safeOldInput($request));
+        }
+
+        $data = $validator->validated();
         unset($data['accepted']);
         try {
             $complaint = Complaint::file([
@@ -72,11 +88,23 @@ class ComplaintController extends Controller
         } catch (QueryException $e) {
             // Contención extrema tras los reintentos de Complaint::file(): la
             // transacción se revirtió entera (no hay hoja a medias). El
-            // consumidor conserva lo escrito y puede reenviar; nunca un 500.
-            report($e);
+            // useForm de Inertia conserva lo escrito en el navegador para
+            // reenviar; no conservar datos personales en sesión. Nunca un 500.
+            // QueryException puede incorporar SQL, bindings y datos del
+            // consumidor (incluidos menores) en su mensaje. No enviarla
+            // cruda al logger ni a Sentry; solo telemetría no identificable.
+            Log::warning('complaint.file.database_failure', [
+                'error_type' => class_basename($e),
+                'sql_state' => (string) $e->getCode(),
+            ]);
 
-            return back()->withInput()->withErrors([
-                'detail' => 'No pudimos registrar tu hoja en este momento. Inténtalo de nuevo en unos segundos.',
+            $message = 'No pudimos registrar tu hoja en este momento. Inténtalo de nuevo en unos segundos.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 503);
+            }
+
+            return back()->withInput($this->safeOldInput($request))->withErrors([
+                'detail' => $message,
             ]);
         }
 
@@ -133,5 +161,25 @@ class ComplaintController extends Controller
             'address'       => config('legal.provider.address'),
             'support_email' => config('legal.support_email'),
         ];
+    }
+
+    /** Selectores públicos válidos únicamente; arrays o texto libre no entran en sesión. */
+    private function safeOldInput(Request $request): array
+    {
+        $allowedFields = [
+            'type' => Complaint::TYPES,
+            'document_type' => Complaint::DOCUMENT_TYPES,
+            'good_type' => Complaint::GOOD_TYPES,
+        ];
+
+        $safe = [];
+        foreach ($allowedFields as $field => $values) {
+            $value = $request->input($field);
+            if (is_string($value) && in_array($value, $values, true)) {
+                $safe[$field] = $value;
+            }
+        }
+
+        return $safe;
     }
 }

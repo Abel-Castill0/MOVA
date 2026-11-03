@@ -7,8 +7,10 @@ use App\Models\LegalAcceptance;
 use App\Models\User;
 use App\Notifications\ComplaintFiledNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use LogicException;
+use Mockery;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -101,6 +103,7 @@ class LegalComplianceTest extends TestCase
     public function test_database_failure_while_filing_is_not_a_500(): void
     {
         Notification::fake();
+        Log::spy();
         // Simula un 40001 persistente (sin DDL: no alterar el esquema compartido de la suite MySQL).
         Complaint::creating(fn () => throw new \Illuminate\Database\QueryException(
             'mysql', 'insert into complaints', [], new \PDOException('SQLSTATE[40001]: Serialization failure')
@@ -109,8 +112,88 @@ class LegalComplianceTest extends TestCase
         $this->from(route('complaints.create'))
             ->post(route('complaints.store'), $this->validComplaint())
             ->assertRedirect(route('complaints.create'))
-            ->assertSessionHasErrors('detail');
+            ->assertSessionHasErrors('detail')
+            ->assertSessionHas('_old_input.type', 'reclamo')
+            ->assertSessionMissing('_old_input.document_number')
+            ->assertSessionMissing('_old_input.address')
+            ->assertSessionMissing('_old_input.email')
+            ->assertSessionMissing('_old_input.detail')
+            ->assertSessionMissing('_old_input.consumer_request');
         $this->assertSame(0, Complaint::count());
+
+        Log::shouldHaveReceived('warning')->once()->with(
+            'complaint.file.database_failure',
+            Mockery::on(fn ($context) => is_array($context)
+                && array_keys($context) === ['error_type', 'sql_state']
+                && $context['error_type'] === 'QueryException'
+                && is_string($context['sql_state']))
+        );
+    }
+
+    public function test_invalid_complaint_retains_only_nonsensitive_input_in_session(): void
+    {
+        $this->from(route('complaints.create'))
+            ->post(route('complaints.store'), $this->validComplaint([
+                'detail' => 'Breve',
+                'is_minor' => true,
+                'guardian_name' => 'Tutor de prueba',
+            ]))
+            ->assertRedirect(route('complaints.create'))
+            ->assertSessionHasErrors('detail')
+            ->assertSessionHas('_old_input.type', 'reclamo')
+            ->assertSessionHas('_old_input.document_type', 'DNI')
+            ->assertSessionHas('_old_input.good_type', 'servicio')
+            ->assertSessionMissing('_old_input.consumer_name')
+            ->assertSessionMissing('_old_input.document_number')
+            ->assertSessionMissing('_old_input.address')
+            ->assertSessionMissing('_old_input.email')
+            ->assertSessionMissing('_old_input.phone')
+            ->assertSessionMissing('_old_input.guardian_name')
+            ->assertSessionMissing('_old_input.detail')
+            ->assertSessionMissing('_old_input.consumer_request');
+
+        $this->assertSame(0, Complaint::count());
+    }
+
+    public function test_database_failure_responds_with_safe_503_to_json_clients(): void
+    {
+        Notification::fake();
+        Complaint::creating(fn () => throw new \Illuminate\Database\QueryException(
+            'mysql', 'insert into complaints (document_number, detail) values (?, ?)',
+            ['document-number-test-only', 'private-complaint-text-test-only'],
+            new \PDOException('SQLSTATE[40001]: Serialization failure')
+        ));
+
+        $response = $this->postJson(route('complaints.store'), $this->validComplaint());
+        $response->assertStatus(503)
+            ->assertJsonStructure(['message'])
+            ->assertDontSee('document-number-test-only')
+            ->assertDontSee('private-complaint-text-test-only');
+
+        $this->assertSame(0, Complaint::count());
+    }
+
+    public function test_invalid_complaint_json_api_keeps_422_validation_contract(): void
+    {
+        $this->postJson(route('complaints.store'), $this->validComplaint(['detail' => 'Breve']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('detail');
+
+        $this->assertSame(0, Complaint::count());
+    }
+
+    public function test_malformed_selectors_do_not_flash_arbitrary_nested_values(): void
+    {
+        $this->from(route('complaints.create'))
+            ->post(route('complaints.store'), $this->validComplaint([
+                'type' => ['injected' => 'valor privado no permitido'],
+                'document_type' => 'Documento no permitido',
+            ]))
+            ->assertRedirect(route('complaints.create'))
+            ->assertSessionHasErrors(['type', 'document_type'])
+            ->assertSessionHas('_old_input.good_type', 'servicio')
+            ->assertSessionMissing('_old_input.type')
+            ->assertSessionMissing('_old_input.document_type');
     }
 
     public function test_minor_requires_guardian_and_client_cannot_set_internal_fields(): void
