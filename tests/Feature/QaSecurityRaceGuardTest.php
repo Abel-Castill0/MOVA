@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Complaint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
@@ -98,7 +100,135 @@ class QaSecurityRaceGuardTest extends TestCase
         }
 
         $this->artisan('mova:qa-security-race', ['operation' => 'complaints-empty', '--setup' => true, '--connection' => 'mysql_qa'])
-            ->expectsOutputToContain('scenario=0')
+            ->expectsOutputToContain('scenario=c-')
             ->assertSuccessful();
+
+        $this->assertUntouched();
+    }
+
+    public function test_two_complaint_scenarios_and_cleanup_are_isolated_from_each_other_and_real_year(): void
+    {
+        $this->requireMysqlQa();
+
+        $scenarioA = $this->setupScenario('complaints-empty');
+        $scenarioB = $this->setupScenario('complaints-seeded');
+        $yearA = (int) explode('-', $scenarioA)[1];
+        $yearB = (int) explode('-', $scenarioB)[1];
+
+        $this->assertNotSame($scenarioA, $scenarioB);
+        $this->assertNotSame($yearA, $yearB, 'Cada carrera de reclamaciones debe reservar su propio año QA.');
+        $this->assertSame(0, DB::table('complaints')->where('code', 'like', "MOVA-${yearA}-%")->count());
+        $this->assertSame(3, DB::table('complaints')->where('code', 'like', "MOVA-${yearB}-%")->count());
+
+        $this->assertSame(0, Artisan::call('mova:qa-security-race', [
+            'operation' => 'complaints-empty', '--cleanup' => true, '--scenario' => $scenarioA, '--connection' => 'mysql_qa',
+        ]));
+        $this->assertSame(0, DB::table('complaint_sequences')->where('year', $yearA)->count());
+        $this->assertSame(3, DB::table('complaints')->where('code', 'like', "MOVA-${yearB}-%")->count());
+        $this->assertSame(3, (int) DB::table('complaint_sequences')->where('year', $yearB)->value('last_number'));
+        $this->assertUntouched();
+
+        $this->assertSame(0, Artisan::call('mova:qa-security-race', [
+            'operation' => 'complaints-seeded', '--cleanup' => true, '--scenario' => $scenarioB, '--connection' => 'mysql_qa',
+        ]));
+        $this->assertSame(0, DB::table('complaint_sequences')->where('year', $yearB)->count());
+        $this->assertUntouched();
+    }
+
+    public function test_cleanup_without_scenario_refuses_to_delete_any_complaint(): void
+    {
+        $this->requireMysqlQa();
+        $scenario = $this->setupScenario('complaints-seeded');
+        $year = (int) explode('-', $scenario)[1];
+
+        try {
+            Artisan::call('mova:qa-security-race', [
+                'operation' => 'complaints-seeded', '--cleanup' => true, '--connection' => 'mysql_qa',
+            ]);
+            $this->fail('Cleanup sin escenario no debe continuar.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Escenario QA inválido', $e->getMessage());
+        }
+
+        $this->assertSame(3, DB::table('complaints')->where('code', 'like', "MOVA-${year}-%")->count());
+        $this->assertUntouched();
+    }
+
+    public function test_complaint_cleanup_refuses_foreign_rows_in_the_reserved_year(): void
+    {
+        $this->requireMysqlQa();
+        $scenario = $this->setupScenario('complaints-empty');
+        $year = (int) explode('-', $scenario)[1];
+        $previousClock = Carbon::getTestNow();
+        Carbon::setTestNow(now()->setYear($year));
+        try {
+            $foreign = Complaint::file([
+                'type' => 'reclamo', 'consumer_name' => 'Otro ensayo QA', 'document_type' => 'DNI',
+                'document_number' => '12345678', 'address' => 'Av. QA 321', 'email' => 'other.qa@mova.test',
+                'good_type' => 'servicio', 'good_description' => 'x', 'detail' => 'Otra prueba segura.',
+                'consumer_request' => 'Pedido', 'is_minor' => false,
+            ]);
+        } finally {
+            Carbon::setTestNow($previousClock);
+        }
+
+        $this->assertSame(1, Artisan::call('mova:qa-security-race', [
+            'operation' => 'complaints-empty', '--cleanup' => true, '--scenario' => $scenario, '--connection' => 'mysql_qa',
+        ]));
+        $this->assertTrue(Complaint::whereKey($foreign->id)->exists());
+        $this->assertSame(1, DB::table('complaint_sequences')->where('year', $year)->count());
+        $this->assertUntouched();
+    }
+
+    public function test_mfa_cleanup_deletes_only_selected_qa_admin(): void
+    {
+        $this->requireMysqlQa();
+        $idA = (int) $this->setupScenario('totp');
+        $idB = (int) $this->setupScenario('recovery');
+
+        $this->assertNotSame($idA, $idB);
+        $this->assertSame(1, Artisan::call('mova:qa-security-race', [
+            'operation' => 'totp', '--cleanup' => true, '--connection' => 'mysql_qa',
+        ]));
+        $this->assertDatabaseHas('users', ['id' => $idA]);
+        $this->assertDatabaseHas('users', ['id' => $idB]);
+        $this->assertSame(0, Artisan::call('mova:qa-security-race', [
+            'operation' => 'totp', '--cleanup' => true, '--scenario' => $idA, '--connection' => 'mysql_qa',
+        ]));
+        $this->assertDatabaseMissing('users', ['id' => $idA]);
+        $this->assertDatabaseHas('users', ['id' => $idB]);
+        $this->assertUntouched();
+    }
+
+    public function test_worker_exception_fails_instead_of_reporting_a_successful_race(): void
+    {
+        $this->requireMysqlQa();
+        $this->assertSame(1, Artisan::call('mova:qa-security-race', [
+            'operation' => 'totp', '--scenario' => 999999999, '--code' => '000000',
+            '--connection' => 'mysql_qa',
+        ]));
+        $this->assertStringContainsString('result=error:', Artisan::output());
+        $this->assertUntouched();
+    }
+
+    private function requireMysqlQa(): void
+    {
+        if (config('database.default') !== 'mysql_qa') {
+            $this->markTestSkipped('Los casos de limpieza necesitan mysql_qa aislado.');
+        }
+    }
+
+    private function setupScenario(string $operation): string
+    {
+        $this->assertSame(0, Artisan::call('mova:qa-security-race', [
+            'operation' => $operation, '--setup' => true, '--connection' => 'mysql_qa',
+        ]));
+        // Artisan::output() consume el buffer: reutilizar el snapshot exacto
+        // para la aserción y la captura del ID.
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/scenario=([^ ]+)/', $output);
+        preg_match('/scenario=([^ ]+)/', $output, $matches);
+
+        return $matches[1];
     }
 }
