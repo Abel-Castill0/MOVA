@@ -6,6 +6,8 @@ use App\Models\User;
 use App\WhatsApp\Contracts\WhatsAppProviderContract;
 use App\WhatsApp\FakeWhatsAppProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
+use Mockery;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -125,7 +127,15 @@ class PhoneVerificationWhatsAppTest extends TestCase
         $sixthUser = User::factory()->create(['phone' => $phone, 'phone_verified_at' => null]);
         $sixthUser->assignRole('parent');
 
+        Log::spy();
+
         $this->actingAs($sixthUser)->post(route('phone.verification.send'))
             ->assertSessionHasErrors('phone');
+
+        Log::shouldHaveReceived('warning')->once()->with(
+            '[PhoneVerification] Límite por número excedido.',
+            Mockery::on(fn ($context) => is_array($context)
+                && $context === ['user_id' => $sixthUser->id])
+        );
     }
 }

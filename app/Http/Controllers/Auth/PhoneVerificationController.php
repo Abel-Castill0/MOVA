@@ -84,7 +84,9 @@ class PhoneVerificationController extends Controller
         // Este límite es POR NÚMERO, cruza cuentas.
         $phoneRateLimitKey = self::PHONE_RATE_LIMIT_PREFIX.$normalized;
         if (RateLimiter::tooManyAttempts($phoneRateLimitKey, self::PHONE_RATE_LIMIT_MAX)) {
-            Log::warning('[PhoneVerification] Límite por número excedido.', ['phone' => $normalized]);
+            // El número está en la clave del RateLimiter, no debe replicarse
+            // en logs/Sentry: para observabilidad basta el usuario solicitante.
+            Log::warning('[PhoneVerification] Límite por número excedido.', ['user_id' => $user->id]);
 
             return back()->withErrors(['phone' => 'Se enviaron demasiados códigos a este número. Intenta de nuevo más tarde.']);
         }

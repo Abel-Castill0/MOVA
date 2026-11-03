@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\DiagnosticAiEnrichmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -317,19 +318,47 @@ class AiPayloadContractTest extends TestCase
             'difficulty_text' => 'Mi hijo Joaquín tiene problemas.',
         ]);
 
-        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('timeout'));
+        // Un proveedor puede reflejar contenido privado en su excepción:
+        // simular ese caso, no un inocuo "timeout" que haría pasar la prueba
+        // incluso si el servicio registrase el mensaje sin filtrar.
+        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('El prompt Mi hijo Joaquín tiene problemas. fue rechazado'));
 
         \Illuminate\Support\Facades\Log::spy();
 
         app(DiagnosticAiEnrichmentService::class)->enrich($diagnostic);
 
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
-            ->withArgs(function ($message, $context = []) {
-                $serialized = json_encode($context, JSON_UNESCAPED_UNICODE);
-
-                return !str_contains($serialized, 'Joaquín') && !str_contains($serialized, 'fracciones');
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once()->with(
+            'DiagnosticAI: unexpected error',
+            Mockery::on(function ($context) use ($diagnostic) {
+                return $context === [
+                    'diagnostic_id' => $diagnostic->id,
+                    'error_type' => 'ConnectionException',
+                    'provider' => 'openai',
+                ];
             })
-            ->atLeast()->once();
+        );
+    }
+
+    public function test_ai_usage_log_database_exception_never_logs_raw_sql_bindings(): void
+    {
+        $diagnostic = $this->diagnostic();
+
+        Http::fake(fn () => Http::response(['error' => 'unavailable'], 503));
+        \App\Models\AiUsageLog::creating(fn () => throw new \Illuminate\Database\QueryException(
+            'mysql', 'insert into ai_usage_logs (private_payload) values (?)',
+            ['minor-data-test-only'],
+            new \PDOException('SQLSTATE[40001]: Serialization failure')
+        ));
+
+        \Illuminate\Support\Facades\Log::spy();
+        app(DiagnosticAiEnrichmentService::class)->enrich($diagnostic);
+
+        // En este escenario hay DOS warnings (HTTP 503 y fallo SQL); filtrar
+        // el evento objetivo ANTES de contar las llamadas de Mockery.
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->with(
+            'DiagnosticAI: failed to write usage log',
+            Mockery::on(fn ($context) => $context === ['error_type' => 'QueryException'])
+        )->once();
     }
 
     // ── El interruptor sigue apagado por defecto ─────────────────────────

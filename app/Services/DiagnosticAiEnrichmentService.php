@@ -124,9 +124,12 @@ class DiagnosticAiEnrichmentService
             return $validated;
 
         } catch (\Throwable $e) {
+            // El proveedor puede incluir fragmentos de la solicitud (texto
+            // libre sobre menores) en el mensaje de excepción. Nunca enviarlo
+            // a logs ni a breadcrumbs del monitor de errores.
             Log::warning('DiagnosticAI: unexpected error', [
                 'diagnostic_id' => $diagnostic->id,
-                'error'         => $e->getMessage(),
+                'error_type'    => class_basename($e),
                 'provider'      => $provider,
             ]);
             $this->writeLog($diagnostic, $provider, $model, 'error', null, 'exception');
@@ -189,7 +192,11 @@ class DiagnosticAiEnrichmentService
                 'created_at'            => now(),
             ]);
         } catch (\Throwable $e) {
-            Log::warning('DiagnosticAI: failed to write usage log', ['error' => $e->getMessage()]);
+            // Un fallo SQL puede contener la consulta y los bindings: los
+            // datos enviados al proveedor nunca deben viajar por logs.
+            Log::warning('DiagnosticAI: failed to write usage log', [
+                'error_type' => class_basename($e),
+            ]);
         }
     }
 
