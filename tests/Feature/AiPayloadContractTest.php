@@ -353,10 +353,12 @@ class AiPayloadContractTest extends TestCase
         \Illuminate\Support\Facades\Log::spy();
         app(DiagnosticAiEnrichmentService::class)->enrich($diagnostic);
 
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once()->with(
+        // En este escenario hay DOS warnings (HTTP 503 y fallo SQL); filtrar
+        // el evento objetivo ANTES de contar las llamadas de Mockery.
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->with(
             'DiagnosticAI: failed to write usage log',
             Mockery::on(fn ($context) => $context === ['error_type' => 'QueryException'])
-        );
+        )->once();
     }
 
     // ── El interruptor sigue apagado por defecto ─────────────────────────
