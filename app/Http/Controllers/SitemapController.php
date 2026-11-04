@@ -32,7 +32,8 @@ class SitemapController extends Controller
         // Solo perfiles verificados: son los únicos que TeacherPublicController
         // realmente sirve (abort_unless is_verified, 404) — listar el resto
         // enviaría a los buscadores a URLs que no resuelven.
-        $teacherUrls = TeacherProfile::where('is_verified', true)
+        $teacherUrls = TeacherProfile::where('is_verified', true)->where('is_publicly_listed', true)
+            ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->orderByDesc('updated_at')
             ->get(['id', 'updated_at'])
             ->map(fn (TeacherProfile $profile) => [

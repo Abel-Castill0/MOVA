@@ -33,6 +33,8 @@ class WelcomeController extends Controller
             // necesita para resolver el `belongsTo` de `user`), pero nunca
             // llega al frontend — está en TeacherProfile::$hidden.
             'featuredTeachers' => TeacherProfile::where('is_verified', true)
+                ->where('is_publicly_listed', true)
+                ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
                 ->select(['id', 'user_id', 'bio', 'hourly_rate'])
                 ->with(['user:id,name', 'subjects:id,name'])
                 ->withCount('classes')
@@ -49,7 +51,9 @@ class WelcomeController extends Controller
                 ->each(fn (TeacherProfile $teacher) => $teacher->subjects->each->makeHidden('pivot')),
 
             'stats' => [
-                'teachers'  => TeacherProfile::where('is_verified', true)->count(),
+                'teachers'  => TeacherProfile::where('is_verified', true)
+                    ->where('is_publicly_listed', true)
+                    ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))->count(),
                 'students'  => Role::where('name', 'parent')->exists()
                                ? User::role('parent')->count()
                                : 0,

@@ -90,29 +90,30 @@
     </div>
 
     <!-- ── Modal de rechazo ────────────────────────────────────────────────── -->
-    <div v-if="rejectTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Rechazar perfil docente</h3>
+    <Modal :show="Boolean(rejectTarget)" max-width="sm" title-id="admin-reject-teacher-title"
+      :closeable="!rejecting" @close="closeRejectModal">
+      <div v-if="rejectTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="admin-reject-teacher-title" class="font-bold text-gray-900 mb-1">Rechazar perfil docente</h3>
         <p class="text-sm text-gray-500 mb-4">
-          El perfil de <strong>{{ rejectTarget.user?.name }}</strong> no será eliminado.<br>
-          El profesor recibirá una notificación con el motivo.
+          El perfil de <strong>{{ rejectTarget.user?.name }}</strong> no será eliminado. El profesor recibirá una notificación con el motivo.
         </p>
-        <textarea v-model="rejectReason" rows="3"
+        <label for="admin-reject-reason" class="block text-sm font-medium text-gray-700 mb-1">Motivo del rechazo</label>
+        <textarea id="admin-reject-reason" v-model="rejectReason" rows="3"
           placeholder="Motivo del rechazo (obligatorio, mínimo 10 caracteres)"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-1" />
         <p v-if="rejectError" class="text-xs text-red-500 mb-2">{{ rejectError }}</p>
         <div class="flex gap-2 mt-3">
-          <button @click="closeRejectModal"
-            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <button type="button" :disabled="rejecting" @click="closeRejectModal"
+            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <button @click="submitReject" :disabled="rejecting"
+          <button type="button" @click="submitReject" :disabled="rejecting"
             class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {{ rejecting ? 'Rechazando…' : 'Confirmar rechazo' }}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   </AppLayout>
 </template>
 
@@ -120,6 +121,7 @@
 import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 
 defineProps({
   pendingTeachers:  { type: Array, default: () => [] },
@@ -137,7 +139,8 @@ function openRejectModal(teacher) {
   rejectError.value  = ''
 }
 
-function closeRejectModal() {
+function closeRejectModal(force = false) {
+  if (rejecting.value && force !== true) return
   rejectTarget.value = null
   rejectReason.value = ''
   rejectError.value  = ''
@@ -155,7 +158,7 @@ function submitReject() {
     route('admin.teachers.reject', rejectTarget.value.id),
     { reason: rejectReason.value.trim() },
     {
-      onSuccess: () => closeRejectModal(),
+      onSuccess: () => closeRejectModal(true),
       onError: (errors) => { rejectError.value = errors.reason ?? 'No se pudo rechazar al profesor.' },
       onFinish: () => { rejecting.value = false },
     }

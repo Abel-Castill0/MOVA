@@ -20,7 +20,27 @@ class AdminController extends Controller
     public function users()
     {
         return Inertia::render('Admin/Users', [
-            'users' => User::with('roles')->latest()->paginate(20),
+            // El navegador solo necesita estos campos; User completo incluye
+            // hashes OTP, fechas de consentimiento y metadatos privados.
+            'users' => User::query()
+                ->select(['id', 'name', 'email', 'phone', 'suspended_at', 'created_at'])
+                ->with(['roles:id,name', 'teacherProfile:id,user_id,is_verified,is_publicly_listed'])
+                ->latest()
+                ->paginate(20)
+                ->through(fn (User $user) => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'suspended_at' => $user->suspended_at,
+                    'created_at' => $user->created_at,
+                    'roles' => $user->roles->map(fn ($role) => ['name' => $role->name])->all(),
+                    'teacher_profile' => $user->teacherProfile ? [
+                        'id' => $user->teacherProfile->id,
+                        'is_verified' => $user->teacherProfile->is_verified,
+                        'is_publicly_listed' => $user->teacherProfile->is_publicly_listed,
+                    ] : null,
+                ]),
         ]);
     }
 
@@ -82,6 +102,28 @@ class AdminController extends Controller
         return back()->with('success', 'Profesor verificado correctamente.');
     }
 
+    /** Publicar/ocultar una ficha comercial sin revocar la verificación docente. */
+    public function setTeacherPublicListing(TeacherProfile $teacher)
+    {
+        $data = request()->validate(['published' => 'required|boolean']);
+        $published = (bool) $data['published'];
+
+        abort_if($published && (! $teacher->is_verified || $teacher->user?->account_closed_at !== null),
+            422, 'Solo se pueden publicar perfiles verificados con una cuenta activa.');
+
+        // No está en TeacherProfile::$fillable: solo esta acción admin puede cambiarlo.
+        $teacher->is_publicly_listed = $published;
+        $teacher->save();
+
+        Log::info('ADMIN_TEACHER_PUBLIC_LISTING_CHANGED', [
+            'admin_id' => auth()->id(),
+            'teacher_profile_id' => $teacher->id,
+            'published' => $published,
+        ]);
+
+        return back()->with('success', $published ? 'Ficha docente publicada.' : 'Ficha docente oculta del catálogo.');
+    }
+
     public function rejectTeacher(TeacherProfile $teacher)
     {
         $data = request()->validate([
@@ -125,7 +167,19 @@ class AdminController extends Controller
         }
 
         return Inertia::render('Admin/Requests', [
-            'requests'       => $query->paginate(30)->withQueryString(),
+            // No serializar modelos anidados de alumnos/padres/profesores:
+            // contienen datos de menores y hashes OTP ajenos a esta tabla.
+            'requests'       => $query->paginate(30)->withQueryString()->through(fn (ClassRequest $item) => [
+                'id' => $item->id,
+                'subject_name' => $item->subject?->name,
+                'student_name' => trim(($item->student?->first_name ?? '').' '.($item->student?->last_name ?? '')),
+                'parent_name' => $item->student?->parent?->name,
+                'teacher_name' => $item->classOffer?->teacherProfile?->user?->name
+                    ?? $item->lesson?->teacherProfile?->user?->name,
+                'status' => $item->status,
+                'teacher_rejection_reason' => $item->teacher_rejection_reason,
+                'created_at' => $item->created_at,
+            ]),
             'statusFilter'   => $status,
         ]);
     }
@@ -142,7 +196,16 @@ class AdminController extends Controller
         }
 
         return Inertia::render('Admin/Lessons', [
-            'lessons'      => $query->paginate(30)->withQueryString(),
+            'lessons'      => $query->paginate(30)->withQueryString()->through(fn (Lesson $item) => [
+                'id' => $item->id,
+                'subject_name' => $item->classRequest?->subject?->name,
+                'student_name' => trim(($item->student?->first_name ?? '').' '.($item->student?->last_name ?? '')),
+                'parent_name' => $item->student?->parent?->name,
+                'teacher_name' => $item->teacherProfile?->user?->name,
+                'start_time' => $item->start_time,
+                'status' => $item->status,
+                'cancel_reason' => $item->cancel_reason,
+            ]),
             'statusFilter' => $status,
         ]);
     }
