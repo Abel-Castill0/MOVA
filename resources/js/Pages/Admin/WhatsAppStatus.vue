@@ -145,7 +145,7 @@
           <h3 id="wa-politica" class="text-base font-bold text-slate-800">Política de envío que protege la vinculación</h3>
           <ul class="mt-2 text-sm text-slate-700 space-y-1.5 list-disc pl-5">
             <li>WhatsApp revoca los dispositivos de clientes no oficiales que <strong>inician chats con desconocidos</strong>. {{ p.link.requireUserInitiated ? 'MOVA solo escribe a quien escribió primero al número.' : 'MOVA no inicia chats nuevos durante el calentamiento.' }}</li>
-            <li>Para activar los avisos, cada usuario escribe «ACTIVAR» al {{ p.number.expected || 'número de MOVA' }} desde su WhatsApp; desde entonces MOVA puede responderle.</li>
+            <li>Reciben avisos quienes los autorizaron en MOVA (registro o perfil) y verificaron su teléfono con un código; nadie tiene que escribir al número. Como máximo se escribe por primera vez a unos pocos números nuevos al día.</li>
             <li>Contactos que ya escribieron: <strong>{{ p.link.contactedCount }}</strong>.</li>
             <li v-if="p.link.warmupRemainingMinutes > 0" class="text-amber-700">Calentamiento tras vincular: faltan <strong>{{ Math.ceil(p.link.warmupRemainingMinutes / 60) }} h</strong> sin iniciar chats nuevos.</li>
             <li v-if="p.link.restrictedUntil" class="text-rose-700">WhatsApp aplicó una restricción de contactos nuevos hasta {{ fmt(p.link.restrictedUntil) }}; solo se responde a quien ya escribió.</li>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\WhatsApp\Waha\WahaMessageId;
 use App\WhatsApp\Waha\WahaSessionState;
 use App\WhatsApp\WhatsAppMessageStatus;
@@ -139,8 +140,18 @@ class WahaWebhookController extends Controller
         }
 
         $digits = $this->phoneFrom($data);
-        if ($digits !== null) {
-            WahaSessionState::markContacted($digits);
+        if ($digits === null) {
+            return;
+        }
+
+        WahaSessionState::markContacted($digits);
+
+        // Baja por WhatsApp: «BAJA», «STOP» o «NO MÁS AVISOS» como mensaje completo. Solo afecta a cuentas cuyo teléfono
+        // VERIFICADO es ese número. No se guarda el texto ni se responde automáticamente.
+        $text = strtr(mb_strtolower(trim((string) ($data['body'] ?? ''))), ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u']);
+        if (in_array($text, ['baja', 'stop', 'no mas avisos', 'cancelar avisos'], true)) {
+            User::where('phone_verified_normalized', '+'.$digits)->whereNull('whatsapp_opt_out_at')->get()
+                ->each(fn (User $user) => $user->optOutOfWhatsApp('whatsapp_keyword'));
         }
     }
 

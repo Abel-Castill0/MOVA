@@ -24,12 +24,12 @@ class NotificationPreferencesController extends Controller
         $user = $request->user();
 
         if ($data['whatsapp']) {
-            $user->optInToWhatsApp();
+            $user->optInToWhatsApp('profile');
 
             return back()->with('success', 'Recibirás avisos de tus clases por WhatsApp.');
         }
 
-        $user->optOutOfWhatsApp();
+        $user->optOutOfWhatsApp('profile');
 
         return back()->with('success', 'Ya no recibirás notificaciones por WhatsApp. Seguirás recibiéndolas por correo.');
     }

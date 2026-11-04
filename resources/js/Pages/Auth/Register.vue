@@ -27,6 +27,7 @@ const form = useForm({
   role: props.lockedRole ?? 'parent',
   teacher_subject_names: [],
   accepted_terms: false,
+  whatsapp_consent: false,
 })
 
 const totalSteps = computed(() => form.role === 'teacher' ? 6 : 5)
@@ -365,6 +366,21 @@ function submit() {
                   />
                 </div>
                 <InputError class="mt-1" :message="form.errors.phone" />
+
+                <!-- Consentimiento explícito de avisos por WhatsApp: sin marcar por defecto y solo si hay teléfono. -->
+                <label v-if="form.phone" for="whatsapp_consent" class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <input
+                    id="whatsapp_consent"
+                    v-model="form.whatsapp_consent"
+                    type="checkbox"
+                    class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span class="text-xs sm:text-[13px] leading-relaxed text-slate-700">
+                    <span class="block font-semibold text-slate-900">Avisos de clases por WhatsApp</span>
+                    Quiero recibir por WhatsApp notificaciones de MOVA sobre mis reservas, confirmaciones, cambios de horario y recordatorios de clases. Puedo desactivarlas cuando quiera.
+                  </span>
+                </label>
+                <p v-if="form.phone && form.whatsapp_consent" class="mt-1.5 text-xs text-slate-500">Después del registro confirmarás tu número con un código.</p>
               </div>
 
               <div class="pt-4 flex gap-3">

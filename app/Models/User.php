@@ -147,17 +147,26 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->whatsapp_opt_in_at !== null;
     }
 
-    public function optInToWhatsApp(): void
+    /** Alta explícita de avisos por WhatsApp; queda en el historial auditable con la versión del texto aceptado. */
+    public function optInToWhatsApp(string $source = 'profile'): void
     {
-        $this->forceFill([
-            'whatsapp_opt_in_at' => now(),
-            'whatsapp_opt_out_at' => null,
-        ])->save();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($source) {
+            $this->forceFill([
+                'whatsapp_opt_in_at' => now(),
+                'whatsapp_opt_out_at' => null,
+            ])->save();
+
+            \App\WhatsApp\WhatsAppConsent::log($this, 'opt_in', $source);
+        });
     }
 
-    public function optOutOfWhatsApp(): void
+    public function optOutOfWhatsApp(string $source = 'profile'): void
     {
-        $this->forceFill(['whatsapp_opt_out_at' => now()])->save();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($source) {
+            $this->forceFill(['whatsapp_opt_out_at' => now()])->save();
+
+            \App\WhatsApp\WhatsAppConsent::log($this, 'opt_out', $source);
+        });
     }
 
     public function students()

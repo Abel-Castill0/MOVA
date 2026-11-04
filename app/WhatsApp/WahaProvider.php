@@ -84,7 +84,8 @@ final class WahaProvider implements WhatsAppProviderContract
 
         // Protección de la vinculación: WhatsApp revoca el dispositivo de los clientes no oficiales que inician chats con
         // desconocidos (restricción «reachout timelock» + cierre de la sesión). Responder a quien escribió primero es seguro.
-        $initiated = WahaSessionState::hasContacted($digits);
+        $isOtp = $templateKey === self::TEMPLATE_OTP;
+        $initiated = WahaSessionState::hasContacted($digits) || $this->hasSentBefore($digits);
         if (! $initiated) {
             $mustInitiate = (bool) config('services.waha.require_user_initiated', true);
             if ($mustInitiate || WahaSessionState::warmupRemainingMinutes() > 0) {
@@ -100,7 +101,14 @@ final class WahaProvider implements WhatsAppProviderContract
             return false;
         }
 
-        $isOtp = $templateKey === self::TEMPLATE_OTP;
+        // Cupo diario de PRIMEROS mensajes a números que nunca hablaron con MOVA (protege la vinculación frente al «reachout
+        // timelock»). El OTP tiene su propio cupo: lo pide la persona, pero alguien podría registrar números ajenos para abusar.
+        // Reserva atómica y duradera; si no se puede comprobar, NO se envía.
+        if (! $initiated && ! $this->reserveFirstContact($isOtp ? 'otp' : 'notice')) {
+            $this->skip($digits, $templateKey, WhatsAppSkipReason::RateLimited, $clientReference);
+
+            return false;
+        }
 
         if (! $isOtp && RateLimiter::tooManyAttempts($this->recipientKey($digits), (int) config('services.waha.max_per_recipient_per_day', 12))) {
             $this->skip($digits, $templateKey, WhatsAppSkipReason::RateLimited, $clientReference);
@@ -182,10 +190,46 @@ final class WahaProvider implements WhatsAppProviderContract
         $first = isset($params[0]) ? trim((string) $params[0]) : '';
 
         return match ($templateKey) {
-            self::TEMPLATE_GENERIC => $first === '' ? null : Str::limit($first, self::MAX_TEXT, '…')."\n\nPara dejar de recibir avisos por WhatsApp, desactívalos en tu perfil de MOVA.",
+            self::TEMPLATE_GENERIC => $first === '' ? null : Str::limit($first, self::MAX_TEXT, '…')."\n\nPara dejar de recibir avisos, responde BAJA o desactívalos en tu perfil de MOVA.",
             self::TEMPLATE_OTP => $first === '' ? null : "MOVA — Tu código de verificación es {$first}. Caduca en pocos minutos. No lo compartas con nadie.",
             default => null,
         };
+    }
+
+    /**
+     * El número ya tiene un chat real con MOVA: recibió y CONFIRMÓ (ACK de entrega o lectura) un aviso que no era un OTP. Un OTP
+     * enviado no cuenta: si contara, registrar números ajenos y pedir códigos los dejaría fuera del cupo de primeros contactos.
+     */
+    private function hasSentBefore(string $digits): bool
+    {
+        try {
+            return WhatsAppMessage::where('to', $digits)->where('provider', 'waha')->where('template_key', '!=', self::TEMPLATE_OTP)
+                ->whereIn('status', [WhatsAppMessageStatus::Delivered, WhatsAppMessageStatus::Read])
+                ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** Reserva un hueco del cupo diario (UTC) de primeros contactos; contador duradero bajo bloqueo. Falla cerrado. */
+    private function reserveFirstContact(string $kind): bool
+    {
+        $limit = max(0, (int) config($kind === 'otp' ? 'services.waha.max_new_otp_per_day' : 'services.waha.max_new_contacts_per_day', 20));
+        $key = 'first_contacts:'.$kind.':'.now()->utc()->format('Ymd');
+
+        try {
+            return (bool) Cache::lock('waha:first-contacts:'.$kind, 10)->block(5, function () use ($key, $limit) {
+                $used = (int) WahaSessionState::recall($key);
+                if ($used >= $limit) {
+                    return false;
+                }
+                WahaSessionState::remember($key, $used + 1);
+
+                return true;
+            });
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function isAllowed(string $digits): bool

@@ -59,6 +59,8 @@ class HandleInertiaRequests extends Middleware
                     'phone_verified'   => (bool) $request->user()->phone_verified_at,
                     // Consentimiento de WhatsApp: distinto de phone_verified.
                     'whatsapp_opt_in'  => $request->user()->wantsWhatsAppNotifications(),
+                    // Estado REAL del canal calculado en el servidor (activo / falta verificar / sin autorizar / dado de baja).
+                    'whatsapp_status'  => \App\WhatsApp\WhatsAppConsent::status($request->user()),
                 ] : null,
             ],
             'flash' => [

@@ -61,6 +61,8 @@ class RegisteredUserController extends Controller
             'phone' => ['nullable', 'string', 'max:20', new NormalizablePhone],
             'role' => 'required|in:parent,teacher',
             'accepted_terms' => 'accepted',
+            // Avisos por WhatsApp: casilla propia, sin marcar por defecto y solo con teléfono (ver WhatsAppConsent::TEXT).
+            'whatsapp_consent' => 'sometimes|boolean',
             'teacher_subject_names' => 'required_if:role,teacher|array',
             'teacher_subject_names.*' => ['nullable', 'string', 'max:100', new NotProfane],
         ], [
@@ -117,6 +119,10 @@ class RegisteredUserController extends Controller
             // P0-K: versión + timestamp de lo aceptado, en la misma transacción.
             LegalAcceptance::recordCurrent($user, $request);
 
+            if ($request->boolean('whatsapp_consent') && filled($request->phone)) {
+                $user->optInToWhatsApp('registration');
+            }
+
             return $user;
         });
 
@@ -143,8 +149,16 @@ class RegisteredUserController extends Controller
         // El correo ya no es requisito de acceso: un fallo de entrega del correo de confirmación opcional no
         // interrumpe el registro (se reportó arriba) y la persona entra directamente a su panel.
 
-        return $request->role === 'parent'
-            ? redirect()->route('students.create')
-            : redirect()->route('teacher.setup');
+        $next = $request->role === 'parent' ? route('students.create') : route('teacher.setup');
+
+        // Quien aceptó los avisos y dio un teléfono pasa por la verificación (un código que pide él mismo; puede omitirla y
+        // seguir usando MOVA con avisos por correo e internos). Al terminar vuelve a su siguiente paso de incorporación.
+        if ($user->whatsapp_opt_in_at !== null && filled($user->phone) && PhoneVerificationController::isAvailable()) {
+            session()->put('url.intended', $next);
+
+            return redirect()->route('phone.verification.notice');
+        }
+
+        return redirect()->to($next);
     }
 }

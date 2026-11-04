@@ -61,11 +61,14 @@ return [
         'expected_number' => env('WAHA_EXPECTED_NUMBER'),
         // Etiqueta del entorno que muestra el panel (producción, staging, piloto) y caducidad informativa (solo si el servidor es un piloto temporal).
         // Política anti-restricción: WhatsApp penaliza a los clientes no oficiales que inician chats con desconocidos y puede
-        // revocar la vinculación y aplicar un «reachout timelock». Con require_user_initiated=true MOVA SOLO escribe a quien ya
-        // escribió primero al número (alta por «escribe ACTIVAR»); si no, durante warmup_minutes tras vincular no se inicia
-        // ningún chat nuevo.
-        'require_user_initiated' => (bool) env('WAHA_REQUIRE_USER_INITIATED', true),
+        // revocar la vinculación y aplicar un «reachout timelock». El consentimiento se da dentro de MOVA (registro o perfil), así
+        // que por defecto NO se exige que la persona escriba primero; en su lugar: durante warmup_minutes tras una vinculación
+        // nueva no se inicia ningún chat nuevo, y como máximo max_new_contacts_per_day primeros mensajes al día a números que
+        // nunca han hablado con MOVA. require_user_initiated=true vuelve a la política estricta (solo a quien escribió primero).
+        'require_user_initiated' => (bool) env('WAHA_REQUIRE_USER_INITIATED', false),
         'warmup_minutes' => (int) env('WAHA_WARMUP_MINUTES', 1440),
+        'max_new_contacts_per_day' => (int) env('WAHA_MAX_NEW_CONTACTS_PER_DAY', 20),
+        'max_new_otp_per_day' => (int) env('WAHA_MAX_NEW_OTP_PER_DAY', 20),
         'contacted_ttl_days' => (int) env('WAHA_CONTACTED_TTL_DAYS', 90),
         // Clave del HMAC con el que se guardan los teléfonos que escribieron primero. Si no se define se usa APP_KEY; rotar APP_KEY
         // sin definir esta clave obliga a que todos vuelvan a escribir (falla en modo seguro: nadie recibe un primer mensaje).

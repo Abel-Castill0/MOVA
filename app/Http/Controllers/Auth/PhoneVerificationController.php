@@ -191,7 +191,8 @@ class PhoneVerificationController extends Controller
         // El OTP mismo (arriba, sendWhatsAppCode) nunca dependió de esto y
         // sigue sin depender: es el mensaje que el propio usuario pidió al
         // pulsar «enviar código», no una notificación opcional.
-        if ($request->boolean('whatsapp_notifications') && $user->whatsapp_opt_out_at === null) {
+        $optedInHere = $request->boolean('whatsapp_notifications') && $user->whatsapp_opt_out_at === null && $user->whatsapp_opt_in_at === null;
+        if ($optedInHere) {
             $user->whatsapp_opt_in_at = now();
         }
 
@@ -206,6 +207,14 @@ class PhoneVerificationController extends Controller
             return back()->withErrors([
                 'code' => 'Este número de teléfono ya está verificado en otra cuenta de MOVA.',
             ]);
+        }
+
+        if ($optedInHere) {
+            try {
+                \App\WhatsApp\WhatsAppConsent::log($user, 'opt_in', 'phone_verification');
+            } catch (\Throwable $e) {
+                report($e); // la verificación ya se guardó; el hueco en el historial queda visible en Sentry
+            }
         }
 
         $this->grantTeacherWelcomeBonus($user);

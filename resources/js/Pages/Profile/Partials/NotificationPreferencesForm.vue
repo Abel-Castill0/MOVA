@@ -1,104 +1,88 @@
 <template>
   <section>
     <header>
-      <h2 class="text-lg font-medium text-gray-900">Notificaciones por WhatsApp</h2>
-
-      <p class="mt-1 text-sm text-gray-600">
-        Elige si quieres recibir avisos de tus clases por WhatsApp. Seguirás recibiéndolos por correo
-        electrónico en cualquier caso.
-      </p>
+      <h2 class="text-lg font-medium text-gray-900">Notificaciones de clases por WhatsApp</h2>
     </header>
 
-    <div class="mt-6 rounded-xl border border-gray-200 p-4">
-      <label class="flex cursor-pointer items-start gap-3">
-        <input
-          type="checkbox"
-          class="mt-0.5 h-5 w-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
-          :checked="optedIn"
+    <!-- El estado lo calcula el servidor (WhatsAppConsent::status); nunca se deduce de una casilla del navegador. -->
+    <div class="mt-4 rounded-xl border p-4" :class="status === 'active' ? 'border-emerald-200 bg-emerald-50/60' : 'border-gray-200'" aria-live="polite">
+      <template v-if="status === 'active'">
+        <p class="font-semibold text-emerald-800">Notificaciones de clases por WhatsApp: activas.</p>
+        <p class="mt-1 text-sm text-gray-600">
+          MOVA te avisará cuando se confirme una clase, cambie un horario o se acerque tu próxima sesión.
+        </p>
+        <button
+          type="button"
+          class="mt-3 text-sm font-semibold text-rose-700 underline underline-offset-4 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-50"
           :disabled="saving"
-          @change="toggle($event.target.checked)"
-        />
-        <span class="text-sm">
-          <span class="font-semibold text-gray-900">Recibir avisos por WhatsApp</span>
-          <span class="mt-0.5 block text-gray-500">
-            Recordatorios de clase, confirmaciones y cambios de horario.
-          </span>
-        </span>
-      </label>
+          @click="save(false)"
+        >Desactivar avisos por WhatsApp</button>
+      </template>
 
-      <!--
-        Distinción importante y deliberada: darse de baja NO invalida el
-        teléfono ni impide verificarlo. El código de verificación es un mensaje
-        de seguridad que pide el propio usuario, no una notificación.
-      -->
+      <template v-else-if="status === 'needs_verification'">
+        <p class="font-semibold text-gray-900">Avisos por WhatsApp autorizados, falta verificar tu teléfono.</p>
+        <p class="mt-1 text-sm text-gray-600">
+          <template v-if="hasPhone">Confirma tu número con un código y los avisos empezarán a llegar automáticamente.</template>
+          <template v-else>Añade tu número de teléfono en «Información personal» y confírmalo con un código.</template>
+          Mientras tanto te avisamos por correo y dentro de MOVA.
+        </p>
+        <div class="mt-3 flex flex-wrap items-center gap-4">
+          <Link
+            v-if="hasPhone"
+            :href="route('phone.verification.notice')"
+            class="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          >Verificar mi teléfono</Link>
+          <button type="button" class="text-sm font-semibold text-gray-600 underline underline-offset-4 disabled:opacity-50" :disabled="saving" @click="save(false)">No quiero avisos por WhatsApp</button>
+        </div>
+      </template>
+
+      <template v-else>
+        <p class="font-semibold text-gray-900">
+          {{ status === 'revoked' ? 'Desactivaste los avisos por WhatsApp.' : 'Aún no recibes avisos por WhatsApp.' }}
+        </p>
+        <p class="mt-1 text-sm text-gray-600">{{ consentText }}</p>
+        <button
+          type="button"
+          class="mt-3 inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-50"
+          :disabled="saving"
+          @click="save(true)"
+        >Activar avisos por WhatsApp</button>
+        <p v-if="!phoneVerified" class="mt-2 text-xs text-gray-500">Después confirmarás tu número con un código.</p>
+      </template>
+
       <p class="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
-        Esto no afecta al código de verificación de tu teléfono: ese mensaje se envía siempre que tú lo
-        solicites, porque es parte del acceso a tu cuenta.
+        También puedes darte de baja escribiendo «BAJA» al WhatsApp de MOVA. El código de verificación de tu teléfono no depende de esta opción.
       </p>
-
-      <p v-if="!phoneVerified" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-        Verifica tu teléfono para poder recibir avisos por WhatsApp.
-      </p>
-
-      <!-- Con WAHA, MOVA solo puede responder a quien le escribió primero: este paso lo hace la persona, no MOVA. -->
-      <div v-if="chat && optedIn" class="mt-3 border-t border-gray-100 pt-3 text-sm" aria-live="polite">
-        <p v-if="chat.opened" class="font-semibold text-emerald-700">Chat con MOVA activado. Ya podemos avisarte por WhatsApp.</p>
-        <template v-else>
-          <p class="text-gray-700">
-            Para recibir los avisos, escribe <span class="font-semibold">ACTIVAR</span> al número oficial de MOVA
-            (<span class="whitespace-nowrap font-semibold">{{ chat.number }}</span>) desde el teléfono que verificaste.
-          </p>
-          <a
-            :href="chat.link"
-            target="_blank"
-            rel="noopener"
-            class="mt-2 inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-          >Abrir WhatsApp</a>
-          <p class="mt-2 text-xs text-gray-500">
-            Hasta que lo hagas, recibirás los avisos por correo electrónico. Recarga esta página después de escribir para ver el estado.
-          </p>
-        </template>
-      </div>
 
       <p v-if="error" class="mt-3 text-sm font-semibold text-red-600">{{ error }}</p>
-
-      <Transition
-        enter-active-class="transition ease-in-out"
-        enter-from-class="opacity-0"
-        leave-active-class="transition ease-in-out"
-        leave-to-class="opacity-0"
-      >
-        <p v-if="saved" class="mt-3 text-sm text-gray-600">Guardado.</p>
-      </Transition>
     </div>
   </section>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { router, usePage } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 
-defineProps({ chat: { type: Object, default: null } })
+const consentText = 'Quiero recibir por WhatsApp notificaciones de MOVA sobre mis reservas, confirmaciones, cambios de horario y recordatorios de clases. Puedo desactivarlas cuando quiera.'
 
 const page = usePage()
-const optedIn = computed(() => page.props.auth?.user?.whatsapp_opt_in ?? false)
+const status = computed(() => page.props.auth?.user?.whatsapp_status ?? 'not_authorized')
 const phoneVerified = computed(() => page.props.auth?.user?.phone_verified ?? false)
+const hasPhone = computed(() => Boolean(page.props.auth?.user?.phone))
 
 const saving = ref(false)
-const saved = ref(false)
 const error = ref('')
 
-function toggle(value) {
+function save(value) {
   if (saving.value) return
   saving.value = true
   error.value = ''
-  saved.value = false
 
   router.patch(route('profile.notifications.update'), { whatsapp: value }, {
     preserveScroll: true,
     onSuccess: () => {
-      saved.value = true
-      setTimeout(() => { saved.value = false }, 2500)
+      // Recién autorizado y sin teléfono verificado: el siguiente paso útil es el código.
+      if (value && !phoneVerified.value && hasPhone.value) router.visit(route('phone.verification.notice'))
     },
     onError: () => { error.value = 'No se pudo guardar la preferencia. Inténtalo de nuevo.' },
     onFinish: () => { saving.value = false },

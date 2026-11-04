@@ -55,7 +55,10 @@
           de producto distinta que le corresponde al usuario, no algo que se
           infiere automáticamente de haber completado el código.
         -->
-        <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-3">
+        <p v-if="alreadyAuthorized" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+          Ya autorizaste los avisos por WhatsApp: se activarán en cuanto confirmes tu número.
+        </p>
+        <label v-else class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-3">
           <input
             v-model="form.whatsapp_notifications"
             type="checkbox"
@@ -98,7 +101,8 @@
 </template>
 
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Link, useForm, usePage } from '@inertiajs/vue3'
 
 const props = defineProps({
   phone: String,
@@ -106,6 +110,7 @@ const props = defineProps({
 })
 
 const form = useForm({ code: '', whatsapp_notifications: false })
+const alreadyAuthorized = computed(() => usePage().props.auth?.user?.whatsapp_status === 'needs_verification')
 const resendForm = useForm({})
 
 function verify() {
