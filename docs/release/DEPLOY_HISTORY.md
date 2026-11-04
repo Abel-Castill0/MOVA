@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (5) — `1b53d68` → producción — primer OTP automático al abrir «Verificar mi teléfono»
+
+- Causa: el GET `verify-phone` nunca generaba ni enviaba el código; solo «Reenviar código» (POST) lo hacía. Ahora la pantalla pide el primer código al montarse con el mismo `send()` (bloqueo por usuario, sin reemplazar un código vigente, espera de 30 s entre códigos aceptados, hash condicionado al teléfono). Suite 1840 OK, CI verde, revisión de seguridad apta con condiciones (corregidas).
+- Imagen `sha256:283d103d89d643512b65b462c95c75947fef9b3d82998eba74165a8f1c318dc9` (tag `img-otp-20261104`); scheduler y web `0000048` Healthy; WAHA WORKING; etapa 3 sin cambios.
+- Prueba real (cuenta #9, verificación reiniciada a propósito): un único clic → un único `phone_verification_code` a las 09:08:12 UTC, ACK `delivered` (id …4D0A9490); teléfono verificado por el titular a las 09:09:11. Sin reenvío.
+- Rollback: imagen `sha256:b7c39da0…`.
+
 ## 2026-11-04 (4) — WhatsApp etapa 3: sin lista autorizada (sin cambio de imagen)
 
 - Tras la etapa 2 (OTP + 11 plantillas con ACK `delivered` a la cuenta #9), el titular aprobó abrir el canal. `--remove-env-vars WAHA_ALLOWED_RECIPIENTS` en scheduler y web → revisiones `0000047` (Healthy, 100 % tráfico), imagen `sha256:b7c39da0…` sin cambios. Protecciones intactas (consentimiento + teléfono verificado, calentamiento, cupos 20/20, 8/min, 12/día, dedupe, pausa, kill switch).
