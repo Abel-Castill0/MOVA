@@ -452,3 +452,15 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
   3. Editar la URL de los 5 webhooks en CulqiPanel.
   4. Actualizar `C:\Users\TK\.mova-secrets\culqi-live-webhook-url.txt`.
   5. Comprobar: token antiguo → 401; URL nueva → 400.
+
+## 19. Activación operativa desde Azure, sin código (2026-11-04)
+
+- **Herramienta:** `infra/azure/culqi-live-activation.sh`, con las órdenes `check`, `enable-test <correo>`, `enable-all`, `disable`, `rotate-webhook-secret` y `update-keys`. Guía para el titular: `docs/release/ACTIVAR_CULQI_EN_AZURE.md`.
+- **Control único:** `CULQI_CHECKOUT_ALLOWLIST` con `PAYMENT_PROVIDER=culqi`. Vacía = todos los profesores; un correo = solo esa cuenta; `*.invalid` = compras cerradas. Culqi sigue siendo el proveedor, así que la conciliación sigue agendada y no depende de que arranque la configuración de Mercado Pago. `disable` pone el centinela `.invalid` y `MERCADOPAGO_NEW_PAYMENTS_ENABLED=false`, reintenta y **nunca revierte a abierto**. `enable-*` hace una foto exacta de la configuración (una sola lectura por app, con verificación de errores) y, si una revisión no queda Healthy, restaura ambas apps. Después confirma el `ESTADO` desde la aplicación; si no coincide, cierra.
+- **Puertas:**
+  - `check` falla si la suscripción es Azure for Students o si no se puede leer su `quotaId`.
+  - `enable-all` exige `COMPRA_LIVE_VERIFICADA: si`: un cargo `chr_live_`/`ord_live_` pagado con su depósito `recharge:{id}:deposit` en el ledger.
+  - Hay que escribir `ACTIVAR` / `DETENER` para confirmar.
+- **`php artisan culqi:activation-check`** (solo lectura, dentro del contenedor): configuración coherente y live, llaves, secreto del webhook, receptor habilitado, Mercado Pago retirado, conciliación agendada, medio tarjeta, 5 paquetes con los céntimos autorizados, paquete de S/ 1 apagado, migraciones, GET live `/v2/charges` y webhooks auténticos recibidos. Devuelve `RESULTADO` / `ESTADO` / `COMPRA_LIVE_VERIFICADA`. Lo que no se puede comprobar sin un cargo real (entrega auténtica de webhooks, medios en CulqiPanel) sale como `NO-VERIFICADO`.
+- **Pruebas:** `CulqiActivationCheckTest` (10) y `infra/azure/tests/test-culqi-live-activation.sh` (12, con `az` simulado: bloqueo de Students y de un `quotaId` ilegible, fallo de lectura, confirmación, rollback cuando falla web, `disable` sin reapertura, `--dry-run`, `check` sin escrituras). Además pasa shellcheck.
+- **Rotación del secreto del webhook (2026-11-04):** se hizo con la propia herramienta (`rotate-webhook-secret`): la URL nueva da 400 y **la anterior, 401 (revocada)**. La URL vigente está en `C:\Users\TK\.mova-secrets\culqi-live-webhook-url.txt`. **Pendiente:** pegarla en las 5 entradas de CulqiPanel; la sesión del panel había caducado.
