@@ -65,6 +65,7 @@ class WhatsAppOnboardingTest extends TestCase
             'services.waha.typing_max_ms' => 0,
             'services.waha.rate_wait_seconds' => 0,
             'services.waha.warmup_minutes' => 0,
+            'services.waha.require_user_initiated' => false,
             'services.waha.allowed_recipients' => '',
         ], $extra));
         WahaSessionState::record('WORKING');
