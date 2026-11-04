@@ -4,6 +4,12 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 — `1bcd158` → producción — etiquetas WAHA permanentes, rol en el menú, nonce CSP, sonda WhatsApp; WhatsApp en etapa 1
+
+- Imagen `ghcr.io/abel-castill0/mova@sha256:23303195c27147e11cf3c925c4d32aac80489058e975b5cbfe6c29f17572a462` (tag `img-adminfix-20261104`). CI verde; suite 1834 OK. Sin migraciones.
+- `movap-web`/`movap-scheduler` `0000045`: `WHATSAPP_ENABLED=true`, `WHATSAPP_PROVIDER=waha`, `WAHA_ALLOWED_RECIPIENTS=51916666934` (ambos), secreto `waha-hook-hmac-key` en el scheduler (referencia a Key Vault), etiquetas de producción. CSP Report-Only con nonce verificado en producción (2/2 scripts en línea).
+- Rollback: imagen `sha256:6abdd2d3…` y `WHATSAPP_ENABLED=false`.
+
 ## 2026-11-03 (3) — infraestructura (sin cambio de imagen): ahorro y WAHA permanente (opción D)
 
 - `movaqa-culqi` detenido; ACR eliminado tras quitar su registro de `movap-web`/`movap-scheduler` (siguen en `0000044`, sanas) y repuntar el job `movap-culqi-net` a GHCR. Respaldo previo en `C:\Users\TK\mova-backups\2026-11-03-fase1\`.

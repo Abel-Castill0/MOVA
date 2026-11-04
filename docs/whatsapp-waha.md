@@ -191,3 +191,13 @@ una VM única sin alta disponibilidad. La vía oficial es Meta Cloud API (ya imp
 | B. Reinicio de la VM | `az vm restart` (46 s) | `WORKING` a los ~5 s de arrancar, mismo número | **sí** |
 | C. Despliegue de Laravel | — | no aplica: WAHA vive en otra VM; los despliegues de MOVA no la tocan | — |
 | Celular sin Internet / restauración en otra VM / mensaje real con ACK | pendientes | requieren al titular o el calentamiento de 24 h | — |
+
+## Activación gradual (2026-11-04) — etapa 1: solo números autorizados
+
+- Imagen `1bcd158` (`sha256:23303195…`), `movap-web` y `movap-scheduler` revisión `0000045`. **`WHATSAPP_ENABLED=true`, `WHATSAPP_PROVIDER=waha` y `WAHA_ALLOWED_RECIPIENTS=51916666934` en los DOS roles** (el scheduler no tenía la lista ni la clave HMAC: se añadieron antes de activar). Cualquier evento real hacia otro número queda `skipped (not_allowlisted)`.
+- Panel: etiquetas desde configuración (`WAHA_ENV_LABEL=producción`, `WAHA_INFRA_LABEL`, sin `WAHA_PILOT_EXPIRES_AT`); los valores por defecto ya no dicen «piloto».
+- `ParentApprovalRequest` ya no envía el nombre del alumno (menor) por WhatsApp.
+- Sonda `php artisan mova:whatsapp-probe <usuario> [--event=…]`: plantillas reales con datos sintéticos en memoria, directo al canal (consentimiento, teléfono verificado, cuenta, lista y política WAHA aplican), solo para teléfonos de la lista. Primera ejecución en producción contra la cuenta #9 (teléfono autorizado): **omitido por teléfono no verificado** — comportamiento correcto.
+- **Para la etapa 2 (pruebas reales):** desde +51 916 666 934 escribir «ACTIVAR» al +51 905 922 835; en MOVA → Mi perfil verificar el teléfono (el código llega por WhatsApp) y activar los avisos; luego ejecutar la sonda con todos los eventos y comprobar los ACK (`delivered`/`read`) en `whatsapp_messages`. Etapa 3: ampliar la lista a una cohorte que haya dado consentimiento; etapa 4: vaciar `WAHA_ALLOWED_RECIPIENTS`.
+- Rollback inmediato: `WHATSAPP_ENABLED=false` en web y scheduler.
+
