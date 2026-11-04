@@ -436,3 +436,19 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
   2. Compra live única del paquete Inicio (1000 céntimos), que paga el titular; verificar cargo, depósito único y webhook.
   3. Quitar la allowlist.
 - **Rollback:** `PAYMENT_PROVIDER=mercadopago` (las compras se cierran; Culqi sigue conciliando porque el webhook y la llave siguen cargados). Para quitar Culqi por completo: borrar las variables `CULQI_*`, cuando no queden órdenes Culqi abiertas.
+
+### 18.1 CulqiPanel de producción configurado (2026-11-04, con Claude in Chrome; sesión iniciada por el titular)
+
+- **Webhooks:** 5 registrados en *Panel de producción → comercio Mova (ID 200000000342887) → Desarrollo → Webhooks*.
+  - Producto CulqiOnline, versión 2.0, URL de producción. Antes no existía ninguno.
+  - Eventos: `charge.creation.succeeded`, `charge.creation.failed`, `refund.creation.succeeded`, `refund.creation.failed` y `order.status.changed`.
+  - Opciones reales del formulario: *Producto* CulqiOnline · *Recurso* order/token/charge/refund · *Acción* creation/update/capture (charge), creation/update (refund), creation/status/deleted/update (order) · *Resultado* succeeded/failed (changed para order.status).
+  - «Activar autenticación» apagado: MOVA autentica con el secreto de la ruta y vuelve a consultar la API.
+- **Entrega real de eventos: sin verificar.** Se comprobará con el primer cargo autorizado.
+- **Medios de pago:** *Mi empresa → Datos de mi comercio* (afiliación 21/10/2026, abono a 2 días hábiles) muestra las marcas de tarjeta **Visa, Mastercard y AMEX activas; Diners sin activar**. El panel no muestra Yape, PagoEfectivo ni otras billeteras. MOVA sigue ofreciendo solo tarjeta (`CULQI_METHODS=card`). 3DS: probado solo en sandbox.
+- **Obligatorio antes de activar cobros:** **rotar `culqi-webhook-secret`**. Al verificar la lista de webhooks, el texto de la URL completa quedó en el registro de trabajo del agente; por la regla de `AGENTS.md` cuenta como expuesto. Procedimiento (§14.4):
+  1. `openssl rand -hex 24` → `az keyvault secret set` sin imprimir.
+  2. Revisión nueva de web y scheduler.
+  3. Editar la URL de los 5 webhooks en CulqiPanel.
+  4. Actualizar `C:\Users\TK\.mova-secrets\culqi-live-webhook-url.txt`.
+  5. Comprobar: token antiguo → 401; URL nueva → 400.
