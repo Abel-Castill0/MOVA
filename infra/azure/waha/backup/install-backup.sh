@@ -52,9 +52,9 @@ ExecStart=/usr/local/bin/waha-session-backup.sh
 UNIT
 cat > /etc/systemd/system/waha-backup.timer <<'UNIT'
 [Unit]
-Description=Respaldo semanal de la sesion de WAHA
+Description=Respaldo diario de la sesion de WAHA
 [Timer]
-OnCalendar=Sun *-*-* 03:30:00
+OnCalendar=*-*-* 03:30:00
 Persistent=true
 RandomizedDelaySec=300
 [Install]

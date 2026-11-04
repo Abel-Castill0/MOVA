@@ -103,3 +103,17 @@ Impuestos: Azure for Students no suma impuestos al crédito; en pago por uso dep
 ## G. Decisión pendiente del titular
 
 Autorizar la opción D: **≈ US$ 21-24/mes** con los beneficios actuales (≈ US$ 45/mes sin ellos), gasto único de transición ≈ US$ 0,3, y las eliminaciones de la fase 1 (`movaqa-culqi` + `movaqastg225258`, y el ACR tras resolver sus dependencias).
+
+## H. Ejecución (2026-11-03, opción D aprobada por el titular)
+
+**Fase 1 — ahorro:**
+- Respaldo previo en el equipo del titular: `C:\Users\TK\mova-backups\2026-11-03-fase1\` (configuración JSON de `movaqa-culqi`, `movap-worker`, apps de staging y del job; lista de las 63 imágenes del ACR con digest/etiquetas/fecha; copia del share `qa-culqi`, 3 archivos, 1,2 MB).
+- `movaqa-culqi` **detenido** (reversible: `POST …/containerApps/movaqa-culqi/start`). La cuenta `movaqastg225258` se conserva una semana (sin la app ya no recibe escrituras) y después se puede borrar.
+- ACR `movaacrsplisbj6ldoqw` **eliminado** tras quitar su entrada de registro (identidad) en `movap-web` y `movap-scheduler` (no lo usaban: imágenes en GHCR; siguen en la revisión `0000044`, sanas, `/readyz` 200) y repuntar el job `movap-culqi-net` a GHCR. Las apps detenidas `movap-worker` y `mova-web/worker/scheduler` aún apuntan a imágenes del ACR: **antes de arrancarlas hay que cambiar su imagen a un digest de GHCR** (el JSON del respaldo conserva su configuración).
+
+**Fase 2 — WAHA permanente** (`infra/azure/waha/waha-create.sh`):
+- Grupo `mova-waha-rg` (northcentralus, sin caducidad ni janitor): VM `mova-waha` `Standard_B2pts_v2` ARM64, disco SO **Premium SSD P6 64 GiB**, IP Standard solo de salida, NSG que niega todo desde Internet y abre 3000/TCP solo a `mova-vnet`, VNet 10.30.0.0/24 con IP privada 10.30.0.4 (la misma `WAHA_BASE_URL` que ya tenían las apps), peering `to-waha`/`to-mova` **Connected**.
+- La VM no puede borrar nada: el temporizador de autodestrucción del piloto está **deshabilitado** y su único rol es «Storage Blob Data Contributor» sobre el contenedor de respaldos (el rol temporal de Key Vault se retiró tras descargar los secretos).
+- Respaldo cifrado **diario** (03:30 UTC) a `movawahabak8335a575/waha-session-backups` (fuera de la VM; solo corre con la sesión en `WORKING`; conserva 7).
+- Verificado: docker y waha habilitados, política `unless-stopped`, API 200 dentro de la VM, y `mova:waha-check` desde `movap-web` y `movap-scheduler`: «Alcanzable». La sesión espera vinculación (WAHA pasa a `FAILED` si nadie escanea el QR en unos minutos; el panel la reinicia).
+- **Pendiente:** vincular por QR (titular), pruebas de persistencia con sesión real y **comprobar en Cost Management a las 48 h** que el cómputo `B2pts v2` y el disco P6 facturan 0 (si el disco factura, cambiar a E4 = US$ 2,64/mes).

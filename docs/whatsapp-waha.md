@@ -175,3 +175,9 @@ una VM única sin alta disponibilidad. La vía oficial es Meta Cloud API (ya imp
 - **Bloqueado por decisión del titular:** alojamiento permanente (US$6–12/mes o Cloud API; ver `whatsapp-waha-costos-migracion.md`) y que la suscripción Azure for Students no es de uso comercial (misma decisión que Culqi, `payments-culqi.md` §14.1 B-1).
 - **Recordatorios por WhatsApp:** solo los de 24 h y 2 h (commit `620244c`); el de 10 min sigue por correo e in-app. El requisito de «1 h» se cubre con el de 2 h (existente) para no cambiar los marcadores `reminder_*_sent_at` ni la lógica de reclamo.
 - **Eventos:** todos los del catálogo siguen cableados a `WhatsAppChannel`; sin WAHA conectado no hay pruebas reales de envío. `WHATSAPP_ENABLED=false` en producción.
+
+## WAHA permanente (2026-11-03)
+
+- Servidor: VM `mova-waha` en `mova-waha-rg` (northcentralus), creada con `infra/azure/waha/waha-create.sh` (sin caducidad, sin janitor, sin permisos de borrado), disco P6, IP privada 10.30.0.4, peering con `mova-vnet`. Detalle y costos: `azure-arquitectura-economica-2026-11.md` §H.
+- Respaldo cifrado **diario** a la cuenta `movawahabak8335a575` (contenedor `waha-session-backups`), fuera de la VM. Restauración: `waha-session-restore.sh` con el origen detenido (nunca dos instancias con el mismo número).
+- Estado: alcanzable desde web y scheduler; **falta vincular el +51 905 922 835 por QR** en `/admin/whatsapp` (Restablecer vinculación). Después: calentamiento de 24 h, «Hola» desde +51 916 666 934 antes del mensaje de prueba, y pruebas de reinicio de Docker y de VM. `WHATSAPP_ENABLED` sigue en `false`.

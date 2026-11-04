@@ -4,6 +4,11 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-03 (3) — infraestructura (sin cambio de imagen): ahorro y WAHA permanente (opción D)
+
+- `movaqa-culqi` detenido; ACR eliminado tras quitar su registro de `movap-web`/`movap-scheduler` (siguen en `0000044`, sanas) y repuntar el job `movap-culqi-net` a GHCR. Respaldo previo en `C:\Users\TK\mova-backups\2026-11-03-fase1\`.
+- WAHA permanente en `mova-waha-rg` (VM `B2pts v2`, disco P6, respaldo diario cifrado a blob). Detalle y reversión: `docs/azure-arquitectura-economica-2026-11.md` §H.
+
 ## 2026-11-03 (2) — `620244c` → producción — Nivel 1: master (PR #6–#15 de Abel + correo + recordatorios) con pagos y WhatsApp apagados
 
 - Imagen: tag `img-level1-20261103`, `ghcr.io/abel-castill0/mova@sha256:6abdd2d3cad9254d7d8ff07e4af018565fc4d27996ba774e823065d567bcaeb8`. CI e imagen en verde; suite completa 1827 OK (25 omitidas, perfil SQLite). Revisión de seguridad de solo lectura previa: apto con la condición de migrar antes de servir tráfico.
