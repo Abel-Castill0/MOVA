@@ -181,3 +181,13 @@ una VM única sin alta disponibilidad. La vía oficial es Meta Cloud API (ya imp
 - Servidor: VM `mova-waha` en `mova-waha-rg` (northcentralus), creada con `infra/azure/waha/waha-create.sh` (sin caducidad, sin janitor, sin permisos de borrado), disco P6, IP privada 10.30.0.4, peering con `mova-vnet`. Detalle y costos: `azure-arquitectura-economica-2026-11.md` §H.
 - Respaldo cifrado **diario** a la cuenta `movawahabak8335a575` (contenedor `waha-session-backups`), fuera de la VM. Restauración: `waha-session-restore.sh` con el origen detenido (nunca dos instancias con el mismo número).
 - Estado: alcanzable desde web y scheduler; **falta vincular el +51 905 922 835 por QR** en `/admin/whatsapp` (Restablecer vinculación). Después: calentamiento de 24 h, «Hola» desde +51 916 666 934 antes del mensaje de prueba, y pruebas de reinicio de Docker y de VM. `WHATSAPP_ENABLED` sigue en `false`.
+- **Vinculado el 2026-11-04 ~02:40 UTC** (titular, por QR desde el panel): sesión `WORKING`, número 51905…2835.
+- **Pruebas reales de persistencia (2026-11-04):**
+
+| Escenario | Prueba | Resultado | ¿Sesión conservada? |
+|---|---|---|---|
+| Respaldo | `waha-backup.service` manual | cifrado y verificado (79 KB, sha256) y **subido a blob** fuera de la VM | sí (WAHA se para ~10 s y vuelve) |
+| A. Reinicio de Docker | `docker restart` del contenedor | `WORKING` a los ~15 s, sin QR | **sí** |
+| B. Reinicio de la VM | `az vm restart` (46 s) | `WORKING` a los ~5 s de arrancar, mismo número | **sí** |
+| C. Despliegue de Laravel | — | no aplica: WAHA vive en otra VM; los despliegues de MOVA no la tocan | — |
+| Celular sin Internet / restauración en otra VM / mensaje real con ACK | pendientes | requieren al titular o el calentamiento de 24 h | — |
