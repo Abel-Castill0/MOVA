@@ -4,6 +4,11 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (4) — WhatsApp etapa 3: sin lista autorizada (sin cambio de imagen)
+
+- Tras la etapa 2 (OTP + 11 plantillas con ACK `delivered` a la cuenta #9), el titular aprobó abrir el canal. `--remove-env-vars WAHA_ALLOWED_RECIPIENTS` en scheduler y web → revisiones `0000047` (Healthy, 100 % tráfico), imagen `sha256:b7c39da0…` sin cambios. Protecciones intactas (consentimiento + teléfono verificado, calentamiento, cupos 20/20, 8/min, 12/día, dedupe, pausa, kill switch).
+- Rollback: `--set-env-vars WAHA_ALLOWED_RECIPIENTS=51916666934` (etapa 1) o `WHATSAPP_ENABLED=false`.
+
 ## 2026-11-04 (3) — incidente de red WAHA (sin cambio de imagen)
 
 - 07:00:29 UTC: el janitor del piloto (`waha-pilot-janitor`, identidad `mova-waha-janitor`, cron hasta el 4-nov) borró el peering `to-waha` de `mova-vnet` creyéndolo un resto del piloto (el WAHA permanente usa el mismo nombre). Web y scheduler dejaron de alcanzar 10.30.0.4 (timeout); la sesión WAHA siguió en WORKING.
