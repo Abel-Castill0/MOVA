@@ -4,6 +4,12 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (2) — `7a19d6e` → producción — consentimiento de WhatsApp en el registro, sin «ACTIVAR»
+
+- Imagen `ghcr.io/abel-castill0/mova@sha256:b7c39da0b6120cbb91fa8d880bd8f8d8a2f40c56a2dfa7e9c7dd617bb23d7836` (tag `img-consent-20261104`). CI verde (el primer intento falló porque `.env.example` aún traía `WAHA_REQUIRE_USER_INITIATED=true`; corregido en `7a19d6e`). Suite 1849 OK. Revisión de seguridad: apta con condiciones, hallazgos altos/medios corregidos antes de desplegar.
+- Orden: scheduler `0000046` → `migrate --force` (tabla `whatsapp_consent_events`) → web `0000046`. Variables nuevas: `WAHA_REQUIRE_USER_INITIATED=false`, `WAHA_MAX_NEW_CONTACTS_PER_DAY=20`, `WAHA_MAX_NEW_OTP_PER_DAY=20`. Lista autorizada sin cambios (etapa 1).
+- Rollback: imagen `sha256:23303195…` y, si hace falta, `WAHA_REQUIRE_USER_INITIATED=true` o `WHATSAPP_ENABLED=false`.
+
 ## 2026-11-04 — `1bcd158` → producción — etiquetas WAHA permanentes, rol en el menú, nonce CSP, sonda WhatsApp; WhatsApp en etapa 1
 
 - Imagen `ghcr.io/abel-castill0/mova@sha256:23303195c27147e11cf3c925c4d32aac80489058e975b5cbfe6c29f17572a462` (tag `img-adminfix-20261104`). CI verde; suite 1834 OK. Sin migraciones.
