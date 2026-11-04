@@ -98,7 +98,8 @@ class PhoneVerificationWhatsAppTest extends TestCase
         $first = $this->actingAs($user)->post(route('phone.verification.send'));
         $firstCode = $first->getSession()->get('debugCode');
 
-        $second = $this->actingAs($user)->post(route('phone.verification.send'));
+        $this->travel(31)->seconds(); // pasada la espera entre códigos
+        $second =$this->actingAs($user)->post(route('phone.verification.send'));
         $secondCode = $second->getSession()->get('debugCode');
 
         $this->assertNotSame($firstCode, $secondCode, 'la prueba necesita dos códigos distintos para ser significativa');

@@ -18,19 +18,33 @@
 
       <template v-else>
       <p class="text-sm text-gray-500 mb-6">
-        Enviamos un código de 6 dígitos a tu número terminado en <strong>{{ phone }}</strong>.
+        Te enviamos por WhatsApp un código de 6 dígitos a tu número terminado en <strong>{{ phone }}</strong>.
       </p>
 
-      <div v-if="$page.props.flash?.status === 'phone-verification-sent' && !$page.props.flash?.debugCode" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-        Código enviado. Revisa tu WhatsApp.
+      <!-- Estado REAL del envío: lo decide la respuesta del servidor, nunca se da por hecho. «Aceptado» significa que
+           WhatsApp recibió el mensaje para entregarlo, no que ya esté en el teléfono. -->
+      <div aria-live="polite">
+        <div v-if="sendState === 'preparing' || sendState === 'sending'" class="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
+          {{ sendState === 'preparing' ? 'Preparando tu código…' : 'Enviando tu código por WhatsApp…' }}
+        </div>
+        <div v-else-if="sendState === 'failed'" role="alert" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <p>{{ $page.props.errors.phone }}</p>
+          <button v-if="canRetry" type="button" class="mt-2 font-semibold underline underline-offset-4 disabled:opacity-50" :disabled="busy" @click="resend">Reintentar envío</button>
+        </div>
+        <div v-else-if="sendState === 'accepted' && !$page.props.flash?.debugCode" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          WhatsApp aceptó el envío. El código debería llegarte en unos segundos; si tu teléfono no tiene conexión, llegará cuando la recupere.
+        </div>
+        <div v-else-if="sendState === 'pending'" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          Ya te enviamos un código hace poco y sigue vigente. Revisa tu WhatsApp.
+        </div>
       </div>
       <div v-if="$page.props.flash?.debugCode" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
         <p class="font-semibold mb-1">Modo desarrollo</p>
         <p>Tu código de verificación es: <span class="font-mono text-lg tracking-widest">{{ $page.props.flash.debugCode }}</span></p>
         <p class="text-xs text-amber-700 mt-1">También se intentó enviar por WhatsApp, pero en este entorno la entrega no está garantizada — usa este código si no te llega.</p>
       </div>
-      <div v-if="$page.props.flash?.status === 'phone-already-verified'" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-        Tu número ya está verificado.
+      <div v-if="verified || $page.props.flash?.status === 'phone-already-verified'" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+        Verificación completada: tu número ya está verificado.
       </div>
 
       <form @submit.prevent="verify" class="space-y-4">
@@ -83,12 +97,13 @@
         <form @submit.prevent="resend">
           <button
             type="submit"
-            :disabled="resendForm.processing"
+            :disabled="busy || secondsLeft > 0"
             class="text-sm text-brand-600 hover:underline disabled:opacity-50"
           >
-            Reenviar código
+            {{ secondsLeft > 0 ? `Reenviar código (${secondsLeft} s)` : 'Reenviar código' }}
           </button>
         </form>
+        <p v-if="$page.props.errors.resend" class="text-xs text-red-500 mt-1">{{ $page.props.errors.resend }}</p>
       </div>
 
       <p class="mt-4 text-center text-xs text-gray-500">
@@ -101,23 +116,75 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Link, useForm, usePage } from '@inertiajs/vue3'
 
 const props = defineProps({
   phone: String,
   available: { type: Boolean, default: false },
+  hasPhone: { type: Boolean, default: false },
+  verified: { type: Boolean, default: false },
+  pending: { type: Boolean, default: false },
+  cooldown: { type: Number, default: 0 },
+  locked: { type: Boolean, default: false },
 })
 
+const page = usePage()
 const form = useForm({ code: '', whatsapp_notifications: false })
-const alreadyAuthorized = computed(() => usePage().props.auth?.user?.whatsapp_status === 'needs_verification')
+const alreadyAuthorized = computed(() => page.props.auth?.user?.whatsapp_status === 'needs_verification')
 const resendForm = useForm({})
+const autoForm = useForm({ auto: true })
+
+// El primer código se pide solo al abrir la pantalla (mismo endpoint y límites que «Reenviar»). No se pide si ya hay uno
+// vigente, si el número ya está verificado o si no hay teléfono; el servidor vuelve a comprobarlo todo.
+// Cualquier error previo (fallo de envío, intentos agotados, espera) detiene el envío automático: evita bucles al recargar.
+const willAutoSend = props.available && props.hasPhone && !props.verified && !props.pending && !props.locked
+  && !String(page.props.flash?.status ?? '').startsWith('phone-') && Object.keys(page.props.errors ?? {}).length === 0
+  && props.cooldown === 0
+const started = ref(false)
+const busy = computed(() => autoForm.processing || resendForm.processing)
+const canRetry = computed(() => props.hasPhone && !props.verified)
+
+const sendState = computed(() => {
+  if (props.verified) return 'verified'
+  if (busy.value) return 'sending'
+  if (willAutoSend && !started.value) return 'preparing'
+  if (page.props.errors?.phone) return 'failed'
+  const status = page.props.flash?.status
+  if (status === 'phone-verification-sent') return 'accepted'
+  if (status === 'phone-verification-in-progress' || status === 'phone-verification-pending' || props.pending) return 'pending'
+  return 'idle'
+})
+
+const secondsLeft = ref(props.cooldown)
+let timer = null
+function startCountdown(seconds) {
+  secondsLeft.value = seconds
+  clearInterval(timer)
+  if (seconds > 0) {
+    timer = setInterval(() => {
+      secondsLeft.value = Math.max(0, secondsLeft.value - 1)
+      if (secondsLeft.value === 0) clearInterval(timer)
+    }, 1000)
+  }
+}
+watch(() => props.cooldown, startCountdown)
+
+onMounted(() => {
+  startCountdown(props.cooldown)
+  if (willAutoSend) {
+    started.value = true
+    autoForm.post(route('phone.verification.send'), { preserveScroll: true })
+  }
+})
+onUnmounted(() => clearInterval(timer))
 
 function verify() {
   form.post(route('phone.verification.verify'))
 }
 
 function resend() {
-  resendForm.post(route('phone.verification.send'))
+  if (busy.value) return
+  resendForm.post(route('phone.verification.send'), { preserveScroll: true })
 }
 </script>

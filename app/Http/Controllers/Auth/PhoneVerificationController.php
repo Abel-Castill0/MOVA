@@ -7,6 +7,7 @@ use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,11 @@ class PhoneVerificationController extends Controller
     private const PHONE_RATE_LIMIT_PREFIX = 'whatsapp-otp-phone:';
     private const PHONE_RATE_LIMIT_MAX = 5;
     private const PHONE_RATE_LIMIT_DECAY_SECONDS = 3600;
+    // Espera mínima entre dos códigos aceptados: evita que un doble clic o un «Reenviar» inmediato invaliden el código que
+    // acaba de salir (cada código nuevo reemplaza al anterior).
+    private const RESEND_COOLDOWN_SECONDS = 30;
+    private const SENT_KEY = 'phone-otp-sent:';
+    private const COOLDOWN_KEY = 'phone-otp-cooldown:';
 
     /**
      * C-P1-PHONE-VERIFICATION — ¿puede completarse hoy la verificación? El
@@ -38,16 +44,45 @@ class PhoneVerificationController extends Controller
 
     public function show(Request $request): Response
     {
+        $user = $request->user();
+
+        // Esta vista (GET) nunca envía: la pantalla pide el primer código por POST al montarse (`auto`), con los mismos
+        // controles que «Reenviar código». `pending` evita un segundo código al recargar mientras el anterior sigue vigente.
         return Inertia::render('Auth/PhoneVerification', [
-            'phone' => $this->maskPhone($request->user()->phone),
+            'phone' => $this->maskPhone($user->phone),
             'available' => self::isAvailable(),
+            'hasPhone' => filled($user->phone),
+            'verified' => $user->phone_verified_at !== null,
+            'pending' => $this->hasLiveCode($user),
+            'cooldown' => $this->cooldownRemaining($user),
+            // Intentos agotados con el código aún vigente: no se pide otro automáticamente (send() lo rechazaría).
+            'locked' => $user->phone_verification_attempts >= self::MAX_ATTEMPTS
+                && $user->phone_verification_expires_at && now()->lt($user->phone_verification_expires_at),
         ]);
     }
 
+    /**
+     * Único punto de envío del OTP: lo usan el primer envío automático (`auto=1`, al abrir la pantalla) y «Reenviar código».
+     * Un bloqueo por usuario serializa clics y pestañas simultáneas; `auto` nunca reemplaza un código vigente ya aceptado.
+     */
     public function send(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        // 45 s > peor caso del camino WAHA (cupo 5 s + sesión 8 s + envío 12 s): el bloqueo no caduca con un envío en vuelo.
+        $lock = Cache::lock('phone-otp-send:'.$request->user()->id, 45);
+        if (! $lock->get()) {
+            return back()->with('status', 'phone-verification-in-progress');
+        }
 
+        try {
+            // refresh(): dentro del bloqueo se decide con el estado ya guardado por un envío concurrente.
+            return $this->sendLocked($request->user()->refresh(), $request->boolean('auto'));
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function sendLocked(User $user, bool $auto): RedirectResponse
+    {
         // Antes: se generaba el código, se consumía el límite por número y se
         // respondía "intenta de nuevo en unos minutos" — un fallo presentado
         // como pasajero que nunca se resolvería.
@@ -77,6 +112,16 @@ class PhoneVerificationController extends Controller
             return back()->withErrors(['phone' => 'Este número de teléfono ya está verificado en otra cuenta de MOVA.']);
         }
 
+        // Primer envío automático idempotente y espera entre códigos (no consumen el límite por número).
+        if ($auto && $this->hasLiveCode($user)) {
+            return back()->with('status', 'phone-verification-pending');
+        }
+        if (($wait = $this->cooldownRemaining($user)) > 0) {
+            return $auto
+                ? back()->with('status', 'phone-verification-pending')
+                : back()->withErrors(['resend' => "Acabamos de enviarte un código. Espera {$wait} s antes de pedir otro."]);
+        }
+
         // El throttle:3,1 de la ruta es POR USUARIO AUTENTICADO — no protege
         // contra alguien creando N cuentas distintas para mandar mensajes al
         // MISMO número de teléfono (el número en sí no está verificado
@@ -99,14 +144,30 @@ class PhoneVerificationController extends Controller
 
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        $user->update([
+        // Escritura condicionada al teléfono leído: si el perfil lo cambió mientras tanto, este código (que iría al número
+        // anterior) no se guarda ni se envía, así no puede verificar un número distinto del que lo recibió.
+        $expiresAt = now()->addMinutes(self::CODE_TTL_MINUTES);
+        $stored = User::whereKey($user->id)->where('phone', $user->phone)->whereNull('phone_verified_at')->update([
             'phone_verification_code_hash'   => Hash::make($code),
-            'phone_verification_expires_at'  => now()->addMinutes(self::CODE_TTL_MINUTES),
+            'phone_verification_expires_at'  => $expiresAt,
             'phone_verification_attempts'    => 0,
         ]);
+        if ($stored !== 1) {
+            return back()->withErrors(['phone' => 'Tu número cambió mientras preparábamos el código. Vuelve a intentarlo.']);
+        }
+        $user->refresh();
 
         RateLimiter::hit($phoneRateLimitKey, self::PHONE_RATE_LIMIT_DECAY_SECONDS);
         $sent = $this->sendWhatsAppCode($normalized, $code, $user->name, $user->id);
+
+        if ($sent) {
+            Cache::put(self::SENT_KEY.$user->id, 1, $user->phone_verification_expires_at);
+            Cache::put(self::COOLDOWN_KEY.$user->id, now()->addSeconds(self::RESEND_COOLDOWN_SECONDS)->getTimestamp(), self::RESEND_COOLDOWN_SECONDS);
+        } else {
+            // Sin aceptación del proveedor no hay espera: la persona puede reintentar ya (sujeta a los límites de arriba).
+            // El código guardado no se borra: si el resultado fue incierto podría haber llegado.
+            Cache::forget(self::SENT_KEY.$user->id);
+        }
 
         // En local/testing mostramos el código siempre, sin depender de $sent:
         // el proveedor puede "aceptar" el envío (sendTemplate() no lanza) y
@@ -122,7 +183,7 @@ class PhoneVerificationController extends Controller
 
         if (!$sent) {
             return back()->withErrors(['phone' =>
-                'No se pudo enviar el código por WhatsApp en este momento. Intenta de nuevo en unos minutos.'
+                'No pudimos confirmar el envío del código por WhatsApp. Si no te llega en un minuto, pulsa «Reintentar envío».'
             ]);
         }
 
@@ -209,6 +270,9 @@ class PhoneVerificationController extends Controller
             ]);
         }
 
+        Cache::forget(self::SENT_KEY.$user->id);
+        Cache::forget(self::COOLDOWN_KEY.$user->id);
+
         if ($optedInHere) {
             try {
                 \App\WhatsApp\WhatsAppConsent::log($user, 'opt_in', 'phone_verification');
@@ -282,6 +346,27 @@ class PhoneVerificationController extends Controller
         // whatsapp_messages sin dejar el OTP en un campo de auditoría.
         return app(\App\WhatsApp\Contracts\WhatsAppProviderContract::class)
             ->sendTemplate($to, 'phone_verification_code', [$code], "phone_verification:{$userId}");
+    }
+
+    /** Hay un código aceptado por el proveedor, sin caducar y con intentos disponibles. */
+    private function hasLiveCode(User $user): bool
+    {
+        return Cache::has(self::SENT_KEY.$user->id)
+            && $user->phone_verification_code_hash
+            && $user->phone_verification_expires_at
+            && now()->lt($user->phone_verification_expires_at)
+            && $user->phone_verification_attempts < self::MAX_ATTEMPTS;
+    }
+
+    private function cooldownRemaining(User $user): int
+    {
+        // Sin código guardado (p. ej. tras cambiar el teléfono) no hay nada que proteger: no se hace esperar.
+        if (! $user->phone_verification_code_hash) {
+            return 0;
+        }
+        $until = (int) Cache::get(self::COOLDOWN_KEY.$user->id, 0);
+
+        return max(0, $until - now()->getTimestamp());
     }
 
     private function maskPhone(?string $phone): string
