@@ -25,7 +25,9 @@ class ClassReminderNotification extends Notification implements ShouldQueue
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
-        if ($notifiable->phone_verified_at) {
+        // WhatsApp solo para el aviso de 24 h y el de 2 h: el de 10 min duplicaría el de 2 h a pocos minutos de la clase (volumen/riesgo de
+        // restricción de la línea). Correo y notificación interna se mantienen en los tres avisos.
+        if ($notifiable->phone_verified_at && $this->interval !== '10m') {
             $channels[] = \App\Channels\WhatsAppChannel::class;
         }
         return $channels;
