@@ -65,7 +65,7 @@ class ClassConfirmedNotification extends Notification implements ShouldQueue
             . "Fecha: {$date}\n"
             . "Duración: {$this->lesson->duration_minutes} min\n"
             . "Entre a la sala desde MOVA: " . $this->classListUrl($notifiable) . "\n\n"
-            . "Recibirá un recordatorio 10 minutos antes.";
+            . "Recibirá recordatorios antes de la clase.";
     }
 
     public function toArray($notifiable): array

@@ -47,11 +47,11 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
 
     public function toWhatsApp($notifiable): string
     {
-        $student = $this->classRequest->student->full_name;
+        // Sin el nombre del alumno (menor de edad): WhatsApp es un canal externo; el detalle se ve dentro de MOVA.
         $subject = $this->classRequest->subject->name;
 
         return "MOVA — Nueva solicitud de clase\n\n"
-            . "{$student} ha solicitado una clase de {$subject}.\n"
+            . "Hay una solicitud de clase de {$subject} pendiente de su aprobación.\n"
             . "Ingrese a MOVA para aprobarla o rechazarla:\n"
             . $this->appRoute('class-requests.index');
     }

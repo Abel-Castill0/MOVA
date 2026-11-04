@@ -122,7 +122,7 @@ final class WahaAdminPanel
             'lastConnectedAt' => WahaSessionState::lastWorkingAt()?->toIso8601String(),
             'server' => ['reachable' => $info !== null && $info['ok']],
             'environment' => [
-                'label' => (string) config('services.waha.environment_label', 'piloto'),
+                'label' => (string) config('services.waha.environment_label', 'producción'),
                 'pilotExpiresAt' => $this->pilotExpiresAt(),
             ],
             'notifications' => [
@@ -214,7 +214,7 @@ final class WahaAdminPanel
         $monthly = config('services.waha.infra_monthly_usd');
 
         return [
-            'type' => (string) config('services.waha.infra_label', 'VM Azure ARM64 (piloto)'),
+            'type' => (string) config('services.waha.infra_label', 'VM Azure ARM64'),
             'monthlyUsd' => is_numeric($monthly) ? (float) $monthly : null,
             'pilotExpiresAt' => $this->pilotExpiresAt(),
         ];
@@ -367,7 +367,7 @@ final class WahaAdminPanel
             return 'No hay destinatario de prueba configurado.';
         }
         if (! $this->isAllowlisted($recipient)) {
-            return 'El destinatario de prueba no está en la lista autorizada del piloto.';
+            return 'El destinatario de prueba no está en la lista autorizada.';
         }
         if (! WahaSessionState::hasContacted($recipient)) {
             $mustInitiate = (bool) config('services.waha.require_user_initiated', true);

@@ -17,7 +17,7 @@
              equivocado que ocurriría si esto se hiciera desde Vue montado.
              Debe ser el mismo storage key y la misma lógica que
              resources/js/composables/useTheme.js (fuente única de verdad). -->
-        <script>
+        <script nonce="{{ Vite::cspNonce() }}">
             (function () {
                 try {
                     var stored = window.localStorage.getItem('mova-theme');
@@ -38,7 +38,7 @@
         <link rel="preload" href="/fonts/PlusJakartaSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
         <link rel="preload" href="/fonts/PlusJakartaSans-ExtraBold.woff2" as="font" type="font/woff2" crossorigin>
 
-        @routes
+        @routes(nonce: Vite::cspNonce())
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
     </head>

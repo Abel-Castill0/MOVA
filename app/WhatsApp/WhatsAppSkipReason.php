@@ -58,7 +58,7 @@ enum WhatsAppSkipReason: string
             self::OptOut => 'sin consentimiento (opt-out o nunca opt-in)',
             self::Suspended => 'cuenta suspendida',
             self::AccountClosed => 'cuenta cerrada',
-            self::NotAllowlisted => 'destinatario fuera de la lista autorizada del piloto',
+            self::NotAllowlisted => 'destinatario fuera de la lista autorizada',
             self::RateLimited => 'límite diario de mensajes por destinatario',
             self::NotInitiated => 'el destinatario aún no ha escrito al número de MOVA (WhatsApp restringe iniciar chats)',
             self::WarmingUp => 'número recién vinculado en calentamiento (solo se responde a quien escribió primero)',

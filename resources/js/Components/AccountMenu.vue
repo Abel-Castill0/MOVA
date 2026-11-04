@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
-import { roleLabel } from '@/utils/roleLabels'
+import { primaryRole, roleLabel } from '@/utils/roleLabels'
 defineProps({ compact: Boolean, placement: { type: String, default: 'up' } })
 const emit = defineEmits(['navigate'])
 const user = computed(() => usePage().props.auth?.user)
@@ -30,7 +30,7 @@ onUnmounted(() => document.removeEventListener('pointerdown', outside))
     <button ref="trigger" type="button" aria-label="Menú de mi cuenta" aria-haspopup="menu" :aria-expanded="open" @click="toggle" @keydown.down.prevent="!open && toggle()" @keydown.esc="close(true)" class="flex min-h-11 w-full items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white/80 p-2 text-left transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
       <img v-if="user?.avatar_url" :src="user.avatar_url" alt="" width="36" height="36" class="h-9 w-9 shrink-0 rounded-xl object-cover" />
       <span v-else :class="teacher ? 'bg-orange-600' : 'bg-brand-600'" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold text-white">{{ user?.name?.charAt(0)?.toUpperCase() }}</span>
-      <span v-if="!compact" class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-slate-900">{{ user?.name }}</span><span class="block truncate text-xs text-slate-500">{{ roleLabel(user?.roles?.[0]) }}</span></span><span v-if="!compact" aria-hidden="true" class="text-slate-400">⌄</span>
+      <span v-if="!compact" class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-slate-900">{{ user?.name }}</span><span class="block truncate text-xs text-slate-500">{{ roleLabel(primaryRole(user?.roles)) }}</span></span><span v-if="!compact" aria-hidden="true" class="text-slate-400">⌄</span>
     </button>
     <Transition enter-active-class="transition duration-150 motion-reduce:transition-none" enter-from-class="opacity-0 translate-y-1" leave-active-class="transition duration-100 motion-reduce:transition-none" leave-to-class="opacity-0">
       <div v-if="open" ref="panel" role="menu" aria-label="Mi cuenta" @keydown="keys" :class="placement === 'up' ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2'" class="absolute z-[60] w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">

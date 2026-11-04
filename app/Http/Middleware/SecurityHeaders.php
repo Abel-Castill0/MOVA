@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -17,6 +18,10 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Nonce por petición para los únicos <script> en línea propios (tema y rutas de Ziggy) y las etiquetas de Vite:
+        // así la política Report-Only deja de reportarlos sin recurrir a 'unsafe-inline'.
+        $nonce = Vite::useCspNonce();
+
         $response = $next($request);
 
         $headers = $response->headers;
@@ -35,7 +40,7 @@ class SecurityHeaders
         // Activar una CSP ejecutable exige recolectar y validar los reportes
         // en staging, construir la allowlist real y pasar regresión E2E.
         if (! $headers->has('Content-Security-Policy-Report-Only')) {
-            $headers->set('Content-Security-Policy-Report-Only', "script-src 'self'; script-src-attr 'none'");
+            $headers->set('Content-Security-Policy-Report-Only', "script-src 'self' 'nonce-{$nonce}'; script-src-attr 'none'");
         }
 
         if (app()->environment('production') && $request->isSecure()) {

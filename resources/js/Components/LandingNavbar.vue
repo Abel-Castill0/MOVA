@@ -238,7 +238,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
-import { roleLabel } from '@/utils/roleLabels'
+import { primaryRole, roleLabel } from '@/utils/roleLabels'
 
 const props = defineProps({
   solid: { type: Boolean, default: false },
@@ -250,7 +250,7 @@ const userMenuOpen = ref(false)
 const userMenuRef = ref(null)
 
 const user = computed(() => usePage().props.auth?.user)
-const roleLabelText = computed(() => roleLabel(user.value?.roles?.[0]))
+const roleLabelText = computed(() => roleLabel(primaryRole(user.value?.roles)))
 const isSolid = computed(() => props.solid || scrolled.value)
 
 function onDocumentClick(e) {

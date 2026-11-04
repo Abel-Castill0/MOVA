@@ -40,7 +40,7 @@ return [
         'session' => env('WAHA_DEFAULT_SESSION', 'default'),
         // Clave con la que WAHA firma cada webhook (HMAC-SHA512 del cuerpo bruto). Sin ella el webhook rechaza todo.
         'hmac_key' => env('WAHA_HOOK_HMAC_KEY'),
-        // Piloto: lista separada por comas de números autorizados (con o sin +). Si NO está vacía, MOVA no envía a nadie más.
+        // Lista separada por comas de números autorizados (con o sin +). Si NO está vacía, MOVA no envía a nadie más.
         'allowed_recipients' => env('WAHA_ALLOWED_RECIPIENTS'),
         // Frenos anti-ráfaga (el número es no oficial: ritmo bajo y humano).
         'rate_per_minute' => (int) env('WAHA_RATE_PER_MINUTE', 8),
@@ -59,7 +59,7 @@ return [
         'admin_test_recipient' => env('WAHA_ADMIN_TEST_RECIPIENT'),
         // Número dedicado de MOVA que DEBE quedar vinculado; si WAHA conecta otro, el panel lo marca como incorrecto.
         'expected_number' => env('WAHA_EXPECTED_NUMBER'),
-        // Etiqueta del entorno que muestra el panel (piloto, staging, producción) y caducidad informativa del piloto.
+        // Etiqueta del entorno que muestra el panel (producción, staging, piloto) y caducidad informativa (solo si el servidor es un piloto temporal).
         // Política anti-restricción: WhatsApp penaliza a los clientes no oficiales que inician chats con desconocidos y puede
         // revocar la vinculación y aplicar un «reachout timelock». Con require_user_initiated=true MOVA SOLO escribe a quien ya
         // escribió primero al número (alta por «escribe ACTIVAR»); si no, durante warmup_minutes tras vincular no se inicia
@@ -73,9 +73,9 @@ return [
         // true cuando los respaldos cifrados se copian FUERA de la VM (si no, mueren con ella). Solo informativo para el panel.
         'backup_off_vm' => (bool) env('WAHA_BACKUP_OFF_VM', false),
         // Solo informativo para el panel (no cambia el comportamiento).
-        'infra_label' => env('WAHA_INFRA_LABEL', 'VM Azure ARM64 (piloto)'),
+        'infra_label' => env('WAHA_INFRA_LABEL', 'VM Azure ARM64'),
         'infra_monthly_usd' => env('WAHA_INFRA_MONTHLY_USD'),
-        'environment_label' => env('WAHA_ENV_LABEL', 'piloto'),
+        'environment_label' => env('WAHA_ENV_LABEL', 'producción'),
         'pilot_expires_at' => env('WAHA_PILOT_EXPIRES_AT'),
     ],
 
