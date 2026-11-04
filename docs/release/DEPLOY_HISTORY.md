@@ -4,6 +4,12 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (6) — configuración (sin cambio de imagen): Culqi live cableado, compras cerradas
+
+- web `0000049`, scheduler `0000049` → `0000050`: `CULQI_ENV=live`, `CULQI_PUBLIC_KEY`, `CULQI_SECRET_KEY`/`CULQI_WEBHOOK_SECRET` por `secretRef` a Key Vault, `CULQI_METHODS=card`, `CULQI_WEBHOOKS_ENABLED=true`. `PAYMENT_PROVIDER` sigue en `mercadopago`, así que no hay compras nuevas.
+- Verificado: `culqi:diagnose` coherente en ambos roles; GET live desde los contenedores → 200; webhook 401 con token ajeno y 400 con la URL registrada y cuerpo vacío; `/readyz` 200.
+- Rollback: `az containerapp update --remove-env-vars CULQI_ENV CULQI_PUBLIC_KEY CULQI_SECRET_KEY CULQI_WEBHOOK_SECRET CULQI_METHODS CULQI_WEBHOOKS_ENABLED` en cada app.
+
 ## 2026-11-04 (5) — `1b53d68` → producción — primer OTP automático al abrir «Verificar mi teléfono»
 
 - Causa: el GET `verify-phone` nunca generaba ni enviaba el código; solo «Reenviar código» (POST) lo hacía. Ahora la pantalla pide el primer código al montarse con el mismo `send()` (bloqueo por usuario, sin reemplazar un código vigente, espera de 30 s entre códigos aceptados, hash condicionado al teléfono). Suite 1840 OK, CI verde, revisión de seguridad apta con condiciones (corregidas).

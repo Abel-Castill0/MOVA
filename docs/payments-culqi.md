@@ -416,3 +416,23 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
 - **Qué sigue bloqueado (de §14.1):** B-1 alojamiento comercial (Azure for Students, decisión del titular), B-3 medios de pago live habilitados (hay que verlo en CulqiPanel), B-4 registrar los 5 webhooks de producción en CulqiPanel, B-6 PCI/SAQ con Culqi, B-7 Yape y órdenes sin validar de extremo a extremo.
 - **Código:** desde el despliegue `620244c` producción incluye la conciliación de 3DS vencido, la detección de fallos de conciliación y `refunded_at` (migración aplicada). Conectividad Azure → Culqi: sin probar desde un contenedor de producción.
 - **Siguiente paso técnico cuando se levante B-1:** seguir §14.10 con las variables de §14.2 (`CULQI_ENV=live`, `CULQI_PUBLIC_KEY`, `CULQI_SECRET_KEY` y `CULQI_WEBHOOK_SECRET` por `secretRef` a los dos secretos nuevos, `CULQI_WEBHOOKS_ENABLED=true`, `CULQI_METHODS=card`), `culqi:diagnose --remote`, registro de webhooks, y **una** compra live autorizada (paquete Inicio, S/10.00 = 1000 céntimos) antes de `PAYMENT_PROVIDER=culqi`.
+
+## 18. Estado a 2026-11-04: Culqi live cableado en producción, compras aún cerradas
+
+- **Hecho y verificado:**
+  - Llaves locales `pk_live_`/`sk_live_` (24 caracteres, sin espacios).
+  - `sk_live` autentica contra la API (HTTP 200, comercio con 0 cargos); `pk_live` como secreta da 401.
+  - `movap-web` y `movap-scheduler` tienen `CULQI_ENV=live`, `CULQI_PUBLIC_KEY` (pk_live, valor plano), `CULQI_SECRET_KEY` → `secretRef` a `culqi-secret-key` y `CULQI_WEBHOOK_SECRET` → `secretRef` a `culqi-webhook-secret` (Key Vault `kv-movap-192f01`, identidad `mova-apps-identity`), `CULQI_METHODS=card` y `CULQI_WEBHOOKS_ENABLED=true` (web y scheduler).
+  - `culqi:diagnose` en ambos roles: «Configuración coherente», modo live.
+  - **Conectividad Azure → Culqi live probada desde los contenedores** (GET de solo lectura con la llave de Key Vault: HTTP 200). B-5 queda cerrado.
+  - Receptor del webhook activo: token incorrecto → 401; la URL de `C:\Users\TK\.mova-secrets\culqi-live-webhook-url.txt` → 400 con cuerpo vacío. Eso prueba que el secreto de la URL coincide con Key Vault; no prueba que Culqi entregue eventos.
+- **Sin cambiar:** `PAYMENT_PROVIDER=mercadopago` y `MERCADOPAGO_NEW_PAYMENTS_ENABLED` ausente (false). Ningún profesor puede comprar y la pantalla muestra «Pago en línea en activación», que es el estado real.
+- **Bloqueos que siguen:**
+  - **B-1 (titular).** Términos releídos el 2026-11-04: la oferta es *"intended to support your education, non-commercial research"*. Para cobrar hay que pasar la suscripción a pago por uso. Coste estimado ≈ US$ 45/mes sin beneficios (≈ 21-24 si los beneficios gratuitos sobreviven; no verificado). Es necesario de todos modos antes de que se agote el crédito, a fines de diciembre.
+  - **B-3 y B-4 (titular, CulqiPanel).** Ni el navegador integrado (sin permiso para `*.culqi.com`) ni Claude in Chrome (no conectado) pueden abrir CulqiPanel.
+  - **B-6.** Confirmación PCI/SAQ con Culqi.
+- **Activación cuando se levante B-1:**
+  1. `PAYMENT_PROVIDER=culqi` y `CULQI_CHECKOUT_ALLOWLIST=<correo del profesor del titular>` en web y scheduler.
+  2. Compra live única del paquete Inicio (1000 céntimos), que paga el titular; verificar cargo, depósito único y webhook.
+  3. Quitar la allowlist.
+- **Rollback:** `PAYMENT_PROVIDER=mercadopago` (las compras se cierran; Culqi sigue conciliando porque el webhook y la llave siguen cargados). Para quitar Culqi por completo: borrar las variables `CULQI_*`, cuando no queden órdenes Culqi abiertas.
