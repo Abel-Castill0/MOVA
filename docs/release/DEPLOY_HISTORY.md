@@ -8,7 +8,7 @@
 
 - Imagen `sha256:224fdaac75ac1e35a8d52d38f6be530ba1fbe859b69e0f64d778ded9ce169814` (tag `img-symfony-patch-20261104`); scheduler `0000052` y web `0000051` Healthy; sin migraciones. CI verde: el intento anterior (`975d9a9`) falló en `composer audit` por avisos de Symfony publicados ese día; se subió a 7.4.23 (solo parches). Suite 1850 OK.
 - Incluye `culqi:activation-check` y `infra/azure/culqi-live-activation.sh` (guía `ACTIVAR_CULQI_EN_AZURE.md`).
-- Secreto del webhook rotado con la herramienta: la URL nueva → 400, la anterior → 401 (revocada). Falta pegarla en las 5 entradas de CulqiPanel.
+- Secreto del webhook rotado dos veces con la herramienta (la segunda, por una captura parcial): la URL vigente → 400, las anteriores → 401. Las 5 entradas de CulqiPanel coinciden con la vigente (comprobado por SHA-256, sin mostrarla). Revisiones: scheduler `0000054`, web `0000053`.
 - `CREDITS_VERIFICATION_PACKAGE_ENABLED=true` (resto de la etapa de Mercado Pago) retirado de ambas apps → scheduler `0000053`, web `0000052`.
 - Diagnóstico final: `RESULTADO: LISTO`, `ESTADO: PREPARADO (compras nuevas cerradas)`; única falla: suscripción Azure for Students.
 - Rollback: imagen `sha256:283d103d…`.
