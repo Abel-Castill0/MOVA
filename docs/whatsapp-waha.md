@@ -168,3 +168,10 @@ que no se puede comprobar antes de crear la VM).
 
 Protocolo no oficial (riesgo de bloqueo del número y de términos de WhatsApp); Azure for Students es no comercial;
 una VM única sin alta disponibilidad. La vía oficial es Meta Cloud API (ya implementada, `WHATSAPP_PROVIDER=meta`).
+
+## Estado a 2026-11-03
+
+- **El piloto ya no existe:** el *janitor* borró el grupo `mova-waha-pilot-rg` a la hora prevista (VM, disco, IP, VNet, peering). Verificado: no hay VMs en la suscripción; lo único que queda del tema es la identidad del janitor (`mova-waha-janitor-rg`, sin costo). El respaldo cifrado vivía solo en esa VM: **la sesión de WhatsApp se perdió** y hay que volver a vincular el +51 905 922 835 en un alojamiento nuevo. `WAHA_BASE_URL` sigue apuntando a la IP del piloto; el vigilante avisa por correo «WAHA no responde» (una vez por episodio).
+- **Bloqueado por decisión del titular:** alojamiento permanente (US$6–12/mes o Cloud API; ver `whatsapp-waha-costos-migracion.md`) y que la suscripción Azure for Students no es de uso comercial (misma decisión que Culqi, `payments-culqi.md` §14.1 B-1).
+- **Recordatorios por WhatsApp:** solo los de 24 h y 2 h (commit `620244c`); el de 10 min sigue por correo e in-app. El requisito de «1 h» se cubre con el de 2 h (existente) para no cambiar los marcadores `reminder_*_sent_at` ni la lógica de reclamo.
+- **Eventos:** todos los del catálogo siguen cableados a `WhatsAppChannel`; sin WAHA conectado no hay pruebas reales de envío. `WHATSAPP_ENABLED=false` en producción.

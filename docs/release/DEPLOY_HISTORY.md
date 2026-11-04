@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-03 (2) — `620244c` → producción — Nivel 1: master (PR #6–#15 de Abel + correo + recordatorios) con pagos y WhatsApp apagados
+
+- Imagen: tag `img-level1-20261103`, `ghcr.io/abel-castill0/mova@sha256:6abdd2d3cad9254d7d8ff07e4af018565fc4d27996ba774e823065d567bcaeb8`. CI e imagen en verde; suite completa 1827 OK (25 omitidas, perfil SQLite). Revisión de seguridad de solo lectura previa: apto con la condición de migrar antes de servir tráfico.
+- Orden seguido: (1) `movap-scheduler` `0000044` (sin tráfico web; procesa la cola y no toca las tablas nuevas), (2) `php artisan migrate --force` dentro de su réplica (`az containerapp exec` con terminal real y `--command` sin comillas anidadas): `2026_11_02_000001_create_class_request_teacher_declines_table` y `2026_11_02_000002_add_refunded_at_to_payment_orders_table`, ambas aditivas; (3) `movap-web` `0000044`. `/readyz`, `/login` y `/healthz` 200.
+- Sin cambios de comportamiento comercial: `PAYMENT_PROVIDER=mercadopago` (sin compras nuevas: `MERCADOPAGO_NEW_PAYMENTS_ENABLED` sin definir), cero variables `CULQI_*` en las apps, `WHATSAPP_ENABLED=false`.
+- Rollback: `ghcr.io/abel-castill0/mova@sha256:9a463681b4299143e45c1bfc890740355b172faf016f4e5571a3710fbc0102ad` en web y scheduler; las dos migraciones pueden quedarse (el código anterior no las usa).
+
 ## 2026-11-03 — configuración de correo → Resend (sin cambio de imagen)
 
 - `movap-web` y `movap-scheduler` `0000043`: `MAIL_HOST=smtp.resend.com`, `MAIL_FROM_ADDRESS=notificaciones@movaeduca.me`; secretos `mail-username`/`mail-password` con nueva versión en Key Vault. Imagen sin cambios (`sha256:9a463681…`). DNS y reenvíos en Namecheap. Detalle y rollback: `docs/email-deliverability.md` §8.
