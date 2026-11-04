@@ -117,3 +117,31 @@ Autorizar la opción D: **≈ US$ 21-24/mes** con los beneficios actuales (≈ U
 - Respaldo cifrado **diario** (03:30 UTC) a `movawahabak8335a575/waha-session-backups` (fuera de la VM; solo corre con la sesión en `WORKING`; conserva 7).
 - Verificado: docker y waha habilitados, política `unless-stopped`, API 200 dentro de la VM, y `mova:waha-check` desde `movap-web` y `movap-scheduler`: «Alcanzable». La sesión espera vinculación (WAHA pasa a `FAILED` si nadie escanea el QR en unos minutos; el panel la reinicia).
 - **Pendiente:** vincular por QR (titular), pruebas de persistencia con sesión real y **comprobar en Cost Management a las 48 h** que el cómputo `B2pts v2` y el disco P6 facturan 0 (si el disco factura, cambiar a E4 = US$ 2,64/mes).
+
+## I. Alojamiento comercial al menor costo (2026-11-04)
+
+**Datos reales.**
+- Cost Management, 28-oct a 4-nov: **US$ 6,70** en total. El gasto bajó de ~1,4–1,6 a ~0,46–0,64 US$/día tras la fase 1.
+- Por recurso en esos 7 días: scheduler 1,31; ACR 1,18 (ya eliminado); web 0,94; `movaqastg225258` 0,89 (eliminado hoy tras verificar su respaldo idéntico); `movaqa-culqi` 0,88 (detenido); IP de ACA 0,86; DNS privado 0,14; Key Vault 0,04; MySQL 0,03 (franquicia).
+- **Ritmo con los beneficios actuales ≈ US$ 18/mes:** web ≈ 4,0 · scheduler ≈ 5,6 · IP de ACA 3,7 · IP de WAHA 3,65 · DNS ≈ 0,6 · resto < 0,5. La VM `B2pts v2` y MySQL `B1ms` salen gratis por franquicia; el disco P6 de WAHA, *no verificado aún en factura*.
+
+**Términos.** Azure for Students es *"intended to support your education, non-commercial research"*. Al pasar a pago por uso, Microsoft indica: *"your subscription still has access to free services for 12 months from your sign-up date"* ([fuente](https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/azurestudents-subscription-disabled)). Sobre el saldo no gastado no hay declaración oficial: hay que confirmarlo con soporte de facturación (gratuito) antes de actualizar.
+
+**Precios de lista (Retail Prices API, 2026-11-04):**
+- VMs Linux (northcentralus): `B2pts v2` 6,13; `B2ats v2` 6,86; `B2pls v2` (4 GB) 24,53.
+- MySQL `B1ms` (mexicocentral): 13,65 + 32 GB × 0,1265 = 17,7.
+- Discos: P6 10,21 · E6 4,80 · E4 2,40.
+
+| Opción | Mientras duren las franquicias (hasta ~12 meses desde el alta) | Después | Migración | Riesgo |
+|---|---|---|---|---|
+| **A. Actualizar esta suscripción a pago por uso** | **≈ US$ 18/mes** (mismo diseño) | ≈ 36–44 (≈ 36 con disco E4 en WAHA) | ninguna | posible pérdida del saldo restante (≤ US$ 38; confirmar con soporte) |
+| B. Mantener Students para QA y crear una suscripción comercial nueva | ≈ US$ 44/mes desde el primer día (sin franquicias de estudiante) | ≈ 44 | MySQL (volcado y restauración), ACA, Key Vault, identidad, DNS y la VM de WAHA (riesgo de revincular WhatsApp); 1–2 semanas de costo duplicado ≈ US$ 10–20 | alto |
+| Consolidar MOVA en la VM de WAHA | la VM actual tiene 1 GB y WAHA usa ~490 MB: no cabe | `B2pls v2` 4 GB = 24,5 + disco > ACA actual (≈ 13) | rediseño | medio |
+
+**Recomendación: A.** Es la única que cumple la meta de US$ 15–25 sin migrar ni tocar la sesión de WhatsApp. Además deja todo (MOVA y WAHA) en una suscripción comercial a la vez.
+
+**Presupuesto creado.** `mova-mensual-25` (US$ 25/mes): alertas al 50, 80 y 100 % real y al 100 % previsto, enviadas a los propietarios. Es solo aviso, no un tope.
+
+**Antes de que acaben las franquicias:**
+- disco de WAHA P6 → E4;
+- revisar si `movap-culqi-net` y las apps detenidas `mova-*` siguen haciendo falta (hoy cuestan 0).
