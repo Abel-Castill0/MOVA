@@ -4,6 +4,12 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (3) — incidente de red WAHA (sin cambio de imagen)
+
+- 07:00:29 UTC: el janitor del piloto (`waha-pilot-janitor`, identidad `mova-waha-janitor`, cron hasta el 4-nov) borró el peering `to-waha` de `mova-vnet` creyéndolo un resto del piloto (el WAHA permanente usa el mismo nombre). Web y scheduler dejaron de alcanzar 10.30.0.4 (timeout); la sesión WAHA siguió en WORKING.
+- Corrección: retirados a esa identidad el rol `MOVA WAHA Pilot Peering Cleaner` (mova-vnet) y `Role Based Access Control Administrator` (Key Vault); solo conserva `Reader`. Peering recreado (`to-waha` / `to-mova`, Connected). Workflow eliminado y scripts del piloto restringidos a peerings que apunten a `mova-waha-pilot-rg`.
+- Impacto: 3 avisos de la sonda quedaron `unknown` por timeout de conexión (no llegaron a salir) y 2 `failed`; sin usuarios afectados (etapa 1, solo número autorizado).
+
 ## 2026-11-04 (2) — `7a19d6e` → producción — consentimiento de WhatsApp en el registro, sin «ACTIVAR»
 
 - Imagen `ghcr.io/abel-castill0/mova@sha256:b7c39da0b6120cbb91fa8d880bd8f8d8a2f40c56a2dfa7e9c7dd617bb23d7836` (tag `img-consent-20261104`). CI verde (el primer intento falló porque `.env.example` aún traía `WAHA_REQUIRE_USER_INITIATED=true`; corregido en `7a19d6e`). Suite 1849 OK. Revisión de seguridad: apta con condiciones, hallazgos altos/medios corregidos antes de desplegar.

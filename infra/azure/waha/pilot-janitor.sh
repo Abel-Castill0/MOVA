@@ -12,6 +12,14 @@ set -uo pipefail
 
 FORCE=0; [ "${1:-}" = "--force" ] && FORCE=1
 PILOT_RG="${PILOT_RG:-mova-waha-pilot-rg}"; HUB_RG="${HUB_RG:-mova-prod-rg}"; HUB_VNET="${HUB_VNET:-mova-vnet}"; VM="${VM:-movap-waha}"
+
+# El WAHA PERMANENTE (mova-waha-rg) usa un peering con el MISMO nombre `to-waha`. Solo se toca si apunta a la VNet del piloto:
+# borrar el permanente deja a MOVA sin WhatsApp (incidente del 2026-11-04 07:00 UTC, causado por este mismo janitor).
+pilot_peering() {
+  local remote
+  remote="$(az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha --query remoteVirtualNetwork.id -o tsv 2>/dev/null)" || return 1
+  [ -n "$remote" ] && echo "$remote" | grep -qi "/resourceGroups/${PILOT_RG:-mova-waha-pilot-rg}/"
+}
 FAIL=0
 
 say() { echo "[$(date -u +%FT%TZ)] $*"; [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- $*" >> "$GITHUB_STEP_SUMMARY"; return 0; }
@@ -35,7 +43,7 @@ if [ "$EXISTS" = "true" ]; then
     [ "$EXP_EPOCH" -eq 0 ] && say "AVISO  etiqueta expires-at ausente o ilegible: se trata como caducado (fail-safe)"
     PRINCIPAL="$(az vm show -g "$PILOT_RG" -n "$VM" --query identity.principalId -o tsv 2>/dev/null || true)"
     [ "$FORCE" -eq 1 ] && say "--force: limpiando antes de la caducidad" || say "Caducado: limpiando"
-    if az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha >/dev/null 2>&1; then
+    if pilot_peering; then
       az network vnet peering delete -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha -o none 2>/dev/null && say "peering to-waha eliminado" || say "no pude eliminar el peering to-waha (se verifica abajo)"
     else
       say "peering to-waha: no existía"
@@ -52,7 +60,7 @@ if [ "$EXISTS" = "true" ]; then
   fi
 else
   say "El grupo $PILOT_RG no existe (nada que limpiar); se comprueban restos."
-  if az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha >/dev/null 2>&1; then
+  if pilot_peering; then
     az network vnet peering delete -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha -o none 2>/dev/null && say "peering huérfano to-waha eliminado"
   fi
 fi
@@ -66,7 +74,7 @@ TAGGED="$(az resource list --tag purpose=waha-pilot --query "[].name" -o tsv 2>/
 NAMED="$(az resource list --query "[?starts_with(name,'movap-waha')].{n:name,t:type}" -o tsv 2>/dev/null)"
 [ -z "$NAMED" ] && check "0 recursos movap-waha* (VM, disco, IP, NIC, VNet, NSG) en la suscripción" ok || check "recursos movap-waha* restantes" bad "$(echo "$NAMED" | tr '\t\n' '/ ')"
 
-az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha >/dev/null 2>&1 \
+pilot_peering \
   && check "peering to-waha ausente en $HUB_VNET" bad "sigue existiendo" || check "peering to-waha ausente en $HUB_VNET" ok
 
 if [ -n "$PRINCIPAL" ]; then

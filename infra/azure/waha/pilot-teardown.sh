@@ -12,6 +12,14 @@ export PYTHONUTF8=1 LC_ALL=C.UTF-8   # az (Python) falla con tildes si el locale
 [ -f pilot-state.env ] && . ./pilot-state.env
 PILOT_RG="${PILOT_RG:-mova-waha-pilot-rg}"; HUB_RG="${HUB_RG:-mova-prod-rg}"; HUB_VNET="${HUB_VNET:-mova-vnet}"; KV="${KV:-kv-movap-192f01}"
 
+# El WAHA PERMANENTE (mova-waha-rg) usa un peering con el MISMO nombre `to-waha`. Solo se toca si apunta a la VNet del piloto:
+# borrar el permanente deja a MOVA sin WhatsApp (incidente del 2026-11-04 07:00 UTC, causado por este mismo janitor).
+pilot_peering() {
+  local remote
+  remote="$(az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha --query remoteVirtualNetwork.id -o tsv 2>/dev/null)" || return 1
+  [ -n "$remote" ] && echo "$remote" | grep -qi "/resourceGroups/${PILOT_RG:-mova-waha-pilot-rg}/"
+}
+
 # Guardia: el grupo solo se borra si lleva la etiqueta del piloto (jamás mova-prod-rg ni ningún otro).
 if [ "$(az group exists -n "$PILOT_RG")" = "true" ]; then
   [ "$(az group show -n "$PILOT_RG" --query 'tags.purpose' -o tsv)" = "waha-pilot" ] || { echo "ABORTA: $PILOT_RG no está etiquetado purpose=waha-pilot"; exit 1; }
@@ -23,7 +31,7 @@ else
 fi
 
 echo "[2/4] Peering huérfano en $HUB_VNET (único recurso compartido que el piloto modifica)…"
-if az network vnet peering show -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha >/dev/null 2>&1; then
+if pilot_peering; then
   az network vnet peering delete -g "$HUB_RG" --vnet-name "$HUB_VNET" -n to-waha -o none
 fi
 

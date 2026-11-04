@@ -57,6 +57,10 @@ El peering se cobra en **ambos** sentidos y en **ambos** extremos. El tráfico e
 
 ## Caducidad y limpieza en tres capas independientes
 
+> **Retirado el 2026-11-04.** El janitor borró por error el peering `to-waha` del WAHA **permanente** (mismo nombre). Se eliminó el
+> workflow, la identidad `mova-waha-janitor` quedó solo con `Reader` y `pilot-janitor.sh` / `pilot-teardown.sh` solo tocan un
+> `to-waha` cuyo destino esté en `mova-waha-pilot-rg`. Si se repite un piloto, usar otro nombre de peering.
+
 | Capa | Dónde corre | Cuándo | Qué hace |
 |---|---|---|---|
 | **1. Janitor externo** (principal) | GitHub Actions `waha-pilot-janitor`, OIDC, **fuera de la VM y de Azure Container Apps** | cron cada 15 min en la ventana 29-oct…4-nov-2026, y a mano (`force`) | A las **47 h** (etiqueta `expires-at`): elimina el peering `to-waha`, retira roles temporales y borra `mova-waha-pilot-rg`; después **verifica** y registra |
