@@ -92,3 +92,39 @@ test('campana: región accesible y cierre con Escape sin marcar avisos', async (
   await expect(bell).toBeFocused()
   await expect(bell).toHaveAttribute('aria-expanded', 'false')
 })
+
+test('admin con MFA y profesor mantienen sesiones separadas en contextos de navegador', async ({ browser }) => {
+  // Dos pestañas del mismo perfil comparten la cookie de sesión de Laravel.
+  // Dos BrowserContext equivalen a perfiles aislados: iniciar sesión como
+  // profesor nunca debe sustituir el MFA ni el rol del administrador.
+  const adminContext = await browser.newContext({ baseURL: process.env.BASE_URL })
+  const teacherContext = await browser.newContext({ baseURL: process.env.BASE_URL })
+  try {
+    const adminPage = await adminContext.newPage()
+    await adminPage.goto('/login')
+    await adminPage.getByLabel('Correo electrónico').fill('admin-phase2b@mova.test')
+    await adminPage.getByLabel('Contraseña', { exact: true }).fill('password123')
+    await adminPage.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+    await passAdminMfaIfPrompted(adminPage)
+    await adminPage.goto('/admin/requests')
+    await expect(adminPage.getByRole('heading', { name: 'Solicitudes — Admin' })).toBeVisible()
+
+    const teacherPage = await teacherContext.newPage()
+    await teacherPage.goto('/login')
+    await teacherPage.getByLabel('Correo electrónico').fill('profesor@mova.test')
+    await teacherPage.getByLabel('Contraseña', { exact: true }).fill('password123')
+    await teacherPage.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+    await expect(teacherPage).toHaveURL(/\/dashboard/)
+    await expect(teacherPage.getByRole('heading', { name: 'Tu panel de clases' })).toBeVisible()
+
+    // Forzar una nueva petición en cada contexto: no basta con que la pestaña
+    // antigua conserve el HTML de un usuario que ya no está autenticado.
+    await adminPage.reload()
+    await expect(adminPage.getByRole('heading', { name: 'Solicitudes — Admin' })).toBeVisible()
+    await teacherPage.reload()
+    await expect(teacherPage.getByRole('heading', { name: 'Tu panel de clases' })).toBeVisible()
+  } finally {
+    await teacherContext.close()
+    await adminContext.close()
+  }
+})
