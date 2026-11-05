@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# az simulado para probar culqi-live-activation.sh sin Azure. Estado en $FAKE_DIR/<app>.json.
+D=${FAKE_DIR:?}; all="$*"
+arg() { local k=$1; shift; while [ $# -gt 0 ]; do [ "$1" = "$k" ] && { echo "$2"; return; }; shift; done; }
+app=$(arg -n "$@")
+case "$1 $2" in
+  "account show") case "$all" in *"--query id"*) echo sub1 ;; *"--query name"*) echo "${FAKE_SUBNAME:-Pago por uso}" ;; *) echo '{}' ;; esac ;;
+  "rest --method") echo "${FAKE_QUOTA-PayAsYouGo_2014-09-01}" ;;
+  "keyvault secret") echo true ;;
+  "containerapp show")
+    [ -n "${FAKE_READ_FAIL:-}" ] && [ "$app" = "$FAKE_READ_FAIL" ] && exit 1
+    case "$all" in
+      *"containers[0].env"*) cat "$D/$app.json" ;;
+      *latestRevisionName*) echo "rev-$(cat "$D/$app.rev" 2>/dev/null || echo 1)" ;;
+      *identity*) echo id1 ;;
+    esac ;;
+  "containerapp update")
+    echo "$app" >> "$D/updates.log"
+    [ "${FAKE_UPDATE_FAIL:-}" = "$app" ] && exit 1
+    python3 - "$D/$app.json" "$@" <<'PY'
+import json,sys
+f=sys.argv[1]; a=sys.argv[2:]; env=json.load(open(f)); m={e['name']:e for e in env}; mode=None
+for x in a:
+    if x=='--set-env-vars': mode='s'; continue
+    if x=='--remove-env-vars': mode='r'; continue
+    if x.startswith('-'): mode=None; continue
+    if mode=='s' and '=' in x:
+        k,v=x.split('=',1); m[k]={'name':k,'value':v}
+    elif mode=='r': m.pop(x,None)
+json.dump(list(m.values()),open(f,'w'))
+PY
+    n=$(( $(cat "$D/$app.rev" 2>/dev/null || echo 1) + 1 )); echo $n > "$D/$app.rev" ;;
+  "containerapp revision") echo Healthy ;;
+  "containerapp replica") echo rep1 ;;
+  "containerapp secret") ;;
+  "containerapp exec")
+    python3 - "$D/movap-web.json" <<'PY'
+import json,sys
+m={e['name']:e.get('value') for e in json.load(open(sys.argv[1]))}
+p=m.get('PAYMENT_PROVIDER'); al=[x for x in (m.get('CULQI_CHECKOUT_ALLOWLIST') or '').split(',') if x]
+real=[x for x in al if not x.endswith('.invalid')]
+st='PREPARADO' if p!='culqi' or (al and not real) else ('ACTIVO-GENERAL' if not al else 'ACTIVO-PRUEBA')
+print('OK  simulado'); print('RESULTADO: LISTO'); print('ESTADO: '+st); print('COMPRA_LIVE_VERIFICADA: '+__import__('os').environ.get('FAKE_VERIFIED','no'))
+PY
+    ;;
+esac
+exit 0

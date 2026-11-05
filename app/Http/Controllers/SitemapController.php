@@ -33,7 +33,7 @@ class SitemapController extends Controller
         // realmente sirve (abort_unless is_verified, 404) — listar el resto
         // enviaría a los buscadores a URLs que no resuelven.
         $teacherUrls = TeacherProfile::where('is_verified', true)->where('is_publicly_listed', true)
-            ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
+            ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at')->whereNull('suspended_at'))
             ->orderByDesc('updated_at')
             ->get(['id', 'updated_at'])
             ->map(fn (TeacherProfile $profile) => [

@@ -36,16 +36,20 @@
                 </div>
               </div>
               <div class="flex gap-2 flex-shrink-0">
-                <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                <button type="button" @click="openVerifyModal(t)" :disabled="!isReadyForVerification(t)"
+                  :title="!isReadyForVerification(t) ? 'Faltan descripción, tarifa o materias' : undefined"
+                  class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   Verificar
-                </Link>
+                </button>
                 <button @click="openRejectModal(t)"
                   class="px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
                   Rechazar
                 </button>
               </div>
             </div>
+            <p v-if="!isReadyForVerification(t)" class="mt-3 text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+              Pendiente: el profesor debe completar descripción, tarifa positiva y al menos una materia para poder verificarlo.
+            </p>
           </div>
         </div>
       </section>
@@ -78,16 +82,38 @@
                 </div>
               </div>
               <div class="flex-shrink-0">
-                <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
+                <button type="button" @click="openVerifyModal(t)" :disabled="!isReadyForVerification(t)"
+                  class="px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   Re-verificar
-                </Link>
+                </button>
               </div>
             </div>
           </div>
+          <p v-if="!isReadyForVerification(t)" class="mt-3 text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+            Para re-verificar, el docente debe completar descripción, tarifa y materias.
+          </p>
         </div>
       </section>
     </div>
+
+    <Modal :show="Boolean(verifyTarget)" max-width="sm" title-id="admin-verify-teacher-title"
+      :closeable="!verifying" @close="closeVerifyModal">
+      <div v-if="verifyTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="admin-verify-teacher-title" class="font-bold text-gray-900 mb-2">Confirmar verificación docente</h3>
+        <p class="text-sm text-gray-600 mb-3">
+          Se habilitará a <strong>{{ verifyTarget.user?.name }}</strong> como profesor y su perfil podrá mostrarse en el catálogo público.
+        </p>
+        <p v-if="verifyError" role="alert" class="text-sm text-red-700 mb-3">{{ verifyError }}</p>
+        <div class="flex gap-2">
+          <button type="button" :disabled="verifying" @click="closeVerifyModal"
+            class="flex-1 px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">Cancelar</button>
+          <button type="button" :disabled="verifying" @click="submitVerify"
+            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50">
+            {{ verifying ? 'Verificando…' : 'Confirmar verificación' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
 
     <!-- ── Modal de rechazo ────────────────────────────────────────────────── -->
     <Modal :show="Boolean(rejectTarget)" max-width="sm" title-id="admin-reject-teacher-title"
@@ -119,7 +145,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 
@@ -132,6 +158,37 @@ const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
 const rejecting    = ref(false)
+const verifyTarget = ref(null)
+const verifyError = ref('')
+const verifying = ref(false)
+
+function isReadyForVerification(teacher) {
+  return Boolean(teacher.bio?.trim())
+    && Number(teacher.hourly_rate) > 0
+    && teacher.subjects?.length > 0
+}
+
+function openVerifyModal(teacher) {
+  if (verifying.value || !isReadyForVerification(teacher)) return
+  verifyError.value = ''
+  verifyTarget.value = teacher
+}
+
+function closeVerifyModal(force = false) {
+  if (verifying.value && force !== true) return
+  verifyTarget.value = null
+  verifyError.value = ''
+}
+
+function submitVerify() {
+  if (verifying.value || !verifyTarget.value) return
+  verifying.value = true
+  router.post(route('admin.teachers.verify', verifyTarget.value.id), {}, {
+    onSuccess: () => closeVerifyModal(true),
+    onError: (errors) => { verifyError.value = errors.profile ?? 'No se pudo verificar el perfil.' },
+    onFinish: () => { verifying.value = false },
+  })
+}
 
 function openRejectModal(teacher) {
   rejectTarget.value = teacher

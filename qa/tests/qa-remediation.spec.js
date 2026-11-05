@@ -73,3 +73,22 @@ test('admin: abrir/cancelar suspensión y reactivación no emite POST', async ({
   await expect(dialog).toBeHidden()
   expect(accountMutations).toHaveLength(0)
 })
+
+test('campana: región accesible y cierre con Escape sin marcar avisos', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Correo electrónico').fill('admin-phase2b@mova.test')
+  await page.getByLabel('Contraseña', { exact: true }).fill('password123')
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+  await passAdminMfaIfPrompted(page)
+  await page.goto('/dashboard')
+
+  const bell = page.getByRole('button', { name: 'Notificaciones', exact: true }).first()
+  await bell.click()
+  await expect(bell).toHaveAttribute('aria-expanded', 'true')
+  const panel = page.getByRole('region', { name: 'Notificaciones recientes' })
+  await expect(panel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(bell).toBeFocused()
+  await expect(bell).toHaveAttribute('aria-expanded', 'false')
+})

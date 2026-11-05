@@ -4,6 +4,15 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-04 (7) — `bc9b8cd` → producción — activación de Culqi sin código + parche de Symfony
+
+- Imagen `sha256:224fdaac75ac1e35a8d52d38f6be530ba1fbe859b69e0f64d778ded9ce169814` (tag `img-symfony-patch-20261104`); scheduler `0000052` y web `0000051` Healthy; sin migraciones. CI verde: el intento anterior (`975d9a9`) falló en `composer audit` por avisos de Symfony publicados ese día; se subió a 7.4.23 (solo parches). Suite 1850 OK.
+- Incluye `culqi:activation-check` y `infra/azure/culqi-live-activation.sh` (guía `ACTIVAR_CULQI_EN_AZURE.md`).
+- Secreto del webhook rotado dos veces con la herramienta (la segunda, por una captura parcial): la URL vigente → 400, las anteriores → 401. Las 5 entradas de CulqiPanel coinciden con la vigente (comprobado por SHA-256, sin mostrarla). Revisiones: scheduler `0000054`, web `0000053`.
+- `CREDITS_VERIFICATION_PACKAGE_ENABLED=true` (resto de la etapa de Mercado Pago) retirado de ambas apps → scheduler `0000053`, web `0000052`.
+- Diagnóstico final: `RESULTADO: LISTO`, `ESTADO: PREPARADO (compras nuevas cerradas)`; única falla: suscripción Azure for Students.
+- Rollback: imagen `sha256:283d103d…`.
+
 ## 2026-11-04 (6) — configuración (sin cambio de imagen): Culqi live cableado, compras cerradas
 
 - web `0000049`, scheduler `0000049` → `0000050`: `CULQI_ENV=live`, `CULQI_PUBLIC_KEY`, `CULQI_SECRET_KEY`/`CULQI_WEBHOOK_SECRET` por `secretRef` a Key Vault, `CULQI_METHODS=card`, `CULQI_WEBHOOKS_ENABLED=true`. `PAYMENT_PROVIDER` sigue en `mercadopago`, así que no hay compras nuevas.

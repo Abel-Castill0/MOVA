@@ -1,6 +1,6 @@
 # MOVA — Plan de corrección de la auditoría QA (04/11/2026)
 
-**Rama:** `fix/qa-audit-20261104` · **base:** `2170a690` (`master`)
+**Rama:** `fix/qa-audit-20261104` · **base original:** `2170a690` (`master`); el 05/11 se integró en la rama de trabajo el avance de `master` hasta `51fb40b`.
 **Política:** ningún cambio de datos reales, activación de cobros ni despliegue automático a producción durante esta corrección. Los tests mutantes solo utilizan fixtures sintéticos de QA.
 
 ## Alcance, cambios y criterios de aceptación
@@ -32,3 +32,36 @@
 - `Matemáticas` y `Matemática` pueden tener asociaciones distintas con docentes y tarifas específicas. Una migración de fusión automática sin revisar conflictos sería potencialmente destructiva.
 - La configuración de webhooks o llaves Culqi no es prueba de pagos reales ni subsana la restricción comercial del hosting.
 - El catálogo y los flujos de usuarios autenticados deben comprobarse nuevamente **después** del despliegue; pasar CI en el commit fuente no certifica el sitio publicado.
+
+## Segunda pasada — sesiones reales en Brave (05/11/2026)
+
+El propietario dejó iniciadas una pestaña de administrador (con MFA ya superado) y otra de profesor en `movaeduca.me`. **No se cerró sesión, no se leyó el código MFA, no se ingresaron credenciales ni se ejecutó una transacción.** La pestaña administrativa quedó disponible para el propietario.
+
+### QA manual observado en producción, exclusivamente sin modificaciones
+
+| Superficie | Verificación y resultado | Limitación |
+|---|---|---|
+| Admin dashboard | Carga autenticada. Mostró **5** por verificar mientras la lista pendiente mostró **4** y 1 rechazado: defecto de métrica confirmado por `DashboardController` | Se corrige en esta rama, falta desplegar |
+| Usuarios | Lista accesible; se inspeccionó presencia de Suspender/Reactivar. No se activaron | En producción el primer clic aún puede provocar POST antes del modal: QA-004 de este PR |
+| Docentes | Modal «Rechazar» abre y «Cancelar» cierra sin mutación; modal desplegado carece de `role=dialog` | QA-007 de este PR; Verificar/Re-verificar no pulsados |
+| Solicitudes y clases | Rutas y filtros administrativos accesibles; sin casos reales suficientes para validar transiciones completas | Pruebas de ciclo con fixtures sintéticos pendientes |
+| Recargas | Listado accesible; aparece un intento de pago histórico fallido pendiente/revisado | No se realizaron aprobaciones ni cobros; conciliar estatus sin mutar |
+| Operaciones | Se observó `WHATSAPP_PROVIDER_INVALID` al usar `waha`: `HealthCheck` solo permitía `meta`, mientras el binding admite `meta` y `waha` | Corregido en código; el próximo `mova:health-check --alert` del scheduler debe cerrar el falso positivo **después** del despliegue |
+| WhatsApp | Panel indica «Conectado», pero el botón de mensaje de prueba estaba deshabilitado | No se enviaron mensajes; estado contradictorio con alerta operativa anterior |
+| Reseñas, uso IA, privacidad y reclamaciones | Vistas accesibles, filtros/controles presentes. IA indica «desactivada» | No hay muestra suficiente para probar moderación ni cierre de cuentas |
+| Campana y menú de cuenta | Abrir/cerrar por Escape funciona. Se renderizan 20 avisos, pero la campana contaba solo los visibles; elementos sin rol de acción accesible | Nuevo contrato API y accesibilidad en esta rama; aún sin deploy |
+| Pestaña de profesor | Mostraba dashboard docente, pero al entrar en «Solicitudes» devolvió 403 | Probable sesión de mismo origen compartida con admin; **no cambiar de usuario** ni invalidar sesión MFA; probar docente en perfil de navegador aislado |
+
+### Correcciones adicionales (QA-009 a QA-012)
+
+| ID | Cambio | Prueba |
+|---|---|---|
+| QA-009 Notificaciones | El API devuelve 20 avisos recientes **más** `unread_count` global, marca todas mediante UPDATE filtrado por cuenta; campana con botones de teclado, feedback de error, región accesible, Escape/foco | `NotificationBellTest` (25+ avisos, aislamiento de usuario, leer todos); E2E aislado de región/Escape |
+| QA-010 Modal calendario | Los bloques de clase son botones de teclado; detalle con Escape, Tab/Shift+Tab, bloqueo/restauración de scroll y foco | Compilación SFC, pendiente Playwright con una clase fixture |
+| QA-011 KPI docentes | «Profesores por verificar» excluye rechazados, en consonancia con «Pendientes» de la lista | `AdminDashboardPendingTeachersTest` |
+| QA-012 Falsa alerta WAHA | `HealthCheck` y el registro del proveedor consumen la misma allowlist desde `config/services.php`, incluyendo `waha`; no se relaja el fallo cerrado para valores desconocidos | `SchedulerConfigurationTest`: WAHA permitido / `twilio` inválido; ejecutar health-check programado post-despliegue para resolver alerta persistida |
+| QA-013 Verificación accidental | Confirmación antes de Verificar/Re-verificar; el servidor impide verificar sin descripción, tarifa positiva y materia, evitando fichas vacías y tarifas S/0 | `AdminActionsTest` prueba los tres rechazos y conserva el caso válido con aviso |
+| QA-014 Docente suspendido en catálogo | El catálogo, la home, About, ficha directa y sitemap excluyen cuentas suspendidas; admin no puede publicarlas mientras dure la suspensión | `PublicTeacherListingTest`: aislamiento de la ficha suspendida y rechazo de publicación |
+| QA-015 Readiness WAHA | Si WAHA está habilitado, health-check comprueba la presencia de URL, API key y HMAC; no imprime secretos ni contacta al proveedor | `SchedulerConfigurationTest`: acepta WAHA válido y genera `WAHA_CONFIG_INCOMPLETE` si falta el HMAC |
+
+**Gates pendientes:** PHPUnit y Playwright contra fixtures (no hay PHP ni Composer en el executor de esta sesión); CI completo del commit actualizado, migración de `is_publicly_listed`, validación de las acciones corregidas en staging y smoke post-despliegue. La verificación real de entrega WhatsApp exige una sonda aislada; `waha_configuration = credenciales presentes` no asegura sesión, red ni entrega. No declarar la aplicación «100 % verificada» hasta completar estos gates y un ensayo de reuniones, cobros sandbox y notificaciones reales controladas.

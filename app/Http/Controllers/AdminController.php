@@ -13,6 +13,7 @@ use App\Notifications\TeacherVerifiedNotification;
 use App\Services\LessonSettlementService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AdminController extends Controller
@@ -76,10 +77,28 @@ class AdminController extends Controller
 
     public function verifyTeacher(TeacherProfile $teacher)
     {
-        $teacher = DB::transaction(function () use ($teacher) {
+        [$teacher, $newlyVerified] = DB::transaction(function () use ($teacher) {
             $owner = \App\Models\User::whereKey($teacher->user_id)->lockForUpdate()->firstOrFail();
             abort_if($owner->account_closed_at !== null, 409, 'La cuenta está cerrada y no puede publicarse.');
+            abort_if($owner->suspended_at !== null, 409, 'La cuenta está suspendida y no puede verificarse.');
             $teacher = TeacherProfile::whereKey($teacher->id)->lockForUpdate()->firstOrFail();
+
+            // Repetir un POST sobre un perfil ya verificado no debe emitir
+            // otra notificación, cambiar auditoría ni otorgar créditos.
+            if ($teacher->is_verified) {
+                return [$teacher, false];
+            }
+
+            // Verificar publicaba de inmediato una ficha con bio ausente,
+            // tarifa S/ 0 y ninguna materia. Se valida también en el servidor:
+            // deshabilitar el botón en Vue no es un control de autorización.
+            if (trim((string) $teacher->bio) === ''
+                || (float) $teacher->hourly_rate <= 0
+                || ! $teacher->subjects()->exists()) {
+                throw ValidationException::withMessages([
+                    'profile' => 'Antes de verificar, el profesor debe completar su descripción, una tarifa positiva y al menos una materia.',
+                ]);
+            }
 
             $teacher->update([
                 'is_verified'      => true,
@@ -89,8 +108,12 @@ class AdminController extends Controller
                 'reviewed_at'      => now(),
             ]);
 
-            return $teacher->load('user');
+            return [$teacher->load('user'), true];
         });
+
+        if (! $newlyVerified) {
+            return back()->with('success', 'El profesor ya estaba verificado.');
+        }
 
         $teacher->user->notify(new TeacherVerifiedNotification());
 
@@ -108,8 +131,9 @@ class AdminController extends Controller
         $data = request()->validate(['published' => 'required|boolean']);
         $published = (bool) $data['published'];
 
-        abort_if($published && (! $teacher->is_verified || $teacher->user?->account_closed_at !== null),
-            422, 'Solo se pueden publicar perfiles verificados con una cuenta activa.');
+        abort_if($published && (! $teacher->is_verified || $teacher->user?->account_closed_at !== null
+            || $teacher->user?->suspended_at !== null),
+            422, 'Solo se pueden publicar perfiles verificados con una cuenta activa no suspendida.');
 
         // No está en TeacherProfile::$fillable: solo esta acción admin puede cambiarlo.
         $teacher->is_publicly_listed = $published;

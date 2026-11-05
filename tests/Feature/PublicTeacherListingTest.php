@@ -84,6 +84,35 @@ class PublicTeacherListingTest extends TestCase
         $this->assertTrue($teacher->fresh()->is_publicly_listed);
     }
 
+    public function test_suspended_teacher_is_hidden_from_discovery_and_cannot_be_republished(): void
+    {
+        $visible = $this->teacher();
+        $suspended = $this->teacher();
+        $suspended->user->forceFill(['suspended_at' => now()])->save();
+
+        $this->get(route('welcome'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('featuredTeachers', 1)
+                ->where('featuredTeachers.0.id', $visible->id)
+                ->where('stats.teachers', 1));
+        $this->get(route('marketplace'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('teachers.data', 1)
+                ->where('stats.teachers', 1));
+        $this->get(route('about'))
+            ->assertInertia(fn (Assert $page) => $page->where('stats.teachers', 1));
+        $this->get(route('teachers.show', $suspended))->assertNotFound();
+        $this->get(route('sitemap'))
+            ->assertDontSeeText(route('teachers.show', $suspended), false);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin)
+            ->post(route('admin.teachers.public-listing', $suspended), ['published' => true])
+            ->assertStatus(422);
+        $this->assertTrue($suspended->fresh()->is_verified);
+    }
+
     private function teacher(): TeacherProfile
     {
         $user = User::factory()->create();

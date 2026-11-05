@@ -136,6 +136,37 @@ class AdminActionsTest extends TestCase
         Notification::assertSentTo($teacher, TeacherVerifiedNotification::class);
     }
 
+    public function test_an_incomplete_teacher_cannot_be_verified_or_published(): void
+    {
+        $admin = $this->admin();
+
+        foreach (['missing_bio', 'zero_rate', 'missing_subject'] as $case) {
+            [$teacher, $profile] = $this->teacher(verified: false);
+            if ($case === 'missing_bio') $profile->update(['bio' => null]);
+            if ($case === 'zero_rate') $profile->update(['hourly_rate' => 0]);
+            if ($case === 'missing_subject') $profile->subjects()->detach();
+
+            $this->actingAs($admin)
+                ->post(route('admin.teachers.verify', $profile))
+                ->assertSessionHasErrors('profile');
+
+            $this->assertFalse((bool) $profile->fresh()->is_verified, "No debe verificarse {$case}.");
+            Notification::assertNotSentTo($teacher, TeacherVerifiedNotification::class);
+        }
+    }
+
+    public function test_repeated_verification_is_idempotent_without_duplicate_notice(): void
+    {
+        [$teacher, $profile] = $this->teacher(verified: true);
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.teachers.verify', $profile))
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue((bool) $profile->fresh()->is_verified);
+        Notification::assertNotSentTo($teacher, TeacherVerifiedNotification::class);
+    }
+
     public function test_verifying_clears_a_previous_rejection(): void
     {
         [, $profile] = $this->teacher(verified: false);

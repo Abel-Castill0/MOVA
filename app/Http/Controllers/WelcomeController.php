@@ -34,7 +34,7 @@ class WelcomeController extends Controller
             // llega al frontend — está en TeacherProfile::$hidden.
             'featuredTeachers' => TeacherProfile::where('is_verified', true)
                 ->where('is_publicly_listed', true)
-                ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
+                ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at')->whereNull('suspended_at'))
                 ->select(['id', 'user_id', 'bio', 'hourly_rate'])
                 ->with(['user:id,name', 'subjects:id,name'])
                 ->withCount('classes')
@@ -53,7 +53,7 @@ class WelcomeController extends Controller
             'stats' => [
                 'teachers'  => TeacherProfile::where('is_verified', true)
                     ->where('is_publicly_listed', true)
-                    ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))->count(),
+                    ->whereHas('user', fn ($q) => $q->whereNull('account_closed_at')->whereNull('suspended_at'))->count(),
                 'students'  => Role::where('name', 'parent')->exists()
                                ? User::role('parent')->count()
                                : 0,
