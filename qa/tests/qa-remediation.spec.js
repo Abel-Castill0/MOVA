@@ -137,6 +137,18 @@ test('profesor: perfil, disponibilidad temporal y cancelación segura del cierre
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole('heading', { name: 'Tu panel de clases' })).toBeVisible()
 
+  await page.setViewportSize({ width: 390, height: 844 })
+  const menuOpener = page.getByRole('button', { name: 'Abrir menú' })
+  await menuOpener.click()
+  const mobileMenu = page.getByRole('dialog', { name: 'Menú principal' })
+  await expect(mobileMenu).toBeVisible()
+  await expect(mobileMenu.getByRole('button', { name: 'Cerrar menú' })).toBeFocused()
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden')
+  await page.keyboard.press('Escape')
+  await expect(mobileMenu).toHaveCount(0)
+  await expect(menuOpener).toBeFocused()
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden')
+
   // Cambiar de pestaña no equivale a guardar datos ni salir de la sesión.
   await page.goto('/profile')
   await page.getByRole('tab', { name: 'Seguridad' }).click()
