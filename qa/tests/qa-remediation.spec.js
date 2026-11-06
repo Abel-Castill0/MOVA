@@ -128,3 +128,41 @@ test('admin con MFA y profesor mantienen sesiones separadas en contextos de nave
     await adminContext.close()
   }
 })
+
+test('profesor: perfil, disponibilidad temporal y cancelación segura del cierre de cuenta', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Correo electrónico').fill('profesor@mova.test')
+  await page.getByLabel('Contraseña', { exact: true }).fill('password123')
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+  await expect(page).toHaveURL(/\/dashboard/)
+  await expect(page.getByRole('heading', { name: 'Tu panel de clases' })).toBeVisible()
+
+  // Cambiar de pestaña no equivale a guardar datos ni salir de la sesión.
+  await page.goto('/profile')
+  await page.getByRole('tab', { name: 'Seguridad' }).click()
+  await expect(page.getByRole('tabpanel', { name: 'Seguridad' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Privacidad y cuenta' }).click()
+  await page.getByRole('button', { name: 'Eliminar mi cuenta' }).click()
+  const closure = page.getByRole('dialog', { name: 'Antes de eliminar tu cuenta' })
+  await expect(closure).toBeVisible()
+  await expect(closure.getByRole('button', { name: 'Eliminar mi cuenta' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(closure).toHaveCount(0)
+
+  const mutations = []
+  page.on('request', (r) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method()) &&
+      /\/teacher\/(availability|profile)|\/account\/closure/.test(new URL(r.url()).pathname)) {
+      mutations.push(`${r.method()} ${new URL(r.url()).pathname}`)
+    }
+  })
+  await page.goto('/teacher/profile')
+  const slots = page.getByRole('form', { name: 'Mi disponibilidad semanal' })
+  const initialCount = await slots.getByRole('button', { name: /Quitar franja/ }).count()
+  await slots.getByRole('button', { name: '+ Agregar franja' }).first().click()
+  await expect(slots.getByRole('textbox', { name: 'Inicio, Lunes' }).last()).toHaveValue('15:00')
+  await slots.getByRole('button', { name: 'Quitar franja de Lunes' }).last().click()
+  await expect(slots.getByRole('button', { name: /Quitar franja/ })).toHaveCount(initialCount)
+  expect(mutations).toHaveLength(0)
+  await expect(page.getByRole('heading', { name: 'Mi perfil', exact: true }).last()).toBeVisible()
+})
