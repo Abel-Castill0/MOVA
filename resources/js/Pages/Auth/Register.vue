@@ -80,6 +80,7 @@ function removeSubject(subject) {
 }
 
 function next() {
+  if (!isCurrentStepValid.value) return
   if (step.value === 4 && form.role === 'teacher') addSubject()
   if (step.value < totalSteps.value) step.value += 1
 }
@@ -99,6 +100,13 @@ function stepForField(field) {
 }
 
 function submit() {
+  // Enter en un campo de un paso intermedio no debe crear una cuenta ni
+  // disparar errores de campos que todavía no se han mostrado.
+  if (step.value !== totalSteps.value) {
+    next()
+    return
+  }
+  if (!form.accepted_terms || form.processing) return
   form.post(route('register'), {
     onError: (errors) => {
       const fields = Object.keys(errors)

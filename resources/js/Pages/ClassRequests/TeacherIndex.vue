@@ -137,9 +137,9 @@
           <div class="relative">
             <select
               v-model="sortBy"
+              aria-label="Ordenar solicitudes"
               class="appearance-none bg-white border border-gray-200/90 pl-3.5 pr-8 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs cursor-pointer transition-all"
             >
-              <option value="recent">≡ Ordenar</option>
               <option value="recent">Más recientes</option>
               <option value="urgent">Mayor urgencia</option>
               <option value="student">Alumno (A-Z)</option>
@@ -162,11 +162,13 @@
 
         <!-- COLUMNA IZQUIERDA: REJILLA DE TARJETAS -->
         <div class="flex-1 min-w-0">
-          <div v-if="!filteredRequests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
+          <div v-if="!filteredRequests.length" role="status" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
             <Search class="w-10 h-10 mx-auto mb-2.5 text-slate-400" :stroke-width="1.6" aria-hidden="true" />
-            <p class="font-bold text-slate-800 text-base">No se encontraron solicitudes</p>
+            <p class="font-bold text-slate-800 text-base">
+              {{ verificationPending ? 'Tu perfil está en revisión' : searchQuery.trim() ? 'No se encontraron solicitudes' : 'Aún no hay solicitudes disponibles' }}
+            </p>
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
-              {{ verificationPending ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.' : 'Prueba cambiando los términos de búsqueda o filtros.' }}
+              {{ verificationPending ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.' : searchQuery.trim() ? 'Prueba con otro nombre de alumno o materia.' : 'Cuando las familias publiquen clases nuevas, aparecerán aquí.' }}
             </p>
           </div>
 

@@ -135,7 +135,10 @@ return [
 
     'whatsapp' => [
         'enabled'          => env('WHATSAPP_ENABLED', false),
-        'provider'         => env('WHATSAPP_PROVIDER', 'fake'), // fake|meta
+        'provider'         => env('WHATSAPP_PROVIDER', 'fake'), // fake|meta|waha
+        // Una fuente de verdad para el binding y mova:health-check. Antes el
+        // monitor seguía aceptando solo "meta" y reportaba WAHA como inválido.
+        'supported_providers' => ['meta', 'waha'],
         'mode'             => env('WHATSAPP_MODE', 'sandbox'),       // sandbox|production
         'require_verified' => env('WHATSAPP_REQUIRE_VERIFIED_PHONE', true),
     ],

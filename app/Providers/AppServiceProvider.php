@@ -142,7 +142,7 @@ class AppServiceProvider extends ServiceProvider
                 kind: 'WhatsApp',
                 envVarName: 'WHATSAPP_PROVIDER',
                 provider: config('services.whatsapp.provider'),
-                supportedReal: ['meta', 'waha'],
+                supportedReal: config('services.whatsapp.supported_providers'),
                 featureEnabled: (bool) config('services.whatsapp.enabled', false),
                 environment: $this->app->environment(),
             );

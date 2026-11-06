@@ -258,6 +258,41 @@ class SchedulerConfigurationTest extends TestCase
         $this->artisan('mova:health-check')->assertExitCode(1);
     }
 
+    public function test_health_check_accepts_the_same_waha_provider_as_the_real_container_binding(): void
+    {
+        config([
+            'services.whatsapp.provider' => 'waha',
+            'services.whatsapp.enabled' => true,
+            'services.waha.url' => 'http://waha.internal:3000',
+            'services.waha.api_key' => 'fake-key-for-qa',
+            'services.waha.hmac_key' => 'fake-hmac-for-qa',
+        ]);
+
+        \Illuminate\Support\Facades\Artisan::call('mova:health-check', ['--json' => true]);
+        $health = json_decode(\Illuminate\Support\Facades\Artisan::output(), true);
+
+        $this->assertSame('waha (habilitado)', $health['checks']['WHATSAPP_PROVIDER']);
+        $this->assertNotContains('WHATSAPP_PROVIDER_INVALID', array_column($health['warnings'], 'code'));
+        $this->assertSame('credenciales presentes', $health['checks']['waha_configuration']);
+    }
+
+    public function test_health_check_flags_waha_when_its_webhook_secret_is_missing(): void
+    {
+        config([
+            'services.whatsapp.provider' => 'waha',
+            'services.whatsapp.enabled' => true,
+            'services.waha.url' => 'http://waha.internal:3000',
+            'services.waha.api_key' => 'fake-key-for-qa',
+            'services.waha.hmac_key' => null,
+        ]);
+
+        \Illuminate\Support\Facades\Artisan::call('mova:health-check', ['--json' => true]);
+        $health = json_decode(\Illuminate\Support\Facades\Artisan::output(), true);
+
+        $this->assertSame('INCOMPLETA', $health['checks']['waha_configuration']);
+        $this->assertContains('WAHA_CONFIG_INCOMPLETE', array_column($health['warnings'], 'code'));
+    }
+
     // PRODUCTION ENABLEMENT (readiness pass) — QUEUE_CONNECTION=sync es
     // válido para el chequeo QUEUE_NOT_TRANSACTIONAL (SendClassReminders),
     // pero rompe una premisa distinta: el webhook de Mercado Pago encola

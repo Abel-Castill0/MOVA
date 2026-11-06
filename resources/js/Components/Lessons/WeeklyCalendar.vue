@@ -167,16 +167,18 @@
             </div>
 
             <!-- BLOQUES DE CLASES (Estilo UTP) -->
-            <div
+            <button
               v-for="l in lessonsFor(day)"
               :key="l.id"
+              type="button"
               @click="openDetail(l)"
               :style="lessonStyle(l)"
+              :aria-label="`Ver detalle de ${l.class_request?.subject?.name ?? 'clase'}: ${fmtTimeRange(l)}`"
               :class="[
                 'absolute rounded-xl p-3 sm:p-3.5 text-white shadow-md transition-all cursor-pointer flex flex-col justify-between overflow-hidden group select-none z-10',
                 subjectTheme(l).bg,
                 subjectTheme(l).border,
-                'hover:brightness-105 hover:shadow-lg hover:z-20 active:scale-[0.99]'
+                'hover:brightness-105 hover:shadow-lg hover:z-20 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700'
               ]"
               :title="`${l.class_request?.subject?.name ?? 'Clase'} - ${fmtTime(l.start_time)}`"
             >
@@ -217,7 +219,7 @@
                   En vivo
                 </span>
               </div>
-            </div>
+            </button>
 
           </div>
 
@@ -241,9 +243,11 @@
         <div
           v-if="selectedLesson"
           class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
-          @click.self="selectedLesson = null"
+          @click.self="closeDetail"
         >
           <div
+            ref="lessonDialog"
+            tabindex="-1"
             class="bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 sm:p-6 max-w-md w-full relative overflow-hidden animate-in fade-in zoom-in-95 duration-150"
             role="dialog"
             aria-modal="true"
@@ -252,7 +256,7 @@
             <!-- Botón cerrar (X) en esquina superior derecha -->
             <button
               type="button"
-              @click="selectedLesson = null"
+              @click="closeDetail"
               aria-label="Cerrar detalle"
               class="absolute top-4 right-4 w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
             >
@@ -392,7 +396,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import { canJoinJitsi } from '@/utils/lessonJoin'
@@ -408,6 +412,56 @@ const emit = defineEmits(['join', 'reschedule', 'cancel', 'pay'])
 const weekOffset = ref(0)
 const selectedLesson = ref(null)
 const calendarScrollContainer = ref(null)
+const lessonDialog = ref(null)
+let lastFocusedElement = null
+let previousOverflow = ''
+const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+watch(selectedLesson, (lesson) => {
+  if (lesson) {
+    lastFocusedElement = document.activeElement
+    previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    nextTick(() => {
+      const firstButton = lessonDialog.value?.querySelector('button:not([disabled])')
+      const focusTarget = firstButton ?? lessonDialog.value
+      focusTarget?.focus()
+    })
+  } else {
+    document.body.style.overflow = previousOverflow
+    nextTick(() => lastFocusedElement?.focus?.())
+  }
+})
+
+function closeDetail() {
+  selectedLesson.value = null
+}
+
+function onDialogKeydown(event) {
+  if (!selectedLesson.value || !lessonDialog.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeDetail()
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const controls = Array.from(lessonDialog.value.querySelectorAll(focusableSelector))
+  if (!controls.length) {
+    event.preventDefault()
+    lessonDialog.value.focus()
+    return
+  }
+  const first = controls[0]
+  const last = controls[controls.length - 1]
+  if (event.shiftKey && (document.activeElement === first || !lessonDialog.value.contains(document.activeElement))) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (document.activeElement === last || !lessonDialog.value.contains(document.activeElement))) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 // Rango completo de horas continuo: Mañana a Noche (07:00 a 24:00)
 const START_HOUR = 7
@@ -670,5 +724,10 @@ function payClass(lesson) {
 
 onMounted(() => {
   scrollToInitialHour()
+  document.addEventListener('keydown', onDialogKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDialogKeydown)
+  if (selectedLesson.value) document.body.style.overflow = previousOverflow
 })
 </script>

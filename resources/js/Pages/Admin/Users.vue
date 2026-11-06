@@ -14,6 +14,7 @@
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Registro</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Catálogo docente</th>
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</th>
               </tr>
             </thead>
@@ -34,24 +35,31 @@
                   </span>
                 </td>
                 <td class="px-5 py-3.5 text-sm text-gray-400">{{ fmtDate(u.created_at) }}</td>
+                <td class="px-5 py-3.5 text-sm">
+                  <template v-if="u.teacher_profile?.is_verified">
+                    <span :class="u.teacher_profile.is_publicly_listed ? 'text-emerald-700' : 'text-amber-700'" class="block text-xs mb-1">
+                      {{ u.teacher_profile.is_publicly_listed ? 'Publicado' : 'Oculto' }}
+                    </span>
+                    <button type="button" class="text-xs font-semibold underline underline-offset-2"
+                      @click="openAction(u, u.teacher_profile.is_publicly_listed ? 'hide' : 'publish')">
+                      {{ u.teacher_profile.is_publicly_listed ? 'Ocultar ficha' : 'Publicar ficha' }}
+                    </button>
+                  </template>
+                  <span v-else class="text-xs text-gray-400">—</span>
+                </td>
                 <td class="px-5 py-3.5">
                   <!-- Skip admins -->
                   <template v-if="!u.roles?.some(r => r.name === 'admin')">
-                    <Link v-if="!u.suspended_at"
-                      :href="route('admin.users.suspend', u.id)"
-                      method="post"
-                      as="button"
+                    <button v-if="!u.suspended_at" type="button"
                       class="text-xs font-semibold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
-                      @click.prevent="confirmSuspend(u)">
+                      @click="openAction(u, 'suspend')">
                       Suspender
-                    </Link>
-                    <Link v-else
-                      :href="route('admin.users.unsuspend', u.id)"
-                      method="post"
-                      as="button"
-                      class="text-xs font-semibold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-lg transition-colors">
+                    </button>
+                    <button v-else type="button"
+                      class="text-xs font-semibold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-lg transition-colors"
+                      @click="openAction(u, 'unsuspend')">
                       Reactivar
-                    </Link>
+                    </button>
                   </template>
                   <span v-else class="text-xs text-gray-300">—</span>
                 </td>
@@ -71,46 +79,77 @@
       </div>
     </div>
 
-    <!-- Suspend modal -->
-    <div v-if="suspendTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Suspender cuenta</h3>
-        <p class="text-sm text-gray-500 mb-4">¿Seguro que quieres suspender a <strong>{{ suspendTarget.name }}</strong>?</p>
-        <textarea v-model="suspendReason" rows="2"
-          placeholder="Motivo de suspensión (opcional)"
+    <!-- A modal opens without issuing a request. Only the confirm button can mutate an account. -->
+    <Modal :show="Boolean(actionTarget)" max-width="sm" title-id="admin-user-action-title"
+      :closeable="!actionForm.processing" @close="closeAction">
+      <div v-if="actionTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="admin-user-action-title" class="font-bold text-gray-900 mb-1">
+          {{ { suspend: 'Suspender cuenta', unsuspend: 'Reactivar cuenta', hide: 'Ocultar ficha docente', publish: 'Publicar ficha docente' }[actionMode] }}
+        </h3>
+        <p class="text-sm text-gray-500 mb-4">
+          ¿Seguro que quieres {{ { suspend: 'suspender la cuenta de', unsuspend: 'reactivar la cuenta de', hide: 'ocultar del catálogo a', publish: 'publicar en el catálogo a' }[actionMode] }}
+          <strong>{{ actionTarget.name }}</strong>?
+        </p>
+        <label v-if="actionMode === 'suspend'" for="admin-suspend-reason" class="block text-sm font-medium text-gray-700 mb-1">
+          Motivo de suspensión (opcional)
+        </label>
+        <textarea v-if="actionMode === 'suspend'" id="admin-suspend-reason" v-model="actionForm.reason" rows="2"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4" />
-        <div class="flex gap-2">
-          <button @click="suspendTarget = null; suspendReason = ''"
-            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+        <p v-if="actionForm.errors.reason" role="alert" class="text-xs text-red-600 mb-4">{{ actionForm.errors.reason }}</p>
+        <div class="flex gap-2 mt-3">
+          <button type="button" :disabled="actionForm.processing" @click="closeAction"
+            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
             Cancelar
           </button>
-          <Link :href="route('admin.users.suspend', suspendTarget.id)"
-            method="post"
-            as="button"
-            :data="{ reason: suspendReason }"
-            @click="suspendTarget = null; suspendReason = ''"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
-            Confirmar suspensión
-          </Link>
+          <button type="button" :disabled="actionForm.processing" @click="confirmAction"
+            :class="['flex-1 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50', actionMode === 'suspend' || actionMode === 'hide' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700']">
+            {{ actionForm.processing ? 'Procesando…' : 'Confirmar' }}
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   </AppLayout>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 
 defineProps({ users: Object })
 
-const suspendTarget = ref(null)
-const suspendReason = ref('')
+const actionTarget = ref(null)
+const actionMode = ref('suspend')
+const actionForm = useForm({ reason: '' })
 
-function confirmSuspend(user) {
-  suspendTarget.value = user
-  suspendReason.value = ''
+function openAction(user, mode) {
+  actionTarget.value = user
+  actionMode.value = mode
+  actionForm.reset()
+  actionForm.clearErrors()
+}
+
+function closeAction(force = false) {
+  if (actionForm.processing && force !== true) return
+  actionTarget.value = null
+  actionForm.reset()
+  actionForm.clearErrors()
+}
+
+function confirmAction() {
+  if (!actionTarget.value || actionForm.processing) return
+  const isPublicAction = actionMode.value === 'hide' || actionMode.value === 'publish'
+  const routeName = isPublicAction ? 'admin.teachers.public-listing'
+    : actionMode.value === 'suspend' ? 'admin.users.suspend' : 'admin.users.unsuspend'
+  const id = isPublicAction ? actionTarget.value.teacher_profile?.id : actionTarget.value.id
+  if (!id) return
+  actionForm.transform((data) => isPublicAction ? { published: actionMode.value === 'publish' }
+    : actionMode.value === 'suspend' ? { reason: data.reason } : {})
+  actionForm.post(route(routeName, id), {
+    preserveScroll: true,
+    onSuccess: () => closeAction(true),
+  })
 }
 
 function fmtDate(d) {

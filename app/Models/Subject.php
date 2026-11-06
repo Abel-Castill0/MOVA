@@ -36,7 +36,9 @@ class Subject extends Model
         $normalized = SubjectNormalizer::normalize($rawName);
         static::assertNameIsAppropriate($normalized);
 
-        $existing = static::where('normalized_name', $normalized)->first();
+        $existing = static::where('normalized_name', $normalized)->first()
+            ?? static::whereIn('normalized_name', SubjectNormalizer::storedVariants($rawName))
+                ->orderBy('id')->first();
         if ($existing) {
             return $existing;
         }
@@ -53,9 +55,9 @@ class Subject extends Model
         // `phone_verified_normalized`), que sí captura la excepción y
         // recupera la fila real en vez de fallar.
         try {
-            return static::create(['name' => trim($rawName), 'level' => 'todos', 'normalized_name' => $normalized]);
+            return static::create(['name' => SubjectNormalizer::displayName($rawName), 'level' => 'todos', 'normalized_name' => $normalized]);
         } catch (UniqueConstraintViolationException) {
-            return static::where('normalized_name', $normalized)->firstOrFail();
+            return static::whereIn('normalized_name', SubjectNormalizer::storedVariants($rawName))->firstOrFail();
         }
     }
 

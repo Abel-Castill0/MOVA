@@ -1,7 +1,7 @@
 <template>
   <div class="relative" ref="root">
-    <button @click="open = !open" aria-label="Notificaciones"
-      aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
+    <button ref="trigger" type="button" @click="open = !open" aria-label="Notificaciones"
+      :aria-expanded="open" :aria-controls="panelId"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
       <span v-if="unread > 0"
@@ -10,26 +10,29 @@
       </span>
     </button>
 
-    <div v-if="open" id="notification-panel" role="menu" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
+    <div v-if="open" :id="panelId" role="region" aria-label="Notificaciones recientes" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
-        <button v-if="unread > 0" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
+        <button v-if="unread > 0" type="button" :disabled="busy" @click="markAll" class="text-xs text-brand-600 hover:underline disabled:opacity-50">Marcar todas</button>
       </div>
+      <p v-if="error" role="alert" class="px-4 py-2 text-xs text-red-700 bg-red-50">{{ error }}</p>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
-        <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
-        <div v-for="n in notifications" :key="n.id"
+        <div v-if="!notifications.length && !error" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
+        <button v-for="n in notifications" :key="n.id" type="button"
+          :disabled="busy || !!n.read_at"
           @click="markOne(n.id)"
-          :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
+          :aria-label="n.read_at ? `Notificación leída: ${messageFor(n)}` : `Marcar como leída: ${messageFor(n)}`"
+          :class="['block w-full text-left px-4 py-3 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-600 transition-colors disabled:cursor-default', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
           <p class="text-xs text-gray-500 mt-0.5">{{ fmtDate(n.created_at) }}</p>
-        </div>
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, useId } from 'vue'
 import axios from 'axios'
 import Icon from '@/Components/Icon.vue'
 
@@ -49,8 +52,16 @@ const placementClasses = computed(() => props.placement === 'down-right'
 
 const open = ref(false)
 const root = ref(null)
+const trigger = ref(null)
+const panelId = useId()
 const notifications = ref([])
-const unread = computed(() => notifications.value.filter(n => !n.read_at).length)
+const unread = ref(0)
+const error = ref('')
+const busy = ref(false)
+
+function messageFor(notification) {
+  return notification.data?.message || notification.data?.type?.replace(/_/g, ' ') || 'Sin asunto'
+}
 
 // Click-outside estándar: el listener de document es bubble-phase, así que
 // el @click del propio botón ya alternó `open` para cuando este corre. Como
@@ -65,33 +76,40 @@ function onDocumentClick(event) {
 async function load() {
   try {
     const { data } = await axios.get('/notifications')
-    notifications.value = data
-  } catch {}
+    notifications.value = data.notifications
+    unread.value = data.unread_count
+    error.value = ''
+  } catch {
+    error.value = 'No se pudieron cargar las notificaciones. Vuelve a intentarlo.'
+  }
 }
 
-// AUDITORÍA (hallazgo real, no solo visual): a diferencia de load(), estas
-// dos acciones no tenían try/catch — un fallo de red lanzaba un rechazo de
-// promesa sin manejar en la consola. No hay espacio visual en este panel
-// compacto para un mensaje de error explícito, así que la corrección
-// correcta aquí es no actualizar el estado local si la petición falla (en
-// vez de asumir optimistamente que se marcó como leída cuando no fue así).
+// Ningún error de red se ignora silenciosamente. Tras marcar, se reconsulta
+// el conteo real (puede haber avisos no leídos más antiguos que los 20 visibles).
 async function markOne(id) {
+  if (busy.value) return
+  busy.value = true
   try {
     await axios.post(`/notifications/${id}/read`)
+    await load()
   } catch {
-    return
+    error.value = 'No se pudo marcar la notificación como leída.'
+  } finally {
+    busy.value = false
   }
-  const n = notifications.value.find(x => x.id === id)
-  if (n) n.read_at = new Date().toISOString()
 }
 
 async function markAll() {
+  if (busy.value) return
+  busy.value = true
   try {
     await axios.post('/notifications/read-all')
+    await load()
   } catch {
-    return
+    error.value = 'No se pudieron marcar las notificaciones como leídas.'
+  } finally {
+    busy.value = false
   }
-  notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
 }
 
 function fmtDate(d) {
@@ -99,7 +117,10 @@ function fmtDate(d) {
 }
 
 function onEscape(event) {
-  if (event.key === 'Escape') open.value = false
+  if (event.key === 'Escape' && open.value) {
+    open.value = false
+    trigger.value?.focus()
+  }
 }
 
 let interval
