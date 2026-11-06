@@ -177,4 +177,10 @@ test('profesor: perfil, disponibilidad temporal y cancelación segura del cierre
   await expect(slots.getByRole('button', { name: /Quitar franja/ })).toHaveCount(initialCount)
   expect(mutations).toHaveLength(0)
   await expect(page.getByRole('heading', { name: 'Mi perfil', exact: true }).last()).toBeVisible()
+
+  await page.goto('/teacher/requests')
+  const sort = page.getByRole('combobox', { name: 'Ordenar solicitudes' })
+  await expect(sort).toHaveValue('recent')
+  await expect(sort.locator('option')).toHaveCount(4)
+  await expect(sort.getByRole('option', { name: 'Más recientes' })).toHaveCount(1)
 })
