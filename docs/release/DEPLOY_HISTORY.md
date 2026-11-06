@@ -4,6 +4,12 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-05 — `a2a29e6` → producción — comando de créditos de cortesía; 10 créditos a la cuenta #8
+
+- Imagen `sha256:6d5ff9b946749f6ea2f8d30808992d950fa647ba2756a654effbafec5a8a9eaf` (tag `img-grant-credits-20261105`); scheduler `0000055` y web `0000054` Healthy; sin migraciones; CI verde. Revisión financiera: apta con condiciones (hallazgos bajos corregidos).
+- Por orden del titular, `mova:grant-credits <correo> 10 --reference=cortesia-20261105-abel` sobre la cuenta de profesor #8 (perfil #2). Saldo 0 → 10. Depósito `grant:cortesia-20261105-abel` con la descripción «Cortesía MOVA»: no es un pago ni una recarga, y no es reembolsable. `mova:reconcile-ledger`: GREEN.
+- Rollback del código: imagen `sha256:224fdaac…`. La cortesía no se borra (ledger append-only); si hiciera falta anularla, sería con un asiento compensatorio decidido por el titular.
+
 ## 2026-11-04 (7) — `bc9b8cd` → producción — activación de Culqi sin código + parche de Symfony
 
 - Imagen `sha256:224fdaac75ac1e35a8d52d38f6be530ba1fbe859b69e0f64d778ded9ce169814` (tag `img-symfony-patch-20261104`); scheduler `0000052` y web `0000051` Healthy; sin migraciones. CI verde: el intento anterior (`975d9a9`) falló en `composer audit` por avisos de Symfony publicados ese día; se subió a 7.4.23 (solo parches). Suite 1850 OK.
