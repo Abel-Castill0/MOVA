@@ -108,6 +108,13 @@
   con HTTP 400/2072 y la causa solo la puede aclarar su soporte (caso preparado en `MERCADOPAGO_SUPPORT_CASE_2072.md`).
 - **Migración a Orders:** la API de Payments sigue operativa (solo correcciones de seguridad/estabilidad, sin fecha de retiro publicada): trabajo técnico posterior.
 
+## 10. Alojamiento comercial en Azure for Students (2026-11-08)
+
+- **Declaración del titular:** Microsoft le concedió autorización expresa para usar la suscripción Azure for Students en MOVA, incluida la venta de créditos que financia la iniciativa educativa.
+- **Verificación:** el equipo técnico no pudo comprobarla. El documento queda en poder del titular, fuera del repositorio.
+- **Registro:** etiqueta `mova-microsoft-commercial-authorization=<referencia del caso o documento>` en la propia suscripción, puesta por el titular. Azure deja constancia de quién y cuándo en su registro de actividad. Opcional: `mova-microsoft-commercial-authorization-expires=AAAA-MM-DD`.
+- **Efecto:** `infra/azure/culqi-live-activation.sh` acepta como apta para cobrar **solo** la suscripción que lleve esa etiqueta válida y vigente. Cualquier otra suscripción Azure for Students sigue bloqueada. Si la autorización se retira o vence, hay que borrar la etiqueta o fijar su caducidad.
+
 ## Fuentes consultadas
 - ANPD / Minjus — nuevo Reglamento de la Ley 29733 (D.S. 016-2024-JUS) y noticias oficiales (gob.pe, El Peruano).
 - Indecopi — Libro de Reclamaciones (D.S. 101-2022-PCM, 15 días hábiles); Código de Protección y Defensa del Consumidor (Ley 29571).

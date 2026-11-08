@@ -5,7 +5,7 @@ HERE=$(cd "$(dirname "$0")" && pwd); TOOL="$HERE/../culqi-live-activation.sh"
 BIN=$(mktemp -d); cp "$HERE/fake-az" "$BIN/az"; chmod +x "$BIN/az"; export PATH="$BIN:$PATH"
 PASS=0; FAIL=0
 reset() {
-  export FAKE_DIR; FAKE_DIR=$(mktemp -d); unset FAKE_READ_FAIL FAKE_UPDATE_FAIL FAKE_VERIFIED FAKE_QUOTA FAKE_SUBNAME
+  export FAKE_DIR; FAKE_DIR=$(mktemp -d); unset FAKE_READ_FAIL FAKE_UPDATE_FAIL FAKE_VERIFIED FAKE_QUOTA FAKE_SUBNAME FAKE_TAGS
   for a in movap-web movap-scheduler; do
     printf '[{"name":"PAYMENT_PROVIDER","value":"%s"},{"name":"CULQI_SECRET_KEY","secretRef":"culqi-secret-key"},{"name":"CULQI_WEBHOOK_SECRET","secretRef":"culqi-webhook-secret"}%s]' "$1" "${2:+,{\"name\":\"CULQI_CHECKOUT_ALLOWLIST\",\"value\":\"$2\"\}}" > "$FAKE_DIR/$a.json"
   done
@@ -18,6 +18,25 @@ updates() { [ -f "$FAKE_DIR/updates.log" ] && wc -l < "$FAKE_DIR/updates.log" ||
 
 reset mercadopago; FAKE_QUOTA=AzureForStudents_2018-01-01 run ACTIVAR enable-test profe@example.pe
 t "Azure for Students bloquea enable-test sin tocar nada" '[ "$(rc)" != 0 ] && [ "$(updates)" = 0 ]'
+
+ST=AzureForStudents_2018-01-01
+reset mercadopago; FAKE_QUOTA=$ST FAKE_TAGS='{"mova-microsoft-commercial-authorization":"MS-CASE-2611050042"}' run ACTIVAR enable-test profe@example.pe
+t "Students CON autorización registrada: enable-test funciona y lo anuncia" '[ "$(rc)" = 0 ] && grep -q "EXCEPCIÓN AUTORIZADA" "$FAKE_DIR/out" && grep -q "…0042" "$FAKE_DIR/out" && ! grep -q "MS-CASE-2611050042" "$FAKE_DIR/out" && [ "$(val movap-web PAYMENT_PROVIDER)" = culqi ]'
+
+reset culqi profe@example.pe; FAKE_QUOTA=$ST FAKE_VERIFIED=si FAKE_TAGS='{"mova-microsoft-commercial-authorization":"MS-CASE-2611050042"}' run ACTIVAR enable-all
+t "Students con autorización: enable-all abre a todos tras la compra verificada" '[ "$(rc)" = 0 ] && [ -z "$(val movap-web CULQI_CHECKOUT_ALLOWLIST)" ]'
+
+reset culqi; FAKE_QUOTA=$ST FAKE_TAGS='{"mova-microsoft-commercial-authorization":"MS-CASE-2611050042"}' run DETENER disable
+t "Students con autorización: disable cierra" '[ "$(rc)" = 0 ] && [[ "$(val movap-web CULQI_CHECKOUT_ALLOWLIST)" == *.invalid ]]'
+
+reset mercadopago; FAKE_QUOTA=$ST FAKE_TAGS='{"mova-microsoft-commercial-authorization":"MS-CASE-2611050042","mova-microsoft-commercial-authorization-expires":"2020-01-01"}' run ACTIVAR enable-test profe@example.pe
+t "autorización vencida: bloquea sin tocar nada" '[ "$(rc)" != 0 ] && [ "$(updates)" = 0 ] && grep -q "venció" "$FAKE_DIR/out"'
+
+reset mercadopago; FAKE_QUOTA=$ST FAKE_TAGS='{"mova-microsoft-commercial-authorization":"x y"}' run ACTIVAR enable-test profe@example.pe
+t "referencia con formato inválido: bloquea" '[ "$(rc)" != 0 ] && [ "$(updates)" = 0 ]'
+
+reset mercadopago; FAKE_QUOTA=$ST FAKE_TAGS='{"otra-etiqueta":"MS-CASE-2611050042"}' run ACTIVAR enable-test profe@example.pe
+t "otra etiqueta no sirve de autorización" '[ "$(rc)" != 0 ] && [ "$(updates)" = 0 ]'
 
 reset mercadopago; FAKE_QUOTA="" run ACTIVAR enable-test profe@example.pe
 t "sin quotaId (no se puede confirmar) también bloquea" '[ "$(rc)" != 0 ] && [ "$(updates)" = 0 ]'

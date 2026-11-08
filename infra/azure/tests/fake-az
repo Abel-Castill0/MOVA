@@ -7,6 +7,7 @@ case "$1 $2" in
   "account show") case "$all" in *"--query id"*) echo sub1 ;; *"--query name"*) echo "${FAKE_SUBNAME:-Pago por uso}" ;; *) echo '{}' ;; esac ;;
   "rest --method") echo "${FAKE_QUOTA-PayAsYouGo_2014-09-01}" ;;
   "keyvault secret") echo true ;;
+  "tag list") echo "${FAKE_TAGS:-null}" ;;
   "containerapp show")
     [ -n "${FAKE_READ_FAIL:-}" ] && [ "$app" = "$FAKE_READ_FAIL" ] && exit 1
     case "$all" in

@@ -24,7 +24,15 @@ Debe terminar en **`LISTO PARA ACTIVAR`**. Si dice `NO LISTO`, cada línea `FALL
 
 ## C. Requisitos externos (los cumples tú, una vez)
 
-- [ ] **Suscripción de Azure en pago por uso.** Azure for Students no admite uso comercial; la herramienta se niega a activar mientras lo sea.
+- [ ] **Suscripción apta para uso comercial.** Hay dos caminos:
+  - Pago por uso.
+  - Azure for Students con **autorización expresa de Microsoft**. En ese caso registra la referencia del caso o documento (no el documento) en una etiqueta de la suscripción; la herramienta solo acepta esa suscripción y muestra la referencia abreviada:
+
+```bash
+az tag update --resource-id /subscriptions/$(az account show --query id -o tsv) --operation Merge --tags mova-microsoft-commercial-authorization=REFERENCIA-DEL-CASO
+```
+
+  Si la autorización vence, añade también `mova-microsoft-commercial-authorization-expires=AAAA-MM-DD`. En el portal es lo mismo: *Suscripciones → Azure for Students → Etiquetas*. Guarda el documento de Microsoft fuera del repositorio.
 - [ ] **5 webhooks en CulqiPanel** (Producción → Desarrollo → Webhooks) con la URL vigente.
 - [ ] **Tarjeta habilitada** en CulqiPanel (Mi empresa → Datos de mi comercio: Visa, Mastercard y AMEX activas).
 - [ ] **Cuestionario PCI** confirmado con Culqi.

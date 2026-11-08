@@ -76,6 +76,32 @@ activation_report() {
   return 1
 }
 
+# Excepción comercial para Azure for Students: SOLO si ESTA suscripción lleva la etiqueta que el titular pone con la referencia
+# del documento/caso de Microsoft que la autoriza (queda en el registro de actividad de Azure: quién y cuándo). Sin etiqueta
+# válida, o con fecha de caducidad vencida, la suscripción sigue bloqueada. No afecta a ninguna otra suscripción.
+AUTH_TAG="mova-microsoft-commercial-authorization"
+AUTH_TAG_EXPIRES="mova-microsoft-commercial-authorization-expires"
+student_exception() { # sub nombre quotaId
+  local sub=$1 name=$2 quota=$3 tags ref expires
+  tags=$(az tag list --resource-id "/subscriptions/$sub" --query properties.tags -o json 2>/dev/null) || tags=""
+  [ -n "$tags" ] || tags='{}'
+  ref=$(printf '%s' "$tags" | python3 -c 'import json,sys; t=json.load(sys.stdin) or {}; print(t.get(sys.argv[1],""))' "$AUTH_TAG" 2>/dev/null)
+  expires=$(printf '%s' "$tags" | python3 -c 'import json,sys; t=json.load(sys.stdin) or {}; print(t.get(sys.argv[1],""))' "$AUTH_TAG_EXPIRES" 2>/dev/null)
+  if [[ ! "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$ ]]; then
+    bad "Suscripción «$name» ($quota): Azure for Students no admite uso comercial salvo autorización de Microsoft. Si la tienes, registra su referencia en la etiqueta «$AUTH_TAG» de esta suscripción (ver docs/release/ACTIVAR_CULQI_EN_AZURE.md) o pásala a pago por uso."
+    return
+  fi
+  if [ -n "$expires" ]; then
+    if [[ ! "$expires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+      bad "La etiqueta «$AUTH_TAG_EXPIRES» debe tener formato AAAA-MM-DD"; return
+    fi
+    if [[ "$(date -u +%Y-%m-%d)" > "$expires" ]]; then
+      bad "La autorización comercial de Microsoft registrada venció el $expires"; return
+    fi
+  fi
+  ok "Suscripción «$name» ($quota): EXCEPCIÓN AUTORIZADA por Microsoft para uso comercial (referencia …${ref: -4}${expires:+, vigente hasta $expires}), declarada por el titular en la etiqueta «$AUTH_TAG»"
+}
+
 do_check() {
   FAILS=0
   say "== Suscripción (uso comercial)"
@@ -85,7 +111,7 @@ do_check() {
   if [ -z "$quota" ]; then
     bad "No pude leer el tipo de oferta de la suscripción «$name»: no se puede confirmar el uso comercial"
   elif printf '%s %s' "$quota" "$name" | grep -qi 'student'; then
-    bad "Suscripción «$name» ($quota): Azure for Students no admite uso comercial. Pásala a pago por uso antes de cobrar."
+    student_exception "$sub" "$name" "$quota"
   else
     ok "Suscripción «$name» ($quota) sin restricción de estudiante"
   fi
