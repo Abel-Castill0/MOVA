@@ -42,7 +42,11 @@
     </Transition>
 
     <!-- Sidebar (Diseño curvo rounded-r-3xl y frosted glass en todas las secciones) -->
-    <aside :class="[
+    <aside id="mova-app-sidebar" ref="sidebarRef"
+      :role="sidebarOpen ? 'dialog' : undefined"
+      :aria-modal="sidebarOpen ? 'true' : undefined"
+      :aria-label="sidebarOpen ? 'Menú principal' : undefined"
+      :class="[
         'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ease-in-out',
         'bg-white/85 lg:bg-white/95 backdrop-blur-xl border-r border-slate-200/50 rounded-r-3xl shadow-2xl lg:shadow-none',
         isSidebarCompressed ? 'w-64 lg:w-20' : 'w-64',
@@ -74,7 +78,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
-        <button @click="sidebarOpen = false" aria-label="Cerrar menú"
+        <button ref="sidebarCloseButton" type="button" @click="sidebarOpen = false" aria-label="Cerrar menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-xl text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
           <Icon name="close" :size="20" />
         </button>
@@ -141,7 +145,8 @@
       <!-- Top bar -->
       <header :class="headerClasses">
         <!-- Hamburger (mobile only) -->
-        <button @click="sidebarOpen = true" aria-label="Abrir menú"
+        <button ref="sidebarOpenButton" type="button" @click="sidebarOpen = true" aria-label="Abrir menú"
+          :aria-expanded="sidebarOpen" aria-controls="mova-app-sidebar"
           class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-2xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
           <Icon name="menu" :size="20" />
         </button>
@@ -214,7 +219,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
@@ -259,6 +264,48 @@ const page        = usePage()
 const user        = computed(() => page.props.auth?.user)
 const flash       = computed(() => page.props.flash ?? {})
 const sidebarOpen = ref(false)
+const sidebarRef = ref(null)
+const sidebarOpenButton = ref(null)
+const sidebarCloseButton = ref(null)
+let previousBodyOverflow = ''
+
+// El menú móvil se comporta como un diálogo: bloquea el fondo, mantiene
+// el foco dentro del panel y devuelve el foco al botón al cerrarse.
+watch(sidebarOpen, async (open) => {
+  if (typeof document === 'undefined') return
+  if (open) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    await nextTick()
+    if (sidebarOpen.value) sidebarCloseButton.value?.focus()
+  } else {
+    document.body.style.overflow = previousBodyOverflow
+    sidebarOpenButton.value?.focus()
+  }
+})
+
+function handleMobileMenuKeydown(event) {
+  if (!sidebarOpen.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    sidebarOpen.value = false
+    return
+  }
+  if (event.key !== 'Tab' || !sidebarRef.value) return
+
+  const focusable = Array.from(sidebarRef.value.querySelectorAll('a[href], button:not([disabled]), input:not([disabled])'))
+    .filter((element) => element.getClientRects().length > 0)
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && (document.activeElement === first || !sidebarRef.value.contains(document.activeElement))) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (document.activeElement === last || !sidebarRef.value.contains(document.activeElement))) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 const realtimeToast = ref('')
 let toastTimeout
 
@@ -309,6 +356,7 @@ let channel
 let removeNavigateListener
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleMobileMenuKeydown)
   window.addEventListener('scroll', checkScroll, { passive: true, capture: true })
   if (mainRef.value) {
     mainRef.value.addEventListener('scroll', checkScroll, { passive: true })
@@ -336,6 +384,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleMobileMenuKeydown)
+  if (sidebarOpen.value) document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('scroll', checkScroll, { capture: true })
   if (mainRef.value) {
     mainRef.value.removeEventListener('scroll', checkScroll)

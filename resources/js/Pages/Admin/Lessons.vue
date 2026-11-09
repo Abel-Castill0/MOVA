@@ -36,10 +36,10 @@
           <tbody class="divide-y divide-gray-100">
             <tr v-for="l in lessons.data" :key="l.id" class="hover:bg-gray-50">
               <td class="px-4 py-3 text-gray-400">#{{ l.id }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ l.class_request?.subject?.name ?? '—' }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ l.student?.first_name }} {{ l.student?.last_name }}</td>
-              <td class="px-4 py-3 text-gray-500 text-xs">{{ l.student?.parent?.name ?? '—' }}</td>
-              <td class="px-4 py-3 text-gray-600">{{ l.teacher_profile?.user?.name ?? '—' }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ l.subject_name ?? '—' }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ l.student_name }}</td>
+              <td class="px-4 py-3 text-gray-500 text-xs">{{ l.parent_name ?? '—' }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ l.teacher_name ?? '—' }}</td>
               <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ fmtDate(l.start_time) }}</td>
               <td class="px-4 py-3">
                 <StatusBadge :status="l.status" />
@@ -87,10 +87,10 @@
          solo modal parametrizado por ACTION_CONFIG en vez de triplicar el
          markup, igual que LessonSettlementService evita triplicar la lógica
          de liquidación en el backend. -->
-    <div v-if="actionModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-      @keydown.esc="closeActionModal">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">{{ activeActionConfig.title }} #{{ actionModal.lesson.id }}</h3>
+    <Modal :show="Boolean(actionModal)" max-width="sm" title-id="admin-lesson-action-title"
+      :closeable="!submitting" @close="closeActionModal">
+      <div v-if="actionModal" class="bg-white rounded-2xl p-6">
+        <h3 id="admin-lesson-action-title" class="font-bold text-gray-900 mb-1">{{ activeActionConfig.title }} #{{ actionModal.lesson.id }}</h3>
         <p class="text-sm text-gray-500 mb-4">{{ fmtDate(actionModal.lesson.start_time) }}</p>
         <p v-if="activeActionConfig.warning" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
           {{ activeActionConfig.warning }}
@@ -101,17 +101,17 @@
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 mb-1" />
         <p v-if="actionError" class="text-xs text-red-500 mb-2" role="alert">{{ actionError }}</p>
         <div class="flex gap-2 mt-3">
-          <button @click="closeActionModal"
-            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+          <button type="button" @click="closeActionModal" :disabled="submitting"
+            class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
             Volver
           </button>
-          <button @click="submitAction" :disabled="submitting"
+          <button type="button" @click="submitAction" :disabled="submitting"
             :class="['flex-1 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50', activeActionConfig.confirmClass]">
             {{ submitting ? 'Enviando…' : activeActionConfig.confirmLabel }}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   </AppLayout>
 </template>
 
@@ -120,6 +120,7 @@ import { ref, computed } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import Modal from '@/Components/Modal.vue'
 
 const props = defineProps({
   lessons:      { type: Object, required: true },
@@ -187,13 +188,15 @@ function openActionModal(type, lesson) {
   actionError.value  = ''
 }
 
-function closeActionModal() {
+function closeActionModal(force = false) {
+  if (submitting.value && force !== true) return
   actionModal.value  = null
   actionReason.value = ''
   actionError.value  = ''
 }
 
 function submitAction() {
+  if (submitting.value || !actionModal.value) return
   if (actionReason.value.trim().length < 5) {
     actionError.value = 'El motivo debe tener al menos 5 caracteres.'
     return
@@ -203,7 +206,7 @@ function submitAction() {
     route(activeActionConfig.value.routeName, actionModal.value.lesson.id),
     { reason: actionReason.value.trim() },
     {
-      onSuccess: closeActionModal,
+      onSuccess: () => closeActionModal(true),
       onError: (errors) => { actionError.value = errors.reason ?? 'No se pudo completar la acción.' },
       onFinish: () => { submitting.value = false },
     }

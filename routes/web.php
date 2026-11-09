@@ -300,6 +300,7 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::get('/pending-teachers', [AdminController::class, 'pendingTeachers'])->name('admin.teachers.pending');
         Route::post('/teachers/{teacher}/verify', [AdminController::class, 'verifyTeacher'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.verify');
         Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.reject');
+        Route::post('/teachers/{teacher}/public-listing', [AdminController::class, 'setTeacherPublicListing'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.public-listing');
         Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.suspend');
         Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.unsuspend');
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');

@@ -8,9 +8,14 @@ class NotificationController extends Controller
 {
     public function index()
     {
-        return response()->json(
-            auth()->user()->notifications()->take(20)->get()
-        );
+        $user = auth()->user();
+
+        return response()->json([
+            // La campana muestra 20 entradas, pero el contador debe abarcar
+            // TODAS las no leídas; si hay 21+, no puede ocultar las antiguas.
+            'notifications' => $user->notifications()->latest()->limit(20)->get(),
+            'unread_count' => $user->unreadNotifications()->count(),
+        ]);
     }
 
     public function markRead(string $id)
@@ -21,7 +26,8 @@ class NotificationController extends Controller
 
     public function markAllRead()
     {
-        auth()->user()->unreadNotifications->markAsRead();
+        // UPDATE acotado al usuario, sin hidratar toda la colección en memoria.
+        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
         return response()->json(['ok' => true]);
     }
 }

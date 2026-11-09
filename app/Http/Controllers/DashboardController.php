@@ -23,7 +23,9 @@ class DashboardController extends Controller
             return Inertia::render('Dashboard/Admin', [
                 'stats' => [
                     'users'                   => User::count(),
-                    'pending_teachers'         => TeacherProfile::where('is_verified', false)->count(),
+                    // Igual que la lista "Pendientes de verificación": los
+                    // rechazados previamente se muestran en otro apartado.
+                    'pending_teachers'         => TeacherProfile::where('is_verified', false)->whereNull('rejected_at')->count(),
                     'incomplete_profiles'      => TeacherProfile::where(function ($q) {
                         $q->whereNull('bio')->orWhere('bio', '')->orWhere('hourly_rate', 0);
                     })->count(),

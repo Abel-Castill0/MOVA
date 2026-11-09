@@ -34,13 +34,13 @@
           <tbody class="divide-y divide-gray-100">
             <tr v-for="r in requests.data" :key="r.id" class="hover:bg-gray-50">
               <td class="px-4 py-3 text-gray-500">#{{ r.id }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ r.subject?.name ?? '—' }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ r.subject_name ?? '—' }}</td>
               <td class="px-4 py-3">
-                <p class="text-gray-700">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
-                <p class="text-xs text-gray-500">{{ r.student?.parent?.name ?? '—' }}</p>
+                <p class="text-gray-700">{{ r.student_name }}</p>
+                <p class="text-xs text-gray-500">{{ r.parent_name ?? '—' }}</p>
               </td>
               <td class="px-4 py-3 text-gray-600 text-xs">
-                {{ r.class_offer?.teacher_profile?.user?.name ?? r.lesson?.teacher_profile?.user?.name ?? 'Sin asignar' }}
+                {{ r.teacher_name ?? 'Sin asignar' }}
               </td>
               <td class="px-4 py-3">
                 <span :class="['text-xs font-semibold px-2 py-0.5 rounded', badgeClass(r.status)]">

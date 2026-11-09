@@ -77,14 +77,13 @@ class HealthCheck extends Command
         // PROVIDER SOURCE OF TRUTH (MOVA Yape Checkout Pre-Card Hardening):
         // la lista de pagos ya no es una copia hardcodeada propia — se lee
         // de config('payments.supported_providers'), la MISMA que usa
-        // AppServiceProvider::register() (ProviderGuard::resolve()). Antes
-        // esta lista vivía duplicada aquí y ya había divergido una vez
-        // (se quedó con solo 'culqi' cuando se agregó Mercado Pago): un
-        // falso positivo "INVÁLIDO" en mova:health-check pese a un binding
-        // de contenedor perfectamente válido.
+        // AppServiceProvider::register() (ProviderGuard::resolve()). WhatsApp
+        // aplica idéntica regla con config('services.whatsapp.supported_providers'):
+        // el monitor seguía aceptando solo "meta" cuando el binding ya
+        // aceptaba WAHA, causando un incidente falso en producción.
         foreach ([
             ['pagos', 'PAYMENT_PROVIDER', 'payments.provider', config('payments.supported_providers'), 'payments.enabled'],
-            ['WhatsApp', 'WHATSAPP_PROVIDER', 'services.whatsapp.provider', ['meta'], 'services.whatsapp.enabled'],
+            ['WhatsApp', 'WHATSAPP_PROVIDER', 'services.whatsapp.provider', config('services.whatsapp.supported_providers'), 'services.whatsapp.enabled'],
         ] as [$kind, $envVar, $providerKey, $supported, $enabledKey]) {
             $featureEnabled = (bool) config($enabledKey, false);
 
@@ -96,6 +95,23 @@ class HealthCheck extends Command
             } catch (\Throwable $e) {
                 $checks[$envVar] = 'INVÁLIDO';
                 $warnings[] = ['code' => $envVar.'_INVALID', 'message' => $e->getMessage()];
+            }
+        }
+
+        // Seleccionar WAHA es válido, pero no basta para poder enviar avisos.
+        // Comprueba solo presencia de configuración (sin revelar secretos ni
+        // contactar al proveedor). La conectividad se verifica aparte.
+        if (config('services.whatsapp.enabled') && config('services.whatsapp.provider') === 'waha') {
+            try {
+                ProviderGuard::requireConfig('WhatsApp (WAHA)', true, [
+                    'WAHA_BASE_URL' => config('services.waha.url'),
+                    'WAHA_API_KEY' => config('services.waha.api_key'),
+                    'WAHA_HOOK_HMAC_KEY' => config('services.waha.hmac_key'),
+                ]);
+                $checks['waha_configuration'] = 'credenciales presentes';
+            } catch (\Throwable $e) {
+                $checks['waha_configuration'] = 'INCOMPLETA';
+                $warnings[] = ['code' => 'WAHA_CONFIG_INCOMPLETE', 'message' => $e->getMessage()];
             }
         }
 

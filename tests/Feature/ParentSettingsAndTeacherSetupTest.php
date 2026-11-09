@@ -139,7 +139,10 @@ class ParentSettingsAndTeacherSetupTest extends TestCase
         $theirs = $this->storeNotification($other);
 
         $this->actingAs($owner)->getJson(route('notifications.index'))
-            ->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $mine);
+            ->assertOk()
+            ->assertJsonCount(1, 'notifications')
+            ->assertJsonPath('notifications.0.id', $mine)
+            ->assertJsonPath('unread_count', 1);
 
         // Marcar una notificación ajena no existe para el usuario (404) y no la toca.
         $this->actingAs($owner)->postJson(route('notifications.read', $theirs))->assertNotFound();

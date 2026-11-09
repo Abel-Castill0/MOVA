@@ -106,6 +106,7 @@ class TeacherProfile extends Model
 
     protected $casts = [
         'is_verified'  => 'boolean',
+        'is_publicly_listed' => 'boolean',
         'hourly_rate'  => 'decimal:2',
         'credits_available' => 'integer',
         'credits_reserved'  => 'integer',

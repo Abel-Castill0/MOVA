@@ -145,10 +145,10 @@
             </template>
 
             <!-- Circular Hamburger button -->
-            <button @click="mobileOpen = !mobileOpen"
+            <button ref="mobileMenuButton" type="button" @click="mobileOpen = !mobileOpen"
               :class="['w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-95',
                 isSolid ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs']"
-              aria-label="Menú">
+              :aria-label="mobileOpen ? 'Cerrar menú' : 'Menú'" :aria-expanded="mobileOpen" aria-controls="mova-mobile-navigation">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path v-if="!mobileOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/>
                 <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -169,15 +169,16 @@
     <Transition
       enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
       leave-active-class="transition duration-200 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-      <div v-if="mobileOpen" class="md:hidden fixed inset-0 z-50 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700">
-        <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px"></div>
+      <div v-if="mobileOpen" id="mova-mobile-navigation" ref="mobileMenuDialog" role="dialog" aria-modal="true" aria-label="Menú de navegación"
+        class="md:hidden fixed inset-0 z-50 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700">
+        <div class="absolute inset-0 opacity-10 pointer-events-none" aria-hidden="true" style="background-image: linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px"></div>
 
         <div class="relative h-full flex flex-col px-6 pt-5 pb-8">
-          <div class="flex items-center justify-between">
+          <div class="relative z-10 flex items-center justify-between shrink-0">
             <Link href="/" class="flex items-center" @click="mobileOpen = false">
               <MovaLogo theme="blanco" class="h-8 w-auto" />
             </Link>
-            <button @click="mobileOpen = false" aria-label="Cerrar menú" class="p-2 -mr-2 rounded-lg text-white/80 hover:text-white">
+            <button ref="mobileCloseButton" type="button" @click="mobileOpen = false" aria-label="Cerrar menú" class="p-2 -mr-2 rounded-lg text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -186,7 +187,7 @@
 
           <Transition
             enter-active-class="transition duration-300 ease-out delay-75" enter-from-class="opacity-0 translate-y-2" enter-to-class="opacity-100 translate-y-0">
-            <nav v-if="mobileOpen" class="flex-1 flex flex-col justify-center items-center text-center gap-2 -mt-12">
+            <nav v-if="mobileOpen" class="min-h-0 flex-1 flex flex-col justify-center items-center text-center gap-2 overflow-y-auto">
               <a v-for="link in navLinks" :key="link.href" :href="link.href"
                 @click="handleMobileNavClick($event, link.href)"
                 class="text-3xl font-black text-white/90 hover:text-white py-2 transition-colors">
@@ -235,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
 import { primaryRole, roleLabel } from '@/utils/roleLabels'
@@ -246,6 +247,9 @@ const props = defineProps({
 
 const scrolled = ref(false)
 const mobileOpen = ref(false)
+const mobileMenuButton = ref(null)
+const mobileCloseButton = ref(null)
+const mobileMenuDialog = ref(null)
 const userMenuOpen = ref(false)
 const userMenuRef = ref(null)
 
@@ -260,17 +264,46 @@ function onDocumentClick(e) {
 }
 
 function onDocumentKeydown(e) {
+  if (mobileOpen.value && e.key === 'Tab') {
+    const focusable = Array.from(mobileMenuDialog.value?.querySelectorAll('a[href], button:not([disabled])') ?? [])
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (first && (e.shiftKey && (document.activeElement === first || !mobileMenuDialog.value?.contains(document.activeElement)))) {
+      e.preventDefault()
+      last.focus()
+    } else if (first && (!e.shiftKey && (document.activeElement === last || !mobileMenuDialog.value?.contains(document.activeElement)))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
   if (e.key === 'Escape') {
     userMenuOpen.value = false
+    if (mobileOpen.value) {
+      e.preventDefault()
+      mobileOpen.value = false
+    }
   }
 }
 
 // El menú full-screen tapa toda la pantalla; sin esto el contenido detrás
 // sigue haciendo scroll con el dedo y se nota el "doble scroll".
-watch(mobileOpen, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
+let previousBodyOverflow = null
+watch(mobileOpen, async (open) => {
+  if (open) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    await nextTick()
+    mobileCloseButton.value?.focus()
+  } else {
+    if (previousBodyOverflow !== null) document.body.style.overflow = previousBodyOverflow
+    previousBodyOverflow = null
+    await nextTick()
+    if (window.innerWidth < 768) mobileMenuButton.value?.focus()
+  }
 })
-onUnmounted(() => { document.body.style.overflow = '' })
+onUnmounted(() => {
+  if (previousBodyOverflow !== null) document.body.style.overflow = previousBodyOverflow
+})
 
 const navLinks = [
   { href: '/', label: 'Inicio' },
@@ -304,13 +337,16 @@ function handleMobileNavClick(e, href) {
 }
 
 function onScroll() { scrolled.value = window.scrollY > 20 }
+function onResize() { if (window.innerWidth >= 768) mobileOpen.value = false }
 onMounted(() => {
   window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('resize', onResize)
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onDocumentKeydown)
 })
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', onResize)
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onDocumentKeydown)
 })

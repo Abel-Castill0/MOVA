@@ -61,7 +61,7 @@ function barrier(string $path): void
 {
     $deadline = microtime(true) + 15;
     while (! is_file($path)) {
-        check(microtime(true) < $deadline, 'Worker barrier timeout.');
+        check(microtime(true) < $deadline, 'Worker barrier timeout waiting for '.basename($path).'.');
         usleep(10000);
         clearstatcache(true, $path);
     }
@@ -80,13 +80,21 @@ function buildFixture(string $run, string $scenario, string $leader, string $fol
         $teacherUser->assignRole('teacher');
         $admin = User::factory()->create(['email' => 'closure-admin-'.$run.'@example.test']);
         $admin->assignRole('admin');
-        $teacher = TeacherProfile::create(['user_id' => $teacherUser->id, 'is_verified' => $options['teacher_verified'] ?? true, 'hourly_rate' => 20, 'credits_available' => 10, 'credits_reserved' => 0]);
+        // La aprobación admin exige bio, tarifa positiva y materia. El
+        // fixture debe cumplir ese contrato ANTES de lanzar los workers:
+        // si el líder falla al verificar, jamás publica leader-ready y el
+        // test termina con un timeout opaco en vez de una regresión útil.
+        $teacher = TeacherProfile::create(['user_id' => $teacherUser->id, 'is_verified' => $options['teacher_verified'] ?? true, 'bio' => 'Docente sintético preparado para verificación QA.', 'hourly_rate' => 20, 'credits_available' => 10, 'credits_reserved' => 0]);
         CreditTransaction::create(['teacher_profile_id' => $teacher->id, 'idempotency_key' => 'qa:'.$run, 'type' => 'deposit', 'amount' => 10, 'description' => 'QA account closure race']);
         $student = Student::create(['parent_user_id' => $parent->id, 'first_name' => 'QA', 'last_name' => 'Closure race', 'grade_level' => 'primaria']);
         // Identidad inmutable del run: la anonimización del cierre elimina
         // los emails/nombres, pero la materia y ledger conservan el UUID.
         $subject = Subject::firstOrCreate(['name' => 'QA closure race '.$run], ['level' => 'Primaria']);
         $teacher->subjects()->sync([$subject->id]);
+        if (in_array('verify', [$leader, $follower], true)) {
+            check(trim((string) $teacher->bio) !== '' && (float) $teacher->hourly_rate > 0 && $teacher->subjects()->exists(),
+                'QA fixture for admin verification must contain bio, a positive rate and a subject.');
+        }
         $request = ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'duration_minutes' => 60, 'help_needed' => 'QA synthetic concurrency', 'status' => 'open']);
         $fixture = [
             'run' => $run, 'scenario' => $scenario,
