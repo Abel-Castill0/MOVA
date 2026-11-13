@@ -51,8 +51,13 @@
           </PrimaryButton>
 
           <SecondaryButton v-if="hasOrderMethod" type="button" class="w-full" :disabled="isBusy" data-testid="pay-order" @click="startOrderPayment">
-            {{ isBusy && busyKind === 'order' ? 'Creando tu orden de pago…' : 'Pagar en efectivo, banca móvil o billetera' }}
+            {{ isBusy && busyKind === 'order' ? 'Creando tu orden de pago…' : 'Pagar con QR: Plin, Yape u otra billetera (o efectivo)' }}
           </SecondaryButton>
+
+          <ul v-if="hasYape || hasOrderMethod" class="space-y-1.5 rounded-xl bg-slate-50 px-3.5 py-3 text-xs text-slate-600" data-testid="wallet-help">
+            <li v-if="hasYape"><strong class="text-slate-800">Yape directo:</strong> en tu app Yape abre el menú y genera un <em>código de aprobación</em>; escríbelo junto a tu celular en la ventana de Culqi. El código vence en 2 minutos.</li>
+            <li v-if="hasOrderMethod"><strong class="text-slate-800">QR (Plin, Yape y otras):</strong> elige «Billeteras móviles», escanea el QR desde tu app y paga. Tus créditos llegan solos cuando Culqi confirma el pago.</li>
+          </ul>
 
           <p v-if="!hasTokenMethods && !hasOrderMethod" class="text-sm text-slate-500">No hay medios de pago automáticos habilitados por ahora.</p>
 
@@ -181,6 +186,7 @@ let pendingDevice = null
 const methods = computed(() => props.culqi?.methods ?? [])
 const hasTokenMethods = computed(() => methods.value.includes('card') || methods.value.includes('yape'))
 const hasOrderMethod = computed(() => methods.value.includes('order'))
+const hasYape = computed(() => methods.value.includes('yape'))
 const tokenButtonLabel = computed(() => {
   const card = methods.value.includes('card')
   const yape = methods.value.includes('yape')
