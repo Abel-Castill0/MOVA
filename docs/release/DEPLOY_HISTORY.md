@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-13 — `2405856` → producción — corrección del CCKT-400 en órdenes QR
+
+- Imagen `sha256:1caadd61e5cba590c3ab6a1403a37010e572544e3c93551e75ed3b53f3674b84` (tag `img-cckt400-20261113`); web `0000057` y scheduler `0000058` Healthy; sin migraciones. CI verde; suite completa 1865 OK.
+- Incidente y causa: `docs/payments-culqi.md` §20. Recarga 4: orden `pending`, confirmada por Culqi (CIP y QR), sin cargo (0 cargos y 0 eventos live).
+- Comprobación real sin cobro (refresh como cuenta #8): `pending`, `confirmed: true`, CIP y QR presentes. La pantalla ya no reabre Culqi.
+- Rollback: imagen `sha256:dd5e7791…`.
+
 ## 2026-11-12 — `95bbda8` → producción — Yape y QR (Plin) habilitados para la prueba de Abel
 
 - Causa raíz: `CULQI_METHODS=card` en producción, por lo que el checkout solo ofrecía tarjeta. Abel creó 2 recargas Inicio (9 y 11 de noviembre) que nunca llegaron a Culqi (0 `payment_orders` Culqi).
