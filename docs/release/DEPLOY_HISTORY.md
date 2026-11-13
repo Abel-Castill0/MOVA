@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-13 (2) — `44260c3` → producción — «Generar nuevo QR» seguro y una orden QR viva por profesor
+
+- Imagen `sha256:bb57e9d28f7611734c309f8083c517ca1968ff447933eb9bde0d6cbe573f6f35` (tag `img-newqr-20261113`); web `0000058` y scheduler `0000059` Healthy; `CULQI_ORDER_TTL_MINUTES=60` (antes 1440). CI verde; suite completa 1875 OK.
+- Diagnóstico en `docs/payments-culqi.md` §21. `confirm: false` no era la causa: las órdenes están confirmadas (`pending`, con CIP y QR). El QR es EMVCo válido y Yape agota el tiempo al resolverlo, un problema del proveedor que se consultó con Culqi. Sin cobro: 0 cargos y 0 eventos.
+- Comprobación real sin pago: `new-qr` sobre la recarga 5 como la cuenta #8 → `pending`, confirmado, aviso «Tu QR actual sigue vigente hasta las 13/11 21:34», 0 órdenes nuevas.
+- Rollback: imagen `sha256:1caadd61…` y `CULQI_ORDER_TTL_MINUTES` sin definir.
+
 ## 2026-11-13 — `2405856` → producción — corrección del CCKT-400 en órdenes QR
 
 - Imagen `sha256:1caadd61e5cba590c3ab6a1403a37010e572544e3c93551e75ed3b53f3674b84` (tag `img-cckt400-20261113`); web `0000057` y scheduler `0000058` Healthy; sin migraciones. CI verde; suite completa 1865 OK.
