@@ -483,3 +483,17 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
 - **Sin verificar:**
   - Por qué Yape no reconoció el QR de PagoEfectivo.
   - Si las billeteras móviles están habilitadas para el comercio en live. Se consultó a Culqi.
+
+## 21. QR de billetera que Yape no lee y «Generar nuevo QR» (2026-11-13)
+
+- **Síntoma (capturas de Abel):** Culqi mostró el QR de «Billeteras digitales» para la recarga 5. Yape respondió «La lectura del QR está tomando más tiempo de lo debido».
+- **`confirm: false` no era la causa.** OpenAPI oficial (`apiculqi.yaml`): *Confirmar orden* «genera un código de pago y cambia su estado a "pendiente"; solo se puede usar … en estado "creada"». Las dos órdenes de Abel (`…q38` y `…kzZFu`) están en `pending`, con CIP y QR, y su `updated_at` es 10 s y 3 s posterior a la creación: el checkout de Culqi las confirmó, que es el flujo previsto. Una orden sin confirmar figuraría como `created`.
+- **El QR está bien formado:** EMVCo dinámico (`01=12`), PEN `604`, PE, MCC 4829 y CRC correcto. Anomalía a consultar con Culqi: el importe va como `54=1000`, sin separador decimal; EMVCo usa unidades con decimales (`10.00`). MOVA envía 1000 céntimos, como exige la API; el contenido del QR lo arma PagoEfectivo. El error de Yape es un tiempo de espera al resolver el QR con su emisor.
+- **Conclusión:** el problema está en el proveedor (PagoEfectivo/Culqi ↔ Yape), no en MOVA. Se pidió a Culqi confirmar la habilitación de billeteras y el formato del QR. No hubo cobro: 0 cargos y 0 eventos live.
+- **Riesgo encontrado:** Abel tenía 2 órdenes pagables a la vez (recargas 4 y 5). Ahora un profesor no puede crear otra orden QR mientras tenga una vigente en otra recarga (409).
+- **«Generar nuevo QR»** (`teacher.credits.checkout.new-qr`, lock por recarga, throttle 6/1):
+  1. Concilia contra Culqi.
+  2. Si está pagada, muestra los créditos. Si está incierta o en revisión, «verificando», sin intento nuevo.
+  3. Si está **vigente, no crea otra**: borrar una orden en Culqi es solo lógico y *no invalida su CIP/QR* (OpenAPI), así que se podría pagar dos veces. Se explica y se ofrece el CIP.
+  4. Si está vencida, cancelada o fallida, crea una orden nueva por la vía normal.
+- **Vigencia de las órdenes nuevas:** `CULQI_ORDER_TTL_MINUTES=60` en producción (antes 1440), para no dejar a un profesor bloqueado un día entero.

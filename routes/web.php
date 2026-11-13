@@ -238,6 +238,9 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::post('/teacher/credits/checkout/{recharge}/order', [CulqiCheckoutController::class, 'order'])
             ->middleware('throttle:10,1')
             ->name('teacher.credits.checkout.order');
+        Route::post('/teacher/credits/checkout/{recharge}/new-qr', [CulqiCheckoutController::class, 'newQr'])
+            ->middleware('throttle:6,1')
+            ->name('teacher.credits.checkout.new-qr');
         Route::post('/teacher/credits/checkout/{recharge}/client-error', [CulqiCheckoutController::class, 'clientError'])
             ->middleware('throttle:10,1')
             ->name('teacher.credits.checkout.client-error');

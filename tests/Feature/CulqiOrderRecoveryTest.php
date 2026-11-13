@@ -181,6 +181,157 @@ class CulqiOrderRecoveryTest extends TestCase
         $this->assertSame(0, $profile->fresh()->credits_available);
     }
 
+    // ── «Generar nuevo QR» ───────────────────────────────────────────────
+
+    public function test_new_qr_with_a_still_valid_order_creates_nothing_and_explains_why(): void
+    {
+        [$user, , $recharge] = $this->pendingOrder();
+        cache()->flush();
+        $this->fakeCulqi(getOrder: fn () => Http::response($this->confirmedOrder(), 200));
+
+        $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->json();
+
+        $this->assertSame('pending', $json['status']);
+        $this->assertStringContainsString('sigue vigente', $json['notice']);
+        $this->assertTrue($json['action_required']['confirmed']);
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders'], 'no se crea una segunda orden pagable');
+        $this->assertSame(1, PaymentOrder::count());
+    }
+
+    public function test_new_qr_when_the_order_was_paid_meanwhile_shows_the_credits_and_creates_nothing(): void
+    {
+        [$user, $profile, $recharge] = $this->pendingOrder();
+        cache()->flush();
+        $this->fakeCulqi(getOrder: fn () => Http::response($this->confirmedOrder(['state' => 'paid', 'paid_at' => time()]), 200));
+
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->assertJson(['status' => 'approved', 'credits_credited' => true]);
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->assertJson(['status' => 'approved']);
+
+        $this->assertSame(5, $profile->fresh()->credits_available);
+        $this->assertSame(1, CreditTransaction::where('type', 'deposit')->count(), 'un solo depósito');
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
+    }
+
+    public function test_new_qr_after_the_order_expired_creates_exactly_one_new_order(): void
+    {
+        [$user, $profile, $recharge, $old] = $this->pendingOrder();
+        cache()->flush();
+        $this->fakeCulqi(
+            postOrder: fn (Request $r) => Http::response($this->orderFor($r->data(), ['id' => 'ord_test_RECOVERY0000002']), 201),
+            getOrder: fn (Request $r) => str_contains($r->url(), 'RECOVERY0000001')
+                ? Http::response($this->confirmedOrder(['state' => 'expired']), 200)
+                : Http::response($this->orderFor([], ['id' => 'ord_test_RECOVERY0000002', 'amount' => 1000, 'state' => 'created', 'metadata' => end($this->orderPayloads)['metadata'] ?? []]), 200),
+        );
+
+        $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->json();
+
+        $this->assertSame('expired', $old->fresh()->status);
+        $this->assertSame(2, PaymentOrder::count());
+        $new = PaymentOrder::latest('id')->first();
+        $this->assertSame(2, $new->attempt_number);
+        $this->assertSame('ord_test_RECOVERY0000002', $new->provider_order_id);
+        $this->assertSame('ord_test_RECOVERY0000002', $json['action_required']['order_id']);
+        $this->assertFalse($json['action_required']['confirmed'], 'la orden nueva aún no tiene QR: la pantalla abre el checkout');
+        $this->assertSame(0, $profile->fresh()->credits_available);
+    }
+
+    public function test_double_click_on_new_qr_is_serialised_by_a_lock(): void
+    {
+        [$user, , $recharge] = $this->pendingOrder();
+        $lock = \Illuminate\Support\Facades\Cache::lock('culqi-qr:teacher:'.$recharge->teacher_profile_id, 30);
+        $this->assertTrue($lock->get());
+
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->assertJsonPath('notice', 'Ya estamos generando tu QR. Espera unos segundos.');
+
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
+        $lock->release();
+    }
+
+    public function test_an_uncertain_order_blocks_a_new_qr(): void
+    {
+        [$user, , $recharge, $order] = $this->pendingOrder();
+        $order->forceFill(['submission_status' => 'uncertain'])->save();
+        cache()->flush();
+        $this->fakeCulqi(getOrder: fn () => Http::response(['object' => 'error'], 500), listOrders: fn () => Http::response(['data' => []], 200));
+
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk();
+
+        $this->assertSame(1, PaymentOrder::count());
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
+    }
+
+    public function test_a_teacher_cannot_hold_two_live_qr_orders_on_different_recharges(): void
+    {
+        [$user, $profile, $first] = $this->pendingOrder();
+        $second = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id, 'package_code' => 'inicio', 'package_name' => 'Inicio', 'credits' => 5,
+            'amount_pen' => '10.00', 'payment_method' => 'culqi', 'operation_number' => null, 'operation_number_normalized' => null, 'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.order', $second))->assertStatus(409);
+
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
+        $this->assertSame(0, PaymentOrder::where('recharge_request_id', $second->id)->count());
+    }
+
+    public function test_a_cancelled_order_whose_qr_can_still_be_paid_blocks_a_new_qr(): void
+    {
+        [$user, , $recharge, $order] = $this->pendingOrder();
+        cache()->flush();
+        // Borrada en Culqi (eliminación lógica): el CIP/QR sigue pagable hasta su vencimiento.
+        $this->fakeCulqi(getOrder: fn () => Http::response($this->confirmedOrder(['state' => 'deleted']), 200));
+
+        $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertOk()->json();
+
+        $this->assertSame('cancelled', $order->fresh()->status);
+        $this->assertStringContainsString('sigue vigente', (string) $json['notice']);
+        $this->assertSame(1, PaymentOrder::count(), 'no se crea una segunda orden mientras el QR borrado aún pueda pagarse');
+    }
+
+    public function test_a_pending_order_past_its_local_expiry_still_blocks_other_recharges_until_culqi_confirms(): void
+    {
+        [$user, $profile, , $order] = $this->pendingOrder();
+        $order->forceFill(['expires_at' => now()->subHour()])->save(); // reloj local vencido, Culqi aún no lo confirma
+        $second = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id, 'package_code' => 'inicio', 'package_name' => 'Inicio', 'credits' => 5,
+            'amount_pen' => '10.00', 'payment_method' => 'culqi', 'operation_number' => null, 'operation_number_normalized' => null, 'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)->postJson(route('teacher.credits.checkout.order', $second))->assertStatus(409);
+        $this->assertSame(0, PaymentOrder::where('recharge_request_id', $second->id)->count());
+    }
+
+    public function test_new_qr_after_expiry_still_refuses_while_another_recharge_has_a_live_order(): void
+    {
+        [$user, $profile, $first] = $this->pendingOrder();
+        $second = RechargeRequest::create([
+            'teacher_profile_id' => $profile->id, 'package_code' => 'inicio', 'package_name' => 'Inicio', 'credits' => 5,
+            'amount_pen' => '10.00', 'payment_method' => 'culqi', 'operation_number' => null, 'operation_number_normalized' => null, 'status' => 'pending',
+        ]);
+        PaymentOrder::create([
+            'recharge_request_id' => $second->id, 'attempt_number' => 1, 'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+            'provider' => 'culqi', 'payment_channel' => 'order', 'provider_order_id' => 'ord_test_OLDEXPIRED00001', 'submission_status' => 'submitted',
+            'status' => 'expired', 'amount_minor' => 1000, 'currency' => 'PEN', 'expires_at' => now()->subHour(),
+        ]);
+        cache()->flush();
+
+        $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.new-qr', $second))->assertOk()->json();
+
+        $this->assertStringContainsString('otra orden con QR vigente', (string) $json['notice']);
+        $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
+    }
+
+    public function test_another_teacher_cannot_generate_a_qr_for_someone_elses_recharge(): void
+    {
+        [, , $recharge] = $this->pendingOrder();
+        $intruder = User::factory()->create();
+        $intruder->assignRole('teacher');
+        TeacherProfile::create(['user_id' => $intruder->id, 'is_verified' => true, 'credits_available' => 0, 'credits_reserved' => 0]);
+
+        $this->actingAs($intruder)->postJson(route('teacher.credits.checkout.new-qr', $recharge))->assertForbidden();
+        $this->assertSame(1, PaymentOrder::count());
+    }
+
     public function test_checkout_client_errors_are_logged_with_the_code_only_and_are_owner_only(): void
     {
         [$user, , $recharge] = $this->pendingOrder();

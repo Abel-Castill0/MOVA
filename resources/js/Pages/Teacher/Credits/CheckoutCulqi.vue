@@ -89,9 +89,9 @@
           <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600" aria-hidden="true">
             <Icon name="info" :size="24" />
           </span>
-          <p class="font-bold text-slate-900">Pago pendiente</p>
+          <p class="font-bold text-slate-900">Paga {{ currency }} {{ money(recharge.amount_pen) }} con Yape o Plin</p>
           <p class="text-sm text-slate-500">{{ statusMessage }}</p>
-          <p v-if="orderExpiresText" class="text-xs text-slate-500">Vence: {{ orderExpiresText }}</p>
+          <p v-if="orderExpiresText" class="text-xs font-semibold text-slate-600">QR vigente hasta: {{ orderExpiresText }}</p>
           <p class="text-xs font-semibold text-slate-600">Aún no se te ha acreditado ningún crédito.</p>
 
           <!-- Orden ya confirmada por Culqi: el checkout no la acepta otra vez (CCKT-400). Se paga con ESTE QR/CIP. -->
@@ -105,7 +105,22 @@
             </ul>
           </div>
           <SecondaryButton v-else-if="orderConfirmed === false" type="button" @click="reopenOrderCheckout">Ver código o QR de pago</SecondaryButton>
-          <SecondaryButton v-else type="button" @click="refreshOnce">Actualizar estado del pago</SecondaryButton>
+
+          <p v-if="qrNotice" class="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800" role="alert" data-testid="qr-notice">{{ qrNotice }}</p>
+          <InputError :message="submitError" />
+
+          <div class="grid w-full gap-2 sm:grid-cols-2">
+            <SecondaryButton type="button" class="w-full justify-center" :disabled="qrBusy !== ''" data-testid="verify-payment" @click="verifyPayment">
+              {{ qrBusy === 'verify' ? 'Verificando…' : 'Verificar pago' }}
+            </SecondaryButton>
+            <PrimaryButton type="button" class="w-full justify-center gap-2" :disabled="qrBusy !== ''" data-testid="new-qr" @click="generateNewQr">
+              <svg class="h-4 w-4" :class="{ 'motion-safe:animate-spin': qrBusy === 'new' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+              </svg>
+              {{ qrBusy === 'new' ? 'Generando QR seguro…' : 'Generar nuevo QR' }}
+            </PrimaryButton>
+          </div>
+          <p class="text-xs text-slate-500">Si tu app no logra leer el QR, primero verifica el pago. «Generar nuevo QR» solo crea otro cuando el anterior ya venció; mientras siga vigente podrás pagarlo con el código CIP.</p>
           <p class="text-xs text-slate-500">Puedes cerrar esta pantalla: cuando pagues, tus créditos se acreditarán solos.</p>
           <Link :href="route('teacher.credits.index')" class="text-xs text-slate-500 underline">Volver a Mis créditos</Link>
         </div>
@@ -233,6 +248,7 @@ function money(value) {
 }
 
 function applyStatus(payload) {
+  qrNotice.value = payload.notice || ''
   phase.value = 'server'
   status.value = payload.status
   statusMessage.value = payload.message
@@ -451,6 +467,43 @@ async function openOrderCheckout() {
 }
 
 let orderRefreshTimer = null
+const qrNotice = ref('')
+const qrBusy = ref('') // '' | 'verify' | 'new' — un solo clic a la vez
+
+async function verifyPayment() {
+  if (qrBusy.value) return
+  qrBusy.value = 'verify'
+  submitError.value = ''
+  try {
+    await refreshOnce()
+  } finally {
+    qrBusy.value = ''
+  }
+}
+
+async function generateNewQr() {
+  if (qrBusy.value) return
+  qrBusy.value = 'new'
+  submitError.value = ''
+  closeCulqiCheckout()
+  try {
+    const response = await post('teacher.credits.checkout.new-qr')
+    applyStatus(response.data)
+    // Solo una orden NUEVA (aún sin confirmar) se abre en el checkout de Culqi para que genere su QR.
+    if (actionRequired.value?.type === 'order' && actionRequired.value.confirmed === false) {
+      await openOrderCheckout()
+    }
+    startPolling()
+  } catch (error) {
+    if (error?.response && error.response.status >= 400 && error.response.status < 500) {
+      submitError.value = describeError(error)
+    } else {
+      submitError.value = 'No pudimos comprobar tu pago ahora. No se generó nada nuevo; vuelve a intentarlo en un momento.'
+    }
+  } finally {
+    qrBusy.value = ''
+  }
+}
 onBeforeUnmount(() => clearTimeout(orderRefreshTimer))
 
 /** Registra solo el código del error de Culqi (p. ej. CCKT-400), sin datos personales. */

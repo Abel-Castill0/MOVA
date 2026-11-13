@@ -176,7 +176,16 @@ class CulqiCheckoutController extends Controller
         $phone = preg_replace('/\D+/', '', (string) $recharge->loadMissing('teacherProfile.user')->teacherProfile?->user?->phone) ?? '';
         abort_unless(strlen($phone) >= 9, 422, 'Registra tu celular en tu perfil para pagar en efectivo o con billetera: Culqi lo exige para generar la orden.');
 
-        $this->run($recharge, fn (CulqiPaymentProvider $provider) => $provider->createOrderAttempt($recharge));
+        $teacherLock = Cache::lock('culqi-qr:teacher:'.$recharge->teacher_profile_id, 30);
+        abort_unless($teacherLock->get(), 409, 'Ya estamos generando una orden de pago para tu cuenta. Espera unos segundos.');
+        try {
+            $other = $this->otherLiveOrder($recharge);
+            abort_if($other !== null, 409, 'Ya tienes otra orden de pago con QR vigente (recarga #'.$other?->recharge_request_id.'). Págala o espera a que venza antes de generar otra, para no pagar dos veces.');
+
+            $this->run($recharge, fn (CulqiPaymentProvider $provider) => $provider->createOrderAttempt($recharge));
+        } finally {
+            $teacherLock->release();
+        }
 
         $this->remoteOrderDetails = true;
 
@@ -243,11 +252,11 @@ class CulqiCheckoutController extends Controller
     /** Solo los endpoints POST (order, refresh) leen la orden en Culqi para mostrar su QR/CIP; los GET no hacen red. */
     private bool $remoteOrderDetails = false;
 
-    private function respond(RechargeRequest $recharge)
+    private function respond(RechargeRequest $recharge, ?string $notice = null)
     {
         $recharge = $recharge->fresh(['latestPaymentOrder', 'teacherProfile.user']);
 
-        return response()->json($this->safeStatus($recharge, $recharge->latestPaymentOrder))
+        return response()->json($this->safeStatus($recharge, $recharge->latestPaymentOrder) + ['notice' => $notice])
             ->header('Cache-Control', 'no-store, private');
     }
 
@@ -421,6 +430,87 @@ class CulqiCheckoutController extends Controller
         }
 
         return $details;
+    }
+
+    /**
+     * «Generar nuevo QR». Primero concilia la orden actual contra Culqi:
+     *   - pagada → se muestra el resultado (nunca se crea otra);
+     *   - incierta / en revisión → «estamos verificando», sin nuevo intento;
+     *   - pendiente y vigente → NO se crea otra: borrar una orden en Culqi no invalida su CIP/QR (eliminación lógica), así
+     *     que ambas serían pagables. Se explica y se ofrecen el CIP y la hora de vencimiento;
+     *   - vencida / cancelada / fallida → se crea una orden nueva por la vía normal (bloqueo de fila e idempotencia).
+     */
+    public function newQr(Request $request, RechargeRequest $recharge)
+    {
+        $this->guard($request, $recharge);
+        $request->validate($this->forbidden());
+        abort_unless(in_array('order', CheckoutProvider::culqiMethods(), true), 422, 'Las órdenes de pago no están disponibles por ahora.');
+
+        $lock = Cache::lock('culqi-qr:teacher:'.$recharge->teacher_profile_id, 30);
+        if (! $lock->get()) {
+            return $this->respond($recharge, 'Ya estamos generando tu QR. Espera unos segundos.');
+        }
+
+        try {
+            $order = $recharge->latestPaymentOrder;
+            if ($order !== null && CheckoutProvider::culqiLegacyProcessing()) {
+                $this->reconcileOnDemand($recharge, $order);
+                $order = $order->fresh();
+            }
+            $recharge = $recharge->fresh();
+
+            if ($recharge->status !== 'pending' || $order === null || $order->status === 'paid' || $order->review_reason !== null
+                || in_array($order->submission_status, ['submitting', 'uncertain'], true)) {
+                $this->remoteOrderDetails = true;
+
+                return $this->respond($recharge);
+            }
+
+            if ($order->payment_channel === CulqiPaymentProvider::CHANNEL_ORDER
+                && ($order->status === 'pending' || CulqiPaymentProvider::orderMayStillBePaid($order))) {
+                $this->remoteOrderDetails = true;
+                if ($order->expires_at !== null && $order->expires_at->isPast()) {
+                    return $this->respond($recharge, 'Tu QR ya debería haber vencido, pero Culqi aún no lo confirma. Vuelve a intentarlo en unos minutos: no generamos otro hasta tener esa confirmación, para no cobrarte dos veces.');
+                }
+                $until = $order->expires_at?->timezone('America/Lima')->format('d/m H:i');
+
+                return $this->respond($recharge, 'Tu QR actual sigue vigente'.($until ? " hasta las {$until}" : '').'. Por seguridad no generamos otro mientras siga vigente: el anterior seguiría pudiéndose pagar y se te cobraría dos veces. Si tu app no lo lee, prueba con el código CIP en tu banca móvil (servicio PagoEfectivo) o espera a que venza.');
+            }
+
+            if (! in_array($order->status, ['expired', 'cancelled', 'failed'], true)) {
+                return $this->respond($recharge);
+            }
+
+            $other = $this->otherLiveOrder($recharge);
+            if ($other !== null) {
+                return $this->respond($recharge, 'Tienes otra orden con QR vigente (recarga #'.$other->recharge_request_id.'). Págala o espera a que venza antes de generar otra.');
+            }
+
+            $phone = preg_replace('/\D+/', '', (string) $recharge->loadMissing('teacherProfile.user')->teacherProfile?->user?->phone) ?? '';
+            abort_unless(strlen($phone) >= 9, 422, 'Registra tu celular en tu perfil para pagar con billetera: Culqi lo exige para generar la orden.');
+
+            $this->run($recharge, fn (CulqiPaymentProvider $provider) => $provider->createOrderAttempt($recharge));
+            $this->remoteOrderDetails = true;
+
+            return $this->respond($recharge);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** Otra orden QR/CIP del mismo profesor, pendiente y sin vencer, en una recarga distinta (evita pagar dos órdenes). */
+    private function otherLiveOrder(RechargeRequest $recharge): ?PaymentOrder
+    {
+        // «pending» sigue vivo hasta que Culqi lo marque vencido (no por el reloj de MOVA); «cancelled» (borrado lógico en
+        // Culqi) sigue pagable hasta su vencimiento + 15 min.
+        return PaymentOrder::query()
+            ->where('provider', CulqiPaymentProvider::PROVIDER)
+            ->where('payment_channel', CulqiPaymentProvider::CHANNEL_ORDER)
+            ->where('recharge_request_id', '!=', $recharge->id)
+            ->where(fn ($q) => $q->where('status', 'pending')->orWhere(fn ($c) => $c->where('status', 'cancelled')
+                ->where(fn ($e) => $e->whereNull('expires_at')->orWhere('expires_at', '>', now()->subMinutes(15)))))
+            ->whereHas('rechargeRequest', fn ($q) => $q->where('teacher_profile_id', $recharge->teacher_profile_id))
+            ->first();
     }
 
     /** El checkout de Culqi devolvió un error (p. ej. CCKT-400): se registra solo el código, sin datos personales. */

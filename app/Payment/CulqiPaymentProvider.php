@@ -529,6 +529,12 @@ class CulqiPaymentProvider implements PaymentProviderContract
                 return $latest;
             }
 
+            // Borrar una orden en Culqi es lógico y NO invalida su CIP/QR: una orden cancelada sigue pagable hasta su
+            // vencimiento (+15 min de margen por desfase de relojes). Hasta entonces no se crea otro intento.
+            if ($latest !== null && self::orderMayStillBePaid($latest)) {
+                throw new RuntimeException("CulqiPaymentProvider: RechargeRequest#{$recharge->id} tiene una orden cancelada cuyo QR/CIP aún podría pagarse; se espera a su vencimiento.");
+            }
+
             if ($latest !== null && ! in_array($latest->status, ['failed', 'cancelled', 'expired'], true)) {
                 throw new RuntimeException(
                     "CulqiPaymentProvider: RechargeRequest#{$recharge->id} ya tiene un intento en estado '{$latest->status}' "
@@ -548,6 +554,14 @@ class CulqiPaymentProvider implements PaymentProviderContract
                 'currency' => 'PEN',
             ]);
         });
+    }
+
+    /** Orden QR/CIP cancelada (borrado lógico en Culqi) cuyo código aún podría pagarse: vence + 15 min de margen. */
+    public static function orderMayStillBePaid(PaymentOrder $order): bool
+    {
+        return $order->payment_channel === self::CHANNEL_ORDER
+            && $order->status === 'cancelled'
+            && ($order->expires_at === null || $order->expires_at->copy()->addMinutes(15)->isFuture());
     }
 
     // ── Utilidades ────────────────────────────────────────────────────────
