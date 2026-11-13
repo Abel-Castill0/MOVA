@@ -238,6 +238,9 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::post('/teacher/credits/checkout/{recharge}/order', [CulqiCheckoutController::class, 'order'])
             ->middleware('throttle:10,1')
             ->name('teacher.credits.checkout.order');
+        Route::post('/teacher/credits/checkout/{recharge}/client-error', [CulqiCheckoutController::class, 'clientError'])
+            ->middleware('throttle:10,1')
+            ->name('teacher.credits.checkout.client-error');
 
         // 'create'/'store' deliberadamente excluidos: el profesor ya no
         // publica anuncios (marketplace informativo, HANDOFF_FINAL.md §21) —

@@ -465,3 +465,21 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
 - **Pruebas:** `CulqiActivationCheckTest` (10) y `infra/azure/tests/test-culqi-live-activation.sh` (12, con `az` simulado: bloqueo de Students y de un `quotaId` ilegible, fallo de lectura, confirmación, rollback cuando falla web, `disable` sin reapertura, `--dry-run`, `check` sin escrituras). Además pasa shellcheck.
 - **Excepción de Azure for Students (2026-11-08):** sale como OK solo si la suscripción tiene la etiqueta `mova-microsoft-commercial-authorization` (referencia de 6-64 caracteres) y no ha vencido `…-expires`. En la salida se muestra únicamente «…» y los últimos 4 caracteres. Decisión registrada en `MOVA_V1_DECISIONS.md` §10. Pruebas simuladas: 18 (autorizada, vencida, formato inválido, etiqueta ajena, y check/enable-test/enable-all/disable con la excepción).
 - **Rotación del secreto del webhook (2026-11-04):** se hizo con la propia herramienta (`rotate-webhook-secret`): la URL nueva da 400 y **la anterior, 401 (revocada)**. La URL vigente está en `C:\Users\TK\.mova-secrets\culqi-live-webhook-url.txt`. **Segunda rotación (mismo día):** al editar CulqiPanel una captura mostró parte de la URL nueva, así que se rotó otra vez y las 5 entradas se actualizaron sin capturar la URL. Verificado por huella SHA-256 dentro del panel: los 5 webhooks coinciden con la URL vigente, que MOVA acepta (400); las anteriores responden 401. Entrega auténtica desde Culqi: sin verificar hasta la primera compra real.
+
+## 20. Incidente CCKT-400 en órdenes QR (2026-11-13, recarga 4)
+
+- **Secuencia reconstruida con datos reales:**
+  - **MOVA:** la recarga 4 (profesor #8, Inicio, S/ 10) generó una sola `payment_order`, `ord_live_…QgQ1q38` (1000 PEN), creada con `confirm: false`.
+  - **API de Culqi (lectura):** la orden está `pending`, sin `paid_at`, y ya tiene `payment_code` (CIP) y `qr` (imagen de `codigoqr.pagoefectivolatam.com`). Su `updated_at` es 10 s posterior a la creación: el checkout la confirmó cuando Abel eligió «Billeteras móviles».
+  - **Sin dinero movido:** 0 cargos live, 0 eventos y 0 webhooks.
+- **Causa del CCKT-400 (inferida del código y de esos datos; Culqi no documenta el código):** «Ver código o QR de pago» volvía a abrir el Custom Checkout con esa orden ya confirmada, y el checkout de Culqi no puede validarla otra vez. Además, MOVA ignoraba el `{kind: 'error'}` del checkout en el flujo de órdenes y no cerraba la instancia anterior antes de abrir otra.
+- **Corrección:**
+  - El sondeo POST (`refresh`/`order`) lee la orden en Culqi (GET; se cachea 2 min solo si está confirmada) y devuelve `confirmed`/`cip`/`qr_url`. El QR solo se acepta si es https de `*.pagoefectivolatam.com`, sin usuario, `@` ni `\`.
+  - Con `confirmed=true`, la pantalla muestra el QR y el CIP **sin reabrir Culqi**. Con `false`, ofrece abrir el checkout. Con `null`, solo «Actualizar estado».
+  - Los errores del checkout se registran solo por código (`teacher.credits.checkout.client-error`).
+  - Mientras la orden siga pendiente no se crea otra orden ni se permite pagar con tarjeta.
+  - Los GET siguen sin llamar a Culqi.
+  - Pruebas: `CulqiOrderRecoveryTest` (10).
+- **Sin verificar:**
+  - Por qué Yape no reconoció el QR de PagoEfectivo.
+  - Si las billeteras móviles están habilitadas para el comercio en live. Se consultó a Culqi.

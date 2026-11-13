@@ -93,7 +93,19 @@
           <p class="text-sm text-slate-500">{{ statusMessage }}</p>
           <p v-if="orderExpiresText" class="text-xs text-slate-500">Vence: {{ orderExpiresText }}</p>
           <p class="text-xs font-semibold text-slate-600">Aún no se te ha acreditado ningún crédito.</p>
-          <SecondaryButton type="button" @click="reopenOrderCheckout">Ver código o QR de pago</SecondaryButton>
+
+          <!-- Orden ya confirmada por Culqi: el checkout no la acepta otra vez (CCKT-400). Se paga con ESTE QR/CIP. -->
+          <div v-if="orderConfirmed" class="w-full space-y-3 rounded-xl border border-slate-200 p-4 text-left" data-testid="order-payment-details">
+            <img v-if="actionRequired.qr_url" :src="actionRequired.qr_url" alt="Código QR para pagar la orden" class="mx-auto h-48 w-48" width="192" height="192" referrerpolicy="no-referrer" />
+            <p v-if="actionRequired.cip" class="text-center text-sm text-slate-700">Código CIP: <strong class="font-mono text-base tracking-wider">{{ actionRequired.cip }}</strong></p>
+            <ul class="space-y-1.5 text-xs text-slate-600">
+              <li><strong class="text-slate-800">Con Yape o Plin:</strong> en tu app elige «Escanear QR» y escanea el código (si lo ves en este mismo celular, guárdalo como imagen y usa «subir desde galería»).</li>
+              <li><strong class="text-slate-800">Con tu banca móvil o en agentes:</strong> paga el servicio «PagoEfectivo» con el código CIP.</li>
+              <li>Paga <strong>una sola vez</strong>. Esta orden sigue siendo la misma hasta que venza: no hace falta generar otra.</li>
+            </ul>
+          </div>
+          <SecondaryButton v-else-if="orderConfirmed === false" type="button" @click="reopenOrderCheckout">Ver código o QR de pago</SecondaryButton>
+          <SecondaryButton v-else type="button" @click="refreshOnce">Actualizar estado del pago</SecondaryButton>
           <p class="text-xs text-slate-500">Puedes cerrar esta pantalla: cuando pagues, tus créditos se acreditarán solos.</p>
           <Link :href="route('teacher.credits.index')" class="text-xs text-slate-500 underline">Volver a Mis créditos</Link>
         </div>
@@ -187,6 +199,8 @@ const methods = computed(() => props.culqi?.methods ?? [])
 const hasTokenMethods = computed(() => methods.value.includes('card') || methods.value.includes('yape'))
 const hasOrderMethod = computed(() => methods.value.includes('order'))
 const hasYape = computed(() => methods.value.includes('yape'))
+// true: Culqi ya generó el QR/CIP (no se reabre su checkout) · false: aún sin confirmar · null: no se pudo saber
+const orderConfirmed = computed(() => actionRequired.value?.type === 'order' ? (actionRequired.value.confirmed ?? null) : null)
 const tokenButtonLabel = computed(() => {
   const card = methods.value.includes('card')
   const yape = methods.value.includes('yape')
@@ -410,17 +424,40 @@ async function openOrderCheckout() {
   const action = actionRequired.value
   if (action?.type !== 'order') return
 
+  // Una orden ya confirmada no se reabre en el checkout de Culqi (respondería CCKT-400): se paga con el QR/CIP mostrado.
+  if (action.confirmed === true) return
+
   try {
-    await openCulqiCheckout({
+    const result = await openCulqiCheckout({
       publicKey: props.culqi.publicKey,
       amountMinor: action.amount_minor,
       email: props.culqi.email,
       methods: methods.value,
       order: action.order_id,
     })
+    if (result?.kind === 'error') {
+      closeCulqiCheckout()
+      reportCheckoutError('order', result.error)
+      submitError.value = 'Culqi no pudo mostrar el pago. No se te cobró nada: abajo verás el estado real de tu orden.'
+      await refreshOnce()
+    } else if (result?.kind === 'order') {
+      // Culqi acaba de mostrar el QR/CIP: en unos segundos MOVA lo tendrá para mostrarlo aunque se cierre el modal.
+      clearTimeout(orderRefreshTimer)
+      orderRefreshTimer = setTimeout(refreshOnce, 4000)
+    }
   } catch (error) {
     submitError.value = error?.message || 'No se pudo abrir el pago seguro. Inténtalo de nuevo.'
   }
+}
+
+let orderRefreshTimer = null
+onBeforeUnmount(() => clearTimeout(orderRefreshTimer))
+
+/** Registra solo el código del error de Culqi (p. ej. CCKT-400), sin datos personales. */
+function reportCheckoutError(flow, error) {
+  const raw = String(error?.code ?? error?.merchant_message?.match?.(/CCKT-\d+/)?.[0] ?? '').slice(0, 40)
+  const code = /^[A-Za-z0-9_.-]*$/.test(raw) ? raw : ''
+  post('teacher.credits.checkout.client-error', { flow, code }).catch(() => {})
 }
 
 function reopenOrderCheckout() {
@@ -515,6 +552,8 @@ onMounted(() => {
   }
   document.addEventListener('visibilitychange', handleVisibilityChange)
   if (isVerifying.value && !showThreeDs.value) startPolling()
+  // Orden pendiente al volver a la pantalla: se pide al servidor (POST) su QR/CIP vigente en vez de reabrir Culqi.
+  if (showOrderPending.value && orderConfirmed.value === null) refreshOnce()
   // Recarga a mitad de 3DS: el token no sobrevive a la recarga; se cierra el intento para poder reintentar.
   if (showThreeDs.value) closeThreeDs('failed')
 })

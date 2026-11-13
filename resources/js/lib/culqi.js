@@ -82,6 +82,10 @@ let activeCheckout = null
 export async function openCulqiCheckout({ publicKey, amountMinor, currency = 'PEN', email, methods, order = null, title = 'MOVA — Recarga de créditos' }) {
   await loadCulqiCheckout()
 
+  // Una instancia anterior (p. ej. un checkout que falló) se cierra antes de abrir otra: dos modales de Culqi a la vez
+  // comparten estado global y pueden reenviar una orden ya usada.
+  closeCulqiCheckout()
+
   return new Promise((resolve) => {
     const config = {
       settings: { title, currency, amount: amountMinor, ...(order ? { order } : {}) },

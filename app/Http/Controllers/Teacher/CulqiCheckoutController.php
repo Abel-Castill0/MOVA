@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
 use App\Models\RechargeRequest;
+use App\Payment\Culqi\CulqiClient;
 use App\Payment\Culqi\CulqiConfig;
 use App\Payment\Culqi\CulqiTokenInstrument;
 use App\Payment\CulqiPaymentProvider;
@@ -14,6 +15,7 @@ use App\Support\CreditPackages;
 use App\Payment\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -176,6 +178,8 @@ class CulqiCheckoutController extends Controller
 
         $this->run($recharge, fn (CulqiPaymentProvider $provider) => $provider->createOrderAttempt($recharge));
 
+        $this->remoteOrderDetails = true;
+
         return $this->respond($recharge);
     }
 
@@ -199,6 +203,8 @@ class CulqiCheckoutController extends Controller
         if ($order !== null && CheckoutProvider::culqiLegacyProcessing()) {
             $this->reconcileOnDemand($recharge, $order);
         }
+
+        $this->remoteOrderDetails = true;
 
         return $this->respond($recharge);
     }
@@ -233,6 +239,9 @@ class CulqiCheckoutController extends Controller
             ]);
         }
     }
+
+    /** Solo los endpoints POST (order, refresh) leen la orden en Culqi para mostrar su QR/CIP; los GET no hacen red. */
+    private bool $remoteOrderDetails = false;
 
     private function respond(RechargeRequest $recharge)
     {
@@ -342,16 +351,96 @@ class CulqiCheckoutController extends Controller
         }
 
         if ($order->status === 'pending' && $order->payment_channel === CulqiPaymentProvider::CHANNEL_ORDER && $order->provider_order_id !== null) {
-            return $this->payload('pending', 'Tu orden de pago está creada. Págala con el código o QR del checkout; tus créditos se acreditan automáticamente cuando Culqi confirme el pago.', false, [
+            // Una orden que el checkout de Culqi YA confirmó (tiene CIP/QR) no puede volver a abrirse en el checkout: Culqi
+            // responde CCKT-400 («problemas al intentar validar tu compra»). En ese caso MOVA muestra el QR y el CIP vigentes,
+            // leídos de la API (solo lectura), y el profesor sigue con ESA orden: nunca se crea otra mientras esté pendiente.
+            $details = $this->orderPaymentDetails($order);
+
+            return $this->payload('pending', $details['confirmed'] === true
+                ? 'Tu orden de pago está lista. Paga con el QR o el código CIP de abajo; tus créditos se acreditan automáticamente cuando Culqi confirme el pago.'
+                : 'Tu orden de pago está creada. Págala con el código o QR del checkout; tus créditos se acreditan automáticamente cuando Culqi confirme el pago.', false, [
                 'type' => 'order',
                 'order_id' => $order->provider_order_id,
                 'amount_minor' => $order->amount_minor,
                 'expires_at' => $order->expires_at?->toIso8601String(),
-            ]);
+            ] + $details);
         }
 
         // 'paid' local sin recarga aprobada todavía NO es aprobado (el ledger manda).
         return $this->payload('pending', $uncertain, false);
+    }
+
+    /**
+     * Datos de pago de una orden pendiente, leídos de Culqi (GET, sin efectos) y cacheados brevemente para no consultar
+     * en cada sondeo. `confirmed`: true si Culqi ya generó el CIP (el checkout ya no la acepta), false si aún no, null si no se
+     * pudo saber (la pantalla no reabre el checkout a ciegas). El QR solo se acepta del dominio oficial de PagoEfectivo.
+     *
+     * @return array{confirmed: ?bool, cip: ?string, qr_url: ?string}
+     */
+    private function orderPaymentDetails(PaymentOrder $order): array
+    {
+        $unknown = ['confirmed' => null, 'cip' => null, 'qr_url' => null];
+        if (CulqiConfig::secretKey() === null) {
+            return $unknown;
+        }
+
+        $key = 'culqi-order-details:'.$order->provider_order_id;
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        if (! $this->remoteOrderDetails) {
+            return $unknown; // GET: lectura pura, sin llamar a Culqi (el sondeo POST lo completa en segundos)
+        }
+        $details = (function () use ($order, $unknown) {
+            try {
+                $result = app(CulqiClient::class)->getOrder((string) $order->provider_order_id);
+            } catch (\Throwable $e) {
+                Log::info('[CulqiCheckout] No se pudo leer la orden para mostrar su QR/CIP.', ['payment_order_id' => $order->id, 'error' => class_basename($e)]);
+
+                return $unknown;
+            }
+            $body = $result->body ?? [];
+            if (! $result->successful() || ($body['id'] ?? null) !== $order->provider_order_id) {
+                return $unknown;
+            }
+            $cip = preg_match('/^\d{6,20}$/', (string) ($body['payment_code'] ?? '')) ? (string) $body['payment_code'] : null;
+            $qr = (string) ($body['qr'] ?? '');
+            $host = strtolower((string) parse_url($qr, PHP_URL_HOST));
+            // Sin «\», «@» ni usuario: PHP y el navegador podrían interpretar un host distinto (QR de phishing).
+            $qrOk = str_starts_with($qr, 'https://') && filter_var($qr, FILTER_VALIDATE_URL) !== false
+                && ! str_contains($qr, '\\') && ! str_contains($qr, '@') && parse_url($qr, PHP_URL_USER) === null
+                && ($host === 'pagoefectivolatam.com' || str_ends_with($host, '.pagoefectivolatam.com'));
+
+            return ['confirmed' => $cip !== null, 'cip' => $cip, 'qr_url' => $qrOk ? $qr : null];
+        })();
+        // Solo se cachea la orden confirmada (no vuelve atrás). Sin confirmar o desconocida puede cambiar en segundos (el
+        // profesor elige «Billeteras móviles»): se vuelve a leer, para no ofrecer reabrir el checkout con una orden ya confirmada.
+        if ($details['confirmed'] === true) {
+            Cache::put($key, $details, 120);
+        }
+
+        return $details;
+    }
+
+    /** El checkout de Culqi devolvió un error (p. ej. CCKT-400): se registra solo el código, sin datos personales. */
+    public function clientError(Request $request, RechargeRequest $recharge)
+    {
+        $this->authorize('view', $recharge);
+        abort_unless($recharge->payment_method === CulqiPaymentProvider::PROVIDER, 404);
+        $data = $request->validate(['code' => ['nullable', 'string', 'max:40', 'regex:/^[A-Za-z0-9_.-]*$/'], 'flow' => ['required', Rule::in(['token', 'order'])]]);
+
+        if ($id = $recharge->latestPaymentOrder?->provider_order_id) {
+            Cache::forget('culqi-order-details:'.$id); // el siguiente sondeo lee el estado real (p. ej. ya confirmada)
+        }
+        Log::warning('[CulqiCheckout] El checkout de Culqi devolvió un error.', [
+            'recharge_request_id' => $recharge->id,
+            'payment_order_id' => $recharge->latestPaymentOrder?->id,
+            'flow' => $data['flow'],
+            'code' => $data['code'] ?? null,
+        ]);
+
+        return response()->noContent();
     }
 
     private function failureMessage(PaymentOrder $order): string
