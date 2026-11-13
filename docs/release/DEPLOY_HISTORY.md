@@ -4,6 +4,11 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-13 (3) — `188025e` → producción — enlace a la orden QR activa en el 409
+
+- Imagen `sha256:14daabedb74865256b9d8faa6ff65e06f391a69600d9f104edc11db0f26b76a9`; web `0000059` y scheduler `0000060` Healthy; CI verde; suite 1875 OK. Sin cambios de configuración (`culqi`, `card,yape,order`, TTL de 60 min, allowlist de Abel).
+- Diagnóstico forense del QR en `docs/payments-culqi.md` §22: bloqueo externo probable; sin cobros ni depósitos.
+
 ## 2026-11-13 (2) — `44260c3` → producción — «Generar nuevo QR» seguro y una orden QR viva por profesor
 
 - Imagen `sha256:bb57e9d28f7611734c309f8083c517ca1968ff447933eb9bde0d6cbe573f6f35` (tag `img-newqr-20261113`); web `0000058` y scheduler `0000059` Healthy; `CULQI_ORDER_TTL_MINUTES=60` (antes 1440). CI verde; suite completa 1875 OK.

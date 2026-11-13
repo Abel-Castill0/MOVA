@@ -497,3 +497,20 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
   3. Si está **vigente, no crea otra**: borrar una orden en Culqi es solo lógico y *no invalida su CIP/QR* (OpenAPI), así que se podría pagar dos veces. Se explica y se ofrece el CIP.
   4. Si está vencida, cancelada o fallida, crea una orden nueva por la vía normal.
 - **Vigencia de las órdenes nuevas:** `CULQI_ORDER_TTL_MINUTES=60` en producción (antes 1440), para no dejar a un profesor bloqueado un día entero.
+
+## 22. Investigación forense del QR live (2026-11-13) — conclusión
+
+| Hipótesis | Prueba | Resultado | Conclusión |
+|---|---|---|---|
+| A. MOVA envía mal la orden | Payload a `/v2/orders`, estado en la API live | 1000 PEN, `confirm: false`, el checkout la confirma (`pending`, con CIP y QR) | Descartada |
+| A. Orden sin confirmar o vencida | GET de las órdenes 4 y 5 | `pending` y vigentes hasta el 14/11, 01:26 y 02:34 UTC | Descartada |
+| B. CCKT-400 | Reabrir el checkout con una orden confirmada | Reproduce el error; ya no se reabre (`2405856`) | Corregida (causa distinta) |
+| C. QR mal formado | Decodificación y TLV de los 2 QR oficiales | EMVCo dinámico, CRC correcto, PEN y PE | Descartada |
+| C. Importe del QR (`54=1000`) | Página pública de PagoEfectivo de la orden | CIP activo por **S/ 10.00** | `1000` es la codificación de la red PagoEfectivo; el importe no es S/ 1000 |
+| C/D. Resolución del QR en Yape | Captura de Yape | Tiempo de espera al resolver | Abierta: depende de PagoEfectivo/Yape |
+| Habilitación de billeteras del comercio | No existe API para consultarla | — | Abierta: solo Culqi la confirma |
+| Yape directo | Cargo `chr_live_…sMo9dh` | Llegó a Culqi; denegado por el emisor (DNGE0015, fondos insuficientes); webhook recibido | Canal operativo |
+
+**Conclusión: BLOQUEO EXTERNO probable.** La orden, el CIP y el importe son válidos en Culqi y en PagoEfectivo, y el QR está bien formado; la falla ocurre cuando Yape resuelve el QR con PagoEfectivo. No hay ningún defecto de MOVA que corregir. Pendiente de Culqi: confirmar la habilitación de billeteras (Yape/Plin QR) para el comercio y la causa del tiempo de espera. El reporte está en `docs/support/` (local, sin publicar).
+
+Prueba que puede discriminar sin herramientas internas: pagar el **CIP** por banca móvil (servicio PagoEfectivo), una sola vez, por una persona autorizada. Si se acredita, el problema queda acotado al canal QR de billeteras.
