@@ -62,6 +62,10 @@
           <p v-if="!hasTokenMethods && !hasOrderMethod" class="text-sm text-slate-500">No hay medios de pago automáticos habilitados por ahora.</p>
 
           <InputError :message="submitError" />
+          <div v-if="activeOrder" class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900" role="alert" data-testid="active-order">
+            <p v-if="activeOrderExpiresText" class="text-xs">Vence: {{ activeOrderExpiresText }}</p>
+            <Link :href="activeOrder.url" class="mt-2 inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">Ir a mi orden de pago activa</Link>
+          </div>
 
           <p class="flex items-start gap-1.5 text-xs text-slate-500">
             <Icon name="secure-payment" :size="14" class="mt-0.5 flex-shrink-0" />
@@ -420,6 +424,7 @@ async function startOrderPayment() {
     if (error?.response && error.response.status >= 400 && error.response.status < 500) {
       phase.value = 'idle'
       submitError.value = describeError(error)
+      activeOrder.value = error.response.status === 409 ? (error.response.data?.active_order ?? null) : null
 
       return
     }
@@ -468,6 +473,13 @@ async function openOrderCheckout() {
 
 let orderRefreshTimer = null
 const qrNotice = ref('')
+// 409: ya hay otra orden QR viva de este profesor → enlace a esa recarga y su vencimiento (no se crea otra).
+const activeOrder = ref(null)
+const activeOrderExpiresText = computed(() => {
+  const iso = activeOrder.value?.expires_at
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+})
 const qrBusy = ref('') // '' | 'verify' | 'new' — un solo clic a la vez
 
 async function verifyPayment() {

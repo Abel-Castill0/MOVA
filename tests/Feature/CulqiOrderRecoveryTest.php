@@ -268,8 +268,12 @@ class CulqiOrderRecoveryTest extends TestCase
             'amount_pen' => '10.00', 'payment_method' => 'culqi', 'operation_number' => null, 'operation_number_normalized' => null, 'status' => 'pending',
         ]);
 
-        $this->actingAs($user)->postJson(route('teacher.credits.checkout.order', $second))->assertStatus(409);
+        $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.order', $second))->assertStatus(409)->json();
 
+        $this->assertSame($first->id, $json['active_order']['recharge_id'], 'enlace a la recarga con la orden viva');
+        $this->assertSame(route('teacher.credits.checkout.show', $first->id), $json['active_order']['url']);
+        $this->assertSame(PaymentOrder::where('recharge_request_id', $first->id)->sole()->expires_at->toIso8601String(), $json['active_order']['expires_at']);
+        $this->assertStringContainsString('vigente hasta el', $json['message']);
         $this->assertSame(1, $this->culqiCalls['POST /v2/orders']);
         $this->assertSame(0, PaymentOrder::where('recharge_request_id', $second->id)->count());
     }

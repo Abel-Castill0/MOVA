@@ -180,7 +180,9 @@ class CulqiCheckoutController extends Controller
         abort_unless($teacherLock->get(), 409, 'Ya estamos generando una orden de pago para tu cuenta. Espera unos segundos.');
         try {
             $other = $this->otherLiveOrder($recharge);
-            abort_if($other !== null, 409, 'Ya tienes otra orden de pago con QR vigente (recarga #'.$other?->recharge_request_id.'). Págala o espera a que venza antes de generar otra, para no pagar dos veces.');
+            if ($other !== null) {
+                return $this->activeOrderConflict($other);
+            }
 
             $this->run($recharge, fn (CulqiPaymentProvider $provider) => $provider->createOrderAttempt($recharge));
         } finally {
@@ -496,6 +498,24 @@ class CulqiCheckoutController extends Controller
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * 409 con los datos de la orden QR que sigue viva (del MISMO profesor: otherLiveOrder ya filtra por él), para que la
+     * pantalla ofrezca «Ir a mi orden de pago activa». La vigencia es la que Culqi devolvió al crearla (expiration_date).
+     */
+    private function activeOrderConflict(PaymentOrder $other)
+    {
+        $until = $other->expires_at?->timezone('America/Lima');
+
+        return response()->json([
+            'message' => 'Ya tienes otra orden de pago con QR vigente'.($until ? ' hasta el '.$until->format('d/m \a \l\a\s H:i') : '').'. Págala ahí o espera a que venza antes de generar otra, para no pagar dos veces.',
+            'active_order' => [
+                'recharge_id' => $other->recharge_request_id,
+                'expires_at' => $other->expires_at?->toIso8601String(),
+                'url' => route('teacher.credits.checkout.show', $other->recharge_request_id),
+            ],
+        ], 409)->header('Cache-Control', 'no-store, private');
     }
 
     /** Otra orden QR/CIP del mismo profesor, pendiente y sin vencer, en una recarga distinta (evita pagar dos órdenes). */
