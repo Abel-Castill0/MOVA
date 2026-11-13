@@ -4,6 +4,13 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-12 — `95bbda8` → producción — Yape y QR (Plin) habilitados para la prueba de Abel
+
+- Causa raíz: `CULQI_METHODS=card` en producción, por lo que el checkout solo ofrecía tarjeta. Abel creó 2 recargas Inicio (9 y 11 de noviembre) que nunca llegaron a Culqi (0 `payment_orders` Culqi).
+- `CULQI_METHODS=card,yape,order` en web `0000056` y scheduler `0000057` (imagen `sha256:dd5e7791…`). Allowlist de prueba sin cambios: solo la cuenta #8 ve Culqi; el resto, cerrado. Textos del checkout: Plin y Yape nombrados, más una ayuda del código de aprobación (`e8b2f03`). `phpseclib` 4.0.3 por un aviso de seguridad (`95bbda8`). Suite 1856 OK, CI verde.
+- Ramas de Abel: `fix/yape-amount-format` es de Mercado Pago (retirado) y no se integra. Las ramas de Culqi del 2-nov ya estaban en master (`git cherry`). El PR #16 no toca pagos.
+- `check`: LISTO, ACTIVO-PRUEBA, COMPRA_LIVE_VERIFICADA: no. Avisos: yape/order sin verificar en live, y sin confirmar que el comercio los tenga habilitados en CulqiPanel.
+
 ## 2026-11-05 — `a2a29e6` → producción — comando de créditos de cortesía; 10 créditos a la cuenta #8
 
 - Imagen `sha256:6d5ff9b946749f6ea2f8d30808992d950fa647ba2756a654effbafec5a8a9eaf` (tag `img-grant-credits-20261105`); scheduler `0000055` y web `0000054` Healthy; sin migraciones; CI verde. Revisión financiera: apta con condiciones (hallazgos bajos corregidos).
