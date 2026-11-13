@@ -506,7 +506,7 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
 | A. Orden sin confirmar o vencida | GET de las órdenes 4 y 5 | `pending` y vigentes hasta el 14/11, 01:26 y 02:34 UTC | Descartada |
 | B. CCKT-400 | Reabrir el checkout con una orden confirmada | Reproduce el error; ya no se reabre (`2405856`) | Corregida (causa distinta) |
 | C. QR mal formado | Decodificación y TLV de los 2 QR oficiales | EMVCo dinámico, CRC correcto, PEN y PE | Descartada |
-| C. Importe del QR (`54=1000`) | Página pública de PagoEfectivo de la orden | CIP activo por **S/ 10.00** | `1000` es la codificación de la red PagoEfectivo; el importe no es S/ 1000 |
+| C. Importe del QR (`54=1000`) | Página pública de PagoEfectivo de la orden | CIP activo por **S/ 10.00** | PagoEfectivo resuelve el importe correcto por el CIP. Pero según EMVCo, `54=1000` se lee como S/ 1000.00, así que no se puede demostrar si es una codificación propia o un defecto. Solo PagoEfectivo o Yape pueden confirmarlo (§23) |
 | C/D. Resolución del QR en Yape | Captura de Yape | Tiempo de espera al resolver | Abierta: depende de PagoEfectivo/Yape |
 | Habilitación de billeteras del comercio | No existe API para consultarla | — | Abierta: solo Culqi la confirma |
 | Yape directo | Cargo `chr_live_…sMo9dh` | Llegó a Culqi; denegado por el emisor (DNGE0015, fondos insuficientes); webhook recibido | Canal operativo |
@@ -514,3 +514,25 @@ Sin críticos ni altos. Corregido: el barrido y el refresh de Culqi sobreviven a
 **Conclusión: BLOQUEO EXTERNO probable.** La orden, el CIP y el importe son válidos en Culqi y en PagoEfectivo, y el QR está bien formado; la falla ocurre cuando Yape resuelve el QR con PagoEfectivo. No hay ningún defecto de MOVA que corregir. Pendiente de Culqi: confirmar la habilitación de billeteras (Yape/Plin QR) para el comercio y la causa del tiempo de espera. El reporte está en `docs/support/` (local, sin publicar).
 
 Prueba que puede discriminar sin herramientas internas: pagar el **CIP** por banca móvil (servicio PagoEfectivo), una sola vez, por una persona autorizada. Si se acredita, el problema queda acotado al canal QR de billeteras.
+
+## 23. Auditoría de CulqiPanel y del checkout (2026-11-13, solo lectura) — respuesta final
+
+Se revisó CulqiPanel en producción (comercio Mova, 200000000342887) sin cambiar nada y sin crear órdenes, links ni cargos.
+
+- **Servicios contratados:** solo «CulqiOnline». El comercio no tiene CulqiLink (no aparece en el menú ni en «Mi empresa»), así que no se puede generar un QR de referencia del mismo comercio sin contratarlo. Además, crearlo sería una orden live nueva.
+- **Medios de pago:** el filtro «Medio de pago» de Ventas solo ofrece **Tarjeta** y **Pago Efectivo**. No hay ningún ajuste de Yape, Plin, billeteras ni QR. Las marcas de tarjeta están activas (Visa, Mastercard, AMEX y Diners), y la pestaña «Comisiones» está oculta y vacía. Los menús son Resumen, Ventas, Abonos, Controversias, Suscripciones, Mi empresa, Facturas y Reportes, Beneficios y Desarrollo (API Keys, API Logs, RSA Keys y Webhooks).
+- **Representación del importe del QR:** no hay ninguna opción en el panel ni en la API (OpenAPI V2: la orden solo acepta `amount` en céntimos, y PATCH solo amplía la vigencia).
+- **API Logs (fuente: Culqi):** el `POST /v2/orders` de la orden 4 fue `amount: 1000`, `currency_code: PEN`, `confirm: false` y `expiration_date` 24 h. Culqi respondió 201 `state: created`. La confirmación la hace el checkout de Culqi y no aparece en API Logs. El scheduler solo hace «Consulta de orden», cada 5 min.
+- **Qué controla cada parte:**
+  - **MOVA:** `settings.amount` (1000, en céntimos, igual a la orden), `currency` PEN, `settings.order` y `paymentMethods` (para una orden: `billetera`, `bancaMovil` y `agente`). Todo según la documentación de Culqi.
+  - **Culqi/PagoEfectivo:** CIP, contenido EMVCo (incluido el campo 54), red `26`, plantillas `80–92` y host del QR. MOVA no puede cambiar ninguno de esos campos.
+- **Interoperabilidad:** PagoEfectivo anuncia que su QR se paga con Yape, Plin y otras billeteras. El Estándar QR Perú (Circular BCRP 0028-2026) entra en vigor de forma progresiva desde el 7/11/2026, pero su nota técnica no es pública, así que no se puede verificar si este QR la cumple.
+
+**Respuestas:**
+1. **¿Hay una opción en CulqiPanel para cambiar solo el importe del QR?** No, ni en el panel ni en la API.
+2. **¿`54=1000` es un error o una codificación de PagoEfectivo?** No es demostrable con información pública. Según EMVCo equivale a S/ 1000.00, mientras que PagoEfectivo muestra S/ 10.00 para el mismo CIP. Es una discrepancia que genera el proveedor. Si Yape leyera el campo 54 tal cual, el importe sería 100 veces mayor y podría chocar con sus límites; esto es una hipótesis que no se ha verificado.
+3. **¿Están habilitados los QR de Yape/Plin?** No se puede confirmar. El panel no lista billeteras: solo Tarjeta y Pago Efectivo. Solo Culqi puede confirmarlo.
+4. **¿Qué diferencia hay con CulqiLink?** No hay con qué comparar, porque el comercio no tiene CulqiLink.
+5. **¿Hay una solución oficial que MOVA pueda implementar?** No. Lo que envía MOVA cumple el contrato, y lo que falla lo genera el proveedor. Mientras tanto, MOVA mantiene el CIP (banca móvil/agentes) y Yape directo.
+6. **¿Qué evidencia necesita Culqi?** Los IDs de orden y los API Logs de creación, el TLV del QR con `54=1000` frente a la página de PagoEfectivo con S/ 10.00, la captura del timeout de Yape, el cargo de Yape directo que sí funcionó y la consulta de habilitación de billeteras. Todo está en el reporte local de `docs/support/`.
+
