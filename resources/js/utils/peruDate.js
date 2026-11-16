@@ -45,7 +45,7 @@ export function toPeruDateTimeLocal(value) {
 
 // Hora civil peruana -> UTC; valida también fechas inexistentes y horas inválidas.
 export function peruLocalDateTimeToIso(value) {
-  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(value)) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
     throw new RangeError('Ingresa una fecha y hora válida de Perú.')
   }
   // Perú opera en UTC-5 sin horario de verano; no usar new Date(value), porque
