@@ -30,35 +30,30 @@
            ══════════════════════════════════════════════ -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-2 flex-wrap">
-          <div v-if="counterofferedRequests.length || rejectedRequests.length" class="flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/60 shadow-2xs">
+          <div role="tablist" aria-label="Estado de solicitudes" class="flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/60">
             <button
               @click="statusTab = 'open'"
-              type="button"
+              type="button" role="tab" :aria-selected="statusTab === 'open'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'open' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Abiertas ({{ requests.length }})
             </button>
             <button
-              v-if="counterofferedRequests.length"
               @click="statusTab = 'counteroffered'"
-              type="button"
+              type="button" role="tab" :aria-selected="statusTab === 'counteroffered'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'counteroffered' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Con contraoferta ({{ counterofferedRequests.length }})
             </button>
             <button
-              v-if="rejectedRequests.length"
               @click="statusTab = 'rejected'"
-              type="button"
+              type="button" role="tab" :aria-selected="statusTab === 'rejected'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'rejected' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Rechazadas ({{ rejectedRequests.length }})
             </button>
           </div>
 
-          <span v-else class="text-xs font-bold text-slate-600 bg-white/90 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs">
-            {{ filteredRequests.length }} {{ filteredRequests.length === 1 ? 'pendiente' : 'pendientes' }}
-          </span>
         </div>
 
         <!-- Un profesor que deja la pestaña abierta necesita consultar nuevas solicitudes. -->
@@ -79,7 +74,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Buscar por alumno o materia..."
+              placeholder="Buscar materia o necesidad..."
               class="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all"
             />
             <button
@@ -137,12 +132,7 @@
 
           <div
             v-else
-            :class="[
-              'grid gap-5',
-              selectedRequest
-                ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-            ]"
+            class="grid grid-cols-1 gap-3"
           >
             <div
               v-for="r in filteredRequests"
@@ -154,10 +144,10 @@
               @keydown.enter.prevent="selectRequest(r, $event)"
               @keydown.space.prevent="selectRequest(r, $event)"
               :class="[
-                'rounded-3xl p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer select-none group focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/40',
+                'rounded-2xl p-4 flex flex-col justify-between transition-colors duration-150 cursor-pointer group focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/40',
                 selectedRequest?.id === r.id
-                  ? 'bg-white border-2 border-blue-600 ring-4 ring-blue-500/15 shadow-lg shadow-blue-500/10 -translate-y-0.5'
-                  : 'bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 active:scale-[0.985] active:translate-y-0 shadow-2xs'
+                  ? 'bg-white border-2 border-blue-600 ring-2 ring-blue-500/10 shadow-sm'
+                  : 'bg-white border border-slate-200 hover:border-blue-400 hover:shadow-sm'
               ]"
             >
               <div>
@@ -178,7 +168,7 @@
 
                 <!-- Nombre del Alumno -->
                 <h3 :class="['text-base sm:text-lg font-black leading-snug transition-colors', selectedRequest?.id === r.id ? 'text-blue-950' : 'text-slate-900 group-hover:text-blue-900']">
-                  {{ studentLabel(r) }}
+                  {{ r.student?.grade_level ? `Grado: ${r.student.grade_level}` : 'Grado por confirmar' }}
                 </h3>
 
                 <!-- Descripción / Necesidad -->
@@ -186,24 +176,9 @@
                   {{ requestGoal(r) }}
                 </p>
 
-                <!-- Badges Row: Duración, Créditos, Urgencia -->
-                <div class="flex items-center gap-1.5 flex-wrap mt-4">
-                  <!-- Duración -->
-                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-600 text-[11px] font-semibold">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 1118 0z"/>
-                    </svg>
-                    <span>1 hora</span>
-                  </span>
-
-                  <!-- Créditos -->
-                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-600 text-[11px] font-semibold">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                    </svg>
-                    <span>1 crédito</span>
-                  </span>
-
+                <!-- Duración/costo se conocen al confirmar el horario. -->
+                <p class="mt-3 text-xs text-slate-500">Recibida: {{ fmtDateTime(r.created_at) }} · Hora de Perú</p>
+                <div class="flex items-center gap-1.5 flex-wrap mt-2">
                   <!-- Urgencia -->
                   <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[11px] font-bold', urgencyLevel(r).badgeClass]">
                     <Icon :name="urgencyLevel(r).icon" :size="12" />
@@ -215,7 +190,7 @@
               <!-- Pie de tarjeta: Ver detalle -->
               <div
                 :class="[
-                  'mt-5 pt-3 border-t flex items-center justify-between font-bold text-xs transition-colors',
+                  'mt-3 pt-3 border-t flex items-center justify-between font-bold text-xs transition-colors',
                   selectedRequest?.id === r.id
                     ? 'border-blue-100 text-blue-700'
                     : 'border-slate-100 text-blue-600 group-hover:text-blue-700'
@@ -246,7 +221,7 @@
              ══════════════════════════════════════════════ -->
         <aside
           v-if="selectedRequest"
-          class="hidden lg:flex flex-col justify-between w-[390px] xl:w-[430px] shrink-0 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 xl:p-5 select-none h-[calc(100vh-125px)] min-h-[500px] sticky top-3"
+          class="hidden lg:flex flex-col justify-between w-[390px] xl:w-[430px] shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 xl:p-5 max-h-[calc(100dvh-125px)] min-h-[320px] overflow-y-auto sticky top-3"
         >
           <!-- 1. Encabezado Alumno / Materia / Código -->
           <div class="shrink-0 pb-3 border-b border-slate-100/90">
@@ -1084,10 +1059,10 @@ const filteredRequests = computed(() => {
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim()
     list = list.filter((r) => {
-      const student = studentLabel(r).toLowerCase()
+      const grade = (r.student?.grade_level || '').toLowerCase()
       const subject = (r.subject?.name || '').toLowerCase()
       const help = (r.help_needed || '').toLowerCase()
-      return student.includes(q) || subject.includes(q) || help.includes(q)
+      return grade.includes(q) || subject.includes(q) || help.includes(q)
     })
   }
 

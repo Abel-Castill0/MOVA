@@ -2,7 +2,10 @@
   <AppLayout title="Mis solicitudes">
     <div class="space-y-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 class="text-2xl font-black text-slate-900">Solicitudes de clase</h2><p class="mt-1 text-sm text-slate-600">Sigue cada solicitud desde su publicación hasta la programación de la clase.</p></div>
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Solicitudes de clase</h2>
+          <p class="mt-1 text-sm text-slate-600">Conoce el estado de tus solicitudes y cuál es el siguiente paso.</p>
+        </div>
         <Link :href="route('class-requests.create')"
           class="px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 active:scale-95 transition-all shadow-md shadow-brand-600/25">
           + Nueva solicitud
@@ -25,8 +28,20 @@
         <Link :href="route('class-requests.create')" class="mt-4 inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Crear mi primera solicitud</Link>
       </div>
 
-      <div v-else class="space-y-3.5">
-        <div v-for="r in requests" :key="r.id"
+      <div v-else class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-white border border-slate-200 p-3">
+          <label for="parent-request-filter" class="text-sm font-medium text-slate-700">Filtrar por estado</label>
+          <select id="parent-request-filter" v-model="statusFilter" class="rounded-xl border-slate-200 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500">
+            <option value="all">Todas ({{ requests.length }})</option>
+            <option value="pending">Pendientes o abiertas</option>
+            <option value="counteroffered">Propuestas recibidas</option>
+            <option value="accepted">Aceptadas</option>
+            <option value="closed">Rechazadas o vencidas</option>
+          </select>
+          <span class="text-xs text-slate-500" role="status">{{ visibleRequests.length }} solicitudes</span>
+        </div>
+        <p v-if="!visibleRequests.length" class="rounded-2xl bg-white border border-slate-200 px-5 py-8 text-center text-sm text-slate-600">No hay solicitudes con ese estado.</p>
+        <div v-for="r in visibleRequests" :key="r.id"
           class="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 hover:border-brand-300 hover:shadow-md transition-all">
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -36,6 +51,8 @@
               </div>
               <p class="text-sm text-slate-500">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
               <p class="text-sm text-slate-500 mt-1 line-clamp-2 break-words">{{ r.help_needed }}</p>
+              <p class="mt-2 text-xs text-slate-500">Creada: {{ fmtCreated(r.created_at) }} · Hora de Perú</p>
+              <p class="mt-2 text-xs font-medium text-brand-800" role="status">{{ nextStep(r) }}</p>
               <p v-if="r.delivery === 'no_teachers'" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900" data-testid="delivery-no-teachers">
                 Sin profesores compatibles por ahora: ningún profesor verificado puede verla todavía. Sigue abierta hasta que venza.
               </p>
@@ -96,13 +113,43 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 
-defineProps({ requests: Array })
+const props = defineProps({
+  requests: { type: Array, default: () => [] },
+})
+
+const statusFilter = ref('all')
+const visibleRequests = computed(() => props.requests.filter(r => {
+  if (statusFilter.value === 'pending') return ['open', 'pending_parent_approval'].includes(r.status)
+  if (statusFilter.value === 'counteroffered') return r.status === 'counteroffered'
+  if (statusFilter.value === 'accepted') return r.status === 'accepted'
+  if (statusFilter.value === 'closed') return ['rejected', 'teacher_rejected', 'expired'].includes(r.status)
+  return true
+}))
+
+function nextStep(r) {
+  if (r.status === 'pending_parent_approval') return 'Siguiente paso: aprueba o rechaza esta solicitud.'
+  if (r.status === 'counteroffered') return 'Siguiente paso: revisa la contraoferta y decide si aceptas el nuevo horario.'
+  if (r.status === 'accepted') return 'Clase programada. Consulta Mis clases para conocer los detalles.'
+  if (r.status === 'rejected' || r.status === 'teacher_rejected') return 'Esta solicitud fue rechazada. Puedes crear otra solicitud.'
+  if (r.status === 'expired') return 'Esta solicitud venció. Puedes crear otra con nuevos horarios.'
+  if (r.delivery === 'no_teachers') return 'La solicitud sigue abierta, pero aún no hay profesores compatibles.'
+  if (r.delivery === 'directed') return 'Esperando respuesta del profesor elegido.'
+  return 'Esperando que un profesor compatible responda.'
+}
+
+function fmtCreated(date) {
+  if (!date) return '—'
+  return new Date(date).toLocaleString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 const processingId = ref(null)
 const action = ref(null)
