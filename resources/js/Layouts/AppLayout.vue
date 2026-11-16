@@ -222,7 +222,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
@@ -231,6 +231,7 @@ import MoviMascot from '@/Components/MoviMascot.vue'
 import MovaLogo from '@/Components/MovaLogo.vue'
 import Icon from '@/Components/Icon.vue'
 import { roleLabel } from '@/utils/roleLabels'
+import { lockBodyScroll } from '@/utils/bodyScrollLock.js'
 
 const moviOpen = ref(false)
 
@@ -267,6 +268,17 @@ const page        = usePage()
 const user        = computed(() => page.props.auth?.user)
 const flash       = computed(() => page.props.flash ?? {})
 const sidebarOpen = ref(false)
+let releaseSidebarScroll = null
+function syncSidebarScroll() {
+  if (typeof window === 'undefined') return
+  if (sidebarOpen.value && window.innerWidth < 1024) {
+    if (!releaseSidebarScroll) releaseSidebarScroll = lockBodyScroll()
+  } else {
+    releaseSidebarScroll?.()
+    releaseSidebarScroll = null
+  }
+}
+watch(sidebarOpen, syncSidebarScroll)
 const sidebarRef = ref(null)
 const sidebarCloseButton = ref(null)
 const sidebarTrigger = ref(null)
@@ -376,6 +388,7 @@ function refreshOnVisible() {
 onMounted(async () => {
   layoutMounted = true
   document.addEventListener('keydown', onSidebarEscape)
+  window.addEventListener('resize', syncSidebarScroll, { passive: true })
   document.addEventListener('visibilitychange', refreshOnVisible)
   window.addEventListener('scroll', checkScroll, { passive: true, capture: true })
   if (mainRef.value) {
@@ -425,6 +438,9 @@ onMounted(async () => {
 onUnmounted(() => {
   layoutMounted = false
   document.removeEventListener('keydown', onSidebarEscape)
+  window.removeEventListener('resize', syncSidebarScroll)
+  releaseSidebarScroll?.()
+  releaseSidebarScroll = null
   document.removeEventListener('visibilitychange', refreshOnVisible)
   realtimeConnection?.unbind('state_change', realtimeStateHandler)
   clearTimeout(realtimeRefreshTimer)
