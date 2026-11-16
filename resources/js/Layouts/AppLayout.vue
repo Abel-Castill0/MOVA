@@ -86,7 +86,9 @@
 
       <!-- Nav con bordes redondeados y píldora active rounded-r-full -->
       <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto" aria-label="Navegación principal">
-        <Link v-for="item in navItems" :key="item.href"
+        <div v-for="group in navGroups" :key="group.label" role="group" :aria-label="group.label" class="space-y-1.5 pb-3">
+          <p :class="['px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400', isSidebarCompressed ? 'lg:sr-only' : '']">{{ group.label }}</p>
+          <Link v-for="item in group.items" :key="item.href"
           :href="item.href"
           @click="sidebarOpen = false"
           :aria-current="isActive(item.href) ? 'page' : undefined"
@@ -106,7 +108,8 @@
           <span v-if="item.badge" :class="['ml-auto min-w-[20px] h-5 px-1 bg-white/25 rounded-full text-[11px] font-bold flex items-center justify-center', isSidebarCompressed ? 'lg:hidden' : '']">
             {{ item.badge }}
           </span>
-        </Link>
+          </Link>
+        </div>
       </nav>
 
       <!-- User footer con tarjeta rounded-2xl -->
@@ -501,5 +504,27 @@ const navItems = computed(() => {
     { href: '/class-requests', icon: 'requests',     label: 'Solicitudes' },
     { href: '/my-classes',     icon: 'classes',      label: 'Clases' },
   ]
+})
+
+/** Agrupación visual por rol, manteniendo la misma fuente de rutas y permisos. */
+const navGroups = computed(() => {
+  const roles = user.value?.roles ?? []
+  const groupFor = (item) => {
+    if (item.href === '/dashboard') return 'Principal'
+    if (roles.includes('admin')) {
+      if (item.href === '/admin/recharges') return 'Finanzas'
+      if (['/admin/reviews', '/admin/ai-usage', '/admin/account-deletions', '/admin/complaints'].includes(item.href)) return 'Supervisión'
+      return 'Gestión'
+    }
+    if (roles.includes('teacher')) return item.href === '/teacher/credits' ? 'Cuenta' : 'Clases'
+    return 'Aprendizaje'
+  }
+  const groups = []
+  for (const item of navItems.value) {
+    const label = groupFor(item)
+    if (!groups.length || groups[groups.length - 1].label !== label) groups.push({ label, items: [] })
+    groups[groups.length - 1].items.push(item)
+  }
+  return groups
 })
 </script>

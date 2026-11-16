@@ -5,7 +5,7 @@
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
       <span v-if="unread > 0"
-        class="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+        class="absolute top-1 right-1 min-w-5 h-5 px-1 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
         {{ unread > 9 ? '9+' : unread }}
       </span>
     </button>
@@ -16,13 +16,18 @@
         <button v-if="unread > 0" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
       </div>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
-        <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
-        <div v-for="n in notifications" :key="n.id"
+        <div v-if="loadError" class="px-4 py-3 text-sm text-rose-700 bg-rose-50" role="status">
+          No se pudieron actualizar las notificaciones.
+          <button type="button" class="underline font-semibold" @click="load">Reintentar</button>
+        </div>
+        <div v-else-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
+        <button v-for="n in notifications" :key="n.id" type="button"
           @click="markOne(n.id)"
-          :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
+          class="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600"
+          :class="['px-4 py-3 hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
           <p class="text-xs text-gray-500 mt-0.5">{{ fmtDate(n.created_at) }}</p>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -50,6 +55,7 @@ const placementClasses = computed(() => props.placement === 'down-right'
 const open = ref(false)
 const root = ref(null)
 const notifications = ref([])
+const loadError = ref(false)
 const unread = computed(() => notifications.value.filter(n => !n.read_at).length)
 
 // Click-outside estándar: el listener de document es bubble-phase, así que
@@ -63,10 +69,14 @@ function onDocumentClick(event) {
 }
 
 async function load() {
+  if (document.hidden) return
   try {
     const { data } = await axios.get('/notifications')
-    notifications.value = data
-  } catch {}
+    notifications.value = Array.isArray(data) ? data : []
+    loadError.value = false
+  } catch {
+    loadError.value = true
+  }
 }
 
 // AUDITORÍA (hallazgo real, no solo visual): a diferencia de load(), estas
@@ -107,12 +117,14 @@ onMounted(() => {
   load()
   interval = setInterval(load, 30000)
   window.addEventListener('mova:notification', load)
+  window.addEventListener('focus', load)
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onEscape)
 })
 onUnmounted(() => {
   clearInterval(interval)
   window.removeEventListener('mova:notification', load)
+  window.removeEventListener('focus', load)
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onEscape)
 })
