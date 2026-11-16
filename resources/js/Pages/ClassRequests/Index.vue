@@ -1,16 +1,16 @@
 <template>
   <AppLayout title="Mis solicitudes">
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="text-2xl font-bold text-slate-900">Solicitudes de clase</h2>
-          <p class="mt-1 text-sm text-slate-600">Conoce el estado de tus solicitudes y cuál es el siguiente paso.</p>
-        </div>
-        <Link :href="route('class-requests.create')"
-          class="px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 active:scale-95 transition-all shadow-md shadow-brand-600/25">
-          + Nueva solicitud
-        </Link>
-      </div>
+      <PageHeader title="Solicitudes de clase"
+        eyebrow="Espacio de la familia"
+        description="Consulta el estado de cada solicitud, revisa las propuestas y conoce el siguiente paso.">
+        <template #actions>
+          <Link :href="route('class-requests.create')"
+            class="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+            + Nueva solicitud
+          </Link>
+        </template>
+      </PageHeader>
 
       <!-- Errores de negocio de la contraoferta (propuesta vencida, profesor ya
            no disponible, créditos/agenda cambiados…) — anunciados a lectores
@@ -116,6 +116,7 @@
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PageHeader from '@/Components/PageHeader.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 

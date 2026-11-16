@@ -1,31 +1,29 @@
 <template>
   <AppLayout title="Mis créditos">
     <div class="space-y-6">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 class="text-xl font-black text-slate-900">Mis créditos MOVA</h2>
-          <p class="text-sm text-slate-500">Los créditos disponibles permiten aceptar clases; los reservados ya están apartados para clases programadas.</p>
-        </div>
-        <!-- Con el pago activo es el acceso a la compra; si no lo está, NO finge serlo: lleva a ver paquetes y precios. -->
-        <a href="#recargas"
-          data-testid="recharge-cta"
-          :class="anyRechargeMethodEnabled
-            ? 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20'
-            : 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-brand-200 bg-white text-brand-700 text-sm font-bold rounded-xl hover:bg-brand-50 active:scale-95 transition-all'">
-          <Icon name="credits" :size="18" /> {{ anyRechargeMethodEnabled ? 'Recargar créditos' : 'Ver paquetes y precios' }}
-        </a>
-      </div>
+      <PageHeader title="Mis créditos" eyebrow="Cuenta del profesor"
+        description="Los créditos disponibles sirven para aceptar clases; los reservados ya están asignados a clases programadas.">
+        <template #actions>
+          <a href="#recargas" data-testid="recharge-cta"
+            :class="anyRechargeMethodEnabled
+              ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600'
+              : 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-brand-200 bg-white px-5 text-sm font-bold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600'">
+            <Icon name="credits" :size="18" />
+            {{ anyRechargeMethodEnabled ? 'Recargar créditos' : 'Ver paquetes y precios' }}
+          </a>
+        </template>
+      </PageHeader>
 
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <section class="rounded-2xl border border-brand-200 bg-white p-5 shadow-sm lg:col-span-2">
           <p class="text-sm font-semibold text-slate-500">Créditos disponibles</p>
-          <p class="mt-3 text-4xl font-black text-brand-700">{{ teacherProfile.credits_available }}</p>
+          <p class="mt-3 text-4xl font-bold tabular-nums text-brand-700" aria-label="Créditos disponibles">{{ teacherProfile.credits_available }}</p>
           <p class="mt-2 text-sm text-slate-500">Listos para aceptar nuevas clases.</p>
         </section>
 
         <section class="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
           <p class="text-sm font-semibold text-slate-500">Créditos reservados</p>
-          <p class="mt-3 text-4xl font-black text-amber-600">{{ teacherProfile.credits_reserved }}</p>
+          <p class="mt-3 text-4xl font-bold tabular-nums text-amber-700" aria-label="Créditos reservados">{{ teacherProfile.credits_reserved }}</p>
           <p class="mt-2 text-sm text-slate-500">Apartados para clases programadas.</p>
         </section>
       </div>
@@ -33,7 +31,7 @@
       <section id="recargas" class="space-y-3 scroll-mt-24">
         <PaymentsStatusBanner />
         <div>
-          <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
+          <h2 class="text-lg font-bold text-slate-900">Paquetes de recarga</h2>
           <p v-if="!anyRechargeMethodEnabled" class="mt-1 text-sm text-slate-500" data-testid="recharge-unavailable">
             Estos son los paquetes y precios vigentes. La compra desde tu cuenta aún no está activa: todavía no se puede pagar y no se te cobrará nada.
           </p>
@@ -287,6 +285,7 @@
 import { ref, computed } from 'vue'
 import { useForm, router, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PageHeader from '@/Components/PageHeader.vue'
 import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'
 import InputLabel from '@/Components/InputLabel.vue'

@@ -1,6 +1,18 @@
 <template>
   <AppLayout title="Solicitudes" :compact="true">
-    <div class="space-y-3.5">
+    <div class="space-y-5">
+      <PageHeader
+        title="Solicitudes de clase"
+        eyebrow="Espacio del profesor"
+        description="Revisa solicitudes compatibles, conoce la necesidad académica y elige cómo responder."
+      >
+        <template #actions>
+          <button type="button" @click="refresh" :disabled="isRefreshing"
+            class="inline-flex min-h-11 items-center justify-center rounded-xl border border-brand-200 bg-white px-4 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-wait disabled:opacity-60">
+            {{ isRefreshing ? 'Actualizando…' : 'Actualizar solicitudes' }}
+          </button>
+        </template>
+      </PageHeader>
 
       <!-- Buscador único en el flujo de la página: no tapa contenido móvil. -->
 
@@ -59,22 +71,19 @@
         <!-- Un profesor que deja la pestaña abierta necesita consultar nuevas solicitudes. -->
         <!-- Controles de búsqueda y ordenamiento -->
         <div class="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-          <button type="button" @click="refresh" :disabled="isRefreshing"
-            class="px-3 py-2.5 text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-blue-500"
-            aria-label="Actualizar solicitudes">
-            {{ isRefreshing ? 'Actualizando…' : 'Actualizar' }}
-          </button>
-          <!-- Buscador en vivo por alumno o materia -->
+          <!-- Buscador único y con etiqueta legible para lectores de pantalla. -->
           <div class="relative w-full sm:w-72">
+            <label for="teacher-request-search" class="sr-only">Buscar solicitudes por materia, grado o necesidad</label>
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </span>
             <input
+              id="teacher-request-search"
               v-model="searchQuery"
-              type="text"
-              placeholder="Buscar materia o necesidad..."
+              type="search"
+              placeholder="Buscar por materia o grado…"
               class="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all"
             />
             <button
@@ -90,9 +99,10 @@
             </button>
           </div>
 
-          <!-- Selector de Ordenamiento -->
+          <!-- Orden con etiqueta accesible. -->
           <div class="relative">
-            <select
+            <label for="teacher-request-order" class="sr-only">Ordenar solicitudes</label>
+            <select id="teacher-request-order"
               v-model="sortBy"
               class="appearance-none bg-white border border-gray-200/90 pl-3.5 pr-8 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs cursor-pointer transition-all"
             >
@@ -804,6 +814,7 @@
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PageHeader from '@/Components/PageHeader.vue'
 import Icon from '@/Components/Icon.vue'
 import { Search } from 'lucide-vue-next'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh'
