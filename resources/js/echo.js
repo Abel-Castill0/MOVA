@@ -13,6 +13,7 @@
 
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
+import { resolvePusherWsHost } from './utils/pusherHosts.js';
 
 /**
  * @param {{enabled?: boolean, key?: string|null, cluster?: string|null, host?: string|null, port?: number|null, scheme?: string|null}} [config]
@@ -31,7 +32,7 @@ export function initEcho(config) {
         broadcaster: 'pusher',
         key: config.key,
         cluster: config.cluster ?? 'mt1',
-        wsHost: config.host ? config.host : `ws-${config.cluster}.pusher.com`,
+        wsHost: resolvePusherWsHost(config),
         wsPort: config.port ?? 80,
         wssPort: config.port ?? 443,
         forceTLS: (config.scheme ?? 'https') === 'https',
@@ -39,4 +40,12 @@ export function initEcho(config) {
     });
 
     return window.Echo;
+}
+
+
+/** Elimina también el socket global al salir o cambiar de usuario. */
+export function disconnectEcho() {
+    if (!window.Echo) return;
+    window.Echo.disconnect();
+    delete window.Echo;
 }

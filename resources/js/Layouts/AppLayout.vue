@@ -429,6 +429,8 @@ onUnmounted(() => {
   const userId = user.value?.id
   if (userId && window.Echo) {
     window.Echo.leave(`App.Models.User.${userId}`)
+    window.Echo.disconnect()
+    delete window.Echo
   }
 })
 
