@@ -52,10 +52,10 @@
               <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
             </div>
             <p v-if="pack.description" class="mt-3 text-sm text-slate-600">{{ pack.description }}</p>
-            <p v-if="pack.code === 'pro'" class="mt-3 text-sm font-bold text-brand-700">Mayor ahorro</p>
-            <p class="mt-3 text-sm text-slate-600">Precio base: S/ {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
-            <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
-            <p class="text-sm text-brand-700">Ahorro: S/ {{ pack.saving_pen }}</p>
+            <p v-if="isHighestSaving(pack)" class="mt-3 inline-flex rounded-lg bg-green-50 px-2.5 py-1 text-sm font-bold text-green-800">Mayor ahorro del catálogo</p>
+            <p class="mt-3 text-sm text-slate-600">Precio base: {{ currency }} {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
+            <p class="mt-5 text-3xl font-bold tabular-nums text-slate-900">{{ currency }} {{ money(pack.amount_pen) }}</p>
+            <p v-if="Number(pack.saving_pen) > 0" class="text-sm font-medium text-green-800">Ahorras {{ currency }} {{ money(pack.saving_pen) }}</p>
             <p v-if="!anyRechargeMethodEnabled" class="mt-5 rounded-xl bg-slate-50 px-4 py-2.5 text-center text-xs font-semibold text-slate-600">
               La compra estará disponible cuando se active el pago en línea
             </p>
@@ -77,11 +77,11 @@
               v-if="rechargesEnabled"
               type="button"
               :class="automaticCheckoutEnabled
-                ? 'mt-2 w-full rounded-xl px-4 py-2 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-700'
-                : 'mt-5 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-brand-600/20 transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2'"
+                ? 'mt-2 flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600'
+                : 'mt-5 flex min-h-11 w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600'"
               @click="openRecharge(pack)"
             >
-              {{ automaticCheckoutEnabled ? 'Pagar manualmente y esperar revisión' : 'Comprar' }}
+              {{ automaticCheckoutEnabled ? 'Pagar manualmente y esperar revisión' : 'Registrar pago para revisión' }}
             </button>
             <Link :href="route('catalog.package', pack.code)" class="mt-3 block text-center text-xs font-semibold text-brand-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
               Ver detalle y condiciones del paquete {{ pack.name }}
@@ -141,7 +141,8 @@
                 <p v-if="transactionDetail(transaction.type)" class="mt-0.5 text-xs text-rose-600">{{ transactionDetail(transaction.type) }}</p>
                 <p class="mt-1 text-xs text-slate-500">{{ fmtDate(transaction.created_at) }}</p>
               </div>
-              <p class="shrink-0 text-base font-bold tabular-nums text-slate-900">{{ transaction.amount }}</p>
+              <p class="shrink-0 text-base font-bold tabular-nums"
+                :class="Number(transaction.amount) > 0 ? 'text-green-800' : 'text-slate-900'">{{ signedCredits(transaction.amount) }}</p>
             </li>
           </ul>
           <ul v-else class="divide-y divide-gray-100 md:hidden">
@@ -149,7 +150,8 @@
             <li v-for="request in visibleRechargeRequests" :key="request.id" class="flex items-start justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</p>
-                <p class="mt-0.5 text-xs text-slate-600">Operación {{ request.operation_number }}</p>
+                <p v-if="request.operation_number" class="mt-0.5 text-xs text-slate-600">Operación {{ request.operation_number }}</p>
+                <p v-else class="mt-0.5 text-xs text-slate-600">Compra en línea</p>
                 <p class="mt-1 text-xs text-slate-500">{{ fmtDate(request.created_at) }}</p>
               </div>
               <div class="flex shrink-0 flex-col items-end gap-1.5">
@@ -182,7 +184,8 @@
                     {{ transactionDetail(transaction.type) }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-right font-bold text-slate-900">{{ transaction.amount }}</td>
+                <td class="px-4 py-3 text-right font-bold tabular-nums"
+                  :class="Number(transaction.amount) > 0 ? 'text-green-800' : 'text-slate-900'">{{ signedCredits(transaction.amount) }}</td>
               </tr>
             </tbody>
           </table>
@@ -204,7 +207,7 @@
               <tr v-for="request in visibleRechargeRequests" :key="request.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(request.created_at) }}</td>
                 <td class="px-4 py-3 font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</td>
-                <td class="px-4 py-3 text-slate-700">{{ request.operation_number }}</td>
+                <td class="px-4 py-3 text-slate-700">{{ request.operation_number || 'Compra en línea' }}</td>
                 <td class="px-4 py-3 text-right text-slate-700">S/ {{ money(request.amount_pen) }}</td>
                 <td class="px-4 py-3">
                   <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(request.status).color]">{{ rechargeStatusStyle(request.status).label }}</span>
@@ -343,6 +346,18 @@ const transactionFilter = ref('all')
 const rechargeFilter = ref('all')
 const transactionTypes = computed(() => [...new Set(props.creditTransactions.map(t => t.type).filter(Boolean))])
 const rechargeStatuses = computed(() => [...new Set(props.rechargeRequests.map(r => r.status).filter(Boolean))])
+
+// El ahorro y el crédito siempre proceden de los paquetes que entrega Laravel.
+// No marcar "Mayor ahorro" con un código fijo que podría dejar de serlo.
+const highestSavingPen = computed(() => Math.max(0, ...props.packages.map(p => Number(p.saving_pen) || 0)))
+function isHighestSaving(pack) {
+  return highestSavingPen.value > 0 && Number(pack.saving_pen) === highestSavingPen.value
+}
+function signedCredits(amount) {
+  const value = Number(amount)
+  if (!Number.isFinite(value)) return '—'
+  return (value > 0 ? '+' : '') + String(value)
+}
 const visibleCreditTransactions = computed(() => props.creditTransactions.filter(t =>
   transactionFilter.value === 'all' || t.type === transactionFilter.value
 ))
@@ -365,7 +380,7 @@ const anyRechargeMethodEnabled = computed(() => props.rechargesEnabled || automa
 const automaticCheckoutLabel = computed(() => (props.checkoutProvider === 'culqi' ? 'Pagar en línea' : 'Pagar con Yape'))
 const automaticCheckoutHelp = computed(() => (props.checkoutProvider === 'culqi'
   ? 'Paga en línea de forma segura: tus créditos se acreditan automáticamente cuando se confirma el pago.'
-  : 'Paga al instante con Yape — tus créditos se acreditan automáticamente.'))
+  : 'Paga con Yape cuando la opción esté disponible; tus créditos se acreditarán únicamente después de confirmar el pago.'))
 
 function payWithYape(pack) {
   if (payingWithYape.value) return
