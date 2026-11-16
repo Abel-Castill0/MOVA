@@ -82,26 +82,26 @@
               </div>
             </div>
 
-            <div v-if="r.status === 'pending_parent_approval'" class="flex gap-2 flex-shrink-0">
-              <Link :href="route('class-requests.approve', r.id)" method="post" as="button"
-                class="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-2xl hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-600/20">
-                Aprobar
-              </Link>
-              <Link :href="route('class-requests.reject', r.id)" method="post" as="button"
-                class="px-4 py-2 bg-red-100 text-red-700 text-xs font-bold rounded-2xl hover:bg-red-200 active:scale-95 transition-all">
+            <div v-if="r.status === 'pending_parent_approval'" class="flex flex-col gap-2 sm:flex-row sm:flex-shrink-0">
+              <button type="button" @click="openApproval(r, 'approve')" :disabled="approvalBusy || processingId !== null"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:opacity-50">
+                Revisar y aprobar
+              </button>
+              <button type="button" @click="openApproval(r, 'reject')" :disabled="approvalBusy || processingId !== null"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50">
                 Rechazar
-              </Link>
+              </button>
             </div>
 
-            <div v-else-if="r.status === 'counteroffered'" class="flex gap-2 flex-shrink-0 sm:pt-1">
+            <div v-else-if="r.status === 'counteroffered'" class="flex flex-col gap-2 sm:flex-row sm:flex-shrink-0 sm:pt-1">
               <button type="button" @click="respond(r, 'accept')" :disabled="processingId !== null"
                 :aria-busy="processingId === r.id && action === 'accept'"
-                class="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-2xl hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2">
+                class="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-50">
                 {{ processingId === r.id && action === 'accept' ? 'Aceptando…' : 'Aceptar' }}
               </button>
               <button type="button" @click="respond(r, 'reject')" :disabled="processingId !== null"
                 :aria-busy="processingId === r.id && action === 'reject'"
-                class="flex-1 sm:flex-none px-4 py-2 bg-red-100 text-red-700 text-xs font-bold rounded-2xl hover:bg-red-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2">
+                class="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-wait disabled:opacity-50">
                 {{ processingId === r.id && action === 'reject' ? 'Rechazando…' : 'Rechazar' }}
               </button>
             </div>
@@ -109,6 +109,39 @@
         </div>
       </div>
     </div>
+
+    <!-- El padre decide explícitamente antes de publicar o rechazar. Nunca
+         usar un enlace Inertia POST como activador de una confirmación. -->
+    <Modal :show="!!approvalTarget" max-width="sm" title-id="parent-approval-title"
+      :closeable="!approvalBusy" @close="closeApproval">
+      <section v-if="approvalTarget" class="space-y-4 p-5 sm:p-6">
+        <div>
+          <h2 id="parent-approval-title" class="text-lg font-bold text-slate-900">
+            {{ approvalKind === 'approve' ? 'Confirmar publicación' : 'Confirmar rechazo' }}
+          </h2>
+          <p class="mt-2 text-sm leading-relaxed text-slate-700">
+            {{ approvalKind === 'approve'
+              ? 'Se aprobará esta solicitud para continuar su publicación según las reglas de MOVA. No garantiza que haya profesores disponibles.'
+              : 'Esta solicitud quedará rechazada. Si necesitas otra clase, podrás crear una nueva solicitud.' }}
+          </p>
+          <p class="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+            {{ approvalTarget.subject?.name || 'Materia' }} · {{ approvalTarget.student?.first_name || 'Alumno' }}
+          </p>
+        </div>
+        <p v-if="approvalError" role="alert" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{{ approvalError }}</p>
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" @click="closeApproval" :disabled="approvalBusy"
+            class="min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50">
+            Volver
+          </button>
+          <button type="button" @click="submitApproval" :disabled="approvalBusy"
+            :class="approvalKind === 'approve' ? 'bg-brand-700 hover:bg-brand-800' : 'bg-red-700 hover:bg-red-800'"
+            class="min-h-11 rounded-xl px-5 text-sm font-bold text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50">
+            {{ approvalBusy ? 'Procesando…' : approvalKind === 'approve' ? 'Aprobar solicitud' : 'Rechazar solicitud' }}
+          </button>
+        </div>
+      </section>
+    </Modal>
   </AppLayout>
 </template>
 
@@ -117,6 +150,7 @@ import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import PageHeader from '@/Components/PageHeader.vue'
+import Modal from '@/Components/Modal.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 
@@ -155,10 +189,44 @@ function fmtCreated(date) {
 const processingId = ref(null)
 const action = ref(null)
 const counterofferError = ref('')
+const approvalTarget = ref(null)
+const approvalKind = ref(null)
+const approvalBusy = ref(false)
+const approvalError = ref('')
+
+function openApproval(request, kind) {
+  if (approvalBusy.value || processingId.value !== null) return
+  if (!['approve', 'reject'].includes(kind) || request.status !== 'pending_parent_approval') return
+  approvalTarget.value = request
+  approvalKind.value = kind
+  approvalError.value = ''
+}
+
+function closeApproval() {
+  if (approvalBusy.value) return
+  approvalTarget.value = null
+  approvalKind.value = null
+  approvalError.value = ''
+}
+
+function submitApproval() {
+  if (approvalBusy.value || !approvalTarget.value || !['approve', 'reject'].includes(approvalKind.value)) return
+  approvalBusy.value = true
+  approvalError.value = ''
+  router.post(route('class-requests.' + approvalKind.value, approvalTarget.value.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { approvalTarget.value = null; approvalKind.value = null; approvalError.value = '' },
+    onError: errors => {
+      approvalError.value = Object.values(errors || {}).find(Boolean)
+        || 'No se pudo completar la acción. La solicitud puede haber cambiado de estado.'
+    },
+    onFinish: () => { approvalBusy.value = false },
+  })
+}
 
 useVisibleInertiaRefresh(['requests'], {
   intervalMs: 30000,
-  shouldRefresh: () => processingId.value === null,
+  shouldRefresh: () => processingId.value === null && !approvalTarget.value && !approvalBusy.value,
 })
 
 // Hora de Perú explícita: la propuesta se guarda en UTC y el padre siempre
