@@ -39,7 +39,7 @@
         </div>
 
         <div v-if="canJoinJitsi(lesson)" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px] flex items-center">
-          <button @click="$emit('join', lesson)"
+          <button type="button" @click="$emit('join', lesson)"
             class="flex items-center gap-2 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow shadow-brand-600/25">
             <Icon name="join-room" :size="16" /> Ingresar a la Sala Virtual
           </button>
@@ -80,7 +80,7 @@
           El profesor ha finalizado la clase y subido el reporte. Para cerrar la clase, por favor califica al profesor.
         </p>
         <Link :href="route('reviews.create', lesson.id)"
-          class="inline-flex items-center gap-1.5 mt-3 px-5 py-2.5 bg-yellow-500 text-white text-sm font-bold rounded-xl hover:bg-yellow-600 active:scale-95 transition-all shadow-sm">
+          class="inline-flex items-center gap-1.5 mt-3 px-5 py-2.5 bg-amber-700 text-white text-sm font-bold rounded-xl hover:bg-amber-800 active:scale-95 transition-all shadow-sm">
           <Icon name="reviews" :size="16" /> Calificar y Confirmar
         </Link>
       </div>
@@ -97,12 +97,12 @@
 
       <!-- Actions footer for scheduled lessons -->
       <div v-if="lesson.status === 'scheduled'" class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-end gap-2">
-        <button @click="$emit('reschedule', lesson)"
-          class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+        <button type="button" @click="$emit('reschedule', lesson)"
+          class="min-h-11 text-sm text-amber-800 hover:text-amber-900 hover:bg-amber-50 px-3 py-2.5 rounded-lg transition-colors font-medium">
           Reprogramar
         </button>
-        <button @click="$emit('cancel', lesson)"
-          class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+        <button type="button" @click="$emit('cancel', lesson)"
+          class="min-h-11 text-sm text-red-700 hover:text-red-800 hover:bg-red-50 px-3 py-2.5 rounded-lg transition-colors font-medium">
           Cancelar clase
         </button>
       </div>

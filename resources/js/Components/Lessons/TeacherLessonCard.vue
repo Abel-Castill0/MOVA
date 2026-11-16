@@ -26,7 +26,7 @@
         </div>
 
         <div v-if="canJoinJitsi(lesson)" class="flex-shrink-0 bg-brand-50 border border-brand-100 rounded-xl p-4 min-w-0 sm:min-w-[220px] flex items-center">
-          <button @click="$emit('join', lesson)"
+          <button type="button" @click="$emit('join', lesson)"
             class="flex items-center gap-2 w-full px-4 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow shadow-brand-600/25">
             <Icon name="join-room" :size="16" /> Ingresar a la Sala Virtual
           </button>
@@ -71,12 +71,12 @@
         <template v-else-if="lesson.status === 'scheduled'">
           <span class="text-xs text-slate-500">Pendiente de confirmación de pago</span>
           <div class="flex gap-2">
-            <button @click="$emit('reschedule', lesson)"
-              class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+            <button type="button" @click="$emit('reschedule', lesson)"
+              class="min-h-11 text-sm text-amber-800 hover:text-amber-900 hover:bg-amber-50 px-3 py-2.5 rounded-lg transition-colors font-medium">
               Reprogramar
             </button>
-            <button @click="$emit('cancel', lesson)"
-              class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+            <button type="button" @click="$emit('cancel', lesson)"
+              class="min-h-11 text-sm text-red-700 hover:text-red-800 hover:bg-red-50 px-3 py-2.5 rounded-lg transition-colors font-medium">
               Cancelar clase
             </button>
           </div>

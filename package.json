@@ -13,7 +13,8 @@
         "check:culqi-mcp": "node --test tools/culqi-mcp/test.mjs",
         "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
         "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1",
-        "check:realtime-ux": "node --test tests/Frontend/pusherHosts.test.mjs tests/Frontend/peruDate.test.mjs"
+        "check:realtime-ux": "node --test tests/Frontend/pusherHosts.test.mjs tests/Frontend/peruDate.test.mjs tests/Frontend/bodyScrollLock.test.mjs",
+        "check:ui-contract": "node --test tests/Frontend/movaUiAccessibilityContract.test.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",

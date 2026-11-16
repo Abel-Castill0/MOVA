@@ -1,10 +1,10 @@
 <template>
   <div class="relative" ref="root">
-    <button type="button" @click="open = !open" aria-label="Notificaciones"
+    <button ref="trigger" type="button" @click="open = !open" :aria-label="unread ? 'Notificaciones, ' + unread + ' sin leer' : 'Notificaciones'"
       :aria-expanded="open" :aria-controls="panelId"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
-      <span v-if="unread > 0"
+      <span v-if="unread > 0" aria-hidden="true"
         class="absolute top-1 right-1 min-w-5 h-5 px-1 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
         {{ unread > 9 ? '9+' : unread }}
       </span>
@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import Icon from '@/Components/Icon.vue'
 
@@ -60,12 +60,14 @@ const placementClasses = computed(() => props.placement === 'down-right'
 const panelId = computed(() => 'notification-panel-' + props.placement)
 const open = ref(false)
 const root = ref(null)
+const trigger = ref(null)
 const notifications = ref([])
+const totalUnread = ref(null)
 const loadError = ref(false)
 const actionError = ref('')
 const marking = ref(false)
 const markingId = ref(null)
-const unread = computed(() => notifications.value.filter(n => !n.read_at).length)
+const unread = computed(() => totalUnread.value ?? notifications.value.filter(n => !n.read_at).length)
 
 // Click-outside estándar: el listener de document es bubble-phase, así que
 // el @click del propio botón ya alternó `open` para cuando este corre. Como
@@ -80,8 +82,10 @@ function onDocumentClick(event) {
 async function load() {
   if (document.hidden) return
   try {
-    const { data } = await axios.get('/notifications')
+    const { data, headers } = await axios.get('/notifications')
     notifications.value = Array.isArray(data) ? data : []
+    const count = Number(headers?.['x-mova-unread-count'])
+    totalUnread.value = Number.isInteger(count) && count >= 0 ? count : null
     loadError.value = false
   } catch {
     loadError.value = true
@@ -101,7 +105,11 @@ async function markOne(id) {
   try {
     await axios.post(`/notifications/${encodeURIComponent(id)}/read`)
     const n = notifications.value.find(x => x.id === id)
-    if (n) n.read_at = new Date().toISOString()
+    if (n && !n.read_at) {
+      n.read_at = new Date().toISOString()
+      if (totalUnread.value !== null) totalUnread.value = Math.max(0, totalUnread.value - 1)
+    }
+    window.dispatchEvent(new Event('mova:notification-read'))
   } catch {
     actionError.value = 'No se pudo marcar la notificación. Inténtalo de nuevo.'
   } finally {
@@ -116,6 +124,8 @@ async function markAll() {
   try {
     await axios.post('/notifications/read-all')
     notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
+    totalUnread.value = 0
+    window.dispatchEvent(new Event('mova:notification-read'))
   } catch {
     actionError.value = 'No se pudieron marcar las notificaciones. Inténtalo de nuevo.'
   } finally {
@@ -129,7 +139,10 @@ function fmtDate(d) {
 }
 
 function onEscape(event) {
-  if (event.key === 'Escape') open.value = false
+  if (event.key !== 'Escape' || !open.value) return
+  event.stopPropagation()
+  open.value = false
+  nextTick(() => trigger.value?.focus())
 }
 
 let interval
@@ -137,6 +150,7 @@ onMounted(() => {
   load()
   interval = setInterval(load, 30000)
   window.addEventListener('mova:notification', load)
+  window.addEventListener('mova:notification-read', load)
   window.addEventListener('focus', load)
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onEscape)
@@ -144,6 +158,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(interval)
   window.removeEventListener('mova:notification', load)
+  window.removeEventListener('mova:notification-read', load)
   window.removeEventListener('focus', load)
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onEscape)

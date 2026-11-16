@@ -146,7 +146,7 @@
 
             <!-- Circular Hamburger button -->
             <button ref="mobileMenuTrigger" type="button" :aria-expanded="mobileOpen" aria-controls="landing-mobile-nav" @click="mobileOpen = !mobileOpen"
-              :class="['w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-95',
+              :class="['w-11 h-11 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-95',
                 isSolid ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs']"
               aria-label="Menú">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
