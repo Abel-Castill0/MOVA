@@ -31,7 +31,7 @@
       <section id="recargas" class="space-y-3 scroll-mt-24">
         <PaymentsStatusBanner />
         <div>
-          <h2 class="text-lg font-bold text-slate-900">Paquetes de recarga</h2>
+          <h3 class="text-lg font-bold text-slate-900">Paquetes de recarga</h3>
           <p v-if="!anyRechargeMethodEnabled" class="mt-1 text-sm text-slate-500" data-testid="recharge-unavailable">
             Estos son los paquetes y precios vigentes. La compra desde tu cuenta aún no está activa: todavía no se puede pagar y no se te cobrará nada.
           </p>
