@@ -41,3 +41,14 @@ En un entorno auxiliar Node 22 se ejecutaron pruebas puras reproducidas de `peru
 5. Solo con los gates en PASS, fusionar el PR, producir imagen GHCR inmutable sin GitHub Actions, verificar digest/rollback, desplegar los tres Container Apps según `docs/release/MOVA_PRODUCTION_RUNBOOK.md`, observar `/healthz`/`/readyz` y registrar evidencias en `DEPLOY_HISTORY.md`.
 
 **Estado: NO-GO para producción** hasta completar las pruebas y la publicación verificable. Esta documentación no reemplaza evidencias reales.
+
+## Segunda iteración UX/UI (misma rama, 16/11/2026)
+
+- Se incorporó `Components/PageHeader.vue`, usado en solicitudes docente, solicitudes del padre y créditos. Orden de título: `AppLayout` tiene el `h1` de la topbar; cada `PageHeader` conserva `h2`; módulos internos tienen `h3`.
+- Se mantuvieron acciones y rutas existentes. Las solicitudes del padre que requieren aprobación/rechazo ahora abren un modal de confirmación accesible y emiten el POST únicamente después de confirmar, con guard de doble envío y error de servidor.
+- En créditos, se eliminó el distintivo fijo `pack.code === 'pro'`: el aviso de mayor ahorro se deriva de `saving_pen` entregado por Laravel. Se distinguen correctamente importes positivos, operaciones de pago manual y compras en línea sin número de operación. El texto de Yape no promete una acreditación antes de confirmación.
+- En registro se sustituyeron radios ARIA personalizados por inputs radio nativos con tarjeta visible, labels y foco. El wizard y submit rechazan pasos no válidos o envíos simultáneos; condiciones externas incluyen `noopener noreferrer`.
+- El token de borde de controles `--line-strong` cambió a `#768395`: contraste calculado 3.85:1 sobre `#fff`, frente al 2.56:1 anterior. Sigue sin demostrar AA integral sin auditoría de navegador y estados.
+- `npm run check:realtime-ux` incluye ahora las pruebas fuente de diseño/flujo; estas son guardas de regresión y no sustituyen el compilador Vue ni Playwright. La revisión de código de las rutas modificadas (8 verificaciones en el conector de GitHub) fue satisfactoria. **No se ejecutó el build real ni se publicó esta rama.**
+
+**Seguimiento necesario:** ejecutar el build y E2E de roles con backend y entornos de prueba antes de fusionar o desplegar. La información real de costo de Azure y estado activo del proveedor WebSocket no está disponible en esta sesión; no se habilitaron recursos ni pagos.
