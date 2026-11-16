@@ -14,6 +14,9 @@ class NotificationBellCountTest extends TestCase
 
     public function test_badge_uses_all_unread_notifications_even_though_list_is_limited_to_twenty(): void
     {
+        // La aceptación legal se prueba en su suite específica; aquí
+        // comprobamos exclusivamente el aislamiento y conteo de avisos.
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureCurrentLegalAcceptance::class);
         $user = User::factory()->create();
         $other = User::factory()->create();
         for ($i = 0; $i < 25; $i++) {
