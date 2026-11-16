@@ -1,7 +1,7 @@
 <template>
   <div class="relative" ref="root">
     <button type="button" @click="open = !open" aria-label="Notificaciones"
-      aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
+      :aria-expanded="open" :aria-controls="panelId"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
       <span v-if="unread > 0"
@@ -10,7 +10,7 @@
       </span>
     </button>
 
-    <div v-if="open" id="notification-panel" role="region" aria-label="Lista de notificaciones" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
+    <div v-if="open" :id="panelId" role="region" aria-label="Lista de notificaciones" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
         <button v-if="unread > 0" type="button" @click="markAll" :disabled="marking" class="text-sm font-semibold text-brand-700 hover:underline disabled:opacity-60">Marcar todas</button>
@@ -55,6 +55,9 @@ const placementClasses = computed(() => props.placement === 'down-right'
   ? 'right-0 top-full mt-2 origin-top-right'
   : 'left-0 bottom-full mb-2 origin-bottom-left')
 
+// AppLayout monta una campana en el sidebar y otra en el header móvil.
+// Sus IDs deben ser diferentes aunque una esté oculta por CSS.
+const panelId = computed(() => 'notification-panel-' + props.placement)
 const open = ref(false)
 const root = ref(null)
 const notifications = ref([])
