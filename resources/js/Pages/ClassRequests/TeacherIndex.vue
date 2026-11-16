@@ -703,7 +703,7 @@
           El padre verá la propuesta en MOVA y podrá aceptarla o rechazarla.
         </p>
 
-        <label for="counteroffer-time" class="block text-xs font-semibold text-gray-700 mb-1">Fecha y hora que propones</label>
+        <label for="counteroffer-time" class="block text-sm font-semibold text-slate-700 mb-1">Fecha y hora que propones (hora de Perú)</label>
         <input
           id="counteroffer-time"
           ref="counterofferTimeInput"
@@ -715,8 +715,8 @@
           aria-describedby="counteroffer-time-error"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 mb-1"
         />
-        <p id="counteroffer-time-error" v-if="counterofferForm.errors.counteroffer_time" class="text-xs text-red-500 mb-2" role="alert">
-          {{ counterofferForm.errors.counteroffer_time }}
+        <p id="counteroffer-time-error" v-if="counterofferForm.errors.counteroffer_time || counterofferDateError" class="text-sm text-red-700 mb-2" role="alert">
+          {{ counterofferForm.errors.counteroffer_time || counterofferDateError }}
         </p>
 
         <fieldset class="mt-3">
@@ -807,6 +807,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Icon from '@/Components/Icon.vue'
 import { Search } from 'lucide-vue-next'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh'
+import { toPeruDateTimeLocal, peruLocalDateTimeToIso } from '@/utils/peruDate.js'
 
 const props = defineProps({
   requests:           { type: Array, default: () => [] },
@@ -1090,6 +1091,7 @@ const filteredRequests = computed(() => {
 const counterofferTarget = ref(null)
 const counterofferDialog = ref(null)
 const counterofferTimeInput = ref(null)
+const counterofferDateError = ref('')
 let counterofferOpener = null
 
 const counterofferDurations = [
@@ -1100,11 +1102,7 @@ const counterofferDurations = [
 ]
 
 // datetime-local trabaja en hora LOCAL: mismo ajuste que Accept.vue.
-const minDatetime = computed(() => {
-  const d = new Date(Date.now() + 30 * 60 * 1000)
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 16)
-})
+const minDatetime = computed(() => toPeruDateTimeLocal(Date.now() + 30 * 60 * 1000))
 
 const counterofferForm = useForm({
   counteroffer_time: '',
@@ -1116,6 +1114,7 @@ function openCounterofferModal(r) {
   counterofferTarget.value = r
   counterofferForm.reset()
   counterofferForm.clearErrors()
+  counterofferDateError.value = ''
   nextTick(() => counterofferTimeInput.value?.focus())
 }
 
@@ -1128,16 +1127,29 @@ function closeCounterofferModal() {
 
 function submitCounteroffer() {
   if (counterofferForm.processing || !counterofferTarget.value) return
+  counterofferDateError.value = ''
+  let proposedTime
+  try {
+    proposedTime = peruLocalDateTimeToIso(counterofferForm.counteroffer_time)
+  } catch (error) {
+    counterofferDateError.value = error.message
+    return
+  }
   counterofferForm
     .transform(data => ({
       ...data,
-      // La hora local del profesor, convertida a instante absoluto — el
-      // servidor la guarda en UTC sin reinterpretarla.
-      counteroffer_time: new Date(data.counteroffer_time).toISOString(),
+      // El campo datetime-local siempre representa la hora de Perú.
+      counteroffer_time: proposedTime,
     }))
     .post(route('teacher.requests.counteroffer', counterofferTarget.value.id), {
       preserveScroll: true,
-      onSuccess: () => closeCounterofferModal(),
+      onSuccess: () => {
+        // useForm.processing sigue true durante onSuccess; llamar a
+        // closeCounterofferModal() dejaría el modal abierto.
+        counterofferTarget.value = null
+        counterofferDateError.value = ''
+        nextTick(() => counterofferOpener?.focus?.())
+      },
     })
 }
 
@@ -1176,7 +1188,14 @@ function submitReject() {
     route('teacher.requests.reject', rejectTarget.value.id),
     { reason: rejectReason.value.trim() },
     {
-      onSuccess: () => closeRejectModal(),
+      onSuccess: () => {
+        // onSuccess se dispara antes de onFinish: no llamar al cierre
+        // protegido por rejecting=true.
+        rejectTarget.value = null
+        rejectReason.value = ''
+        rejectError.value = ''
+        nextTick(() => rejectOpener?.focus?.())
+      },
       onError: (errors) => { rejectError.value = errors.reason ?? 'No se pudo rechazar la solicitud.' },
       onFinish: () => { rejecting.value = false },
     }
