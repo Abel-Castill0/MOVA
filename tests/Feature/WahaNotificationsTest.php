@@ -9,6 +9,7 @@ use App\Models\RechargeRequest;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
+use App\Support\LimaClock;
 use App\Notifications\ClassRescheduledNotification;
 use App\Notifications\CounterofferRejectedNotification;
 use App\Notifications\RechargeRejectedNotification;
@@ -45,7 +46,7 @@ class WahaNotificationsTest extends TestCase
         $text = $notification->toWhatsApp($this->user('parent'));
 
         $this->assertStringContainsString('Clase reprogramada', $text);
-        $this->assertStringContainsString($lesson->start_time->format('d/m/Y H:i'), $text);
+        $this->assertStringContainsString(LimaClock::formatClassDate($lesson->start_time), $text);
         $this->assertStringNotContainsString('enferma', $text);
         $this->assertContains(WhatsAppChannel::class, $notification->via($this->user('parent')));
     }
