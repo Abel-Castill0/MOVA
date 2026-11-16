@@ -112,8 +112,11 @@ class DiagnosticsController extends Controller
             event(new ClassRequestCreated($classRequest));
         }
 
-        return redirect()->route('class-requests.index')
-            ->with('success', 'Diagnóstico completado. Enviamos una solicitud genérica a los profesores verificados de la materia.');
+        $message = $classRequest->status === 'pending_parent_approval'
+            ? 'Diagnóstico completado. Tu solicitud requiere aprobación parental antes de llegar a los profesores.'
+            : 'Diagnóstico completado. La solicitud está abierta para profesores verificados de la materia.';
+
+        return redirect()->route('class-requests.index')->with('success', $message);
     }
 
     /**
