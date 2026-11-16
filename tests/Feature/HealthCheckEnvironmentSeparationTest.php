@@ -35,6 +35,15 @@ class HealthCheckEnvironmentSeparationTest extends TestCase
         return ['codes' => array_column($json['warnings'], 'code'), 'checks' => $json['checks']];
     }
 
+    public function test_waha_is_a_supported_whatsapp_provider_and_a_typo_is_still_flagged(): void
+    {
+        config(['services.whatsapp.enabled' => true, 'services.whatsapp.provider' => 'waha']);
+        $this->assertNotContains('WHATSAPP_PROVIDER_INVALID', $this->health(indexing: false)['codes']);
+
+        config(['services.whatsapp.provider' => 'wahaa']);
+        $this->assertContains('WHATSAPP_PROVIDER_INVALID', $this->health(indexing: false)['codes']);
+    }
+
     public function test_a_public_site_with_qa_accounts_raises_the_incident(): void
     {
         User::factory()->create(['email' => 'admin-phase2b@mova.test']);

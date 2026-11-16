@@ -52,6 +52,16 @@ export function preloadCulqi({ withThreeDs = true } = {}) {
   if (withThreeDs) loadCulqi3DS().catch(() => {})
 }
 
+/**
+ * Logo de MOVA en la cabecera del checkout de Culqi (`appearance.logo`, opción documentada). Culqi lo carga desde su
+ * propio dominio, así que solo se envía una URL pública https; en local (http) el checkout queda sin logo.
+ */
+function checkoutLogo() {
+  const origin = window.location?.origin ?? ''
+
+  return origin.startsWith('https://') ? { logo: `${origin}/images/brand/mova-isotipo.png` } : {}
+}
+
 /** Medios de la configuración de MOVA (card|yape|order) → medios del Custom Checkout de Culqi. */
 export function culqiPaymentMethods(methods, { forOrder = false } = {}) {
   if (forOrder) {
@@ -96,7 +106,7 @@ export async function openCulqiCheckout({ publicKey, amountMinor, currency = 'PE
         modal: true,
         paymentMethods: culqiPaymentMethods(methods, { forOrder: Boolean(order) }),
       },
-      appearance: { theme: 'default', buttonCardPayText: 'Pagar' },
+      appearance: { theme: 'default', buttonCardPayText: 'Pagar', ...checkoutLogo() },
     }
 
     const culqi = new window.CulqiCheckout(publicKey, config)

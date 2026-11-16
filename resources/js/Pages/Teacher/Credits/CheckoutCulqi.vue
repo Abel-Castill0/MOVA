@@ -55,8 +55,8 @@
           </SecondaryButton>
 
           <ul v-if="hasYape || hasOrderMethod" class="space-y-1.5 rounded-xl bg-slate-50 px-3.5 py-3 text-xs text-slate-600" data-testid="wallet-help">
-            <li v-if="hasYape"><strong class="text-slate-800">Yape directo:</strong> en tu app Yape abre el menú y genera un <em>código de aprobación</em>; escríbelo junto a tu celular en la ventana de Culqi. El código vence en 2 minutos.</li>
-            <li v-if="hasOrderMethod"><strong class="text-slate-800">QR (Plin, Yape y otras):</strong> elige «Billeteras móviles», escanea el QR desde tu app y paga. Tus créditos llegan solos cuando Culqi confirma el pago.</li>
+            <li v-if="hasYape"><strong class="text-slate-800">Yape con código (recomendado si usas Yape):</strong> el importe de {{ currency }} {{ money(recharge.amount_pen) }} queda fijado y no tienes que escribirlo. En tu app Yape entra a «Aprobar compras», copia el <em>código de aprobación</em> y escríbelo junto a tu celular en la ventana de Culqi. El código vence en 2 minutos.</li>
+            <li v-if="hasOrderMethod"><strong class="text-slate-800">QR (Plin, Yape y otras):</strong> elige «Billeteras móviles» y escanea el QR desde tu app. Si tu app te pide el importe, escribe exactamente {{ currency }} {{ money(recharge.amount_pen) }}. Tus créditos llegan solos cuando Culqi confirma el pago.</li>
           </ul>
 
           <p v-if="!hasTokenMethods && !hasOrderMethod" class="text-sm text-slate-500">No hay medios de pago automáticos habilitados por ahora.</p>
@@ -97,6 +97,15 @@
           <p class="text-sm text-slate-500">{{ statusMessage }}</p>
           <p v-if="orderExpiresText" class="text-xs font-semibold text-slate-600">QR vigente hasta: {{ orderExpiresText }}</p>
           <p class="text-xs font-semibold text-slate-600">Aún no se te ha acreditado ningún crédito.</p>
+
+          <div class="w-full rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-left" data-testid="exact-amount">
+            <p class="text-xs font-semibold uppercase tracking-wide text-brand-700">Importe exacto a pagar</p>
+            <p class="text-2xl font-black text-slate-900">{{ currency }} {{ money(recharge.amount_pen) }}</p>
+            <ul class="mt-1.5 space-y-1 text-xs text-slate-700">
+              <li>Si tu app muestra S/ 0 o te pide el importe (pasa en Yape), escribe <strong>exactamente {{ currency }} {{ money(recharge.amount_pen) }}</strong>. No pagues otro importe: tus {{ recharge.credits }} créditos solo se acreditan cuando Culqi confirma el pago completo de esta orden.</li>
+              <li>En tu app el destinatario suele aparecer como <strong>«PagoEfectivo»</strong><template v-if="actionRequired.cip"> seguido del código <strong class="font-mono">{{ actionRequired.cip }}</strong></template>. Es el procesador que usa Culqi para cobrar esta compra de MOVA<template v-if="actionRequired.cip">; comprueba que el código coincida antes de pagar</template>.</li>
+            </ul>
+          </div>
 
           <!-- Orden ya confirmada por Culqi: el checkout no la acepta otra vez (CCKT-400). Se paga con ESTE QR/CIP. -->
           <div v-if="orderConfirmed" class="w-full space-y-3 rounded-xl border border-slate-200 p-4 text-left" data-testid="order-payment-details">

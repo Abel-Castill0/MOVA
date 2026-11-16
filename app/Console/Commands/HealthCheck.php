@@ -84,7 +84,8 @@ class HealthCheck extends Command
         // de contenedor perfectamente válido.
         foreach ([
             ['pagos', 'PAYMENT_PROVIDER', 'payments.provider', config('payments.supported_providers'), 'payments.enabled'],
-            ['WhatsApp', 'WHATSAPP_PROVIDER', 'services.whatsapp.provider', ['meta'], 'services.whatsapp.enabled'],
+            // Misma lista que AppServiceProvider (WhatsAppProvider): sin 'waha' el chequeo daba un falso «INVÁLIDO» en producción.
+            ['WhatsApp', 'WHATSAPP_PROVIDER', 'services.whatsapp.provider', ['meta', 'waha'], 'services.whatsapp.enabled'],
         ] as [$kind, $envVar, $providerKey, $supported, $enabledKey]) {
             $featureEnabled = (bool) config($enabledKey, false);
 

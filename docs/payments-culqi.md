@@ -536,3 +536,32 @@ Se revisó CulqiPanel en producción (comercio Mova, 200000000342887) sin cambia
 5. **¿Hay una solución oficial que MOVA pueda implementar?** No. Lo que envía MOVA cumple el contrato, y lo que falla lo genera el proveedor. Mientras tanto, MOVA mantiene el CIP (banca móvil/agentes) y Yape directo.
 6. **¿Qué evidencia necesita Culqi?** Los IDs de orden y los API Logs de creación, el TLV del QR con `54=1000` frente a la página de PagoEfectivo con S/ 10.00, la captura del timeout de Yape, el cargo de Yape directo que sí funcionó y la consulta de habilitación de billeteras. Todo está en el reporte local de `docs/support/`.
 
+## 24. QR de billeteras: importe que Yape no autocompleta y nombre «PagoEfectivo» (2026-11-15)
+
+Tras la resincronización del comercio que hizo Culqi, Yape **ya lee** el QR de la orden. El 15/11 (orden de la recarga 7, S/ 10) mostró el destinatario «Pagoefectivo» seguido del CIP, con el importe en S/ 0 y editable. La orden no se pagó y venció.
+
+**Qué se comprobó (solo lectura):**
+
+| Pregunta | Evidencia | Conclusión |
+|---|---|---|
+| ¿Cambió el QR tras la resincronización? | Decodificación del QR oficial nuevo frente al del 13/11 | Misma estructura: dinámico (`01=12`), red `26.00=80`, `54=1000`, `59=PagoEfectivo`, `60=Lima`, plantilla `90/GLOSA` con el CIP |
+| ¿De dónde sale el nombre que muestra Yape? | Campo 59 del QR y `GLOSA` | Es «PagoEfectivo» + CIP. Lo escribe PagoEfectivo dentro del QR; MOVA no lo envía ni puede cambiarlo |
+| ¿Por qué Yape pide el importe? | El QR lleva `54=1000` (EMVCo usa unidades con decimales: `10.00`). La guía de PagoEfectivo dice «Verifica o ingresa el monto» y la de Yape, «ingresa el monto» | Con este QR, Yape no toma el importe del campo 54. Es el comportamiento del QR de PagoEfectivo en Yape, no un fallo de MOVA. Culqi documenta que la billetera «mostrará el monto»: la diferencia solo puede aclararla Culqi |
+| ¿Hay un parámetro para un QR de importe fijo? | API de órdenes (OpenAPI), Custom Checkout y CulqiPanel (revisado otra vez el 15/11) | No existe. La orden solo acepta `amount` en céntimos y el QR lo genera Culqi/PagoEfectivo |
+| ¿Otro producto de Culqi lo resuelve? | Documentación de CulqiLink | CulqiLink usa los mismos medios (billeteras por orden) y el comercio no lo tiene contratado. No hay evidencia de un QR distinto |
+| ¿Puede aparecer «MOVA» en Yape con el QR? | Campo 59 fijo; en CulqiPanel el «Nombre del comercio» ya es «Mova» y es lo único editable (con revisión de Culqi) | No con este QR. Lo personalizable es el checkout de Culqi (título y logo) y las pantallas de MOVA |
+
+**Resultado (alternativa C con un punto D):** con el producto contratado no hay forma oficial de fijar el importe ni el nombre en el QR. Falta que Culqi confirme dos cosas: si el `54=1000` es lo que impide a Yape mostrar el importe, y si PagoEfectivo rechaza un pago por un importe distinto al del CIP.
+
+**Qué se implementó (lo que sí permite el proveedor):**
+
+- **Yape con código de aprobación** queda como camino recomendado para quien usa Yape: el importe lo fija MOVA en el servidor y el checkout de Culqi lo muestra; el profesor no lo escribe.
+- El checkout de Culqi muestra el **logo de MOVA** (`appearance.logo`, opción documentada; probado en sandbox) junto al título «MOVA — Recarga de créditos».
+- La pantalla de la orden muestra el **importe exacto** en grande, avisa de que hay que escribir ese importe si la app lo pide, y explica que el destinatario suele aparecer como «PagoEfectivo» más el CIP, que debe coincidir.
+
+**Protección ante un importe incorrecto:**
+
+- Todos los caminos que acreditan una orden (webhook, «Verificar pago», `culqi:reconcile`) pasan por la misma validación: el `amount` y la moneda que devuelve la API de Culqi deben ser iguales a los de la orden de MOVA. Si no, la orden queda en revisión y no se acredita. Hay una prueba con los cinco paquetes.
+- **Límite conocido:** esa validación usa el `amount` de la orden en Culqi. Si PagoEfectivo aceptara un pago menor y Culqi marcara la orden `paid` sin cambiar ese `amount`, MOVA no tendría con qué detectarlo: la API no documenta un campo de «importe pagado». Por diseño un CIP se paga por su importe completo, pero no está confirmado por escrito ni observado en un pago real. La primera compra real debe revisarse con el importe abonado en CulqiPanel.
+
+**Webhook de cargo rechazado:** Culqi live envía `charge.creation.failed` con un objeto `error` y sin id de cargo. MOVA lo dejaba en revisión con una alerta. Ahora se cierra sin acción (no hay nada que conciliar y el rechazo ya quedó registrado en la respuesta del cargo). Si el error nombra un `charge_id`, se concilia contra la API. Un «pagado» sin id sigue yendo a revisión.

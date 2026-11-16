@@ -60,6 +60,15 @@ class ProcessCulqiWebhook implements ShouldQueue
         }
 
         $chargeId = $this->chargeId($webhook);
+        if ($chargeId === null && $this->isFailedChargeWithoutCharge($webhook)) {
+            // Culqi live notifica un cargo rechazado con un objeto «error» y sin id de cargo (observado el 2026-11-13):
+            // no existe ningún recurso que conciliar ni dinero cobrado, y MOVA ya registró el rechazo en la respuesta
+            // síncrona de su propio POST. Se cierra sin alerta; un evento así jamás acredita ni cambia un intento.
+            $webhook->update(['status' => 'processed', 'processed_at' => now(), 'error' => 'cargo rechazado sin id de cargo (nada que conciliar)']);
+            Log::info('[Culqi/Job] Evento de cargo rechazado sin id de cargo — cerrado sin acción.', ['payment_webhook_id' => $webhook->id]);
+
+            return;
+        }
         if ($chargeId === null) {
             $reconciler->markReview(null, $webhook, 'Notificación de Culqi sin id de cargo localizable.');
 
@@ -127,6 +136,17 @@ class ProcessCulqiWebhook implements ShouldQueue
         );
     }
 
+    /** `charge.creation.failed` cuyo `data` es un objeto de error de Culqi (no un cargo). Solo ese caso exacto. */
+    private function isFailedChargeWithoutCharge(PaymentWebhook $webhook): bool
+    {
+        $data = $webhook->payload['data'] ?? null;
+        if (is_string($data)) {
+            $data = json_decode($data, true);
+        }
+
+        return $webhook->event_type === 'charge.creation.failed' && is_array($data) && ($data['object'] ?? null) === 'error';
+    }
+
     private function chargeId(PaymentWebhook $webhook): ?string
     {
         $payload = $webhook->payload;
@@ -138,7 +158,8 @@ class ProcessCulqiWebhook implements ShouldQueue
             return null;
         }
 
-        $id = str_starts_with((string) $webhook->event_type, 'refund.') ? ($data['charge_id'] ?? null) : ($data['id'] ?? null);
+        // Un cargo rechazado puede llegar como objeto «error» que nombra su cargo en `charge_id`: se concilia contra la API.
+        $id = str_starts_with((string) $webhook->event_type, 'refund.') ? ($data['charge_id'] ?? null) : ($data['id'] ?? $data['charge_id'] ?? null);
 
         return is_string($id) && $id !== '' ? $id : null;
     }

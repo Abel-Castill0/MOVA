@@ -615,6 +615,59 @@ class CulqiCheckoutTest extends TestCase
         $this->assertSame('pending', $recharge->fresh()->status);
     }
 
+    /**
+     * Los cinco paquetes oficiales: la orden sale por el importe exacto del catálogo del servidor (céntimos), un pago que
+     * Culqi reporta por un importe menor o mayor (p. ej. una billetera que deja escribir el monto) nunca acredita, y solo
+     * el pago exacto acredita los créditos del paquete, una sola vez.
+     */
+    public function test_each_official_package_is_ordered_for_its_exact_amount_and_only_the_exact_paid_amount_credits(): void
+    {
+        $packages = ['inicio' => [1000, 5], 'esencial' => [1980, 10], 'impulso' => [2940, 15], 'avance' => [3880, 20], 'pro' => [5760, 30]];
+
+        foreach ($packages as $code => [$minor, $credits]) {
+            [$user, $profile] = $this->teacher('Profe '.ucfirst($code), '987654321');
+            $this->actingAs($user)->post(route('teacher.credits.checkout.store'), ['package_code' => $code, 'amount_pen' => '1.00', 'credits' => 999]);
+            $recharge = RechargeRequest::where('teacher_profile_id', $profile->id)->firstOrFail();
+            $this->assertSame($credits, $recharge->credits, $code);
+
+            $created = null;
+            $this->fakeCulqi(postOrder: function (Request $r) use (&$created) {
+                $created = $this->orderFor($r->data());
+
+                return Http::response($created, 201);
+            });
+            $json = $this->actingAs($user)->postJson(route('teacher.credits.checkout.order', $recharge))->assertOk()->json();
+            $this->assertSame($minor, $created['amount'], "Importe enviado a Culqi para {$code}");
+            $this->assertSame('PEN', $created['currency_code']);
+            $this->assertSame($minor, $json['action_required']['amount_minor']);
+
+            // Pago insuficiente (S/ 10 escritos a mano en un paquete mayor, o 1 céntimo menos) y pago excedente.
+            foreach ([$minor === 1000 ? 100 : 1000, $minor - 1, $minor + 1, $minor * 100] as $i => $wrong) {
+                $this->fakeCulqi(getOrder: fn () => Http::response(array_replace($created, ['state' => 'paid', 'paid_at' => time(), 'amount' => $wrong]), 200));
+                $this->deliver($this->culqiEvent("evt_test_{$code}_w{$i}", 'order.status.changed', $created['id']))->assertOk();
+                $this->assertSame(0, $profile->fresh()->credits_available, "{$code}: un pago de {$wrong} céntimos no acredita");
+                $this->assertSame('pending', $recharge->fresh()->status);
+            }
+            // Moneda distinta con el mismo número: tampoco.
+            $this->fakeCulqi(getOrder: fn () => Http::response(array_replace($created, ['state' => 'paid', 'paid_at' => time(), 'currency_code' => 'USD']), 200));
+            $this->deliver($this->culqiEvent("evt_test_{$code}_usd", 'order.status.changed', $created['id']))->assertOk();
+            $this->assertSame(0, $profile->fresh()->credits_available);
+            $order = PaymentOrder::where('recharge_request_id', $recharge->id)->firstOrFail();
+            $this->assertNotNull($order->review_reason, "{$code}: el importe incorrecto queda en revisión");
+            $this->assertNotSame('paid', $order->status);
+
+            // La verdad posterior de Culqi por el importe exacto resuelve la revisión y acredita una sola vez.
+            $this->fakeCulqi(getOrder: fn () => Http::response(array_replace($created, ['state' => 'paid', 'paid_at' => time()]), 200));
+            $this->artisan('culqi:reconcile', ['--order' => $order->id])->assertSuccessful();
+            $this->deliver($this->culqiEvent("evt_test_{$code}_ok", 'order.status.changed', $created['id']))->assertOk();
+            $this->assertSame($credits, $profile->fresh()->credits_available, "{$code}: créditos exactos");
+            $this->assertSame('approved', $recharge->fresh()->status);
+            $this->assertSame(1, CreditTransaction::where('recharge_request_id', $recharge->id)->where('type', 'deposit')->count());
+        }
+
+        $this->assertFinancialInvariantsHold();
+    }
+
     public function test_an_order_state_paid_without_paid_at_or_unknown_states_are_never_credited(): void
     {
         $this->assertSame('review', \App\Payment\Culqi\CulqiOrderMapper::normalize(['state' => 'paid', 'paid_at' => null]));

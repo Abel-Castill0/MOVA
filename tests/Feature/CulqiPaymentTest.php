@@ -582,6 +582,42 @@ class CulqiPaymentTest extends TestCase
         $this->call('POST', '/api/webhooks/culqi/'.self::WEBHOOK_SECRET, [], [], [], ['CONTENT_TYPE' => 'application/json'], 'no es json')->assertStatus(400);
     }
 
+    /** Forma real observada en live (2026-11-13): cargo rechazado = objeto «error» sin id de cargo. */
+    public function test_a_failed_charge_event_carrying_only_an_error_object_is_closed_without_review_or_credit(): void
+    {
+        $failed = ['object' => 'event', 'id' => 'evt_test_failed_error', 'type' => 'charge.creation.failed', 'creation_date' => 1794542002788,
+            'data' => json_encode(['object' => 'error', 'type' => 'card_error', 'code' => 'insufficient_funds', 'merchant_message' => 'Fondos insuficientes.'])];
+        $this->postJson('/api/webhooks/culqi/'.self::WEBHOOK_SECRET, $failed)->assertOk();
+        $webhook = PaymentWebhook::where('event_id', 'evt_test_failed_error')->firstOrFail();
+        (new ProcessCulqiWebhook($webhook->id))->handle(app(\App\Services\CulqiPaymentReconciliationService::class));
+
+        $this->assertSame('processed', $webhook->fresh()->status);
+        $this->assertSame(0, \App\Models\OperationalAlert::count(), 'Un rechazo sin cargo no es una incidencia.');
+        $this->assertSame(0, \App\Models\CreditTransaction::count());
+
+        // Si el error nombra su cargo (`charge_id`), no se cierra a ciegas: se busca ese cargo como cualquier otro evento.
+        Bus::fake(); // desde aquí el job se ejecuta a mano (en pruebas la cola es síncrona)
+        $named = array_replace($failed, ['id' => 'evt_test_failed_named', 'data' => json_encode(['object' => 'error', 'charge_id' => 'chr_test_NAMED000000001'])]);
+        $this->postJson('/api/webhooks/culqi/'.self::WEBHOOK_SECRET, $named)->assertOk();
+        $namedRow = PaymentWebhook::where('event_id', 'evt_test_failed_named')->firstOrFail();
+        try {
+            (new ProcessCulqiWebhook($namedRow->id))->handle(app(\App\Services\CulqiPaymentReconciliationService::class));
+            $this->fail('Sin PaymentOrder local debe reintentarse (carrera) en vez de cerrarse.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('received', $namedRow->fresh()->status);
+        }
+
+        // Fail closed: «pagado» sin id de cargo, o un error en cualquier otro tipo de evento, sigue yendo a revisión.
+        foreach (['charge.creation.succeeded', 'order.status.changed', 'refund.creation.succeeded'] as $i => $type) {
+            $event = array_replace($failed, ['id' => "evt_test_noid_{$i}", 'type' => $type]);
+            $this->postJson('/api/webhooks/culqi/'.self::WEBHOOK_SECRET, $event)->assertOk();
+            $row = PaymentWebhook::where('event_id', "evt_test_noid_{$i}")->firstOrFail();
+            (new ProcessCulqiWebhook($row->id))->handle(app(\App\Services\CulqiPaymentReconciliationService::class));
+            $this->assertSame('review', $row->fresh()->status, $type);
+        }
+        $this->assertSame(0, \App\Models\CreditTransaction::count());
+    }
+
     public function test_duplicate_webhook_events_are_persisted_and_dispatched_once(): void
     {
         Bus::fake();
