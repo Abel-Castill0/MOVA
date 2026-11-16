@@ -23,9 +23,9 @@ use Illuminate\Notifications\Notification;
  * LessonSettlementService::consume(..., notify: true), usado únicamente por
  * SettleLessons.
  *
- * Canales deliberadamente mínimos (database + mail, sin WhatsApp ni
- * broadcast): es una confirmación informativa, no una alerta urgente — no
- * amerita el mismo canal inmediato que un recordatorio de clase.
+ * Canales: database, mail (si existe correo verificado) y broadcast privado
+ * con metadatos mínimos. Sin WhatsApp: no es una alerta urgente.
+ * La notificación en vivo solo fuerza a actualizar el saldo del servidor.
  *
  * NUNCA debe incluir jitsi_room/jitsi_password ni una URL de meet.jit.si —
  * mismo riesgo que C-3 (533a799): un token de acceso a una videollamada con
@@ -35,7 +35,10 @@ class LessonSettledNotification extends Notification implements ShouldQueue
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public Lesson $lesson) {}
+    public function __construct(public Lesson $lesson)
+    {
+        $this->afterCommit();
+    }
 
     public function via($notifiable): array
     {
