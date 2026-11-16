@@ -31,13 +31,13 @@ class ComplaintFiledNotification extends Notification implements ShouldQueue
                 ->greeting("Hola {$c->consumer_name},")
                 ->line("{$provider} ha respondido tu {$c->type} {$c->code}:")
                 ->line($c->response)
-                ->line('Fecha de respuesta: '.$c->responded_at?->format('d/m/Y H:i'));
+                ->line('Fecha de respuesta: '.($c->responded_at ? \App\Support\LimaClock::dateTime($c->responded_at) : ''));
         }
 
         return (new MailMessage)
             ->subject("Constancia de tu {$c->type} {$c->code} — Libro de Reclamaciones")
             ->greeting("Hola {$c->consumer_name},")
-            ->line("Registramos tu {$c->type} con el código {$c->code} el ".$c->created_at->format('d/m/Y H:i').'.')
+            ->line("Registramos tu {$c->type} con el código {$c->code} el ".\App\Support\LimaClock::dateTime($c->created_at).'.')
             ->line('Bien contratado: '.$c->good_type.' — '.$c->good_description.($c->amount !== null ? " (S/ {$c->amount})" : ''))
             ->line('Detalle: '.$c->detail)
             ->line('Pedido: '.$c->consumer_request)

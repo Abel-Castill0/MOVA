@@ -44,6 +44,7 @@
 </template>
 
 <script setup>
+import { fmtLimaDate as fmtDate } from '@/utils/limaTime'
 import { ref, watch } from 'vue'
 import Modal from '@/Components/Modal.vue'
 import BaseButton from '@/Components/BaseButton.vue'
@@ -69,9 +70,4 @@ function confirm() {
   emit('confirm', reason.value.trim() || null)
 }
 
-function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
 </script>

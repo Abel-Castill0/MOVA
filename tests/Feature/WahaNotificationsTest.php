@@ -45,7 +45,10 @@ class WahaNotificationsTest extends TestCase
         $text = $notification->toWhatsApp($this->user('parent'));
 
         $this->assertStringContainsString('Clase reprogramada', $text);
-        $this->assertStringContainsString($lesson->start_time->format('d/m/Y H:i'), $text);
+        // La hora guardada es UTC (15:30); el aviso la dice en hora de Perú (10:30), no la cifra UTC.
+        $this->assertStringContainsString(\App\Support\LimaClock::dateTime($lesson->start_time), $text);
+        $this->assertStringContainsString('10:30 (hora de Perú)', $text);
+        $this->assertStringNotContainsString('15:30', $text);
         $this->assertStringNotContainsString('enferma', $text);
         $this->assertContains(WhatsAppChannel::class, $notification->via($this->user('parent')));
     }

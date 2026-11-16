@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,6 +21,36 @@ use Illuminate\Support\Carbon;
 class LimaClock
 {
     public const TIMEZONE = 'America/Lima';
+
+    /** Referencia que acompaña toda hora que se muestra a una persona (WhatsApp, correo, campana). */
+    public const LABEL = 'hora de Perú';
+
+    /**
+     * Hora de Lima de un instante guardado en UTC, SIN tocar el objeto original (se trabaja sobre una copia).
+     * Es la única conversión: quien llame a los formateadores de abajo no debe convertir antes.
+     */
+    public static function at(CarbonInterface $moment): CarbonInterface
+    {
+        return $moment->copy()->setTimezone(self::TIMEZONE);
+    }
+
+    /** «25/11/2026 20:00 (hora de Perú)» — para WhatsApp y textos cortos. */
+    public static function dateTime(CarbonInterface $moment): string
+    {
+        return self::at($moment)->format('d/m/Y H:i').' ('.self::LABEL.')';
+    }
+
+    /** «25/11/2026 a las 20:00 (hora de Perú)» — para correos y frases. */
+    public static function dateTimeLong(CarbonInterface $moment): string
+    {
+        return self::at($moment)->format('d/m/Y \a \l\a\s H:i').' ('.self::LABEL.')';
+    }
+
+    /** «25/11/2026» — el día calendario que corresponde en Lima, no en UTC. */
+    public static function date(CarbonInterface $moment): string
+    {
+        return self::at($moment)->format('d/m/Y');
+    }
 
     /**
      * Rango [inicio, fin) del día calendario actual en Lima, expresado en UTC

@@ -18,7 +18,7 @@
 
       <div class="space-y-3">
         <div>
-          <label :for="dateId" class="block text-xs font-semibold text-ink mb-1">Nueva fecha y hora</label>
+          <label :for="dateId" class="block text-xs font-semibold text-ink mb-1">Nueva fecha y hora ({{ LIMA_LABEL }})</label>
           <input
             :id="dateId"
             v-model="form.start_time"
@@ -59,6 +59,7 @@
 </template>
 
 <script setup>
+import { fmtLimaDate as fmtDate, toLimaDatetimeLocal as toDatetimeLocal, limaLocalToIso, LIMA_LABEL } from '@/utils/limaTime'
 import { computed, reactive, watch } from 'vue'
 import Modal from '@/Components/Modal.vue'
 import BaseButton from '@/Components/BaseButton.vue'
@@ -86,24 +87,14 @@ watch(() => props.show, (show) => {
   }
 })
 
-const newPreview = computed(() => (form.start_time ? fmtDate(form.start_time) : ''))
+const newPreview = computed(() => (form.start_time ? fmtDate(limaLocalToIso(form.start_time)) : ''))
 
 function submit() {
   emit('confirm', {
-    start_time: form.start_time ? new Date(form.start_time).toISOString() : '',
+    start_time: form.start_time ? limaLocalToIso(form.start_time) : '',
     reason: form.reason,
   })
 }
 
-function toDatetimeLocal(d) {
-  const dt = new Date(d)
-  dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset())
-  return dt.toISOString().slice(0, 16)
-}
 
-function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
 </script>

@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\LimaClock;
 use App\Models\Lesson;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
@@ -33,7 +34,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable): MailMessage
     {
-        $date = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
+        $date = LimaClock::dateTimeLong($this->lesson->start_time);
 
         $mail = (new MailMessage)
             ->subject('Clase cancelada en MOVA')
@@ -59,7 +60,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
 
     public function toWhatsApp($notifiable): string
     {
-        $date = $this->lesson->start_time->format('d/m/Y H:i');
+        $date = LimaClock::dateTime($this->lesson->start_time);
 
         return "MOVA — Clase cancelada\n\n"
             . "Hola {$notifiable->name},\n"
@@ -73,7 +74,7 @@ class ClassCancelledNotification extends Notification implements ShouldQueue
             'type'       => 'class_cancelled',
             'lesson_id'  => $this->lesson->id,
             'start_time' => $this->lesson->start_time->toISOString(),
-            'message'    => 'Su clase del ' . $this->lesson->start_time->format('d/m/Y') . ' ha sido cancelada.',
+            'message'    => 'Su clase del ' . LimaClock::date($this->lesson->start_time) . ' ha sido cancelada.',
         ];
     }
 }

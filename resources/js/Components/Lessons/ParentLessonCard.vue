@@ -111,6 +111,7 @@
 </template>
 
 <script setup>
+import { fmtLimaDate as fmtDate, fmtLimaDateShort as fmtDateShort } from '@/utils/limaTime'
 import { Link } from '@inertiajs/vue3'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import Icon from '@/Components/Icon.vue'
@@ -135,14 +136,6 @@ function amountToPay(l) {
   return ((rate * l.duration_minutes) / 60).toFixed(2)
 }
 
-function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  })
-}
 
-function fmtDateShort(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
 
 </script>
