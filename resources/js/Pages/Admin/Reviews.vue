@@ -21,7 +21,7 @@
         <p class="text-gray-600 text-sm">No hay reseñas con ese filtro</p>
       </div>
 
-      <div v-else class="space-y-3">
+      <div v-if="reviews.data.length" class="space-y-3">
         <div v-for="r in reviews.data" :key="r.id"
           :class="['bg-white rounded-xl border p-4', r.is_visible ? 'border-gray-200' : 'border-orange-200 bg-orange-50/30']">
 
