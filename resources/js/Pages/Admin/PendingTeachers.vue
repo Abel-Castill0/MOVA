@@ -40,7 +40,7 @@
                   class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
                   Verificar
                 </Link>
-                <button @click="openRejectModal(t)"
+                <button type="button" @click="openRejectModal(t)"
                   class="px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
                   Rechazar
                 </button>
@@ -90,29 +90,30 @@
     </div>
 
     <!-- ── Modal de rechazo ────────────────────────────────────────────────── -->
-    <div v-if="rejectTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Rechazar perfil docente</h3>
+    <Modal :show="!!rejectTarget" maxWidth="sm" titleId="reject-teacher-title" :closeable="!rejecting" @close="closeRejectModal">
+      <div v-if="rejectTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="reject-teacher-title" class="text-lg font-bold text-slate-900 mb-1">Rechazar perfil docente</h3>
         <p class="text-sm text-gray-500 mb-4">
           El perfil de <strong>{{ rejectTarget.user?.name }}</strong> no será eliminado.<br>
           El profesor recibirá una notificación con el motivo.
         </p>
-        <textarea v-model="rejectReason" rows="3"
+        <label for="reject-teacher-reason" class="block text-sm font-semibold text-slate-700 mb-1">Motivo del rechazo</label>
+        <textarea id="reject-teacher-reason" v-model="rejectReason" rows="3" maxlength="500" required
           placeholder="Motivo del rechazo (obligatorio, mínimo 10 caracteres)"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-1" />
-        <p v-if="rejectError" class="text-xs text-red-500 mb-2">{{ rejectError }}</p>
+        <p v-if="rejectError" class="text-sm font-semibold text-red-700 mb-2" role="alert">{{ rejectError }}</p>
         <div class="flex gap-2 mt-3">
-          <button @click="closeRejectModal"
+          <button type="button" @click="closeRejectModal" :disabled="rejecting"
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
             Cancelar
           </button>
-          <button @click="submitReject" :disabled="rejecting"
+          <button type="button" @click="submitReject" :disabled="rejecting"
             class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {{ rejecting ? 'Rechazando…' : 'Confirmar rechazo' }}
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   </AppLayout>
 </template>
 
@@ -120,6 +121,7 @@
 import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 
 defineProps({
   pendingTeachers:  { type: Array, default: () => [] },
@@ -138,6 +140,7 @@ function openRejectModal(teacher) {
 }
 
 function closeRejectModal() {
+  if (rejecting.value) return
   rejectTarget.value = null
   rejectReason.value = ''
   rejectError.value  = ''
@@ -164,6 +167,6 @@ function submitReject() {
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>

@@ -37,14 +37,11 @@
                 <td class="px-5 py-3.5">
                   <!-- Skip admins -->
                   <template v-if="!u.roles?.some(r => r.name === 'admin')">
-                    <Link v-if="!u.suspended_at"
-                      :href="route('admin.users.suspend', u.id)"
-                      method="post"
-                      as="button"
-                      class="text-xs font-semibold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
-                      @click.prevent="confirmSuspend(u)">
+                    <button v-if="!u.suspended_at" type="button"
+                      class="text-sm font-semibold text-red-700 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-2.5 rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600"
+                      @click="confirmSuspend(u)">
                       Suspender
-                    </Link>
+                    </button>
                     <Link v-else
                       :href="route('admin.users.unsuspend', u.id)"
                       method="post"
@@ -72,48 +69,74 @@
     </div>
 
     <!-- Suspend modal -->
-    <div v-if="suspendTarget" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
-        <h3 class="font-bold text-gray-900 mb-1">Suspender cuenta</h3>
+    <Modal :show="!!suspendTarget" maxWidth="sm" titleId="admin-suspend-title" :closeable="!suspending" @close="closeSuspend">
+      <div v-if="suspendTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="admin-suspend-title" class="text-lg font-bold text-slate-900 mb-1">Suspender cuenta</h3>
         <p class="text-sm text-gray-500 mb-4">¿Seguro que quieres suspender a <strong>{{ suspendTarget.name }}</strong>?</p>
-        <textarea v-model="suspendReason" rows="2"
+        <label for="admin-suspend-reason" class="block text-sm font-semibold text-slate-700 mb-1">Motivo de suspensión (opcional)</label>
+        <textarea id="admin-suspend-reason" v-model="suspendReason" rows="2" maxlength="500"
           placeholder="Motivo de suspensión (opcional)"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4" />
+        <p v-if="suspendError" class="mb-3 text-sm font-semibold text-red-700" role="alert">{{ suspendError }}</p>
         <div class="flex gap-2">
-          <button @click="suspendTarget = null; suspendReason = ''"
+          <button type="button" @click="closeSuspend" :disabled="suspending"
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
             Cancelar
           </button>
-          <Link :href="route('admin.users.suspend', suspendTarget.id)"
-            method="post"
-            as="button"
-            :data="{ reason: suspendReason }"
-            @click="suspendTarget = null; suspendReason = ''"
-            class="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
-            Confirmar suspensión
-          </Link>
+          <button type="button" @click="submitSuspend" :disabled="suspending"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50">
+            {{ suspending ? 'Suspendiendo…' : 'Confirmar suspensión' }}
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   </AppLayout>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import Modal from '@/Components/Modal.vue'
 
 defineProps({ users: Object })
 
 const suspendTarget = ref(null)
 const suspendReason = ref('')
+const suspendError = ref('')
+const suspending = ref(false)
 
 function confirmSuspend(user) {
   suspendTarget.value = user
   suspendReason.value = ''
+  suspendError.value = ''
+}
+
+function closeSuspend() {
+  if (suspending.value) return
+  suspendTarget.value = null
+  suspendReason.value = ''
+  suspendError.value = ''
+}
+
+function submitSuspend() {
+  if (suspending.value || !suspendTarget.value) return
+  suspending.value = true
+  suspendError.value = ''
+  router.post(route('admin.users.suspend', suspendTarget.value.id), { reason: suspendReason.value.trim() }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      suspendTarget.value = null
+      suspendReason.value = ''
+    },
+    onError: (errors) => {
+      suspendError.value = errors.reason ?? 'No se pudo suspender la cuenta. Revisa el motivo e inténtalo de nuevo.'
+    },
+    onFinish: () => { suspending.value = false },
+  })
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>
