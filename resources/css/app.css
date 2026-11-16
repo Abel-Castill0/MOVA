@@ -90,13 +90,11 @@ html {
   --ink-muted: 100 116 139;       /* slate-500 · 4.76:1 — AA para cuerpo */
   --ink-subtle: 148 163 184;      /* slate-400 · 2.56:1 — decorativo, no AA */
 
-  /* Bordes — claro. line-strong es una mejora real (2.56:1) sobre el
-     border-gray-300 heredado (1.47:1) que hoy usan TextInput/Checkbox, pero
-     sigue sin alcanzar 3:1 por sí solo — el foco visible y el label son el
-     mecanismo real de accesibilidad para límites de formulario (hallazgo
-     documentado en DESIGN.md, no escondido). */
+  /* Límites de controles interactivos: #768395 ofrece 3.85:1 frente
+     al blanco; no depende de un borde apenas visible para comunicar el campo.
+     Separadores decorativos permanecen discretos en --line. */
   --line: 243 244 246;            /* gray-100 · separador decorativo */
-  --line-strong: 148 163 184;     /* slate-400 · borde funcional (inputs, tablas) */
+  --line-strong: 118 131 149;     /* #768395 · 3.85:1 sobre blanco, WCAG 1.4.11 */
 
   /* Foco — el mismo azul de marca en todo el sistema, nunca indigo */
   --focus-ring: 36 106 204;       /* brand-500 */
