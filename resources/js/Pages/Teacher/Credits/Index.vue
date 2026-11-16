@@ -93,17 +93,19 @@
       </section>
 
       <section class="rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div role="group" aria-label="Sección del historial de créditos" class="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
+        <div role="group" aria-label="Historial de créditos" class="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
           <button
             type="button"
-            :class="tabClass(activeTab === 'transactions')" :aria-pressed="activeTab === 'transactions'"
+            :class="tabClass(activeTab === 'transactions')"
+             :aria-pressed="activeTab === 'transactions'"
             @click="activeTab = 'transactions'"
           >
             Historial de Transacciones
           </button>
           <button
             type="button"
-            :class="tabClass(activeTab === 'recharges')" :aria-pressed="activeTab === 'recharges'"
+            :class="tabClass(activeTab === 'recharges')"
+             :aria-pressed="activeTab === 'recharges'"
             @click="activeTab = 'recharges'"
           >
             Estado de Recargas
@@ -216,11 +218,11 @@
       </section>
     </div>
 
-    <Modal :show="showRechargeModal" max-width="lg" @close="closeRecharge">
+    <Modal :show="showRechargeModal" max-width="lg" title-id="recharge-title" :closeable="!form.processing" @close="closeRecharge">
       <form class="p-6" @submit.prevent="submitRecharge">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="text-lg font-black text-slate-900">Recargar paquete {{ selectedPackage?.name }}</h3>
+            <h3 id="recharge-title" class="text-lg font-bold text-slate-900">Recargar paquete {{ selectedPackage?.name }}</h3>
             <p class="mt-1 text-sm text-slate-500">Realiza el pago exacto y registra el número de operación.</p>
           </div>
           <button type="button" class="rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-600 transition-colors" @click="closeRecharge">
@@ -392,6 +394,7 @@ function openRecharge(pack) {
 }
 
 function closeRecharge() {
+  if (form.processing) return
   showRechargeModal.value = false
   selectedPackage.value = null
   form.reset()
@@ -399,9 +402,15 @@ function closeRecharge() {
 }
 
 function submitRecharge() {
+  if (form.processing || !showRechargeModal.value) return
   form.post(route('teacher.credits.recharge'), {
     preserveScroll: true,
-    onSuccess: closeRecharge,
+    onSuccess: () => {
+      showRechargeModal.value = false
+      selectedPackage.value = null
+      form.reset()
+      form.clearErrors()
+    },
   })
 }
 

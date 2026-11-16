@@ -18,10 +18,10 @@
 
       <p v-if="moderationError && !hideTarget" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">{{ moderationError }}</p>
       <div v-if="!reviews.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay reseñas con ese filtro</p>
+        <p class="text-gray-600 text-sm">No hay reseñas con ese filtro</p>
       </div>
 
-      <div v-else class="space-y-3">
+      <div v-if="reviews.data.length" class="space-y-3">
         <div v-for="r in reviews.data" :key="r.id"
           :class="['bg-white rounded-xl border p-4', r.is_visible ? 'border-gray-200' : 'border-orange-200 bg-orange-50/30']">
 
@@ -36,10 +36,10 @@
 
               <!-- Comment -->
               <p v-if="r.comment" class="text-sm text-slate-700 leading-relaxed">{{ r.comment }}</p>
-              <p v-else class="text-xs text-slate-400 italic">Sin comentario</p>
+              <p v-else class="text-xs text-slate-600 italic">Sin comentario</p>
 
               <!-- Meta -->
-              <div class="flex flex-wrap gap-3 text-xs text-slate-400 pt-1">
+              <div class="flex flex-wrap gap-3 text-xs text-slate-600 pt-1">
                 <span>Profesor: <strong class="text-slate-600">{{ r.teacher_profile?.user?.name ?? '—' }}</strong></span>
                 <span>Padre: <strong class="text-slate-600">{{ r.parent?.name ?? '—' }}</strong></span>
                 <span>{{ fmtDate(r.created_at) }}</span>
@@ -71,8 +71,8 @@
       <div v-if="reviews.last_page > 1" class="flex items-center justify-between text-sm text-gray-500">
         <span>{{ reviews.from }}–{{ reviews.to }} de {{ reviews.total }}</span>
         <div class="flex gap-1">
-          <Link v-if="reviews.prev_page_url" :href="reviews.prev_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">←</Link>
-          <Link v-if="reviews.next_page_url" :href="reviews.next_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">→</Link>
+          <Link v-if="reviews.prev_page_url" :href="reviews.prev_page_url" aria-label="Página anterior" class="min-h-10 min-w-10 flex items-center justify-center px-3 py-2 border border-gray-200 rounded hover:bg-gray-50">←</Link>
+          <Link v-if="reviews.next_page_url" :href="reviews.next_page_url" aria-label="Página siguiente" class="min-h-10 min-w-10 flex items-center justify-center px-3 py-2 border border-gray-200 rounded hover:bg-gray-50">→</Link>
         </div>
       </div>
     </div>

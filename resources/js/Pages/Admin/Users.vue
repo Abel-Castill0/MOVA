@@ -33,7 +33,7 @@
                     ✓ Activo
                   </span>
                 </td>
-                <td class="px-5 py-3.5 text-sm text-gray-400">{{ fmtDate(u.created_at) }}</td>
+                <td class="px-5 py-3.5 text-sm text-gray-600">{{ fmtDate(u.created_at) }}</td>
                 <td class="px-5 py-3.5">
                   <!-- Skip admins -->
                   <template v-if="!u.roles?.some(r => r.name === 'admin')">
@@ -62,9 +62,8 @@
         <component v-for="link in users.links" :key="link.label"
           :is="link.url ? Link : 'span'"
           :href="link.url"
-          v-html="link.label"
           :class="['px-3 py-1.5 rounded-lg text-sm transition-colors', link.active ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-300', !link.url && 'opacity-40 pointer-events-none']"
-        />
+        >{{ paginationLabel(link.label) }}</component>
       </div>
     </div>
 
@@ -134,6 +133,15 @@ function submitSuspend() {
     },
     onFinish: () => { suspending.value = false },
   })
+}
+
+function paginationLabel(label) {
+  return String(label ?? '')
+    .replace(/&laquo;/g, '«')
+    .replace(/&raquo;/g, '»')
+    .replace(/&amp;/g, '&')
+    .replace(/<[^>]*>/g, '')
+    .trim()
 }
 
 function fmtDate(d) {

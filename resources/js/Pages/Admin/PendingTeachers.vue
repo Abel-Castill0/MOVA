@@ -16,7 +16,7 @@
 
         <div v-else class="space-y-4">
           <div v-for="t in pendingTeachers" :key="t.id" class="bg-white rounded-xl border border-gray-200 p-5">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-700 font-bold flex-shrink-0">
@@ -35,13 +35,13 @@
                     class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded">{{ s.name }}</span>
                 </div>
               </div>
-              <div class="flex gap-2 flex-shrink-0">
-                <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
+              <div class="flex flex-wrap gap-2 flex-shrink-0">
+                <button type="button" @click="openVerifyModal(t)"
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-colors">
                   Verificar
-                </Link>
+                </button>
                 <button type="button" @click="openRejectModal(t)"
-                  class="px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
                   Rechazar
                 </button>
               </div>
@@ -58,7 +58,7 @@
         <div class="space-y-4">
           <div v-for="t in rejectedTeachers" :key="t.id"
             class="bg-white rounded-xl border border-red-100 p-5 opacity-80">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 font-bold flex-shrink-0">
@@ -78,16 +78,40 @@
                 </div>
               </div>
               <div class="flex-shrink-0">
-                <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
+                <button type="button" @click="openVerifyModal(t)"
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
                   Re-verificar
-                </Link>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </section>
     </div>
+
+    <!-- Confirmación explícita: verifica el perfil ANTES de dar acceso a solicitudes de menores. -->
+    <Modal :show="!!verifyTarget" maxWidth="sm" titleId="verify-teacher-title" :closeable="!verifying" @close="closeVerifyModal">
+      <div v-if="verifyTarget" class="bg-white rounded-2xl p-6">
+        <h3 id="verify-teacher-title" class="text-lg font-bold text-slate-900">Confirmar verificación del profesor</h3>
+        <p class="mt-2 text-sm text-slate-700">
+          ¿Has revisado los datos y documentos del perfil de
+          <strong>{{ verifyTarget.user?.name }}</strong>?
+        </p>
+        <p class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-sm text-amber-900">
+          Al verificarlo, habilitas que este profesor reciba y consulte solicitudes académicas compatibles.
+          La confirmación no sustituye la verificación humana de identidad.
+        </p>
+        <p v-if="verifyError" role="alert" class="mt-3 text-sm font-semibold text-red-700">{{ verifyError }}</p>
+        <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row">
+          <button type="button" @click="closeVerifyModal" :disabled="verifying"
+            class="flex-1 min-h-11 px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+          <button type="button" @click="submitVerify" :disabled="verifying"
+            class="flex-1 min-h-11 px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-bold hover:bg-green-800 disabled:opacity-50">
+            {{ verifying ? 'Verificando…' : 'Confirmar verificación' }}
+          </button>
+        </div>
+      </div>
+    </Modal>
 
     <!-- ── Modal de rechazo ────────────────────────────────────────────────── -->
     <Modal :show="!!rejectTarget" maxWidth="sm" titleId="reject-teacher-title" :closeable="!rejecting" @close="closeRejectModal">
@@ -119,7 +143,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Modal from '@/Components/Modal.vue'
 
@@ -132,8 +156,38 @@ const rejectTarget = ref(null)
 const rejectReason = ref('')
 const rejectError  = ref('')
 const rejecting    = ref(false)
+const verifyTarget = ref(null)
+const verifying = ref(false)
+const verifyError = ref('')
+
+function openVerifyModal(teacher) {
+  if (verifying.value || rejecting.value) return
+  rejectTarget.value = null
+  verifyTarget.value = teacher
+  verifyError.value = ''
+}
+
+function closeVerifyModal() {
+  if (verifying.value) return
+  verifyTarget.value = null
+  verifyError.value = ''
+}
+
+function submitVerify() {
+  if (verifying.value || !verifyTarget.value) return
+  verifying.value = true
+  verifyError.value = ''
+  router.post(route('admin.teachers.verify', verifyTarget.value.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { verifyTarget.value = null; verifyError.value = '' },
+    onError: errors => { verifyError.value = errors.verify ?? 'No se pudo completar la verificación. Revisa el perfil y vuelve a intentarlo.' },
+    onFinish: () => { verifying.value = false },
+  })
+}
 
 function openRejectModal(teacher) {
+  if (verifying.value || rejecting.value) return
+  verifyTarget.value = null
   rejectTarget.value = teacher
   rejectReason.value = ''
   rejectError.value  = ''

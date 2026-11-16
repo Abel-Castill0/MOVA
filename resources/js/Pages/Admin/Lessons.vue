@@ -17,7 +17,7 @@
       </div>
 
       <div v-if="!lessons.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay clases con ese filtro</p>
+        <p class="text-gray-600 text-sm">No hay clases con ese filtro</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -36,7 +36,7 @@
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="l in lessons.data" :key="l.id" class="hover:bg-gray-50">
-              <td class="px-4 py-3 text-gray-400">#{{ l.id }}</td>
+              <td class="px-4 py-3 text-gray-600">#{{ l.id }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ l.class_request?.subject?.name ?? '—' }}</td>
               <td class="px-4 py-3 text-gray-600">{{ l.student?.first_name }} {{ l.student?.last_name }}</td>
               <td class="px-4 py-3 text-gray-500 text-xs">{{ l.student?.parent?.name ?? '—' }}</td>
@@ -44,7 +44,7 @@
               <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ fmtDate(l.start_time) }}</td>
               <td class="px-4 py-3">
                 <StatusBadge :status="l.status" />
-                <div v-if="l.cancel_reason" class="text-xs text-red-500 mt-0.5 max-w-[140px] truncate" :title="l.cancel_reason">
+                <div v-if="l.cancel_reason" class="text-xs text-red-700 mt-0.5 max-w-[140px] truncate" :title="l.cancel_reason">
                   {{ l.cancel_reason }}
                 </div>
               </td>
@@ -77,8 +77,8 @@
       <div v-if="lessons.last_page > 1" class="flex items-center justify-between text-sm text-gray-500">
         <span>{{ lessons.from }}–{{ lessons.to }} de {{ lessons.total }}</span>
         <div class="flex gap-1">
-          <Link v-if="lessons.prev_page_url" :href="lessons.prev_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">←</Link>
-          <Link v-if="lessons.next_page_url" :href="lessons.next_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">→</Link>
+          <Link v-if="lessons.prev_page_url" :href="lessons.prev_page_url" aria-label="Página anterior" class="min-h-10 min-w-10 flex items-center justify-center px-3 py-2 border border-gray-200 rounded hover:bg-gray-50">←</Link>
+          <Link v-if="lessons.next_page_url" :href="lessons.next_page_url" aria-label="Página siguiente" class="min-h-10 min-w-10 flex items-center justify-center px-3 py-2 border border-gray-200 rounded hover:bg-gray-50">→</Link>
         </div>
       </div>
     </div>

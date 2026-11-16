@@ -6,7 +6,8 @@
     "test": "playwright test --config=playwright.config.js",
     "test:local": "playwright test --config=playwright.local.config.js tests/flujo-completo.spec.js",
     "test:security": "playwright test --config=playwright.local.config.js tests/target-safety.spec.js tests/mutation-firewall.spec.js",
-    "check:gmail": "node check-gmail-inbox.mjs"
+    "check:gmail": "node check-gmail-inbox.mjs",
+    "test:ux-audit": "playwright test --config=playwright.local.config.js tests/ux-role-audit.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

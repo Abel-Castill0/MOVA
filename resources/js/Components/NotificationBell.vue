@@ -1,7 +1,7 @@
 <template>
   <div class="relative" ref="root">
-    <button ref="trigger" type="button" @click="open = !open" :aria-label="unread ? `Notificaciones, ${unread} sin leer` : 'Notificaciones' "
-      aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
+    <button ref="trigger" type="button" @click="open = !open" :aria-label="unread ? 'Notificaciones, ' + unread + ' sin leer' : 'Notificaciones'"
+      :aria-expanded="open" :aria-controls="panelId"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
       <span v-if="unread > 0" aria-hidden="true"
@@ -10,13 +10,13 @@
       </span>
     </button>
 
-    <div v-if="open" id="notification-panel" role="region" aria-label="Lista de notificaciones" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
+    <div v-if="open" :id="panelId" role="region" aria-label="Lista de notificaciones" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
-        <button v-if="unread > 0" type="button" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
+        <button v-if="unread > 0" type="button" @click="markAll" :disabled="marking" class="text-sm font-semibold text-brand-700 hover:underline disabled:opacity-60">Marcar todas</button>
       </div>
+      <p v-if="actionError" class="px-4 py-2 text-sm text-red-700 bg-red-50" role="alert">{{ actionError }}</p>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
-        <p v-if="actionError" role="alert" class="px-4 py-3 text-sm text-rose-700 bg-rose-50">{{ actionError }}</p>
         <div v-if="loadError" class="px-4 py-3 text-sm text-rose-700 bg-rose-50" role="status">
           No se pudieron actualizar las notificaciones.
           <button type="button" class="underline font-semibold" @click="load">Reintentar</button>
@@ -24,6 +24,8 @@
         <div v-else-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
         <button v-for="n in notifications" :key="n.id" type="button"
           @click="markOne(n.id)"
+          :disabled="marking || !!markingId"
+          :aria-label="`Marcar como leída: ${n.data?.message || 'notificación'}`"
           class="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600"
           :class="['px-4 py-3 hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
@@ -53,13 +55,18 @@ const placementClasses = computed(() => props.placement === 'down-right'
   ? 'right-0 top-full mt-2 origin-top-right'
   : 'left-0 bottom-full mb-2 origin-bottom-left')
 
+// AppLayout monta una campana en el sidebar y otra en el header móvil.
+// Sus IDs deben ser diferentes aunque una esté oculta por CSS.
+const panelId = computed(() => 'notification-panel-' + props.placement)
 const open = ref(false)
 const root = ref(null)
 const trigger = ref(null)
 const notifications = ref([])
+const totalUnread = ref(null)
 const loadError = ref(false)
 const actionError = ref('')
-const totalUnread = ref(null)
+const marking = ref(false)
+const markingId = ref(null)
 const unread = computed(() => totalUnread.value ?? notifications.value.filter(n => !n.read_at).length)
 
 // Click-outside estándar: el listener de document es bubble-phase, así que
@@ -77,10 +84,8 @@ async function load() {
   try {
     const { data, headers } = await axios.get('/notifications')
     notifications.value = Array.isArray(data) ? data : []
-    const headerCount = Number(headers?.['x-mova-unread-count'])
-    totalUnread.value = Number.isInteger(headerCount) && headerCount >= 0
-      ? headerCount
-      : null
+    const count = Number(headers?.['x-mova-unread-count'])
+    totalUnread.value = Number.isInteger(count) && count >= 0 ? count : null
     loadError.value = false
   } catch {
     loadError.value = true
@@ -94,34 +99,42 @@ async function load() {
 // correcta aquí es no actualizar el estado local si la petición falla (en
 // vez de asumir optimistamente que se marcó como leída cuando no fue así).
 async function markOne(id) {
-  const n = notifications.value.find(x => x.id === id)
-  if (!n || n.read_at) return
+  if (marking.value || markingId.value) return
+  markingId.value = id
   actionError.value = ''
   try {
-    await axios.post(`/notifications/${id}/read`)
+    await axios.post(`/notifications/${encodeURIComponent(id)}/read`)
+    const n = notifications.value.find(x => x.id === id)
+    if (n && !n.read_at) {
+      n.read_at = new Date().toISOString()
+      if (totalUnread.value !== null) totalUnread.value = Math.max(0, totalUnread.value - 1)
+    }
+    window.dispatchEvent(new Event('mova:notification-read'))
   } catch {
-    actionError.value = 'No se pudo marcar la notificación. Reinténtalo.'
-    return
+    actionError.value = 'No se pudo marcar la notificación. Inténtalo de nuevo.'
+  } finally {
+    markingId.value = null
   }
-  n.read_at = new Date().toISOString()
-  if (totalUnread.value !== null) totalUnread.value = Math.max(0, totalUnread.value - 1)
-  window.dispatchEvent(new Event('mova:notification-read'))
 }
 
 async function markAll() {
+  if (marking.value || markingId.value) return
+  marking.value = true
   actionError.value = ''
   try {
     await axios.post('/notifications/read-all')
+    notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
+    totalUnread.value = 0
+    window.dispatchEvent(new Event('mova:notification-read'))
   } catch {
-    actionError.value = 'No se pudieron marcar las notificaciones. Reinténtalo.'
-    return
+    actionError.value = 'No se pudieron marcar las notificaciones. Inténtalo de nuevo.'
+  } finally {
+    marking.value = false
   }
-  notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
-  totalUnread.value = 0
-  window.dispatchEvent(new Event('mova:notification-read'))
 }
 
 function fmtDate(d) {
+  if (!d) return '—'
   return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
