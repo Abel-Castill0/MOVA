@@ -170,13 +170,18 @@
             <div
               v-for="l in lessonsFor(day)"
               :key="l.id"
+              role="button"
+              tabindex="0"
+              :aria-label="`Ver detalle de ${l.class_request?.subject?.name ?? 'clase'}: ${fmtFullDateRange(l)}`"
               @click="openDetail(l)"
+              @keydown.enter.prevent="openDetail(l)"
+              @keydown.space.prevent="openDetail(l)"
               :style="lessonStyle(l)"
               :class="[
                 'absolute rounded-xl p-3 sm:p-3.5 text-white shadow-md transition-all cursor-pointer flex flex-col justify-between overflow-hidden group select-none z-10',
                 subjectTheme(l).bg,
                 subjectTheme(l).border,
-                'hover:brightness-105 hover:shadow-lg hover:z-20 active:scale-[0.99]'
+                'hover:brightness-105 hover:shadow-lg hover:z-20 active:scale-[0.99] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-brand-600'
               ]"
               :title="`${l.class_request?.subject?.name ?? 'Clase'} - ${fmtTime(l.start_time)}`"
             >
@@ -229,32 +234,14 @@
     <!-- ══════════════════════════════════════════════
          MODAL / POPOVER DETALLE DE CLASE (Estilo UTP)
          ══════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0 scale-95"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-95"
-      >
-        <div
-          v-if="selectedLesson"
-          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
-          @click.self="selectedLesson = null"
-        >
-          <div
-            class="bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 sm:p-6 max-w-md w-full relative overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-            role="dialog"
-            aria-modal="true"
-            :aria-label="selectedLesson.class_request?.subject?.name ?? 'Detalle de clase'"
-          >
+    <Modal :show="!!selectedLesson" max-width="md" title-id="calendar-lesson-title" @close="closeDetail">
+      <div v-if="selectedLesson" class="bg-white rounded-2xl p-5 sm:p-6 relative">
             <!-- Botón cerrar (X) en esquina superior derecha -->
             <button
               type="button"
-              @click="selectedLesson = null"
+              @click="closeDetail"
               aria-label="Cerrar detalle"
-              class="absolute top-4 right-4 w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
+              class="absolute top-4 right-4 w-11 h-11 rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -274,7 +261,7 @@
             </div>
 
             <!-- Título del curso y participante -->
-            <h3 class="text-lg font-black text-slate-900 leading-snug">
+            <h3 id="calendar-lesson-title" class="text-lg font-bold text-slate-900 leading-snug">
               {{ selectedLesson.class_request?.subject?.name ?? 'Clase' }}
             </h3>
             <p class="text-sm font-semibold text-slate-600 mt-1 flex items-center gap-1.5">
@@ -383,10 +370,8 @@
               </div>
             </div>
 
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+      </div>
+    </Modal>
 
   </div>
 </template>
@@ -397,6 +382,7 @@ import { Link } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { startOfWeek } from '@/utils/weekGrouping'
+import Modal from '@/Components/Modal.vue'
 import { peruDayKey, localCalendarDayKey, peruCalendarParts, peruClockMinutes } from '@/utils/peruDate.js'
 
 const props = defineProps({
@@ -652,6 +638,10 @@ const currentMinutesPercent = computed(() => {
 // Acciones del modal
 function openDetail(lesson) {
   selectedLesson.value = lesson
+}
+
+function closeDetail() {
+  selectedLesson.value = null
 }
 
 function joinClass(lesson) {
