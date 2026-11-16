@@ -11,8 +11,8 @@
          caben sin scroll (donde el padding-bottom no reposiciona nada:
          solo añade espacio al final, no empuja el contenido existente). -->
     <div v-if="visible" ref="bar"
-      class="fixed inset-x-0 bottom-0 z-[60] px-4 pb-4 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:left-auto sm:w-96 sm:px-0 sm:pb-0"
-      role="dialog" aria-label="Aviso de cookies">
+      class="fixed inset-x-0 bottom-0 z-[60] px-4 pb-4 sm:inset-x-auto sm:right-auto sm:bottom-6 sm:left-6 sm:w-96 sm:px-0 sm:pb-0"
+      role="region" aria-label="Aviso de privacidad y cookies">
       <div class="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-black/10 p-5 sm:mx-0 sm:max-w-none">
         <p class="text-sm text-slate-600 leading-relaxed">
           MOVA solo usa cookies y almacenamiento local necesarios para funcionar: tu sesión, la seguridad y tus preferencias de interfaz.
@@ -21,7 +21,7 @@
           <Link :href="route('legal.privacy')" class="text-brand-600 font-medium hover:underline">Política de Privacidad</Link>.
         </p>
         <button @click="accept" type="button"
-          class="w-full sm:w-auto mt-4 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 active:bg-brand-800 transition-colors">
+          class="w-full sm:w-auto min-h-11 mt-4 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 active:bg-brand-800 transition-colors">
           Entendido
         </button>
       </div>
@@ -43,6 +43,7 @@ const STORAGE_KEY = 'mova_cookie_consent'
 
 const visible = ref(false)
 const bar = ref(null)
+let originalBodyPadding = null
 
 // El banner es `fixed bottom-0`: sin esto, tapa cualquier botón que viva
 // cerca del final de una página corta (encontrado por el E2E de
@@ -53,13 +54,22 @@ const bar = ref(null)
 // copia.
 function reserveSpace() {
   nextTick(() => {
-    document.body.style.paddingBottom = bar.value ? `${bar.value.offsetHeight}px` : ''
+    if (!visible.value || !bar.value) return
+    // El banner puede coexistir con safe-area u otros estilos inline.
+    document.body.style.paddingBottom = `calc(${bar.value.offsetHeight}px + env(safe-area-inset-bottom, 0px))`
   })
+}
+function restoreBodyPadding() {
+  if (originalBodyPadding === null) return
+  document.body.style.paddingBottom = originalBodyPadding
+  originalBodyPadding = null
 }
 
 watch(visible, (isVisible) => {
-  if (isVisible) reserveSpace()
-  else document.body.style.paddingBottom = ''
+  if (isVisible) {
+    if (originalBodyPadding === null) originalBodyPadding = document.body.style.paddingBottom
+    reserveSpace()
+  } else restoreBodyPadding()
 })
 
 onMounted(() => {
@@ -70,7 +80,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   window.removeEventListener('resize', reserveSpace)
-  document.body.style.paddingBottom = ''
+  restoreBodyPadding()
 })
 
 function accept() {

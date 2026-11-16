@@ -1,5 +1,6 @@
 <template>
   <Head :title="title" />
+  <a href="#mova-main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-white focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-brand-800 focus:shadow-lg focus:outline focus:outline-2 focus:outline-brand-600">Saltar al contenido principal</a>
   <!-- SE MANTIENE `bg-slate-50` FIJO, A PROPÓSITO.
        Se probó migrarlo a `bg-canvas` (idéntico en claro, oscuro en dark) para
        arreglar Operations, y la auditoría de contraste A/B demostró que
@@ -209,6 +210,7 @@
       </Transition>
 
       <main
+        id="mova-main" tabindex="-1"
         ref="mainRef"
         @scroll.passive="checkScroll"
         :class="['flex-1 flex flex-col relative z-10 min-h-0', compact ? 'px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 overflow-y-auto' : (seamless ? 'px-3 sm:px-6 lg:px-8 py-2 sm:py-6' : 'px-4 sm:px-6 lg:px-8 py-4 sm:py-6')]"
