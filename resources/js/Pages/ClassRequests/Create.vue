@@ -1,20 +1,5 @@
 <template>
   <AppLayout title="Solicitar clase" :seamless="true">
-    <!-- Símbolos Matemáticos Flotantes tipo Filigrana por toda la pantalla (Elegantes y con Parallax) -->
-    <div ref="wizardCanvasRef" class="fixed inset-0 overflow-hidden pointer-events-none select-none z-0">
-      <span class="math-sym math-sym-1" data-depth="0.04" aria-hidden="true">+</span>
-      <span class="math-sym math-sym-2" data-depth="0.07" aria-hidden="true">−</span>
-      <span class="math-sym math-sym-3" data-depth="0.05" aria-hidden="true">÷</span>
-      <span class="math-sym math-sym-4" data-depth="0.09" aria-hidden="true">×</span>
-      <span class="math-sym math-sym-5" data-depth="0.03" aria-hidden="true">√</span>
-      <span class="math-sym math-sym-6" data-depth="0.06" aria-hidden="true">∑</span>
-      <span class="math-sym math-sym-7" data-depth="0.08" aria-hidden="true">π</span>
-      <span class="math-sym math-sym-8" data-depth="0.05" aria-hidden="true">∞</span>
-      <span class="math-sym math-sym-9" data-depth="0.10" aria-hidden="true">∫</span>
-      <span class="math-sym math-sym-10" data-depth="0.04" aria-hidden="true">Δ</span>
-      <span class="math-sym math-sym-11" data-depth="0.06" aria-hidden="true">%</span>
-    </div>
-
     <!-- ── Contenedor Central del Wizard (Full Screen Responsive en Móviles) ── -->
     <div class="relative z-10 max-w-2xl mx-auto w-full flex-1 flex flex-col min-h-0 space-y-2.5 sm:space-y-6 pt-0 sm:pt-2 pb-2 sm:pb-8">
 
@@ -26,7 +11,7 @@
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span>Reserva guiada · Profesores verificados</span>
+            <span>Solicitud de clase · Paso a paso</span>
           </div>
 
           <!-- Título y Contador -->
@@ -97,7 +82,7 @@
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span>Reserva guiada</span>
+              <span>Solicitud guiada</span>
             </div>
 
             <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white border border-slate-200/90 rounded-full text-[11px] font-semibold text-slate-600 shadow-2xs">
@@ -149,6 +134,10 @@
           </div>
         </div>
 
+        <div v-if="Object.keys(form.errors).length" role="alert" aria-live="assertive" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          <p class="font-semibold">Revisa estos datos antes de continuar:</p>
+          <ul class="mt-1 list-disc pl-5"><li v-for="(message, field) in form.errors" :key="field">{{ message }}</li></ul>
+        </div>
         <!-- ── Contexto del profesor (solo si se llegó con offer) ────────── -->
         <div v-if="offer" class="bg-white/90 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-5 flex items-start gap-3 sm:gap-4 shadow-xs">
           <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-600 to-brand-700 rounded-xl flex items-center justify-center text-white font-black text-sm sm:text-base flex-shrink-0 shadow-xs">
@@ -566,10 +555,10 @@
                   </div>
                 </div>
 
-                <!-- Banner de tranquilidad sin cobro oculto -->
+                <!-- Nota informativa sin promesa de disponibilidad ni cobro. -->
                 <div class="bg-brand-50/80 border border-brand-200/80 rounded-2xl p-3 sm:p-4 text-xs text-brand-900 flex items-start gap-2.5 shadow-2xs">
                   <Icon name="info" :size="18" class="text-brand-600 flex-shrink-0 mt-0.5" />
-                  <span><strong>Garantía MOVA:</strong> Solicitud abierta. No se cobra nada hasta que aceptes la propuesta que más te guste.</span>
+                  <span><strong>Antes de enviar:</strong> crear una solicitud no realiza un pago. La disponibilidad del profesor y el horario final se confirman después.</span>
                 </div>
               </div>
 
@@ -579,7 +568,7 @@
                   type="button"
                   @click="submit"
                   :disabled="form.processing"
-                  class="btn-pulse-green w-full py-4 px-6 bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 hover:from-emerald-500 hover:to-green-500 active:from-emerald-700 active:to-green-700 text-white text-base font-black rounded-2xl shadow-[0_8px_25px_rgba(16,185,129,0.35)] hover:shadow-[0_10px_30px_rgba(16,185,129,0.5)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2.5"
+                  class="w-full py-4 px-6 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white text-base font-bold rounded-2xl shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2.5"
                 >
                   <Icon v-if="!form.processing" name="send" :size="20" class="text-white drop-shadow-sm" />
                   <span>{{ form.processing ? 'Enviando solicitud...' : 'Enviar solicitud' }}</span>
@@ -634,6 +623,7 @@ const transitionName = computed(() =>
 )
 
 function goNext() {
+  if (form.processing) return
   if (currentStep.value < TOTAL_STEPS) {
     direction.value = 'forward'
     currentStep.value++
@@ -642,6 +632,7 @@ function goNext() {
 }
 
 function goPrev() {
+  if (form.processing) return
   if (currentStep.value > 1) {
     direction.value = 'back'
     currentStep.value--
@@ -651,6 +642,7 @@ function goPrev() {
 
 // Paso 3: seleccionar modalidad avanza automáticamente
 function selectModality(isMentorship) {
+  if (form.processing) return
   form.is_mentorship = isMentorship
   direction.value = 'forward'
   currentStep.value = 4
@@ -705,9 +697,13 @@ const preferredTimesSummary = computed(() => form.preferred_times.map(timeSlotLa
 const referralCodeInput = ref(props.prefillReferralCode ?? '')
 const codeLookup        = ref({ status: 'idle', name: null })
 let lookupTimer         = null
+let lookupVersion       = 0
 
 async function lookupCode(code) {
   clearTimeout(lookupTimer)
+  // Cada petición tiene una generación. Una respuesta de un código anterior
+  // no puede sobrescribir el código que el padre está escribiendo ahora.
+  const version = ++lookupVersion
   if (code.length !== 6) {
     codeLookup.value = { status: 'idle', name: null }
     return
@@ -716,9 +712,10 @@ async function lookupCode(code) {
   lookupTimer = setTimeout(async () => {
     try {
       const { data } = await axios.get(route('class-requests.lookup-code'), { params: { code } })
+      if (version !== lookupVersion) return
       codeLookup.value = data.found ? { status: 'found', name: data.name } : { status: 'not-found', name: null }
     } catch {
-      codeLookup.value = { status: 'idle', name: null }
+      if (version === lookupVersion) codeLookup.value = { status: 'idle', name: null }
     }
   }, 400)
 }
@@ -730,109 +727,37 @@ watch(referralCodeInput, (value) => {
   lookupCode(code)
 })
 
-// ── Parallax Sutil del Fondo Matemático ────────────────────────────────────
-const wizardCanvasRef = ref(null)
-let rafId = null
-let reducedMotion = null
-let mathSymbols = []
-let mouseX = 0
-let mouseY = 0
-let targetX = 0
-let targetY = 0
-
-function onMouseMove(e) {
-  // La preferencia puede cambiar con la página abierta: se respeta en vivo.
-  if (reducedMotion?.matches) return
-  mouseX = (e.clientX / window.innerWidth - 0.5) * 2
-  mouseY = (e.clientY / window.innerHeight - 0.5) * 2
-  if (rafId === null) rafId = requestAnimationFrame(animateSymbols)
-}
-
-// Solo corre mientras el fondo se está acomodando al puntero: cuando llega
-// al objetivo se detiene (sin bucle perpetuo de rAF con el mouse quieto).
-function animateSymbols() {
-  targetX += (mouseX - targetX) * 0.08
-  targetY += (mouseY - targetY) * 0.08
-
-  mathSymbols.forEach((sym) => {
-    const depth = parseFloat(sym.getAttribute('data-depth')) || 0.05
-    sym.style.setProperty('--mx', `${(targetX * depth * 280).toFixed(1)}px`)
-    sym.style.setProperty('--my', `${(targetY * depth * 280).toFixed(1)}px`)
-  })
-
-  const settled = Math.abs(mouseX - targetX) < 0.001 && Math.abs(mouseY - targetY) < 0.001
-  rafId = settled ? null : requestAnimationFrame(animateSymbols)
-}
-
+// Se eliminó el parallax ornamental y su animación permanente para simplificar
+// el formulario y reducir repintados innecesarios en móvil.
 onMounted(() => {
   if (referralCodeInput.value) {
     form.teacher_referral_code = referralCodeInput.value
     lookupCode(referralCodeInput.value)
   }
-
-  // Parallax decorativo: solo con puntero fino y sin reduced-motion.
-  reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null
-  if (!window.matchMedia?.('(pointer: fine)').matches) return
-
-  mathSymbols = [...(wizardCanvasRef.value?.querySelectorAll('.math-sym') ?? [])]
-  window.addEventListener('mousemove', onMouseMove, { passive: true })
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', onMouseMove)
-  if (rafId !== null) cancelAnimationFrame(rafId)
-  rafId = null
+  clearTimeout(lookupTimer)
+  lookupVersion++
 })
 
 // ── Submit ─────────────────────────────────────────────────────────────────
 function submit() {
-  form.post(route('class-requests.store'))
+  if (form.processing) return
+  form.post(route('class-requests.store'), {
+    preserveScroll: true,
+    onError: (errors) => {
+      // Mostrar el campo fallido en el paso correspondiente, sin borrar datos.
+      if (errors.student_id || errors.subject_id || errors.class_offer_id) currentStep.value = 1
+      else if (errors.teacher_referral_code) currentStep.value = 2
+      else if (errors.is_mentorship) currentStep.value = 3
+      else if (errors.help_needed || errors.preferred_times) currentStep.value = 4
+    },
+  })
 }
 </script>
 
 <style scoped>
-/* ── Símbolos Matemáticos Tipo Marca de Agua (Apple Elegance) ─────────────── */
-.math-sym {
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  will-change: transform;
-  font-family: 'Georgia', 'Times New Roman', serif;
-  font-weight: 700;
-  line-height: 1;
-  user-select: none;
-  --mx: 0px;
-  --my: 0px;
-  color: rgba(31, 90, 166, 0.055);
-}
-
-.math-sym-1  { top: 8%;   left: 3%;    font-size: 3.8rem; animation: mathFloat1  8s ease-in-out infinite 0s;   }
-.math-sym-2  { top: 38%;  left: 2%;    font-size: 2.8rem; animation: mathFloat2 10s ease-in-out infinite 1.2s; }
-.math-sym-3  { top: 22%;  left: 18%;   font-size: 3rem;   animation: mathFloat3  9s ease-in-out infinite 0.5s; }
-.math-sym-4  { top: 56%;  left: 6%;    font-size: 3.5rem; animation: mathFloat1 11s ease-in-out infinite 2s;   }
-.math-sym-5  { top: 10%;  right: 8%;   font-size: 3.4rem; animation: mathFloat2  7s ease-in-out infinite 0.8s; }
-.math-sym-6  { top: 30%;  right: 3%;   font-size: 3.2rem; animation: mathFloat3 12s ease-in-out infinite 1.5s; }
-.math-sym-7  { top: 68%;  right: 11%;  font-size: 3rem;   animation: mathFloat1  9s ease-in-out infinite 3s;   }
-.math-sym-8  { top: 84%;  right: 15%;  font-size: 3.3rem; animation: mathFloat2 13s ease-in-out infinite 0.3s; }
-.math-sym-9  { top: 48%;  right: 5%;   font-size: 4.2rem; animation: mathFloat3  8s ease-in-out infinite 1.8s; }
-.math-sym-10 { top: 78%;  left: 3%;    font-size: 3rem;   animation: mathFloat1 10s ease-in-out infinite 0.6s; }
-.math-sym-11 { top: 66%;  left: 16%;   font-size: 2.8rem; animation: mathFloat2 11s ease-in-out infinite 2.4s; }
-
-@keyframes mathFloat1 {
-  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   rotate(0deg);  }
-  33%       { transform: translate(var(--mx), calc(var(--my) - 16px)) rotate(3deg);  }
-  66%       { transform: translate(var(--mx), calc(var(--my) - 8px))  rotate(-2deg); }
-}
-@keyframes mathFloat2 {
-  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   rotate(0deg);  }
-  40%       { transform: translate(var(--mx), calc(var(--my) - 14px)) rotate(-3deg); }
-  70%       { transform: translate(var(--mx), calc(var(--my) - 20px)) rotate(2deg);  }
-}
-@keyframes mathFloat3 {
-  0%, 100% { transform: translate(var(--mx), calc(var(--my) + 0px))   scale(1);      }
-  50%       { transform: translate(var(--mx), calc(var(--my) - 18px)) scale(1.04);   }
-}
-
 /* Transiciones de Pasos Suaves */
 .slide-step-enter-active,
 .slide-step-leave-active {
@@ -852,42 +777,9 @@ function submit() {
 .slide-step-back-leave-from { opacity: 1; transform: translateX(0); }
 .slide-step-back-leave-to   { opacity: 0; transform: translateX(25px); }
 
-/* ── Botón Verde Palpitante (CTA de alta conversión) ─────────────────────── */
-/* Solo el halo palpita (box-shadow): el botón no cambia de tamaño, así su
-   caja es estable para el clic y no desplaza el layout. */
-@keyframes pulseGreenCta {
-  0%, 100% {
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4), 0 0 0 0 rgba(16, 185, 129, 0.5);
-  }
-  50% {
-    box-shadow: 0 16px 36px rgba(16, 185, 129, 0.65), 0 0 0 10px rgba(16, 185, 129, 0.15);
-  }
-}
-
-.btn-pulse-green:not(:disabled) {
-  animation: pulseGreenCta 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-.btn-pulse-green:hover:not(:disabled) {
-  animation-play-state: paused;
-  transform: scale(1.025);
-}
-
-.btn-pulse-green:active:not(:disabled) {
-  animation: none;
-  transform: scale(0.98);
-}
-
 /* prefers-reduced-motion: sin símbolos flotantes, sin CTA palpitante y sin
    deslizamiento entre pasos. */
 @media (prefers-reduced-motion: reduce) {
-  .math-sym,
-  .btn-pulse-green:not(:disabled) {
-    animation: none;
-  }
-  .btn-pulse-green:hover:not(:disabled) {
-    transform: none;
-  }
   .slide-step-enter-active,
   .slide-step-leave-active,
   .slide-step-back-enter-active,
