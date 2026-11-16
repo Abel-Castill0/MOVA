@@ -10,6 +10,8 @@ use App\Notifications\ClassRequestRejectedNotification;
 use App\Notifications\ClassRescheduledNotification;
 use App\Notifications\CounterofferProposedNotification;
 use App\Notifications\NewClassRequestNotification;
+use App\Notifications\LessonReportPublishedNotification;
+use App\Models\LessonReport;
 use App\Notifications\ParentApprovalRequestNotification;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -53,6 +55,11 @@ class RealtimeRequestNotificationTest extends TestCase
             new ParentApprovalRequestNotification($request),
             new ClassRequestRejectedNotification($request),
         ];
+
+        $report = new LessonReport;
+        $report->forceFill(['id' => 14, 'lesson_id' => 4]);
+        $report->setRelation('student', (new \App\Models\Student)->forceFill(['first_name' => 'Valentina']));
+        $notifications[] = new LessonReportPublishedNotification($report);
 
         foreach ($notifications as $notification) {
             $payload = $notification->toBroadcast($user)->data;

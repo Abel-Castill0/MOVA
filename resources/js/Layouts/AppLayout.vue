@@ -352,7 +352,14 @@ function queueRealtimeRefresh() {
   if (!/^\/(dashboard|class-requests|teacher\/requests|teacher\/classes|teacher\/credits\/?$|my-classes|admin\/)/.test(url)) return
   clearTimeout(realtimeRefreshTimer)
   realtimeRefreshTimer = setTimeout(() => {
-    if (layoutMounted) router.reload({ preserveScroll: true, preserveState: true })
+    if (!layoutMounted) return
+    // No se interrumpen formularios/contraofertas o checkouts en curso.
+    // Cada pantalla decide si puede refrescarse según su propio estado.
+    if (/^\/(class-requests|teacher\/requests|teacher\/credits)(\/|$)/.test(url)) {
+      window.dispatchEvent(new Event('mova:realtime-refresh'))
+      return
+    }
+    router.reload({ preserveScroll: true, preserveState: true })
   }, 300)
 }
 
