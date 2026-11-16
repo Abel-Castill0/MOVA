@@ -392,11 +392,12 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { startOfWeek } from '@/utils/weekGrouping'
+import { peruDayKey, localCalendarDayKey, peruCalendarParts, peruClockMinutes } from '@/utils/peruDate.js'
 
 const props = defineProps({
   lessons: { type: Array, required: true },
@@ -436,18 +437,22 @@ const weekDays = computed(() =>
 )
 
 const weekLessons = computed(() => {
+  // weekStart es una fecha civil virtual: comparar instantes UTC con ella
+  // desplazaría clases de las 20:00 de Lima a otro día en el calendario.
   const start = weekStart.value
   const end = new Date(start)
   end.setDate(end.getDate() + 7)
-  return props.lessons.filter((l) => {
-    const t = new Date(l.start_time)
-    return t >= start && t < end
+  const startKey = localCalendarDayKey(start)
+  const endKey = localCalendarDayKey(end)
+  return props.lessons.filter(l => {
+    const dateKey = peruDayKey(l.start_time)
+    return dateKey !== null && dateKey >= startKey && dateKey < endKey
   })
 })
 
 function lessonsFor(day) {
   return weekLessons.value
-    .filter((l) => sameDay(new Date(l.start_time), day))
+    .filter((l) => peruDayKey(l.start_time) === localCalendarDayKey(day))
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
 }
 
@@ -456,13 +461,13 @@ function sameDay(a, b) {
 }
 
 function isToday(day) {
-  return sameDay(day, new Date())
+  return localCalendarDayKey(day) === peruDayKey(new Date())
 }
 
 function scrollToInitialHour() {
   nextTick(() => {
     if (!calendarScrollContainer.value) return
-    const curHour = new Date().getHours()
+    const curHour = Math.floor((peruClockMinutes() ?? 480) / 60)
     let targetHour = 8
     if (weekOffset.value === 0 && curHour >= START_HOUR && curHour <= END_HOUR) {
       targetHour = Math.max(START_HOUR, curHour - 1)
@@ -506,7 +511,7 @@ function formatHourLabel(h) {
 }
 
 function fmtTime(d) {
-  return new Date(d).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtTimeRange(l) {
@@ -518,7 +523,8 @@ function fmtTimeRange(l) {
 
 function fmtFullDateRange(l) {
   const start = new Date(l.start_time)
-  const dateStr = start.toLocaleDateString('es-ES', {
+  const dateStr = start.toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -609,9 +615,9 @@ function classBadgeStyle(lesson) {
 
 // Posicionamiento absoluto de bloques de clase en la cuadrícula
 function lessonStyle(lesson) {
-  const start = new Date(lesson.start_time)
-  const hour = start.getHours()
-  const minutes = start.getMinutes()
+  const local = peruCalendarParts(lesson.start_time)
+  const hour = local?.hour ?? START_HOUR
+  const minutes = local?.minute ?? 0
   const duration = lesson.duration_minutes || 60
 
   const rawMinutesFromStart = Math.max(0, (hour - START_HOUR) * 60 + minutes)
@@ -632,7 +638,7 @@ function lessonStyle(lesson) {
 }
 
 // Indicador de hora actual en vivo
-const nowMinutes = ref(new Date().getHours() * 60 + new Date().getMinutes())
+const nowMinutes = ref(peruClockMinutes() ?? 0)
 const isCurrentHourVisible = computed(() => {
   const currentHour = Math.floor(nowMinutes.value / 60)
   return currentHour >= START_HOUR && currentHour < END_HOUR
@@ -668,7 +674,12 @@ function payClass(lesson) {
   emit('pay', lesson)
 }
 
+let clockInterval
 onMounted(() => {
   scrollToInitialHour()
+  clockInterval = window.setInterval(() => {
+    if (!document.hidden) nowMinutes.value = peruClockMinutes() ?? 0
+  }, 60000)
 })
+onUnmounted(() => window.clearInterval(clockInterval))
 </script>

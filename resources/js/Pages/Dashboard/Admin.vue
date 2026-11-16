@@ -180,7 +180,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 
 defineProps({ stats: Object, recentUsers: Array })
 
-const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+const today = computed(() => new Date().toLocaleDateString('es-PE', { timeZone: 'America/Lima', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
 function roleClass(role) {
   return { admin: 'bg-red-50 text-red-600', teacher: 'bg-brand-50 text-brand-700', parent: 'bg-green-50 text-green-700' }[role] ?? 'bg-slate-100 text-slate-500'

@@ -211,7 +211,7 @@ function submitAction() {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima',
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
 }

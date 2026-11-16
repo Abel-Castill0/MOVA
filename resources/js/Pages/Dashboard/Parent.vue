@@ -430,7 +430,7 @@ const firstName = computed(() => user.value?.name?.split(' ')[0] ?? '')
 // Solo la inicial en mayúscula ("Domingo, 27 de septiembre de 2026"); la
 // clase CSS `capitalize` producía "27 De Septiembre De".
 const today     = computed(() => {
-  const s = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const s = new Date().toLocaleDateString('es-PE', { timeZone: 'America/Lima', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   return s.charAt(0).toUpperCase() + s.slice(1)
 })
 
@@ -447,11 +447,11 @@ const upcomingThisWeek = computed(() => upcomingGrouped.value.thisWeek)
 const upcomingPast     = computed(() => upcomingGrouped.value.past)
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtDateShort(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 // Deduplicado: usa statusStyle() compartido (utils/statusColors.js)
