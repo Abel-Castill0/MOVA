@@ -214,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
@@ -305,8 +305,11 @@ function showRealtimeToast(message) {
   toastTimeout = setTimeout(() => { realtimeToast.value = '' }, 6000)
 }
 
-let channel
 let removeNavigateListener
+let realtimeStatusRef
+let stopRealtimeStatusWatch
+let stopNotificationSignal
+const realtimeState = ref('off')
 
 onMounted(async () => {
   window.addEventListener('scroll', checkScroll, { passive: true, capture: true })
@@ -321,18 +324,17 @@ onMounted(async () => {
   const userId = user.value?.id
   if (!userId) return
 
-  const { initEcho } = await import('@/echo.js')
-  const echo = initEcho(page.props.realtime)
-  // realtime deshabilitado (o sin key pública) es un estado normal, no un
-  // error: la UI autenticada sigue funcionando sin notificaciones en vivo.
-  if (!echo) return
-
-  channel = echo.private(`App.Models.User.${userId}`)
-  channel.notification((notification) => {
-    router.reload({ only: ['lessons', 'notifications', 'auth'], preserveScroll: true })
-    window.dispatchEvent(new CustomEvent('mova:notification', { detail: notification }))
-    showRealtimeToast(notification.message)
+  // Tiempo real (Azure SignalR). Apagado o sin configurar es un estado normal, no un error: la interfaz sigue con su
+  // refresco habitual. Las señales no traen datos; cada página pide los suyos al servidor.
+  const realtime = await import('@/realtime.js')
+  realtimeStatusRef = realtime.realtimeStatus
+  stopRealtimeStatusWatch = watch(realtime.realtimeStatus, (value) => { realtimeState.value = value }, { immediate: true })
+  stopNotificationSignal = realtime.onSignal('notifications', () => {
+    // La campana vuelve a pedir sus avisos; el contador de `auth` se actualiza con el mismo viaje.
+    router.reload({ only: ['auth'], preserveScroll: true, preserveState: true })
+    window.dispatchEvent(new CustomEvent('mova:notification'))
   })
+  realtime.startRealtime(page.props.realtime, userId)
 })
 
 onUnmounted(() => {
@@ -344,10 +346,10 @@ onUnmounted(() => {
     removeNavigateListener()
   }
   clearTimeout(toastTimeout)
-  const userId = user.value?.id
-  if (userId && window.Echo) {
-    window.Echo.leave(`App.Models.User.${userId}`)
-  }
+  stopNotificationSignal?.()
+  stopRealtimeStatusWatch?.()
+  // Cierra la conexión y los temporizadores al salir del layout (cambio de sesión o cierre): nada queda escuchando.
+  import('@/realtime.js').then((realtime) => realtime.stopRealtime())
 })
 
 const isTeacher = computed(() => (user.value?.roles ?? []).includes('teacher'))

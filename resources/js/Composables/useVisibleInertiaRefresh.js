@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
+import { realtimeStatus } from '@/realtime.js'
 
 /**
  * Inertia no actualiza automáticamente las props de una página abierta en
@@ -17,6 +18,8 @@ export function useVisibleInertiaRefresh(only, { intervalMs = 30000, shouldRefre
 
   function refresh() {
     if (!mounted || document.hidden || isRefreshing.value || !shouldRefresh()) return
+    // Con el tiempo real conectado, el sondeo solo queda como red de seguridad (cada ~4 intervalos).
+    if (realtimeStatus.value === 'live' && Date.now() - lastRefreshAt < intervalMs * 4) return
     isRefreshing.value = true
 
     router.reload({

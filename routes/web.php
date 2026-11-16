@@ -158,6 +158,7 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1')->name('profile.avatar');
     Route::delete('/profile/avatar', [ProfileController::class, 'removeAvatar'])->middleware('throttle:10,1')->name('profile.avatar.remove');
 
+    Route::post('/realtime/negotiate', [\App\Http\Controllers\RealtimeController::class, 'negotiate'])->middleware('throttle:30,1')->name('realtime.negotiate');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware('throttle:20,1')->name('notifications.readAll');

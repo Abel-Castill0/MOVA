@@ -98,8 +98,11 @@ import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 
 defineProps({ requests: Array })
+
+useRealtimeRefresh({ requests: ['requests'] })
 
 const processingId = ref(null)
 const action = ref(null)

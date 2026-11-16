@@ -371,6 +371,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Icon from '@/Components/Icon.vue'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh'
+import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 
 const props = defineProps({
   upcoming: { type: Array, default: () => [] },
@@ -385,6 +386,11 @@ const props = defineProps({
 // Mantiene actualizado el contador aunque el padre envíe su solicitud desde
 // otro navegador o sesión. Cada refresh reevalúa verificación y permisos.
 useVisibleInertiaRefresh(['pending_requests'])
+useRealtimeRefresh({
+  requests: ['pending_requests'],
+  dashboard: ['pending_requests', 'upcoming', 'pending_reports'],
+  lessons: ['upcoming', 'pending_reports'],
+})
 
 const hasOffers = computed(() => props.has_offers)
 

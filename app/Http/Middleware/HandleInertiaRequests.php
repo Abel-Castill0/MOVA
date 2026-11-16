@@ -79,20 +79,12 @@ class HandleInertiaRequests extends Middleware
     /** @return array{enabled: bool, key: string|null, cluster: string|null, host: string|null, port: int|null, scheme: string|null} */
     private function publicRealtimeConfig(): array
     {
-        $key = config('broadcasting.connections.pusher.key');
-        $enabled = config('broadcasting.default') === 'pusher' && !empty($key);
-
-        if (!$enabled) {
-            return ['enabled' => false, 'key' => null, 'cluster' => null, 'host' => null, 'port' => null, 'scheme' => null];
+        // Azure SignalR: el cliente solo necesita saber si hay tiempo real y dónde negociar. El token de conexión se pide
+        // autenticado a /realtime/negotiate; ni la clave del servicio ni su endpoint viajan en la página.
+        if (! \App\Realtime\SignalRClient::enabled()) {
+            return ['enabled' => false, 'driver' => null, 'negotiateUrl' => null];
         }
 
-        return [
-            'enabled' => true,
-            'key' => $key,
-            'cluster' => config('broadcasting.connections.pusher.options.cluster'),
-            'host' => config('broadcasting.connections.pusher.options.host'),
-            'port' => (int) config('broadcasting.connections.pusher.options.port'),
-            'scheme' => config('broadcasting.connections.pusher.options.scheme'),
-        ];
+        return ['enabled' => true, 'driver' => 'signalr', 'negotiateUrl' => route('realtime.negotiate', [], false)];
     }
 }

@@ -407,10 +407,17 @@ import ConfirmPaymentAction from '@/Components/Lessons/ConfirmPaymentAction.vue'
 import Icon from '@/Components/Icon.vue'
 import MoviMascot from '@/Components/MoviMascot.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
+import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { statusStyle } from '@/utils/statusColors'
 import gsap from 'gsap'
+
+useRealtimeRefresh({
+  requests: ['pending_approval', 'stats'],
+  lessons: ['upcoming', 'next_lesson', 'recent_history', 'stats'],
+  dashboard: ['upcoming', 'next_lesson', 'pending_approval', 'stats'],
+})
 
 const props = defineProps({
   students: { type: Array, default: () => [] },

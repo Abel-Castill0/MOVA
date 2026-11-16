@@ -265,6 +265,7 @@
 import { ref, computed } from 'vue'
 import { useForm, router, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'
 import InputLabel from '@/Components/InputLabel.vue'

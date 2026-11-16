@@ -94,10 +94,13 @@ import ParentLessonCard from '@/Components/Lessons/ParentLessonCard.vue'
 import WeeklyCalendar from '@/Components/Lessons/WeeklyCalendar.vue'
 import { useJitsiMeet } from '@/Composables/useJitsiMeet'
 import { useLessonActions } from '@/Composables/useLessonActions'
+import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import { splitByWeek } from '@/utils/weekGrouping'
 import { useLessonsViewMode } from '@/Composables/useLessonsViewMode'
 
 const props = defineProps({ lessons: Array })
+
+useRealtimeRefresh({ lessons: ['lessons'] })
 
 const { viewMode, tabListRef, tabCalendarRef, onTabsKeydown } = useLessonsViewMode()
 const {
