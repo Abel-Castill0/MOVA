@@ -1,39 +1,42 @@
 <template>
   <AppLayout title="Mis créditos">
     <div class="space-y-6">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 class="text-xl font-black text-slate-900">Mis créditos MOVA</h2>
-          <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
+          <p class="text-sm text-ink-muted">Tu saldo, tus recargas y cada movimiento.</p>
         </div>
+        <LiveIndicator />
+      </header>
+
+      <section class="rounded-2xl border border-line bg-white p-5 sm:p-6" aria-labelledby="balance-title" data-testid="balance">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 id="balance-title" class="text-sm font-semibold text-ink-muted">Créditos disponibles</h2>
+            <p class="mt-1 text-5xl font-black tabular-nums text-brand-700" data-testid="credits-available">{{ teacherProfile.credits_available }}</p>
+            <p class="mt-1 text-sm text-ink-muted">Listos para aceptar nuevas clases.</p>
+          </div>
+          <dl class="rounded-xl border border-line bg-slate-50 px-4 py-3">
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Reservados</dt>
+            <dd class="text-2xl font-black tabular-nums text-ink" data-testid="credits-reserved">{{ teacherProfile.credits_reserved }}</dd>
+            <dd class="text-xs text-ink-muted">Apartados para clases ya programadas.</dd>
+          </dl>
+        </div>
+        <p class="mt-4 border-t border-line pt-3 text-sm text-ink-muted">
+          Los créditos te permiten aceptar clases: al programar una se reserva 1 crédito por cada hora. Si la clase se cancela, el crédito vuelve a tu saldo.
+        </p>
         <!-- Con el pago activo es el acceso a la compra; si no lo está, NO finge serlo: lleva a ver paquetes y precios. -->
         <a href="#recargas"
           data-testid="recharge-cta"
-          :class="anyRechargeMethodEnabled
-            ? 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm shadow-brand-600/20'
-            : 'flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-brand-200 bg-white text-brand-700 text-sm font-bold rounded-xl hover:bg-brand-50 active:scale-95 transition-all'">
+          :class="['mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2',
+            anyRechargeMethodEnabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-brand-200 bg-white text-brand-700 hover:bg-brand-50']">
           <Icon name="credits" :size="18" /> {{ anyRechargeMethodEnabled ? 'Recargar créditos' : 'Ver paquetes y precios' }}
         </a>
-      </div>
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <section class="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
-          <p class="text-sm font-semibold text-slate-500">Créditos disponibles</p>
-          <p class="mt-3 text-4xl font-black text-brand-700">{{ teacherProfile.credits_available }}</p>
-          <p class="mt-2 text-sm text-slate-500">Listos para aceptar nuevas clases.</p>
-        </section>
-
-        <section class="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p class="text-sm font-semibold text-slate-500">Créditos reservados</p>
-          <p class="mt-3 text-4xl font-black text-amber-600">{{ teacherProfile.credits_reserved }}</p>
-          <p class="mt-2 text-sm text-slate-500">Apartados para clases programadas.</p>
-        </section>
-      </div>
+      </section>
 
       <section id="recargas" class="space-y-3 scroll-mt-24">
         <PaymentsStatusBanner />
         <div>
-          <h3 class="text-base font-bold text-slate-900">Paquetes de recarga</h3>
+          <h2 class="text-lg font-bold text-ink">Paquetes de recarga</h2>
           <p v-if="!anyRechargeMethodEnabled" class="mt-1 text-sm text-slate-500" data-testid="recharge-unavailable">
             Estos son los paquetes y precios vigentes. La compra desde tu cuenta aún no está activa: todavía no se puede pagar y no se te cobrará nada.
           </p>
@@ -41,23 +44,21 @@
           <p v-else class="text-sm text-slate-500">Realiza el pago al destino indicado y registra el número de operación para revisión administrativa.</p>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-3">
-          <article v-for="pack in packages" :key="pack.code" class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <article v-for="pack in packages" :key="pack.code" :class="['flex flex-col rounded-2xl border bg-white p-5', pack.code === bestValueCode ? 'border-brand-500 ring-1 ring-brand-500' : 'border-line']" :data-testid="`package-${pack.code}`">
             <div class="flex items-start justify-between gap-3">
-              <div>
-                <h4 class="text-lg font-black text-slate-900">{{ pack.name }}</h4>
-                <!-- F-16: derivado del catálogo del servidor, no escrito a mano. -->
-                <p v-if="pack.price_per_credit" class="mt-1 text-sm text-slate-500">
-                  1 crédito equivale a {{ currency }} {{ pack.price_per_credit }}.
-                </p>
-              </div>
-              <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{{ pack.credits }} créditos</span>
+              <h3 class="text-lg font-black text-ink">{{ pack.name }}</h3>
+              <span v-if="pack.code === bestValueCode" class="rounded-full bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">Mayor ahorro</span>
             </div>
-            <p v-if="pack.description" class="mt-3 text-sm text-slate-600">{{ pack.description }}</p>
-            <p v-if="pack.code === 'pro'" class="mt-3 text-sm font-bold text-brand-700">Mayor ahorro</p>
-            <p class="mt-3 text-sm text-slate-600">Precio base: S/ {{ pack.base_amount_pen }} · Descuento: {{ pack.discount_percent }}%</p>
-            <p class="mt-5 text-3xl font-black text-slate-900">S/ {{ money(pack.amount_pen) }}</p>
-            <p class="text-sm text-brand-700">Ahorro: S/ {{ pack.saving_pen }}</p>
+            <p class="mt-3 text-3xl font-black tabular-nums text-ink">{{ pack.credits }} <span class="text-base font-bold text-ink-muted">créditos</span></p>
+            <p class="mt-1 text-2xl font-black tabular-nums text-brand-700">S/ {{ money(pack.amount_pen) }}</p>
+            <!-- F-16: todo sale del catálogo del servidor, nada escrito a mano. -->
+            <ul class="mt-2 space-y-0.5 text-sm text-ink-muted">
+              <li v-if="pack.price_per_credit">{{ currency }} {{ pack.price_per_credit }} por crédito</li>
+              <li v-if="Number(pack.discount_percent) > 0">Precio base S/ {{ pack.base_amount_pen }} · ahorras S/ {{ pack.saving_pen }} ({{ pack.discount_percent }}%)</li>
+            </ul>
+            <p v-if="pack.description" class="mt-3 text-sm text-ink-muted">{{ pack.description }}</p>
+            <div class="mt-auto">
             <p v-if="!anyRechargeMethodEnabled" class="mt-5 rounded-xl bg-slate-50 px-4 py-2.5 text-center text-xs font-semibold text-slate-600">
               La compra estará disponible cuando se active el pago en línea
             </p>
@@ -88,6 +89,7 @@
             <Link :href="route('catalog.package', pack.code)" class="mt-3 block text-center text-xs font-semibold text-brand-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
               Ver detalle y condiciones del paquete {{ pack.name }}
             </Link>
+            </div>
           </article>
         </div>
       </section>
@@ -99,29 +101,39 @@
             :class="tabClass(activeTab === 'transactions')"
             @click="activeTab = 'transactions'"
           >
-            Historial de Transacciones
+            Movimientos
           </button>
           <button
             type="button"
             :class="tabClass(activeTab === 'recharges')"
             @click="activeTab = 'recharges'"
           >
-            Estado de Recargas
+            Recargas
           </button>
+        </div>
+
+        <div v-if="activeTab === 'transactions' && creditTransactions.length" class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
+          <label for="tx-filter" class="text-xs font-semibold text-ink-muted">Mostrar</label>
+          <select id="tx-filter" v-model="txFilter" class="min-h-10 rounded-xl border border-line bg-white px-3 text-sm text-ink focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200" data-testid="tx-filter">
+            <option value="all">Todos los movimientos</option>
+            <option value="in">Entradas (depósitos y devoluciones)</option>
+            <option value="out">Salidas (reservas y descuentos)</option>
+          </select>
+          <span class="text-xs text-ink-muted">Últimos {{ creditTransactions.length }} · horas en hora de Perú</span>
         </div>
 
         <div class="overflow-x-auto">
           <!-- Móvil: lista apilada (una tabla de 4-5 columnas no cabe en 360px y aplastaba la descripción). -->
           <ul v-if="activeTab === 'transactions'" class="divide-y divide-gray-100 md:hidden">
             <li v-if="!creditTransactions.length" class="px-4 py-8 text-center text-sm text-slate-500">Aún no tienes movimientos de créditos.</li>
-            <li v-for="transaction in creditTransactions" :key="transaction.id" class="flex items-start justify-between gap-3 px-4 py-3">
+            <li v-for="transaction in shownTransactions" :key="transaction.id" class="flex items-start justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
                 <p class="mt-1.5 break-words text-sm text-slate-700">{{ transaction.description }}</p>
                 <p v-if="transactionDetail(transaction.type)" class="mt-0.5 text-xs text-rose-600">{{ transactionDetail(transaction.type) }}</p>
                 <p class="mt-1 text-xs text-slate-500">{{ fmtDate(transaction.created_at) }}</p>
               </div>
-              <p class="shrink-0 text-base font-bold tabular-nums text-slate-900">{{ transaction.amount }}</p>
+              <p :class="['shrink-0 text-base font-bold tabular-nums', amountClass(transaction.type)]">{{ signedAmount(transaction) }}</p>
             </li>
           </ul>
           <ul v-else class="divide-y divide-gray-100 md:hidden">
@@ -151,7 +163,7 @@
               <tr v-if="!creditTransactions.length">
                 <td colspan="4" class="px-4 py-8 text-center text-slate-500">Aún no tienes movimientos de créditos.</td>
               </tr>
-              <tr v-for="transaction in creditTransactions" :key="transaction.id">
+              <tr v-for="transaction in shownTransactions" :key="transaction.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(transaction.created_at) }}</td>
                 <td class="px-4 py-3">
                   <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
@@ -162,7 +174,7 @@
                     {{ transactionDetail(transaction.type) }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-right font-bold text-slate-900">{{ transaction.amount }}</td>
+                <td :class="['px-4 py-3 text-right font-bold tabular-nums', amountClass(transaction.type)]">{{ signedAmount(transaction) }}</td>
               </tr>
             </tbody>
           </table>
@@ -265,6 +277,8 @@
 import { ref, computed } from 'vue'
 import { useForm, router, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import LiveIndicator from '@/Components/LiveIndicator.vue'
+import { LIMA_TZ } from '@/utils/limaTime'
 import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import PaymentsStatusBanner from '@/Components/PaymentsStatusBanner.vue'
 import InputError from '@/Components/InputError.vue'
@@ -318,6 +332,38 @@ const props = defineProps({
 })
 
 const activeTab = ref('transactions')
+
+// Saldo, movimientos y estado de recargas se vuelven a pedir al servidor cuando cambia algo (tiempo real). La pantalla
+// nunca suma créditos por su cuenta: solo muestra lo que el ledger ya registró.
+useRealtimeRefresh({ credits: ['teacherProfile', 'creditTransactions', 'rechargeRequests'] })
+
+const txFilter = ref('all')
+const IN_TYPES = ['deposit', 'refund']
+const OUT_TYPES = ['reservation', 'reversal', 'forfeiture']
+const shownTransactions = computed(() => props.creditTransactions.filter((tx) => (
+  txFilter.value === 'all' || (txFilter.value === 'in' ? IN_TYPES : OUT_TYPES).includes(tx.type)
+)))
+
+// El paquete con mayor descuento según el catálogo del servidor (no un código escrito a mano).
+const bestValueCode = computed(() => {
+  const best = [...props.packages].sort((a, b) => Number(b.discount_percent ?? 0) - Number(a.discount_percent ?? 0))[0]
+
+  return best && Number(best.discount_percent) > 0 ? best.code : null
+})
+
+function signedAmount(tx) {
+  if (IN_TYPES.includes(tx.type)) return `+${tx.amount}`
+  if (OUT_TYPES.includes(tx.type)) return `−${tx.amount}`
+
+  return String(tx.amount) // consumo: sale de lo ya reservado, no cambia el saldo disponible
+}
+
+function amountClass(type) {
+  if (IN_TYPES.includes(type)) return 'text-emerald-700'
+  if (OUT_TYPES.includes(type)) return 'text-rose-700'
+
+  return 'text-ink'
+}
 const showRechargeModal = ref(false)
 const selectedPackage = ref(null)
 const payingWithYape = ref(null)
@@ -384,6 +430,7 @@ function tabClass(active) {
 function fmtDate(value) {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('es-PE', {
+    timeZone: LIMA_TZ,
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -407,6 +454,7 @@ function transactionLabel(type) {
     consumption: 'Consumo',
     refund: 'Devolución',
     reversal: 'Movimiento revertido',
+    forfeiture: 'Créditos retirados',
   }[type] ?? type
 }
 

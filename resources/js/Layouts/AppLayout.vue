@@ -10,30 +10,7 @@
        /class-requests y los tres dashboards.
        Mientras esas páginas no usen tokens de tinta, este fondo tiene que
        seguir siendo claro. Operations pinta su propia superficie. -->
-  <div class="min-h-screen relative overflow-x-clip bg-[#EBF2FA]"
-    style="background: radial-gradient(circle at 12% 12%, rgba(191, 219, 254, 0.55) 0%, transparent 45%), radial-gradient(circle at 88% 18%, rgba(186, 230, 253, 0.5) 0%, transparent 50%), radial-gradient(circle at 50% 95%, rgba(224, 231, 255, 0.45) 0%, transparent 55%), #EBF2FA;">
-
-    <!-- Fondo de Luz Ambiental y Malla Hexagonal para todas las secciones -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
-      <div class="absolute -top-24 -left-24 w-[34rem] h-[34rem] bg-blue-300/15 rounded-full blur-[100px]"></div>
-      <div class="absolute top-1/4 -right-20 w-[36rem] h-[36rem] bg-sky-300/15 rounded-full blur-[110px]"></div>
-      <div class="absolute -bottom-16 left-1/3 w-[32rem] h-[32rem] bg-indigo-200/15 rounded-full blur-[100px]"></div>
-      <div class="absolute -left-48 top-8 w-[38rem] h-[38rem] rounded-full border border-brand-200/30"></div>
-      <div class="absolute -right-48 -top-8 w-[42rem] h-[42rem] rounded-full border border-brand-200/35"></div>
-      <svg class="absolute inset-0 w-full h-full opacity-60" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="hex-grid-seamless" width="56" height="96" patternUnits="userSpaceOnUse">
-            <path
-              d="M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z M28 64 L56 80 L56 112 L28 128 L0 112 L0 80 Z"
-              fill="none"
-              stroke="rgba(31, 90, 166, 0.05)"
-              stroke-width="1"
-            />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#hex-grid-seamless)" />
-      </svg>
-    </div>
+  <div class="min-h-screen relative overflow-x-clip bg-[#EBF2FA]">
 
     <!-- Mobile overlay -->
     <Transition enter-active-class="transition-opacity duration-200" enter-from-class="opacity-0" enter-to-class="opacity-100"
@@ -42,9 +19,9 @@
     </Transition>
 
     <!-- Sidebar (Diseño curvo rounded-r-3xl y frosted glass en todas las secciones) -->
-    <aside :class="[
-        'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ease-in-out',
-        'bg-white/85 lg:bg-white/95 backdrop-blur-xl border-r border-slate-200/50 rounded-r-3xl shadow-2xl lg:shadow-none',
+    <aside ref="sidebarRef" id="app-sidebar" aria-label="Menú principal" @keydown.tab="trapDrawerFocus" :class="[
+        'fixed inset-y-0 left-0 z-50 flex flex-col transition-[width,transform] duration-200 ease-out motion-reduce:transition-none',
+        'bg-white border-r border-slate-200 shadow-xl lg:shadow-none',
         isSidebarCompressed ? 'w-64 lg:w-20' : 'w-64',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       ]">
@@ -74,27 +51,24 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
-        <button @click="sidebarOpen = false" aria-label="Cerrar menú"
+        <button ref="drawerCloseRef" @click="sidebarOpen = false" aria-label="Cerrar menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-xl text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
           <Icon name="close" :size="20" />
         </button>
       </div>
 
       <!-- Nav con bordes redondeados y píldora active rounded-r-full -->
-      <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto" aria-label="Navegación principal">
+      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Navegación principal">
         <Link v-for="item in navItems" :key="item.href"
           :href="item.href"
           @click="sidebarOpen = false"
           :aria-current="isActive(item.href) ? 'page' : undefined"
           :title="isSidebarCompressed ? item.label : undefined"
+          :aria-label="isSidebarCompressed ? item.label : undefined"
           :class="[
-            'flex items-center text-sm font-semibold transition-all duration-150',
-            isSidebarCompressed ? 'gap-3 lg:justify-center lg:px-2 py-2.5 rounded-xl' : 'gap-3',
-            isActive(item.href)
-              ? (isSidebarCompressed
-                  ? ['-ml-3 pl-6 pr-4 lg:ml-0 lg:px-0 lg:w-11 lg:h-11 lg:mx-auto lg:rounded-2xl font-bold shadow-sm', isTeacher ? 'bg-orange-500 text-white shadow-orange-500/25' : 'bg-brand-600 text-white shadow-brand-600/25']
-                  : ['-ml-3 pl-6 pr-4 py-2.5 rounded-l-none rounded-r-full font-bold shadow-sm', isTeacher ? 'bg-orange-500 text-white shadow-orange-500/25' : 'bg-brand-600 text-white shadow-brand-600/25'])
-              : 'px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            'flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400',
+            isSidebarCompressed ? 'lg:justify-center lg:px-0' : '',
+            isActive(item.href) ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           ]">
           <Icon :name="item.icon" :size="18" class="flex-shrink-0" />
           <span :class="['truncate', isSidebarCompressed ? 'lg:hidden' : '']">{{ item.label }}</span>
@@ -141,7 +115,7 @@
       <!-- Top bar -->
       <header :class="headerClasses">
         <!-- Hamburger (mobile only) -->
-        <button @click="sidebarOpen = true" aria-label="Abrir menú"
+        <button ref="drawerOpenerRef" @click="sidebarOpen = true" aria-label="Abrir menú" aria-controls="app-sidebar" :aria-expanded="sidebarOpen"
           class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-2xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
           <Icon name="menu" :size="20" />
         </button>
@@ -214,7 +188,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
@@ -265,30 +239,14 @@ let toastTimeout
 const mainRef = ref(null)
 const isScrolled = ref(false)
 
-const isRequestsSection = computed(() => {
-  const t = (props.title || '').trim().toLowerCase()
-  return t === 'solicitudes' ||
-         t === 'mis solicitudes' ||
-         page.url.startsWith('/teacher/requests') ||
-         page.url.startsWith('/class-requests')
-})
-
-const headerClasses = computed(() => {
-  return [
-    'w-full sticky top-0 z-30 flex items-center gap-3 transition-all duration-300 ease-in-out',
-    isRequestsSection.value
-      ? (isSidebarCompressed.value ? 'lg:-ml-20 lg:w-[calc(100%+5rem)] lg:pl-28' : 'lg:-ml-64 lg:w-[calc(100%+16rem)] lg:pl-72')
-      : '',
-    props.compact ? 'px-4 sm:px-6 lg:pr-8 h-[60px]' : 'px-4 sm:px-6 lg:pr-8 py-3.5 min-h-[64px]',
-    // En mobile siempre muestra la barra con fondo frosted y borde inferior (añade shadow al scrollear)
-    // En desktop es transparente en reposo superior y adquiere barra frosted al scrollear
-    isScrolled.value
-      ? (isRequestsSection.value
-          ? 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-xs lg:bg-[#BDD4F2]/95 lg:border-[#9EC3EB]'
-          : 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-xs lg:bg-[#EBF2FA]/95 lg:backdrop-blur-md lg:border-b lg:border-blue-200/50 lg:shadow-xs')
-      : 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 lg:bg-transparent lg:border-transparent lg:shadow-none'
-  ]
-})
+const headerClasses = computed(() => [
+  'w-full sticky top-0 z-30 flex items-center gap-3 transition-colors duration-200',
+  props.compact ? 'px-4 sm:px-6 lg:px-8 h-[60px]' : 'px-4 sm:px-6 lg:px-8 py-3.5 min-h-[64px]',
+  // Móvil: barra siempre visible. Escritorio: transparente arriba y con fondo al desplazarse.
+  isScrolled.value
+    ? 'bg-[#EBF2FA]/95 backdrop-blur-sm border-b border-blue-200/60'
+    : 'bg-[#EBF2FA]/95 border-b border-blue-200/60 lg:bg-transparent lg:border-transparent',
+])
 
 function checkScroll(e) {
   const mainSt = mainRef.value?.scrollTop || 0
@@ -317,6 +275,7 @@ onMounted(async () => {
     mainRef.value.addEventListener('scroll', checkScroll, { passive: true })
   }
   removeNavigateListener = router.on('navigate', () => {
+    sidebarOpen.value = false
     isScrolled.value = false
     setTimeout(checkScroll, 50)
   })
@@ -369,11 +328,52 @@ const avatarClass = computed(() =>
 )
 
 function isActive(href) {
-  if (href === '/marketplace' && (page.url.startsWith('/marketplace') || page.url.startsWith('/teachers'))) {
-    return true
-  }
-  return page.url.startsWith(href) && href !== '/'
+  const path = page.url.split('?')[0].split('#')[0]
+  if (href === '/marketplace' && (path.startsWith('/marketplace') || path.startsWith('/teachers'))) return true
+  if (href === '/') return false
+
+  return path === href || path.startsWith(`${href}/`)
 }
+
+// Drawer móvil: Escape lo cierra, el foco entra al abrir y vuelve al botón que lo abrió, y Tab no escapa al fondo.
+const sidebarRef = ref(null)
+const drawerCloseRef = ref(null)
+const drawerOpenerRef = ref(null)
+
+function onDrawerKeydown(event) {
+  if (event.key === 'Escape' && sidebarOpen.value) sidebarOpen.value = false
+}
+
+function trapDrawerFocus(event) {
+  if (!sidebarOpen.value || !sidebarRef.value) return
+  const items = [...sidebarRef.value.querySelectorAll('a[href], button:not([disabled])')].filter((el) => el.offsetParent !== null)
+  if (!items.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(sidebarOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    document.addEventListener('keydown', onDrawerKeydown)
+    nextTick(() => drawerCloseRef.value?.focus())
+  } else {
+    document.removeEventListener('keydown', onDrawerKeydown)
+    nextTick(() => drawerOpenerRef.value?.focus())
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDrawerKeydown)
+  document.body.style.overflow = ''
+})
 
 const navItems = computed(() => {
   const roles = user.value?.roles ?? []

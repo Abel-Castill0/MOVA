@@ -43,7 +43,7 @@
         <!-- Date/time -->
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">
-            Fecha y hora de inicio <span class="text-red-500">*</span>
+            Fecha y hora de inicio <span class="font-normal text-slate-500">(hora de Perú)</span> <span class="text-red-500">*</span>
           </label>
           <input v-model="form.start_time" type="datetime-local" required :min="minDateTime"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
@@ -115,6 +115,7 @@
 import { computed } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { limaLocalToIso, toLimaDatetimeLocal } from '@/utils/limaTime'
 
 const props = defineProps({
   classRequest: Object,
@@ -147,16 +148,15 @@ const projectedEarnings = computed(() => props.hourlyRate * selectedCredits.valu
 
 // Minimum selectable time = now + 5 min
 const minDateTime = computed(() => {
-  const d = new Date(Date.now() + 5 * 60000)
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 16)
+  return toLimaDatetimeLocal(new Date(Date.now() + 5 * 60000))
 })
 
 function submit() {
   form
     .transform(data => ({
       ...data,
-      start_time: new Date(data.start_time).toISOString(),
+      // El profesor escribe hora de Perú; se envía el instante exacto (UTC).
+      start_time: limaLocalToIso(data.start_time),
     }))
     .post(route('lessons.store'))
 }
