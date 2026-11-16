@@ -28,11 +28,11 @@
             </div>
             <div class="flex gap-1">
               <Link :href="route('students.edit', s.id)"
-                class="text-xs text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium">
+                class="inline-flex min-h-11 items-center text-sm text-brand-700 hover:text-brand-900 hover:bg-brand-50 px-3 py-2 rounded-lg transition-colors font-semibold">
                 Editar
               </Link>
               <button type="button"
-                class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                class="inline-flex min-h-11 items-center text-sm text-red-700 hover:text-red-900 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors font-semibold"
                 @click="deleteTarget = s">Eliminar</button>
             </div>
           </div>

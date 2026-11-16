@@ -16,7 +16,7 @@
 
         <div v-else class="space-y-4">
           <div v-for="t in pendingTeachers" :key="t.id" class="bg-white rounded-xl border border-gray-200 p-5">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-700 font-bold flex-shrink-0">
@@ -35,13 +35,13 @@
                     class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded">{{ s.name }}</span>
                 </div>
               </div>
-              <div class="flex gap-2 flex-shrink-0">
+              <div class="flex flex-wrap gap-2 flex-shrink-0">
                 <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
                   Verificar
                 </Link>
                 <button type="button" @click="openRejectModal(t)"
-                  class="px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition-colors">
                   Rechazar
                 </button>
               </div>
@@ -58,7 +58,7 @@
         <div class="space-y-4">
           <div v-for="t in rejectedTeachers" :key="t.id"
             class="bg-white rounded-xl border border-red-100 p-5 opacity-80">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 font-bold flex-shrink-0">
@@ -79,7 +79,7 @@
               </div>
               <div class="flex-shrink-0">
                 <Link :href="route('admin.teachers.verify', t.id)" method="post" as="button"
-                  class="px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
+                  class="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-brand-100 text-brand-700 text-sm font-semibold rounded-lg hover:bg-brand-200 transition-colors">
                   Re-verificar
                 </Link>
               </div>
