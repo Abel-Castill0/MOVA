@@ -28,7 +28,7 @@ class CounterofferRejectedNotification extends Notification implements ShouldQue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }

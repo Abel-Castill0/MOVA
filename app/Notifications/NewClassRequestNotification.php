@@ -6,6 +6,7 @@ use App\Models\ClassRequest;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -21,7 +22,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -80,6 +81,16 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             ->line('**Estudiante:** ' . $this->studentLabel())
             ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
+    }
+
+    /** La transmisión solo lleva el identificador; el detalle se recupera tras autorización HTTP. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'new_class_request',
+            'request_id' => $this->classRequest->id,
+            'message' => 'Nueva solicitud de clase disponible.',
+        ]);
     }
 
     public function toArray($notifiable): array

@@ -22,7 +22,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }

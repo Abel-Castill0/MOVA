@@ -8,6 +8,7 @@ use App\Notifications\Concerns\BuildsAppUrls;
 use App\Support\LimaClock;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -37,7 +38,7 @@ class CounterofferProposedNotification extends Notification implements ShouldQue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -65,6 +66,16 @@ class CounterofferProposedNotification extends Notification implements ShouldQue
             .$this->summary()."\n"
             ."Ingrese a MOVA para aceptarla o rechazarla:\n"
             .$this->appRoute('class-requests.index');
+    }
+
+    /** No emitir los datos del profesor ni del menor sobre el canal WebSocket. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'counteroffer_proposed',
+            'class_request_id' => $this->classRequest->id,
+            'message' => 'Recibiste una propuesta de horario. Revísala en MOVA.',
+        ]);
     }
 
     public function toArray($notifiable): array
