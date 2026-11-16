@@ -31,6 +31,7 @@ El commit \`ffa0665\` que otro colaborador introdujo en esta rama añadió un co
 - Se publicaron commits de implementación y un spec \`qa/tests/ux-role-audit.spec.js\` que comprueba que abrir y cancelar modales no emita mutaciones, y explora padre/profesor a 375, 390, 768 y 1440 px.
 - El spec exige \`BASE_URL=http://127.0.0.1:8012\` y una SQLite de pruebas cuyo nombre termine en \`phase2b-e2e.sqlite\`; **no permite su ejecución contra producción**.
 - Comprobación estática leyendo los archivos del HEAD de GitHub: **12/12 contratos de estructura comprobados**, incluidas las rutas de suspensión sin POST inicial, modales nombrados, ausencia de overlays antiguos en los archivos modificados, bloqueo durante solicitudes, teclado del calendario y guardas del spec.
+- **Pruebas puras reproducidas en un entorno Node aislado:** `peruDate.js`, `weekGrouping.js`, `pusherHosts.js`, `bodyScrollLock.js` y sus tests; 8 casos con `TZ=UTC`, 8 con `TZ=America/Lima` y 8 con `TZ=Asia/Tokyo`, **24/24 PASS, 0 fallos**. No equivalen a ejecutar el checkout ni a verificar Vue/Laravel/producción.
 - **No se ejecutó Playwright**. El spec no fue compilado ni probado todavía; algunos casos requieren fixtures sintéticos y pueden figurar como SKIP si no existen. Es obligatorio revisar los skips y no tratarlos como un PASS de cobertura.
 - No se ejecutaron \`npm ci\`, \`npm run build\`, \`php artisan test\`, auditoría MySQL, axe, revisión visual a 200% de zoom ni pruebas de usuarios padre/profesor/admin reales. Tampoco se verificó el WebSocket ni el cobro Culqi/WAHA de producción.
 
