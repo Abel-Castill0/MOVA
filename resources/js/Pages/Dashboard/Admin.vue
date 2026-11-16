@@ -24,7 +24,7 @@
             <span class="text-2xl">⏳</span>
             <span class="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">Pendiente</span>
           </div>
-          <p class="text-3xl font-black text-orange-500">{{ stats.pending_teachers }}</p>
+          <p class="text-3xl font-black text-orange-700">{{ stats.pending_teachers }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Profesores por verificar</p>
         </div>
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
@@ -68,7 +68,7 @@
                 {{ stats.open_requests > 0 ? 'Pendiente' : 'OK' }}
               </span>
             </div>
-            <p class="text-3xl font-black" :class="stats.open_requests > 0 ? 'text-orange-500' : 'text-green-600'">{{ stats.open_requests }}</p>
+            <p class="text-3xl font-black" :class="stats.open_requests > 0 ? 'text-orange-700' : 'text-green-700'">{{ stats.open_requests }}</p>
             <p class="text-sm text-slate-500 mt-0.5">Solicitudes abiertas</p>
           </div>
           <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
