@@ -116,8 +116,8 @@ class WahaNotificationsTest extends TestCase
 
         $this->assertStringContainsString('Recarga confirmada', $text);
         $this->assertStringContainsString('10 créditos', $text);
-        $this->assertSame(['mail', WhatsAppChannel::class], $notification->via($teacher));
-        $this->assertSame(['mail'], $notification->via($this->user('teacher', ['phone_verified_at' => null])));
+        $this->assertSame(['mail', 'broadcast', WhatsAppChannel::class], $notification->via($teacher));
+        $this->assertSame(['mail', 'broadcast'], $notification->via($this->user('teacher', ['phone_verified_at' => null])));
     }
 
     public function test_insufficient_credits_text_shows_needed_and_available_without_student_data(): void

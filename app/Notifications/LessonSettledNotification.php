@@ -6,6 +6,7 @@ use App\Models\Lesson;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -38,7 +39,7 @@ class LessonSettledNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -67,6 +68,15 @@ class LessonSettledNotification extends Notification implements ShouldQueue
             ->line("La clase de **{$subject}** de {$student} se completó automáticamente. Puede calificar al profesor cuando quiera.")
             ->action('Ver mis clases', $this->appRoute('parent.lessons'))
             ->salutation('El equipo de MOVA');
+    }
+
+    /** No transmitir detalles de clases o alumnos en un aviso de liquidación. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'lesson_settled',
+            'message' => 'El estado de una clase se actualizó.',
+        ]);
     }
 
     public function toArray($notifiable): array

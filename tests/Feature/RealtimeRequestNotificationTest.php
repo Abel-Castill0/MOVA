@@ -13,6 +13,10 @@ use App\Notifications\NewClassRequestNotification;
 use App\Notifications\LessonReportPublishedNotification;
 use App\Models\LessonReport;
 use App\Notifications\ParentApprovalRequestNotification;
+use App\Notifications\RechargeApprovedNotification;
+use App\Notifications\RechargeReversedNotification;
+use App\Notifications\LessonSettledNotification;
+use App\Models\RechargeRequest;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
@@ -33,6 +37,9 @@ class RealtimeRequestNotificationTest extends TestCase
             new ClassRequestRejectedNotification($request),
             new ClassRescheduledNotification($lesson, 'profesor'),
             new ClassCancelledNotification($lesson),
+            new RechargeApprovedNotification(new RechargeRequest),
+            new RechargeReversedNotification(new RechargeRequest),
+            new LessonSettledNotification($lesson),
         ];
 
         foreach ($notifications as $notification) {
