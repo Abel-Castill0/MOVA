@@ -4,7 +4,7 @@
       <div class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Paso {{ step }} de 5</span>
-          <button v-if="step > 1" @click="back" class="text-xs font-medium text-brand-600 hover:underline">
+          <button type="button" v-if="step > 1" @click="back" class="text-xs font-medium text-brand-600 hover:underline">
             Atrás
           </button>
         </div>
@@ -27,7 +27,7 @@
         </div>
 
         <div v-else class="space-y-3">
-          <button
+          <button type="button"
             v-for="student in students"
             :key="student.id"
             @click="form.student_id = student.id; next()"
@@ -51,10 +51,10 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <button
+          <button type="button"
             v-for="subject in filteredSubjects"
             :key="subject.id"
-            @click="form.subject_id = subject.id"
+            @click="form.subject_id = subject.id" :aria-pressed="form.subject_id === subject.id"
             :class="[
               'rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-all',
               form.subject_id === subject.id
@@ -66,7 +66,7 @@
           </button>
         </div>
 
-        <button
+        <button type="button"
           @click="next"
           :disabled="!form.subject_id"
           :class="primaryClass(Boolean(form.subject_id))"
@@ -81,16 +81,18 @@
           <p class="text-sm text-slate-500">Describe la dificultad académica con claridad.</p>
         </div>
 
-        <textarea
+        <label for="diagnostic-difficulty" class="block text-sm font-semibold text-slate-700">¿Cuál es la dificultad académica?</label>
+        <textarea id="diagnostic-difficulty"
           v-model="form.difficulty_text"
           rows="5"
           maxlength="500"
           placeholder="Ejemplo: Mi hijo necesita ayuda con ecuaciones y se bloquea en los ejercicios."
           class="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        <p v-if="errors.difficulty_text" class="text-xs text-red-500">{{ errors.difficulty_text }}</p>
+        <p v-if="errors.difficulty_text" role="alert" class="text-sm text-red-700">{{ errors.difficulty_text }}</p>
 
-        <textarea
+        <label for="diagnostic-feedback" class="block text-sm font-semibold text-slate-700">Comentarios del colegio (opcional)</label>
+        <textarea id="diagnostic-feedback"
           v-model="form.school_feedback"
           rows="3"
           maxlength="500"
@@ -98,7 +100,7 @@
           class="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
 
-        <button @click="validateStep3" class="w-full rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white hover:bg-brand-700">
+        <button type="button" @click="validateStep3" class="w-full rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white hover:bg-brand-700">
           Continuar
         </button>
       </section>
@@ -109,7 +111,7 @@
           <p class="text-sm text-slate-500">Elige el objetivo principal de esta solicitud.</p>
         </div>
 
-        <button v-for="goal in goalOptions" :key="goal.value" @click="form.goal = goal.value; next()" :class="optionClass(form.goal === goal.value)">
+        <button type="button" v-for="goal in goalOptions" :key="goal.value" @click="form.goal = goal.value; next()" :class="optionClass(form.goal === goal.value)">
           <span class="text-2xl">{{ goal.icon }}</span>
           <span>
             <span class="block font-bold text-slate-900">{{ goal.label }}</span>
@@ -124,7 +126,7 @@
           <p class="text-sm text-slate-500">La solicitud se enviará a profesores verificados de la materia.</p>
         </div>
 
-        <button v-for="urgency in urgencyOptions" :key="urgency.value" @click="form.urgency = urgency.value" :class="optionClass(form.urgency === urgency.value)">
+        <button type="button" v-for="urgency in urgencyOptions" :key="urgency.value" @click="form.urgency = urgency.value" :aria-pressed="form.urgency === urgency.value" :class="optionClass(form.urgency === urgency.value)">
           <span class="text-2xl">{{ urgency.icon }}</span>
           <span>
             <span class="block font-bold text-slate-900">{{ urgency.label }}</span>
@@ -132,7 +134,7 @@
           </span>
         </button>
 
-        <button @click="submit" :disabled="!form.urgency || loading" :class="primaryClass(Boolean(form.urgency) && !loading)">
+        <button type="button" @click="submit" :disabled="!form.urgency || loading" :class="primaryClass(Boolean(form.urgency) && !loading)">
           {{ loading ? 'Enviando solicitud...' : 'Completar diagnóstico y solicitar clase' }}
         </button>
         <!-- Encontrado auditando Diagnostics: onError guardaba el error bag
@@ -143,7 +145,7 @@
              feedback al padre. Poco probable en el flujo normal (los
              botones ya restringen a valores válidos), pero real si un
              subject/alumno se elimina entre cargar la página y enviar. -->
-        <p v-if="topLevelError" role="alert" class="text-xs text-red-500 text-center">{{ topLevelError }}</p>
+        <p v-if="topLevelError" role="alert" class="text-sm text-red-700 text-center">{{ topLevelError }}</p>
       </section>
     </div>
   </AppLayout>
@@ -205,7 +207,7 @@ function gradeLevelLabel(level) {
 
 function optionClass(active) {
   return [
-    'flex w-full items-center gap-4 rounded-2xl border-2 bg-white p-4 text-left transition-all hover:border-brand-400 hover:shadow-md',
+    'flex min-h-11 w-full items-center gap-4 rounded-2xl border-2 bg-white p-4 text-left transition-colors hover:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500',
     active ? 'border-brand-600 bg-brand-50' : 'border-gray-100',
   ]
 }
@@ -238,7 +240,14 @@ function submit() {
   if (!form.value.urgency || loading.value) return
   loading.value = true
   router.post(route('diagnostics.store'), form.value, {
-    onError: (errorBag) => { errors.value = errorBag },
+    onError: (errorBag) => {
+      errors.value = errorBag
+      if (errorBag.student_id) step.value = 1
+      else if (errorBag.subject_id) step.value = 2
+      else if (errorBag.difficulty_text || errorBag.school_feedback) step.value = 3
+      else if (errorBag.goal) step.value = 4
+      else step.value = 5
+    },
     onFinish: () => { loading.value = false },
   })
 }
