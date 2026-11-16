@@ -65,7 +65,7 @@
             <button
               v-if="automaticCheckoutEnabled"
               type="button"
-              :disabled="payingWithYape === pack.code"
+              :disabled="payingWithYape !== null"
               class="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-brand-600/20 transition-all hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               @click="payWithYape(pack)"
             >
@@ -93,10 +93,11 @@
       </section>
 
       <section class="rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div class="flex flex-wrap gap-2 border-b border-gray-100 p-3">
+        <div role="tablist" aria-label="Historial de créditos" class="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
           <button
             type="button"
             :class="tabClass(activeTab === 'transactions')"
+            role="tab" :aria-selected="activeTab === 'transactions'"
             @click="activeTab = 'transactions'"
           >
             Historial de Transacciones
@@ -104,17 +105,38 @@
           <button
             type="button"
             :class="tabClass(activeTab === 'recharges')"
+            role="tab" :aria-selected="activeTab === 'recharges'"
             @click="activeTab = 'recharges'"
           >
             Estado de Recargas
           </button>
         </div>
 
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <p class="text-xs text-slate-500">
+            Se muestran los últimos 20 registros. Para consultar movimientos anteriores, contacta con soporte.
+          </p>
+          <div v-if="activeTab === 'transactions'" class="flex items-center gap-2">
+            <label for="credit-type-filter" class="text-xs font-semibold text-slate-600">Tipo de movimiento</label>
+            <select id="credit-type-filter" v-model="transactionFilter" class="rounded-xl border-slate-200 text-sm focus:border-brand-500 focus:ring-brand-500">
+              <option value="all">Todos</option>
+              <option v-for="type in transactionTypes" :key="type" :value="type">{{ transactionLabel(type) }}</option>
+            </select>
+          </div>
+          <div v-else class="flex items-center gap-2">
+            <label for="recharge-status-filter" class="text-xs font-semibold text-slate-600">Estado de recarga</label>
+            <select id="recharge-status-filter" v-model="rechargeFilter" class="rounded-xl border-slate-200 text-sm focus:border-brand-500 focus:ring-brand-500">
+              <option value="all">Todos</option>
+              <option v-for="status in rechargeStatuses" :key="status" :value="status">{{ rechargeStatusStyle(status).label }}</option>
+            </select>
+          </div>
+        </div>
+        <div role="status" class="sr-only" aria-live="polite">{{ activeTab === 'transactions' ? visibleCreditTransactions.length : visibleRechargeRequests.length }} registros visibles.</div>
         <div class="overflow-x-auto">
           <!-- Móvil: lista apilada (una tabla de 4-5 columnas no cabe en 360px y aplastaba la descripción). -->
           <ul v-if="activeTab === 'transactions'" class="divide-y divide-gray-100 md:hidden">
-            <li v-if="!creditTransactions.length" class="px-4 py-8 text-center text-sm text-slate-500">Aún no tienes movimientos de créditos.</li>
-            <li v-for="transaction in creditTransactions" :key="transaction.id" class="flex items-start justify-between gap-3 px-4 py-3">
+            <li v-if="!visibleCreditTransactions.length" class="px-4 py-8 text-center text-sm text-slate-500">No hay movimientos de este tipo entre los últimos 20 registros.</li>
+            <li v-for="transaction in visibleCreditTransactions" :key="transaction.id" class="flex items-start justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
                 <p class="mt-1.5 break-words text-sm text-slate-700">{{ transaction.description }}</p>
@@ -125,8 +147,8 @@
             </li>
           </ul>
           <ul v-else class="divide-y divide-gray-100 md:hidden">
-            <li v-if="!rechargeRequests.length" class="px-4 py-8 text-center text-sm text-slate-500">Aún no has enviado solicitudes de recarga.</li>
-            <li v-for="request in rechargeRequests" :key="request.id" class="flex items-start justify-between gap-3 px-4 py-3">
+            <li v-if="!visibleRechargeRequests.length" class="px-4 py-8 text-center text-sm text-slate-500">No hay recargas de este estado entre los últimos 20 registros.</li>
+            <li v-for="request in visibleRechargeRequests" :key="request.id" class="flex items-start justify-between gap-3 px-4 py-3">
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</p>
                 <p class="mt-0.5 text-xs text-slate-600">Operación {{ request.operation_number }}</p>
@@ -148,10 +170,10 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr v-if="!creditTransactions.length">
-                <td colspan="4" class="px-4 py-8 text-center text-slate-500">Aún no tienes movimientos de créditos.</td>
+              <tr v-if="!visibleCreditTransactions.length">
+                <td colspan="4" class="px-4 py-8 text-center text-slate-500">No hay movimientos de este tipo entre los últimos 20 registros.</td>
               </tr>
-              <tr v-for="transaction in creditTransactions" :key="transaction.id">
+              <tr v-for="transaction in visibleCreditTransactions" :key="transaction.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(transaction.created_at) }}</td>
                 <td class="px-4 py-3">
                   <span :class="transactionBadge(transaction.type)">{{ transactionLabel(transaction.type) }}</span>
@@ -178,10 +200,10 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr v-if="!rechargeRequests.length">
-                <td colspan="5" class="px-4 py-8 text-center text-slate-500">Aún no has enviado solicitudes de recarga.</td>
+              <tr v-if="!visibleRechargeRequests.length">
+                <td colspan="5" class="px-4 py-8 text-center text-slate-500">No hay recargas de este estado entre los últimos 20 registros.</td>
               </tr>
-              <tr v-for="request in rechargeRequests" :key="request.id">
+              <tr v-for="request in visibleRechargeRequests" :key="request.id">
                 <td class="whitespace-nowrap px-4 py-3 text-slate-500">{{ fmtDate(request.created_at) }}</td>
                 <td class="px-4 py-3 font-semibold text-slate-900">{{ request.package_name }} · {{ request.credits }} créditos</td>
                 <td class="px-4 py-3 text-slate-700">{{ request.operation_number }}</td>
@@ -318,6 +340,17 @@ const props = defineProps({
 })
 
 const activeTab = ref('transactions')
+const transactionFilter = ref('all')
+const rechargeFilter = ref('all')
+const transactionTypes = computed(() => [...new Set(props.creditTransactions.map(t => t.type).filter(Boolean))])
+const rechargeStatuses = computed(() => [...new Set(props.rechargeRequests.map(r => r.status).filter(Boolean))])
+const visibleCreditTransactions = computed(() => props.creditTransactions.filter(t =>
+  transactionFilter.value === 'all' || t.type === transactionFilter.value
+))
+const visibleRechargeRequests = computed(() => props.rechargeRequests.filter(r =>
+  rechargeFilter.value === 'all' || r.status === rechargeFilter.value
+))
+
 const showRechargeModal = ref(false)
 const selectedPackage = ref(null)
 const payingWithYape = ref(null)
