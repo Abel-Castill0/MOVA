@@ -236,12 +236,22 @@ class ClassRequestController extends Controller
             $classRequest->teacher_referral_code = $teacherProfileId ? strtoupper($rawCode) : null;
             $classRequest->save();
 
-            event(new ClassRequestCreated($classRequest));
-
             return $classRequest;
         });
 
-        return redirect()->route('class-requests.index')->with('success', 'Solicitud enviada.');
+        // Encolar el aviso solo DESPUÉS del commit. Si un worker consume el job
+        // antes de que el INSERT sea visible, SerializesModels puede fallar al
+        // rehidratar la solicitud. Un reintento deduplicado tampoco debe
+        // generar otra notificación para el mismo registro.
+        if ($classRequest->wasRecentlyCreated) {
+            event(new ClassRequestCreated($classRequest));
+        }
+
+        $message = $classRequest->status === 'pending_parent_approval'
+            ? 'Solicitud guardada. Está pendiente de tu aprobación antes de llegar a los profesores.'
+            : 'Solicitud publicada. Los profesores verificados de la materia podrán verla en su panel.';
+
+        return redirect()->route('class-requests.index')->with('success', $message);
     }
 
     public function index()
