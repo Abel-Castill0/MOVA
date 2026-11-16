@@ -21,3 +21,17 @@ test('week grouping uses Monday in Peru even when UTC has crossed into the next 
   assert.deepEqual(result.past.map(e => e.id), ['sun'])
   assert.deepEqual(result.thisWeek.map(e => e.id), ['mon'])
 })
+
+import { toPeruDateTimeLocal, peruLocalDateTimeToIso } from '../../resources/js/utils/peruDate.js'
+
+test('hora civil de Perú convertida a UTC independientemente del dispositivo', () => {
+  const utc = '2026-11-17T01:00:00.000Z'
+  assert.equal(toPeruDateTimeLocal(utc), '2026-11-16T20:00')
+  assert.equal(peruLocalDateTimeToIso('2026-11-16T20:00'), utc)
+})
+
+test('datetime-local inválido se rechaza en lugar de cambiar de fecha', () => {
+  assert.throws(() => peruLocalDateTimeToIso('2026-02-30T18:00'), RangeError)
+  assert.throws(() => peruLocalDateTimeToIso(''), RangeError)
+  assert.throws(() => peruLocalDateTimeToIso('2026-11-16T25:30'), RangeError)
+})
