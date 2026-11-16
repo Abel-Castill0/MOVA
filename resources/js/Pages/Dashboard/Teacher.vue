@@ -109,6 +109,7 @@
           </div>
           <p class="text-2xl sm:text-3xl font-black text-orange-600 tabular-nums">{{ pending_requests }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Solicitudes abiertas</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Se actualiza automáticamente.</p>
           <p class="text-xs text-slate-500 mt-0.5 leading-snug truncate">
             <template v-if="pending_requests === 0">Tienes 0 solicitudes pendientes</template>
             <template v-else-if="pending_requests === 1">Tienes 1 solicitud pendiente</template>
@@ -369,6 +370,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Icon from '@/Components/Icon.vue'
 import { splitByWeek } from '@/utils/weekGrouping'
+import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh'
 
 const props = defineProps({
   upcoming: { type: Array, default: () => [] },
@@ -379,6 +381,10 @@ const props = defineProps({
   profile_checklist: { type: Object, default: () => ({}) },
   has_offers: { type: Boolean, default: false },
 })
+
+// Mantiene actualizado el contador aunque el padre envíe su solicitud desde
+// otro navegador o sesión. Cada refresh reevalúa verificación y permisos.
+useVisibleInertiaRefresh(['pending_requests'])
 
 const hasOffers = computed(() => props.has_offers)
 
