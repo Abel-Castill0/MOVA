@@ -103,8 +103,14 @@
           </span>
         </div>
 
+        <!-- Un profesor que deja la pestaña abierta necesita consultar nuevas solicitudes. -->
         <!-- Controles de búsqueda y ordenamiento -->
         <div class="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          <button type="button" @click="refresh" :disabled="isRefreshing"
+            class="px-3 py-2.5 text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-blue-500"
+            aria-label="Actualizar solicitudes">
+            {{ isRefreshing ? 'Actualizando…' : 'Actualizar' }}
+          </button>
           <!-- Buscador en vivo por alumno o materia -->
           <div :class="['relative w-full sm:w-72', isMobile && showFloatingSearch ? 'hidden' : '']">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -166,7 +172,11 @@
             <Search class="w-10 h-10 mx-auto mb-2.5 text-slate-400" :stroke-width="1.6" aria-hidden="true" />
             <p class="font-bold text-slate-800 text-base">No se encontraron solicitudes</p>
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
-              {{ verificationPending ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.' : 'Prueba cambiando los términos de búsqueda o filtros.' }}
+              {{ verificationPending
+                ? 'Las solicitudes aparecerán aquí cuando tu perfil esté verificado.'
+                : searchQuery.trim()
+                  ? 'No hay solicitudes que coincidan con esta búsqueda.'
+                  : 'Todavía no hay solicitudes abiertas para las materias de tu perfil. La lista se actualiza automáticamente.' }}
             </p>
           </div>
 
@@ -861,11 +871,12 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Icon from '@/Components/Icon.vue'
 import { Search } from 'lucide-vue-next'
+import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh'
 
 const props = defineProps({
   requests:           { type: Array, default: () => [] },
@@ -1303,6 +1314,24 @@ function submitReject() {
     }
   )
 }
+
+// Mantener el detalle sincronizado con las props del servidor: el refresco
+// automático puede eliminar una solicitud aceptada por otro profesor.
+watch(() => props.requests, (requests) => {
+  if (!selectedRequest.value) {
+    if (!isMobile.value && requests.length) selectedRequest.value = requests[0]
+    return
+  }
+  selectedRequest.value = requests.find(r => r.id === selectedRequest.value.id)
+    ?? (!isMobile.value ? requests[0] ?? null : null)
+})
+
+const { refresh, isRefreshing } = useVisibleInertiaRefresh(
+  ['requests', 'counterofferedRequests', 'rejectedRequests', 'verificationPending'],
+  {
+    shouldRefresh: () => !counterofferTarget.value && !rejectTarget.value && !counterofferForm.processing && !rejecting.value,
+  }
+)
 
 function fmtDate(d) {
   if (!d) return '—'
