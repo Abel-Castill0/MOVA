@@ -96,16 +96,14 @@
         <div role="group" aria-label="Sección del historial de créditos" class="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
           <button
             type="button"
-            :class="tabClass(activeTab === 'transactions')"
-            type="button" :aria-pressed="activeTab === 'transactions'"
+            :class="tabClass(activeTab === 'transactions')" :aria-pressed="activeTab === 'transactions'"
             @click="activeTab = 'transactions'"
           >
             Historial de Transacciones
           </button>
           <button
             type="button"
-            :class="tabClass(activeTab === 'recharges')"
-            type="button" :aria-pressed="activeTab === 'recharges'"
+            :class="tabClass(activeTab === 'recharges')" :aria-pressed="activeTab === 'recharges'"
             @click="activeTab = 'recharges'"
           >
             Estado de Recargas
