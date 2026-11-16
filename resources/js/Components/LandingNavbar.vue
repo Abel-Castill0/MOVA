@@ -145,7 +145,7 @@
             </template>
 
             <!-- Circular Hamburger button -->
-            <button @click="mobileOpen = !mobileOpen"
+            <button ref="mobileMenuTrigger" type="button" :aria-expanded="mobileOpen" aria-controls="landing-mobile-nav" @click="mobileOpen = !mobileOpen"
               :class="['w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-95',
                 isSolid ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs']"
               aria-label="Menú">
@@ -169,7 +169,8 @@
     <Transition
       enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100"
       leave-active-class="transition duration-200 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-      <div v-if="mobileOpen" class="md:hidden fixed inset-0 z-50 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700">
+      <div v-if="mobileOpen" id="landing-mobile-nav" ref="mobileMenuPanel" role="dialog" aria-modal="true" aria-label="Navegación principal" @keydown.tab="trapMobileMenuFocus"
+        class="md:hidden fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700">
         <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px"></div>
 
         <div class="relative h-full flex flex-col px-6 pt-5 pb-8">
@@ -177,7 +178,7 @@
             <Link href="/" class="flex items-center" @click="mobileOpen = false">
               <MovaLogo theme="blanco" class="h-8 w-auto" />
             </Link>
-            <button @click="mobileOpen = false" aria-label="Cerrar menú" class="p-2 -mr-2 rounded-lg text-white/80 hover:text-white">
+            <button ref="mobileMenuClose" type="button" @click="mobileOpen = false" aria-label="Cerrar menú" class="p-2 -mr-2 rounded-lg text-white/80 hover:text-white">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -235,10 +236,11 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import MovaLogo from '@/Components/MovaLogo.vue'
 import { primaryRole, roleLabel } from '@/utils/roleLabels'
+import { lockBodyScroll } from '@/utils/bodyScrollLock.js'
 
 const props = defineProps({
   solid: { type: Boolean, default: false },
@@ -246,6 +248,10 @@ const props = defineProps({
 
 const scrolled = ref(false)
 const mobileOpen = ref(false)
+const mobileMenuTrigger = ref(null)
+const mobileMenuPanel = ref(null)
+const mobileMenuClose = ref(null)
+let releaseMobileScroll = null
 const userMenuOpen = ref(false)
 const userMenuRef = ref(null)
 
@@ -262,15 +268,37 @@ function onDocumentClick(e) {
 function onDocumentKeydown(e) {
   if (e.key === 'Escape') {
     userMenuOpen.value = false
+    if (mobileOpen.value) {
+      mobileOpen.value = false
+      e.stopPropagation()
+    }
   }
 }
 
 // El menú full-screen tapa toda la pantalla; sin esto el contenido detrás
 // sigue haciendo scroll con el dedo y se nota el "doble scroll".
 watch(mobileOpen, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    releaseMobileScroll?.()
+    releaseMobileScroll = lockBodyScroll()
+    nextTick(() => mobileMenuClose.value?.focus())
+  } else {
+    releaseMobileScroll?.()
+    releaseMobileScroll = null
+    nextTick(() => mobileMenuTrigger.value?.focus())
+  }
 })
-onUnmounted(() => { document.body.style.overflow = '' })
+onUnmounted(() => { releaseMobileScroll?.() })
+
+function trapMobileMenuFocus(event) {
+  if (!mobileOpen.value || !mobileMenuPanel.value) return
+  const items = [...mobileMenuPanel.value.querySelectorAll('a[href],button:not([disabled])')]
+    .filter(el => el.getClientRects().length > 0)
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+}
 
 const navLinks = [
   { href: '/', label: 'Inicio' },

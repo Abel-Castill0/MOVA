@@ -239,9 +239,9 @@
     </div>
 
     <!-- ── Modal de cierre ──────────────────────────────────────────────── -->
-    <Modal :show="closing !== null" max-width="lg" @close="cancelClose">
+    <Modal :show="closing !== null" max-width="lg" title-id="close-operation-title" :closeable="!closeForm.processing" @close="cancelClose">
       <form class="p-6" @submit.prevent="submitClose">
-        <h2 class="text-lg font-bold text-ink">Cerrar incidencia</h2>
+        <h2 id="close-operation-title" class="text-lg font-bold text-ink">Cerrar incidencia</h2>
         <p class="mt-1.5 text-sm leading-relaxed text-ink-muted">
           Esto cierra la incidencia operativa. <strong class="font-semibold text-ink">No modifica el pago,
           la clase, la recarga ni el ledger.</strong> Si el problema sigue ahí y MOVA vuelve a detectarlo,

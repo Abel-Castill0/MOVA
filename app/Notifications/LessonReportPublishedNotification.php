@@ -81,6 +81,13 @@ class LessonReportPublishedNotification extends Notification implements ShouldQu
 
     public function toBroadcast($notifiable): BroadcastMessage
     {
-        return new BroadcastMessage($this->toArray($notifiable));
+        // Broadcast es una señal mínima: el reporte completo se obtiene
+        // únicamente desde una ruta autenticada con Policy del alumno.
+        return new BroadcastMessage([
+            'type' => 'lesson_report_published',
+            'report_id' => $this->report->id,
+            'lesson_id' => $this->report->lesson_id,
+            'message' => 'Nuevo reporte de aprendizaje disponible.',
+        ]);
     }
 }

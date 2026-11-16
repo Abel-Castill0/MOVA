@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,6 +21,23 @@ use Illuminate\Support\Carbon;
 class LimaClock
 {
     public const TIMEZONE = 'America/Lima';
+
+    /**
+     * Fecha/hora de una clase en Perú sin modificar el Carbon UTC del modelo.
+     * Formato único en email, WhatsApp y mensajes de notificaciones internas.
+     */
+    public static function formatClassDate(CarbonInterface $instant): string
+    {
+        return $instant->copy()
+            ->setTimezone(self::TIMEZONE)
+            ->format('d/m/Y \a \l\a\s H:i').' (hora de Perú)';
+    }
+
+    /** Fecha local: el día puede ser distinto al de UTC cerca de medianoche. */
+    public static function formatClassDay(CarbonInterface $instant): string
+    {
+        return $instant->copy()->setTimezone(self::TIMEZONE)->format('d/m/Y');
+    }
 
     /**
      * Rango [inicio, fin) del día calendario actual en Lima, expresado en UTC

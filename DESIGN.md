@@ -63,19 +63,15 @@ temas por consistencia de API, no porque en oscuro haga falta.
 | Token | Claro | Ratio vs. superficie | Oscuro | Ratio |
 |---|---|---|---|---|
 | `--line` | `#F3F4F6` (gray-100) | ~1:1 (decorativo) | `#2A3650` | ~1.5:1 (decorativo) |
-| `--line-strong` | `#94A3B8` (slate-400) | 2.56:1 | `#5A6BA0` | **3.35:1** |
+| `--line-strong` | `#768395` | **3.85:1** | `#5A6BA0` | **3.35:1** |
 
-**Hallazgo honesto, no escondido:** `--line-strong` en modo claro (2.56:1) es
-una mejora real sobre el `border-gray-300` que hoy usan `TextInput`/`Checkbox`
-(1.47:1), pero **no alcanza el 3:1** que pide WCAG 1.4.11 para límites de
-componente funcional. Alcanzar 3:1 en claro exigiría un borde tan oscuro
-(`slate-500`, `#64748B`) que se vería como un contorno pesado en cada input
-de la app — un cambio de peso visual que este pase de fundaciones no asume
-unilateralmente. La mitigación real hoy es el anillo de foco (`--focus-ring`,
-alto contraste, verificado) y el `<label>` visible en cada campo, que es lo
-que efectivamente comunica el límite del control. En oscuro `--line-strong`
-sí alcanza 3:1 real (3.35:1) porque la escala tonal ahí lo permite sin ese
-costo visual. Se documenta como mejora pendiente, no como "resuelto".
+**Corrección del 16/11/2026:** `--line-strong` en claro se ajustó a
+`#768395` (3.85:1 contra blanco) para que los bordes funcionales tengan
+contraste suficiente sin llegar al peso visual de `slate-500` (4.76:1).
+En oscuro se conserva `#5A6BA0` (3.35:1). El borde funcional, las etiquetas
+de campo y el anillo de foco son señales complementarias; los separadores
+decorativos se mantienen en `--line`. Esta cifra corresponde a los tokens,
+no acredita por sí sola WCAG AA de todas las páginas.
 
 **Regla de uso explícita (para no reservar `--line-strong` de forma
 inconsistente página por página):**

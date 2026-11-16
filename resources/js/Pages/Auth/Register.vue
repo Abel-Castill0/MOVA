@@ -33,6 +33,10 @@ const form = useForm({
 const totalSteps = computed(() => form.role === 'teacher' ? 6 : 5)
 const passwordStep = computed(() => form.role === 'teacher' ? 5 : 4)
 const step = ref(1)
+const registrationRoles = [
+  { value: 'parent', icon: 'role-parent', label: 'Soy padre o madre', description: 'Busco acompañamiento académico para mis hijos.' },
+  { value: 'teacher', icon: 'role-teacher', label: 'Soy profesor', description: 'Quiero enseñar y acompañar estudiantes.' },
+]
 
 let bodyObserver = null
 onMounted(() => {
@@ -80,11 +84,13 @@ function removeSubject(subject) {
 }
 
 function next() {
+  if (form.processing || !isCurrentStepValid.value) return
   if (step.value === 4 && form.role === 'teacher') addSubject()
   if (step.value < totalSteps.value) step.value += 1
 }
 
 function back() {
+  if (form.processing) return
   if (step.value > 1) step.value -= 1
 }
 
@@ -99,6 +105,7 @@ function stepForField(field) {
 }
 
 function submit() {
+  if (form.processing || !form.accepted_terms) return
   form.post(route('register'), {
     onError: (errors) => {
       const fields = Object.keys(errors)
@@ -197,53 +204,26 @@ function submit() {
                   </div>
                 </div>
 
-                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3" role="radiogroup" aria-label="Selección de rol">
-                  <!-- Tarjeta: Soy padre -->
-                  <div
-                    role="radio"
-                    :aria-checked="form.role === 'parent'"
-                    tabindex="0"
-                    @click="form.role = 'parent'"
-                    @keydown.space.prevent="form.role = 'parent'"
-                    @keydown.enter.prevent="form.role = 'parent'"
-                    class="relative rounded-xl p-3 sm:p-3.5 text-left transition-all duration-150 flex items-start gap-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-                    :class="form.role === 'parent' ? 'border-2 border-[#1B60C4] bg-[#EEF4FF] shadow-sm' : 'border border-slate-200 bg-white hover:border-slate-300'"
-                  >
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'parent' ? 'text-[#1B60C4]' : 'text-slate-500'">
-                      <Icon name="role-parent" :size="20" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <span class="block font-bold text-sm text-slate-900 leading-tight">Soy padre</span>
-                      <span class="block text-xs text-slate-500 mt-0.5 leading-tight">Busco apoyo para mis hijos.</span>
-                    </div>
-                    <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'parent' ? 'border-2 border-[#1B60C4] bg-white' : 'border border-slate-300 bg-white'">
-                      <div v-if="form.role === 'parent'" class="w-2 h-2 rounded-full bg-[#1B60C4]" />
-                    </div>
-                  </div>
-
-                  <!-- Tarjeta: Soy profesor -->
-                  <div
-                    role="radio"
-                    :aria-checked="form.role === 'teacher'"
-                    tabindex="0"
-                    @click="form.role = 'teacher'"
-                    @keydown.space.prevent="form.role = 'teacher'"
-                    @keydown.enter.prevent="form.role = 'teacher'"
-                    class="relative rounded-xl p-3 sm:p-3.5 text-left transition-all duration-150 flex items-start gap-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-                    :class="form.role === 'teacher' ? 'border-2 border-[#1B60C4] bg-[#EEF4FF] shadow-sm' : 'border border-slate-200 bg-white hover:border-slate-300'"
-                  >
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'teacher' ? 'text-[#1B60C4]' : 'text-slate-500'">
-                      <Icon name="role-teacher" :size="20" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <span class="block font-bold text-sm text-slate-900 leading-tight">Soy profesor</span>
-                      <span class="block text-xs text-slate-500 mt-0.5 leading-tight">Quiero enseñar en MOVA.</span>
-                    </div>
-                    <div class="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" :class="form.role === 'teacher' ? 'border-2 border-[#1B60C4] bg-white' : 'border border-slate-300 bg-white'">
-                      <div v-if="form.role === 'teacher'" class="w-2 h-2 rounded-full bg-[#1B60C4]" />
-                    </div>
-                  </div>
-                </div>
+                <fieldset v-else class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <legend class="sr-only">¿Cómo usarás MOVA?</legend>
+                  <label v-for="option in registrationRoles" :key="option.value"
+                    class="relative flex min-h-[88px] cursor-pointer items-start gap-3 rounded-xl border-2 p-4 text-left transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600"
+                    :class="form.role === option.value ? 'border-brand-700 bg-brand-50' : 'border-slate-300 bg-white hover:border-brand-400'">
+                    <input type="radio" name="registration-role" :value="option.value" v-model="form.role"
+                      class="sr-only" :aria-describedby="'registration-role-help-' + option.value" />
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700">
+                      <Icon :name="option.icon" :size="22" aria-hidden="true" />
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-sm font-bold text-slate-900">{{ option.label }}</span>
+                      <span :id="'registration-role-help-' + option.value" class="mt-1 block text-sm leading-snug text-slate-600">{{ option.description }}</span>
+                    </span>
+                    <span aria-hidden="true" class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2"
+                      :class="form.role === option.value ? 'border-brand-700 bg-white' : 'border-slate-400'">
+                      <span v-if="form.role === option.value" class="h-2.5 w-2.5 rounded-full bg-brand-700"></span>
+                    </span>
+                  </label>
+                </fieldset>
                 <InputError class="mt-1.5" :message="form.errors.role" />
               </div>
 
@@ -563,11 +543,11 @@ function submit() {
                   type="checkbox"
                   class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 />
-                <span class="text-xs leading-relaxed text-slate-600">
+                <span class="text-sm leading-relaxed text-slate-700">
                   He leído y acepto los
-                  <a :href="route('legal.terms')" target="_blank" class="text-brand-600 font-semibold hover:underline">Términos y Condiciones</a>
+                  <a :href="route('legal.terms')" target="_blank" rel="noopener noreferrer" class="text-brand-700 font-semibold hover:underline">Términos y Condiciones</a>
                   y la
-                  <a :href="route('legal.privacy')" target="_blank" class="text-brand-600 font-semibold hover:underline">Política de Privacidad</a>
+                  <a :href="route('legal.privacy')" target="_blank" rel="noopener noreferrer" class="text-brand-700 font-semibold hover:underline">Política de Privacidad</a>
                   de MOVA.
                 </span>
               </label>

@@ -28,11 +28,11 @@
             </div>
             <div class="flex gap-1">
               <Link :href="route('students.edit', s.id)"
-                class="text-xs text-brand-600 hover:text-brand-800 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium">
+                class="inline-flex min-h-11 items-center text-sm text-brand-700 hover:text-brand-900 hover:bg-brand-50 px-3 py-2 rounded-lg transition-colors font-semibold">
                 Editar
               </Link>
               <button type="button"
-                class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                class="inline-flex min-h-11 items-center text-sm text-red-700 hover:text-red-900 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors font-semibold"
                 @click="deleteTarget = s">Eliminar</button>
             </div>
           </div>
@@ -45,9 +45,9 @@
       alumno y decir qué se pierde, no preguntar en abstracto. Además el
       confirm() nativo no permite bloquear el doble envío.
     -->
-    <Modal :show="!!deleteTarget" max-width="md" @close="closeDelete">
+    <Modal :show="!!deleteTarget" max-width="md" title-id="delete-student-title" :closeable="!deleting" @close="closeDelete">
       <div v-if="deleteTarget" class="p-6">
-        <h3 class="text-lg font-black text-slate-900">Eliminar a {{ deleteTarget.full_name }}</h3>
+        <h3 id="delete-student-title" class="text-lg font-bold text-slate-900">Eliminar a {{ deleteTarget.full_name }}</h3>
         <p class="mt-2 text-sm text-slate-600">
           Se eliminará su ficha y dejará de aparecer en tus solicitudes. Esta acción no se puede deshacer.
         </p>
@@ -55,7 +55,7 @@
           El historial de clases ya realizadas se conserva por motivos contables.
         </p>
 
-        <p v-if="deleteError" class="mt-3 text-sm font-semibold text-red-600">{{ deleteError }}</p>
+        <p v-if="deleteError" class="mt-3 text-sm font-semibold text-red-700" role="alert">{{ deleteError }}</p>
 
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <SecondaryButton type="button" :disabled="deleting" @click="closeDelete">Cancelar</SecondaryButton>
@@ -90,7 +90,7 @@ function closeDelete() {
 }
 
 function submitDelete() {
-  if (deleting.value) return
+  if (deleting.value || !deleteTarget.value) return
   deleting.value = true
   router.delete(route('students.destroy', deleteTarget.value.id), {
     preserveScroll: true,

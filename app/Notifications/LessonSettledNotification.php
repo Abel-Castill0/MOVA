@@ -6,6 +6,7 @@ use App\Models\Lesson;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -22,9 +23,9 @@ use Illuminate\Notifications\Notification;
  * LessonSettlementService::consume(..., notify: true), usado únicamente por
  * SettleLessons.
  *
- * Canales deliberadamente mínimos (database + mail, sin WhatsApp ni
- * broadcast): es una confirmación informativa, no una alerta urgente — no
- * amerita el mismo canal inmediato que un recordatorio de clase.
+ * Canales: database, mail (si existe correo verificado) y broadcast privado
+ * con metadatos mínimos. Sin WhatsApp: no es una alerta urgente.
+ * La notificación en vivo solo fuerza a actualizar el saldo del servidor.
  *
  * NUNCA debe incluir jitsi_room/jitsi_password ni una URL de meet.jit.si —
  * mismo riesgo que C-3 (533a799): un token de acceso a una videollamada con
@@ -34,11 +35,14 @@ class LessonSettledNotification extends Notification implements ShouldQueue
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public Lesson $lesson) {}
+    public function __construct(public Lesson $lesson)
+    {
+        $this->afterCommit();
+    }
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -67,6 +71,15 @@ class LessonSettledNotification extends Notification implements ShouldQueue
             ->line("La clase de **{$subject}** de {$student} se completó automáticamente. Puede calificar al profesor cuando quiera.")
             ->action('Ver mis clases', $this->appRoute('parent.lessons'))
             ->salutation('El equipo de MOVA');
+    }
+
+    /** No transmitir detalles de clases o alumnos en un aviso de liquidación. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'lesson_settled',
+            'message' => 'El estado de una clase se actualizó.',
+        ]);
     }
 
     public function toArray($notifiable): array

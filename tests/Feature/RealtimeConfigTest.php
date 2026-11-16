@@ -76,6 +76,23 @@ class RealtimeConfigTest extends TestCase
             );
     }
 
+    public function test_pusher_http_api_host_is_public_but_must_not_be_used_as_websocket_endpoint(): void
+    {
+        config([
+            'broadcasting.default' => 'pusher',
+            'broadcasting.connections.pusher.key' => 'app-key-123',
+            'broadcasting.connections.pusher.options.cluster' => 'sa1',
+            'broadcasting.connections.pusher.options.host' => 'api-sa1.pusher.com',
+        ]);
+
+        $this->actingAs(User::factory()->create())->get('/dashboard')
+            ->assertInertia(fn ($page) => $page
+                ->where('realtime.enabled', true)
+                ->where('realtime.host', 'api-sa1.pusher.com')
+            );
+        // tests/Frontend/pusherHosts.test.mjs verifies the client maps api-* to ws-*.
+    }
+
     public function test_pusher_secret_is_never_present_in_inertia_props(): void
     {
         config([

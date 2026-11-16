@@ -6,6 +6,7 @@ use App\Models\ClassRequest;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -21,7 +22,7 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -54,6 +55,16 @@ class ParentApprovalRequestNotification extends Notification implements ShouldQu
             . "Hay una solicitud de clase de {$subject} pendiente de su aprobación.\n"
             . "Ingrese a MOVA para aprobarla o rechazarla:\n"
             . $this->appRoute('class-requests.index');
+    }
+
+    /** No compartir el nombre del menor en eventos WebSocket. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'parent_approval_required',
+            'request_id' => $this->classRequest->id,
+            'message' => 'Hay una solicitud pendiente de tu aprobación.',
+        ]);
     }
 
     public function toArray($notifiable): array

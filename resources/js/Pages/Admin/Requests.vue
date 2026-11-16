@@ -4,7 +4,8 @@
       <div class="flex items-center justify-between flex-wrap gap-3">
         <h2 class="text-2xl font-bold text-gray-900">Solicitudes de clase</h2>
         <div class="flex flex-wrap gap-2">
-          <button v-for="s in statuses" :key="s.value ?? 'all'"
+          <button v-for="s in statuses" :key="s.value ?? 'all'" type="button"
+            :aria-pressed="statusFilter === s.value"
             @click="setFilter(s.value)"
             :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
               statusFilter === s.value
@@ -61,8 +62,8 @@
       <div v-if="requests.last_page > 1" class="flex items-center justify-between text-sm text-gray-500">
         <span>{{ requests.from }}–{{ requests.to }} de {{ requests.total }}</span>
         <div class="flex gap-1">
-          <Link v-if="requests.prev_page_url" :href="requests.prev_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">←</Link>
-          <Link v-if="requests.next_page_url" :href="requests.next_page_url" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">→</Link>
+          <Link v-if="requests.prev_page_url" :href="requests.prev_page_url" aria-label="Página anterior de solicitudes" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">←</Link>
+          <Link v-if="requests.next_page_url" :href="requests.next_page_url" aria-label="Página siguiente de solicitudes" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">→</Link>
         </div>
       </div>
     </div>
@@ -93,7 +94,10 @@ function setFilter(status) {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric',
+  })
 }
 
 // Deduplicado: antes tenía su propio mapeo estado→color independiente de

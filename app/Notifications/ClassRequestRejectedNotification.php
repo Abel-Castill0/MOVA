@@ -6,6 +6,7 @@ use App\Models\ClassRequest;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -13,11 +14,14 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public ClassRequest $request) {}
+    public function __construct(public ClassRequest $request)
+    {
+        $this->afterCommit();
+    }
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -41,6 +45,16 @@ class ClassRequestRejectedNotification extends Notification implements ShouldQue
             ->line('Puede buscar otro profesor disponible en el marketplace.')
             ->action('Ver solicitudes', $this->appRoute('class-requests.index'))
             ->salutation('El equipo de MOVA');
+    }
+
+    /** El motivo libre puede contener datos personales; transmitir solo el cambio de estado. */
+    public function toBroadcast($notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'class_request_rejected',
+            'class_request_id' => $this->request->id,
+            'message' => 'Una solicitud cambió de estado.',
+        ]);
     }
 
     public function toArray($notifiable): array

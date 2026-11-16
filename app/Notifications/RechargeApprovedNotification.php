@@ -6,6 +6,7 @@ use App\Models\RechargeRequest;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -19,7 +20,7 @@ class RechargeApprovedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        $channels = ['mail'];
+        $channels = ['mail', 'broadcast'];
         if ($notifiable->phone_verified_at) {
             $channels[] = \App\Channels\WhatsAppChannel::class;
         }
@@ -44,6 +45,15 @@ class RechargeApprovedNotification extends Notification implements ShouldQueue
             ->line('Ya puede utilizar su saldo para aceptar nuevas solicitudes de clases.')
             ->action('Ver mis créditos', $this->appRoute('teacher.credits.index'))
             ->salutation('El equipo de MOVA');
+    }
+
+    /** Solo una señal de lectura: nunca acreditar usando datos WebSocket. */
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'credits_updated',
+            'message' => 'Recarga acreditada. Consulta tu saldo actualizado.',
+        ]);
     }
 
     public function toArray(object $notifiable): array

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { lockBodyScroll } from '@/utils/bodyScrollLock.js';
 
 /**
  * Reescrito con checklist de accesibilidad explícito (no solo "focus trap"):
@@ -40,33 +41,38 @@ const emit = defineEmits(['close']);
 
 const panel = ref(null);
 let lastFocusedElement = null;
+let releaseScrollLock = null;
 
 const FOCUSABLE_SELECTOR =
     'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function focusableElements() {
     if (!panel.value) return [];
-    return Array.from(panel.value.querySelectorAll(FOCUSABLE_SELECTOR));
+    return Array.from(panel.value.querySelectorAll(FOCUSABLE_SELECTOR))
+        .filter(el => el.getClientRects().length > 0);
 }
 
 watch(
     () => props.show,
     (show) => {
         if (show) {
-            document.body.style.overflow = 'hidden';
+            releaseScrollLock?.();
+            releaseScrollLock = lockBodyScroll();
             lastFocusedElement = document.activeElement;
             nextTick(() => {
                 const [first] = focusableElements();
                 (first ?? panel.value)?.focus();
             });
         } else {
-            document.body.style.overflow = null;
+            releaseScrollLock?.();
+            releaseScrollLock = null;
             // Restaura el foco a quien abrió el modal — sin esto, tras
             // cerrar, el foco del teclado queda perdido en el <body>.
             lastFocusedElement?.focus?.();
             lastFocusedElement = null;
         }
-    }
+    },
+    { immediate: true }
 );
 
 const close = () => {
@@ -105,7 +111,8 @@ onMounted(() => document.addEventListener('keydown', onKeydown));
 
 onUnmounted(() => {
     document.removeEventListener('keydown', onKeydown);
-    document.body.style.overflow = null;
+    releaseScrollLock?.();
+    releaseScrollLock = null;
 });
 
 const maxWidthClass = computed(() => {
@@ -175,8 +182,9 @@ const maxWidthClass = computed(() => {
                         role="dialog"
                         aria-modal="true"
                         :aria-labelledby="titleId ?? undefined"
+                        :aria-label="titleId ? undefined : 'Ventana de MOVA'"
                         tabindex="-1"
-                        class="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-surface rounded-t-elevated shadow-elevation-3 outline-none pb-[env(safe-area-inset-bottom)] sm:relative sm:mb-6 sm:mx-auto sm:max-h-none sm:rounded-elevated sm:overflow-visible sm:pb-0 sm:w-full"
+                        class="fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto bg-surface rounded-t-elevated shadow-elevation-3 outline-none pb-[env(safe-area-inset-bottom)] sm:relative sm:mb-6 sm:mx-auto sm:max-h-[90dvh] sm:rounded-elevated sm:overflow-y-auto sm:pb-0 sm:w-full"
                         :class="maxWidthClass"
                         @click.stop
                     >

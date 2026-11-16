@@ -42,12 +42,12 @@
 
         <!-- Date/time -->
         <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1.5">
-            Fecha y hora de inicio <span class="text-red-500">*</span>
+          <label for="lesson-start-peru" class="block text-sm font-semibold text-slate-700 mb-1.5">
+            Fecha y hora de inicio (hora de Perú) <span class="text-red-500">*</span>
           </label>
-          <input v-model="form.start_time" type="datetime-local" required :min="minDateTime"
+          <input id="lesson-start-peru" v-model="form.start_time" type="datetime-local" required :min="minDateTime"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
-          <p v-if="form.errors.start_time" class="text-xs text-red-500 mt-1">{{ form.errors.start_time }}</p>
+          <p v-if="form.errors.start_time || dateError" class="text-sm text-red-700 mt-1" role="alert">{{ form.errors.start_time || dateError }}</p>
         </div>
 
         <!-- Duration -->
@@ -112,9 +112,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import { toPeruDateTimeLocal, peruLocalDateTimeToIso } from '@/utils/peruDate.js'
 
 const props = defineProps({
   classRequest: Object,
@@ -146,17 +147,23 @@ const canAffordSelected = computed(() => selectedCredits.value <= props.creditsA
 const projectedEarnings = computed(() => props.hourlyRate * selectedCredits.value)
 
 // Minimum selectable time = now + 5 min
-const minDateTime = computed(() => {
-  const d = new Date(Date.now() + 5 * 60000)
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 16)
-})
+const minDateTime = computed(() => toPeruDateTimeLocal(Date.now() + 5 * 60000))
+const dateError = ref('')
 
 function submit() {
+  if (form.processing || !canAffordSelected.value) return
+  dateError.value = ''
+  let startTime
+  try {
+    startTime = peruLocalDateTimeToIso(form.start_time)
+  } catch (error) {
+    dateError.value = error.message
+    return
+  }
   form
     .transform(data => ({
       ...data,
-      start_time: new Date(data.start_time).toISOString(),
+      start_time: startTime,
     }))
     .post(route('lessons.store'))
 }

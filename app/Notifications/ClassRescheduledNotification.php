@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Support\LimaClock;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -21,7 +22,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
         }
@@ -34,7 +35,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
     /** Sin motivo libre ni datos del alumno: solo fechas y enlace (minimización de datos de menores). */
     public function toWhatsApp($notifiable): string
     {
-        $newDate = $this->lesson->start_time->format('d/m/Y H:i');
+        $newDate = LimaClock::formatClassDate($this->lesson->start_time);
         $link = $notifiable->hasRole('teacher') ? $this->appRoute('teacher.lessons') : $this->appRoute('parent.lessons');
 
         return "MOVA — Clase reprogramada\n\n"
@@ -45,9 +46,9 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable): MailMessage
     {
-        $newDate     = $this->lesson->start_time->format('d/m/Y \a \l\a\s H:i');
+        $newDate     = LimaClock::formatClassDate($this->lesson->start_time);
         $originalDate = $this->lesson->original_start_time
-            ? $this->lesson->original_start_time->format('d/m/Y H:i')
+            ? LimaClock::formatClassDate($this->lesson->original_start_time)
             : '—';
 
         $mail = (new MailMessage)
@@ -72,7 +73,7 @@ class ClassRescheduledNotification extends Notification implements ShouldQueue
 
     public function toArray($notifiable): array
     {
-        $newDate = $this->lesson->start_time->format('d/m/Y H:i');
+        $newDate = LimaClock::formatClassDate($this->lesson->start_time);
         return [
             'type'       => 'class_rescheduled',
             'lesson_id'  => $this->lesson->id,

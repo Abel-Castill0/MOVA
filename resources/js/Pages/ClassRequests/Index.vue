@@ -1,13 +1,16 @@
 <template>
   <AppLayout title="Mis solicitudes">
     <div class="space-y-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-2xl font-black text-slate-900">Solicitudes de clase</h2>
-        <Link :href="route('class-requests.create')"
-          class="px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 active:scale-95 transition-all shadow-md shadow-brand-600/25">
-          + Nueva solicitud
-        </Link>
-      </div>
+      <PageHeader title="Solicitudes de clase"
+        eyebrow="Espacio de la familia"
+        description="Consulta el estado de cada solicitud, revisa las propuestas y conoce el siguiente paso.">
+        <template #actions>
+          <Link :href="route('class-requests.create')"
+            class="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+            + Nueva solicitud
+          </Link>
+        </template>
+      </PageHeader>
 
       <!-- Errores de negocio de la contraoferta (propuesta vencida, profesor ya
            no disponible, créditos/agenda cambiados…) — anunciados a lectores
@@ -20,11 +23,25 @@
       </div>
 
       <div v-if="!requests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
-        <p class="text-slate-500">Sin solicitudes</p>
+        <p class="font-semibold text-slate-800">Todavía no tienes solicitudes</p>
+        <p class="mt-2 text-sm text-slate-500">Cuéntanos qué materia necesita reforzar el alumno para empezar.</p>
+        <Link :href="route('class-requests.create')" class="mt-4 inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Crear mi primera solicitud</Link>
       </div>
 
-      <div v-else class="space-y-3.5">
-        <div v-for="r in requests" :key="r.id"
+      <div v-else class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-white border border-slate-200 p-3">
+          <label for="parent-request-filter" class="text-sm font-medium text-slate-700">Filtrar por estado</label>
+          <select id="parent-request-filter" v-model="statusFilter" class="rounded-xl border-slate-200 text-sm text-slate-800 focus:border-brand-500 focus:ring-brand-500">
+            <option value="all">Todas ({{ requests.length }})</option>
+            <option value="pending">Pendientes o abiertas</option>
+            <option value="counteroffered">Propuestas recibidas</option>
+            <option value="accepted">Aceptadas</option>
+            <option value="closed">Rechazadas o vencidas</option>
+          </select>
+          <span class="text-xs text-slate-500" role="status">{{ visibleRequests.length }} solicitudes</span>
+        </div>
+        <p v-if="!visibleRequests.length" class="rounded-2xl bg-white border border-slate-200 px-5 py-8 text-center text-sm text-slate-600">No hay solicitudes con ese estado.</p>
+        <div v-for="r in visibleRequests" :key="r.id"
           class="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 hover:border-brand-300 hover:shadow-md transition-all">
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -34,6 +51,8 @@
               </div>
               <p class="text-sm text-slate-500">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
               <p class="text-sm text-slate-500 mt-1 line-clamp-2 break-words">{{ r.help_needed }}</p>
+              <p class="mt-2 text-xs text-slate-500">Creada: {{ fmtCreated(r.created_at) }} · Hora de Perú</p>
+              <p class="mt-2 text-xs font-medium text-brand-800" role="status">{{ nextStep(r) }}</p>
               <p v-if="r.delivery === 'no_teachers'" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900" data-testid="delivery-no-teachers">
                 Sin profesores compatibles por ahora: ningún profesor verificado puede verla todavía. Sigue abierta hasta que venza.
               </p>
@@ -63,26 +82,26 @@
               </div>
             </div>
 
-            <div v-if="r.status === 'pending_parent_approval'" class="flex gap-2 flex-shrink-0">
-              <Link :href="route('class-requests.approve', r.id)" method="post" as="button"
-                class="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-2xl hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-600/20">
-                Aprobar
-              </Link>
-              <Link :href="route('class-requests.reject', r.id)" method="post" as="button"
-                class="px-4 py-2 bg-red-100 text-red-700 text-xs font-bold rounded-2xl hover:bg-red-200 active:scale-95 transition-all">
+            <div v-if="r.status === 'pending_parent_approval'" class="flex flex-col gap-2 sm:flex-row sm:flex-shrink-0">
+              <button type="button" @click="openApproval(r, 'approve')" :disabled="approvalBusy || processingId !== null"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:opacity-50">
+                Revisar y aprobar
+              </button>
+              <button type="button" @click="openApproval(r, 'reject')" :disabled="approvalBusy || processingId !== null"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50">
                 Rechazar
-              </Link>
+              </button>
             </div>
 
-            <div v-else-if="r.status === 'counteroffered'" class="flex gap-2 flex-shrink-0 sm:pt-1">
+            <div v-else-if="r.status === 'counteroffered'" class="flex flex-col gap-2 sm:flex-row sm:flex-shrink-0 sm:pt-1">
               <button type="button" @click="respond(r, 'accept')" :disabled="processingId !== null"
                 :aria-busy="processingId === r.id && action === 'accept'"
-                class="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-2xl hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2">
+                class="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-50">
                 {{ processingId === r.id && action === 'accept' ? 'Aceptando…' : 'Aceptar' }}
               </button>
               <button type="button" @click="respond(r, 'reject')" :disabled="processingId !== null"
                 :aria-busy="processingId === r.id && action === 'reject'"
-                class="flex-1 sm:flex-none px-4 py-2 bg-red-100 text-red-700 text-xs font-bold rounded-2xl hover:bg-red-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2">
+                class="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-wait disabled:opacity-50">
                 {{ processingId === r.id && action === 'reject' ? 'Rechazando…' : 'Rechazar' }}
               </button>
             </div>
@@ -90,20 +109,125 @@
         </div>
       </div>
     </div>
+
+    <!-- El padre decide explícitamente antes de publicar o rechazar. Nunca
+         usar un enlace Inertia POST como activador de una confirmación. -->
+    <Modal :show="!!approvalTarget" max-width="sm" title-id="parent-approval-title"
+      :closeable="!approvalBusy" @close="closeApproval">
+      <section v-if="approvalTarget" class="space-y-4 p-5 sm:p-6">
+        <div>
+          <h2 id="parent-approval-title" class="text-lg font-bold text-slate-900">
+            {{ approvalKind === 'approve' ? 'Confirmar publicación' : 'Confirmar rechazo' }}
+          </h2>
+          <p class="mt-2 text-sm leading-relaxed text-slate-700">
+            {{ approvalKind === 'approve'
+              ? 'Se aprobará esta solicitud para continuar su publicación según las reglas de MOVA. No garantiza que haya profesores disponibles.'
+              : 'Esta solicitud quedará rechazada. Si necesitas otra clase, podrás crear una nueva solicitud.' }}
+          </p>
+          <p class="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+            {{ approvalTarget.subject?.name || 'Materia' }} · {{ approvalTarget.student?.first_name || 'Alumno' }}
+          </p>
+        </div>
+        <p v-if="approvalError" role="alert" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{{ approvalError }}</p>
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" @click="closeApproval" :disabled="approvalBusy"
+            class="min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50">
+            Volver
+          </button>
+          <button type="button" @click="submitApproval" :disabled="approvalBusy"
+            :class="approvalKind === 'approve' ? 'bg-brand-700 hover:bg-brand-800' : 'bg-red-700 hover:bg-red-800'"
+            class="min-h-11 rounded-xl px-5 text-sm font-bold text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50">
+            {{ approvalBusy ? 'Procesando…' : approvalKind === 'approve' ? 'Aprobar solicitud' : 'Rechazar solicitud' }}
+          </button>
+        </div>
+      </section>
+    </Modal>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import PageHeader from '@/Components/PageHeader.vue'
+import Modal from '@/Components/Modal.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 
-defineProps({ requests: Array })
+const props = defineProps({
+  requests: { type: Array, default: () => [] },
+})
+
+const statusFilter = ref('all')
+const visibleRequests = computed(() => props.requests.filter(r => {
+  if (statusFilter.value === 'pending') return ['open', 'pending_parent_approval'].includes(r.status)
+  if (statusFilter.value === 'counteroffered') return r.status === 'counteroffered'
+  if (statusFilter.value === 'accepted') return r.status === 'accepted'
+  if (statusFilter.value === 'closed') return ['rejected', 'teacher_rejected', 'expired'].includes(r.status)
+  return true
+}))
+
+function nextStep(r) {
+  if (r.status === 'pending_parent_approval') return 'Siguiente paso: aprueba o rechaza esta solicitud.'
+  if (r.status === 'counteroffered') return 'Siguiente paso: revisa la contraoferta y decide si aceptas el nuevo horario.'
+  if (r.status === 'accepted') return 'Clase programada. Consulta Mis clases para conocer los detalles.'
+  if (r.status === 'rejected' || r.status === 'teacher_rejected') return 'Esta solicitud fue rechazada. Puedes crear otra solicitud.'
+  if (r.status === 'expired') return 'Esta solicitud venció. Puedes crear otra con nuevos horarios.'
+  if (r.delivery === 'no_teachers') return 'La solicitud sigue abierta, pero aún no hay profesores compatibles.'
+  if (r.delivery === 'directed') return 'Esperando respuesta del profesor elegido.'
+  return 'Esperando que un profesor compatible responda.'
+}
+
+function fmtCreated(date) {
+  if (!date) return '—'
+  return new Date(date).toLocaleString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 const processingId = ref(null)
 const action = ref(null)
 const counterofferError = ref('')
+const approvalTarget = ref(null)
+const approvalKind = ref(null)
+const approvalBusy = ref(false)
+const approvalError = ref('')
+
+function openApproval(request, kind) {
+  if (approvalBusy.value || processingId.value !== null) return
+  if (!['approve', 'reject'].includes(kind) || request.status !== 'pending_parent_approval') return
+  approvalTarget.value = request
+  approvalKind.value = kind
+  approvalError.value = ''
+}
+
+function closeApproval() {
+  if (approvalBusy.value) return
+  approvalTarget.value = null
+  approvalKind.value = null
+  approvalError.value = ''
+}
+
+function submitApproval() {
+  if (approvalBusy.value || !approvalTarget.value || !['approve', 'reject'].includes(approvalKind.value)) return
+  approvalBusy.value = true
+  approvalError.value = ''
+  router.post(route('class-requests.' + approvalKind.value, approvalTarget.value.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { approvalTarget.value = null; approvalKind.value = null; approvalError.value = '' },
+    onError: errors => {
+      approvalError.value = Object.values(errors || {}).find(Boolean)
+        || 'No se pudo completar la acción. La solicitud puede haber cambiado de estado.'
+    },
+    onFinish: () => { approvalBusy.value = false },
+  })
+}
+
+useVisibleInertiaRefresh(['requests'], {
+  intervalMs: 30000,
+  shouldRefresh: () => processingId.value === null && !approvalTarget.value && !approvalBusy.value,
+})
 
 // Hora de Perú explícita: la propuesta se guarda en UTC y el padre siempre
 // la ve en la zona del servicio, sin depender de la del dispositivo.

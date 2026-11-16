@@ -430,10 +430,10 @@
 
           <!-- Controles de navegación Desktop -->
           <div v-if="featuredTeachers.length" class="hidden sm:flex items-center gap-2 flex-shrink-0 mb-1">
-            <button class="teachers-prev w-11 h-11 rounded-full bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
+            <button type="button" aria-label="Ver profesores anteriores" class="teachers-prev w-11 h-11 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
-            <button class="teachers-next w-11 h-11 rounded-full bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
+            <button type="button" aria-label="Ver profesores siguientes" class="teachers-next w-11 h-11 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 bg-white border border-gray-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-300 transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
           </div>

@@ -30,6 +30,13 @@ export function useVisibleInertiaRefresh(only, { intervalMs = 30000, shouldRefre
     })
   }
 
+  // El websocket anuncia cambios; la fuente de verdad sigue siendo HTTP
+  // autorizado. El listener desaparece al desmontar la página.
+  function onRealtimeRefresh() {
+    if (document.hidden) return
+    refresh()
+  }
+
   function refreshOnReturn() {
     if (!document.hidden && Date.now() - lastRefreshAt >= 5000) refresh()
   }
@@ -38,6 +45,7 @@ export function useVisibleInertiaRefresh(only, { intervalMs = 30000, shouldRefre
     mounted = true
     lastRefreshAt = Date.now()
     intervalId = window.setInterval(refresh, intervalMs)
+    window.addEventListener('mova:realtime-refresh', onRealtimeRefresh)
     window.addEventListener('focus', refreshOnReturn)
     document.addEventListener('visibilitychange', refreshOnReturn)
   })
@@ -45,6 +53,7 @@ export function useVisibleInertiaRefresh(only, { intervalMs = 30000, shouldRefre
   onUnmounted(() => {
     mounted = false
     window.clearInterval(intervalId)
+    window.removeEventListener('mova:realtime-refresh', onRealtimeRefresh)
     window.removeEventListener('focus', refreshOnReturn)
     document.removeEventListener('visibilitychange', refreshOnReturn)
   })

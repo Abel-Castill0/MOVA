@@ -1,28 +1,36 @@
 <template>
   <div class="relative" ref="root">
-    <button @click="open = !open" aria-label="Notificaciones"
-      aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
+    <button type="button" @click="open = !open" aria-label="Notificaciones"
+      :aria-expanded="open" :aria-controls="panelId"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
       <span v-if="unread > 0"
-        class="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+        class="absolute top-1 right-1 min-w-5 h-5 px-1 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
         {{ unread > 9 ? '9+' : unread }}
       </span>
     </button>
 
-    <div v-if="open" id="notification-panel" role="menu" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
+    <div v-if="open" :id="panelId" role="region" aria-label="Lista de notificaciones" :class="['absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden', placementClasses]">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span class="text-sm font-semibold text-gray-900">Notificaciones</span>
-        <button v-if="unread > 0" @click="markAll" class="text-xs text-brand-600 hover:underline">Marcar todas</button>
+        <button v-if="unread > 0" type="button" @click="markAll" :disabled="marking" class="text-sm font-semibold text-brand-700 hover:underline disabled:opacity-60">Marcar todas</button>
       </div>
+      <p v-if="actionError" class="px-4 py-2 text-sm text-red-700 bg-red-50" role="alert">{{ actionError }}</p>
       <div class="max-h-72 overflow-y-auto divide-y divide-gray-50">
-        <div v-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
-        <div v-for="n in notifications" :key="n.id"
+        <div v-if="loadError" class="px-4 py-3 text-sm text-rose-700 bg-rose-50" role="status">
+          No se pudieron actualizar las notificaciones.
+          <button type="button" class="underline font-semibold" @click="load">Reintentar</button>
+        </div>
+        <div v-else-if="!notifications.length" class="px-4 py-6 text-center text-sm text-gray-500">Sin notificaciones</div>
+        <button v-for="n in notifications" :key="n.id" type="button"
           @click="markOne(n.id)"
-          :class="['px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
+          :disabled="marking || !!markingId"
+          :aria-label="`Marcar como leída: ${n.data?.message || 'notificación'}`"
+          class="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600"
+          :class="['px-4 py-3 hover:bg-gray-50 transition-colors', !n.read_at ? 'bg-brand-50/40' : '']">
           <p class="text-sm text-gray-800">{{ n.data?.message || n.data?.type?.replace(/_/g, ' ') }}</p>
           <p class="text-xs text-gray-500 mt-0.5">{{ fmtDate(n.created_at) }}</p>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -47,9 +55,16 @@ const placementClasses = computed(() => props.placement === 'down-right'
   ? 'right-0 top-full mt-2 origin-top-right'
   : 'left-0 bottom-full mb-2 origin-bottom-left')
 
+// AppLayout monta una campana en el sidebar y otra en el header móvil.
+// Sus IDs deben ser diferentes aunque una esté oculta por CSS.
+const panelId = computed(() => 'notification-panel-' + props.placement)
 const open = ref(false)
 const root = ref(null)
 const notifications = ref([])
+const loadError = ref(false)
+const actionError = ref('')
+const marking = ref(false)
+const markingId = ref(null)
 const unread = computed(() => notifications.value.filter(n => !n.read_at).length)
 
 // Click-outside estándar: el listener de document es bubble-phase, así que
@@ -63,10 +78,14 @@ function onDocumentClick(event) {
 }
 
 async function load() {
+  if (document.hidden) return
   try {
     const { data } = await axios.get('/notifications')
-    notifications.value = data
-  } catch {}
+    notifications.value = Array.isArray(data) ? data : []
+    loadError.value = false
+  } catch {
+    loadError.value = true
+  }
 }
 
 // AUDITORÍA (hallazgo real, no solo visual): a diferencia de load(), estas
@@ -76,26 +95,37 @@ async function load() {
 // correcta aquí es no actualizar el estado local si la petición falla (en
 // vez de asumir optimistamente que se marcó como leída cuando no fue así).
 async function markOne(id) {
+  if (marking.value || markingId.value) return
+  markingId.value = id
+  actionError.value = ''
   try {
-    await axios.post(`/notifications/${id}/read`)
+    await axios.post(`/notifications/${encodeURIComponent(id)}/read`)
+    const n = notifications.value.find(x => x.id === id)
+    if (n) n.read_at = new Date().toISOString()
   } catch {
-    return
+    actionError.value = 'No se pudo marcar la notificación. Inténtalo de nuevo.'
+  } finally {
+    markingId.value = null
   }
-  const n = notifications.value.find(x => x.id === id)
-  if (n) n.read_at = new Date().toISOString()
 }
 
 async function markAll() {
+  if (marking.value || markingId.value) return
+  marking.value = true
+  actionError.value = ''
   try {
     await axios.post('/notifications/read-all')
+    notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
   } catch {
-    return
+    actionError.value = 'No se pudieron marcar las notificaciones. Inténtalo de nuevo.'
+  } finally {
+    marking.value = false
   }
-  notifications.value.forEach(n => { n.read_at = new Date().toISOString() })
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function onEscape(event) {
@@ -107,12 +137,14 @@ onMounted(() => {
   load()
   interval = setInterval(load, 30000)
   window.addEventListener('mova:notification', load)
+  window.addEventListener('focus', load)
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onEscape)
 })
 onUnmounted(() => {
   clearInterval(interval)
   window.removeEventListener('mova:notification', load)
+  window.removeEventListener('focus', load)
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onEscape)
 })

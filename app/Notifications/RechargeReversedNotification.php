@@ -6,6 +6,7 @@ use App\Models\RechargeRequest;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -37,7 +38,7 @@ class RechargeReversedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', 'broadcast'];
 
         if ($notifiable->email_verified_at) {
             $channels[] = 'mail';
@@ -58,6 +59,15 @@ class RechargeReversedNotification extends Notification implements ShouldQueue
             ->action('Ver mi saldo y movimientos', $this->appRoute('teacher.credits.index'))
             ->line('Si crees que esto es un error, responde a este correo y lo revisamos.')
             ->salutation('El equipo de MOVA');
+    }
+
+    /** Confirmación de servidor; importes y ledger permanecen en HTTP autorizado. */
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'type' => 'credits_updated',
+            'message' => 'Tu saldo cambió. Consulta el historial de créditos.',
+        ]);
     }
 
     public function toArray(object $notifiable): array

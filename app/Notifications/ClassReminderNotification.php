@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Lesson;
+use App\Support\LimaClock;
 use App\Notifications\Concerns\BuildsAppUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -70,7 +71,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
             ->subject($this->subject())
             ->greeting('Hola, ' . $notifiable->name . '.')
             ->line("Su clase comienza **{$this->label()}**.")
-            ->line('**Hora:** ' . $this->lesson->start_time->format('d/m/Y H:i'))
+            ->line('**Hora:** ' . LimaClock::formatClassDate($this->lesson->start_time))
             ->action('Ver mi clase en MOVA', $this->classListUrl($notifiable))
             ->line('Entre a la sala desde MOVA unos minutos antes de empezar.')
             ->salutation('El equipo de MOVA');
@@ -80,7 +81,7 @@ class ClassReminderNotification extends Notification implements ShouldQueue
     {
         return "MOVA — Recordatorio de clase\n\n"
             . "Hola {$notifiable->name}, su clase empieza {$this->label()}.\n"
-            . "Hora: " . $this->lesson->start_time->format('d/m/Y H:i') . "\n"
+            . "Hora: " . LimaClock::formatClassDate($this->lesson->start_time) . "\n"
             . "Entre a la sala desde MOVA: " . $this->classListUrl($notifiable);
     }
 
