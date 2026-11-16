@@ -45,9 +45,9 @@
       alumno y decir qué se pierde, no preguntar en abstracto. Además el
       confirm() nativo no permite bloquear el doble envío.
     -->
-    <Modal :show="!!deleteTarget" max-width="md" @close="closeDelete">
+    <Modal :show="!!deleteTarget" max-width="md" title-id="delete-student-title" :closeable="!deleting" @close="closeDelete">
       <div v-if="deleteTarget" class="p-6">
-        <h3 class="text-lg font-black text-slate-900">Eliminar a {{ deleteTarget.full_name }}</h3>
+        <h3 id="delete-student-title" class="text-lg font-bold text-slate-900">Eliminar a {{ deleteTarget.full_name }}</h3>
         <p class="mt-2 text-sm text-slate-600">
           Se eliminará su ficha y dejará de aparecer en tus solicitudes. Esta acción no se puede deshacer.
         </p>
@@ -55,7 +55,7 @@
           El historial de clases ya realizadas se conserva por motivos contables.
         </p>
 
-        <p v-if="deleteError" class="mt-3 text-sm font-semibold text-red-600">{{ deleteError }}</p>
+        <p v-if="deleteError" class="mt-3 text-sm font-semibold text-red-700" role="alert">{{ deleteError }}</p>
 
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <SecondaryButton type="button" :disabled="deleting" @click="closeDelete">Cancelar</SecondaryButton>
@@ -90,7 +90,7 @@ function closeDelete() {
 }
 
 function submitDelete() {
-  if (deleting.value) return
+  if (deleting.value || !deleteTarget.value) return
   deleting.value = true
   router.delete(route('students.destroy', deleteTarget.value.id), {
     preserveScroll: true,
