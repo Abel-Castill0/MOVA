@@ -4,6 +4,15 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-16 — `b8a7904` → producción — importe exacto y logo de MOVA en el checkout, webhook de cargo rechazado, chequeo de salud
+
+- Imagen `sha256:f0b5859ef354471744f0917aa2e4b3bcd934f716317711b645eb4ad2fecb6e22` (tag `img-b8a7904`); scheduler `0000061` y web `0000060` Healthy; sin migraciones ni cambios de configuración. CI verde. Suite completa local: 1901 de 1902 antes del último ajuste (el fallo era de una prueba nueva, corregida); después, 158 pruebas afectadas OK y la suite completa de la CI en verde.
+- Cambios: instrucciones de importe exacto y beneficiario en la orden QR, Yape con código como camino recomendado, logo de MOVA en el checkout de Culqi; `charge.creation.failed` con solo un objeto `error` se cierra sin alerta; `waha` aceptado por `mova:health-check`; `laravel/framework` 13.42.0 (GHSA-63hm-g96r-2m2q). Revisión de seguridad financiera: aprobado, hallazgos bajos corregidos.
+- Comprobación real sin pago tras el despliegue: `/readyz` 200; `culqi:activation-check` LISTO, ACTIVO-PRUEBA, `COMPRA_LIVE_VERIFICADA: no`; la orden de la recarga 7 está `expired` en MOVA y en Culqi; ledger GREEN; el aviso `WHATSAPP_PROVIDER_INVALID` desapareció; queda `MERCADOPAGO_WEBHOOK_QUEUE_SYNC` (la web usa cola `sync`). El paquete del checkout servido en producción contiene los textos y el logo nuevos.
+- No verificado: la pantalla nueva no se revisó visualmente con una sesión de profesor; el logo se probó en el sandbox de Culqi con una página aparte.
+- Diagnóstico del QR (importe y nombre): `docs/payments-culqi.md` §24. Auditoría: `docs/release/MOVA_V1_FINAL_LAUNCH_AUDIT.md`.
+- Rollback: imagen `sha256:14daabed…b76a9`.
+
 ## 2026-11-13 (3) — `188025e` → producción — enlace a la orden QR activa en el 409
 
 - Imagen `sha256:14daabedb74865256b9d8faa6ff65e06f391a69600d9f104edc11db0f26b76a9`; web `0000059` y scheduler `0000060` Healthy; CI verde; suite 1875 OK. Sin cambios de configuración (`culqi`, `card,yape,order`, TTL de 60 min, allowlist de Abel).

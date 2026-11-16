@@ -24,7 +24,7 @@ Bloqueos que solo puede resolver una persona:
 ## 2. Estado inicial de esta ronda (2026-11-16)
 
 - `master` en `3406efe`, igual al remoto, sin cambios nuevos de Abel. El PR `Abel-Castill0/MOVA#16` sigue abierto y no se fusionó.
-- Producción: código `188025e`, web revisión 59 y scheduler revisión 60, sanas. `PAYMENT_PROVIDER=culqi`, `CULQI_ENV=live`, `CULQI_METHODS=card,yape,order`, allowlist con una sola cuenta.
+- Producción al empezar: código `188025e`, web revisión 59 y scheduler revisión 60, sanas. `PAYMENT_PROVIDER=culqi`, `CULQI_ENV=live`, `CULQI_METHODS=card,yape,order`, allowlist con una sola cuenta.
 - Recargas 4 y 5 (QR): vencidas en MOVA y en Culqi. Recarga 6 (Yape con código): rechazada por fondos insuficientes.
 - Recarga 7 (QR, S/ 10, creada el 15/11): Yape leyó el QR; la orden quedó sin pagar. Culqi la seguía mostrando `pending` minutos después de su vencimiento.
 - Ledger: `mova:reconcile-ledger` GREEN. Ningún depósito por compra; no se movió dinero.
@@ -83,7 +83,7 @@ Alertas abiertas en producción: una de salud (el falso positivo de WhatsApp) y 
 
 ## 7. Compra real de verificación (pendiente)
 
-Antes de pagar hay que confirmar que la orden de la recarga 7 venció en Culqi o pagar esa misma; no se genera otra mientras siga viva.
+A las 05:22 UTC del 16/11 no queda ninguna orden pagable: la de la recarga 7 venció en Culqi sin pago.
 
 1. Ventana de incógnito → https://movaeduca.me con la cuenta de prueba.
 2. **Mis créditos → Recargar créditos → Inicio (S/ 10.00)**.
@@ -124,7 +124,12 @@ No se hizo una revisión manual pantalla por pantalla ni pruebas E2E con navegad
 
 ## 9. Pruebas de esta ronda
 
-Ver el historial de despliegues para el resultado exacto de la suite, la CI y la imagen desplegada. Pruebas nuevas:
+- Suite PHPUnit completa (SQLite) sobre el árbol de esta ronda: 1902 pruebas, 1901 aprobadas y 25 omitidas; el único fallo era de una prueba nueva y se corrigió. Después se ejecutaron las 158 pruebas de los archivos afectados (todas OK) y la CI corrió la suite completa en verde sobre `b8a7904`.
+- `npm run build`, `composer audit` y `npm audit`: sin errores ni avisos tras actualizar `laravel/framework` a 13.42.0.
+- No se ejecutaron en esta ronda: perfil MySQL de concurrencia, Playwright/E2E ni revisión visual de la pantalla nueva con una sesión de profesor.
+- Desplegado: imagen `sha256:f0b5859e…6e22`, web revisión 60 y scheduler revisión 61, sanas. Tras el despliegue la orden de la recarga 7 figura `expired` en MOVA y en Culqi.
+
+Pruebas nuevas:
 
 - Los cinco paquetes se ordenan por su importe exacto y solo el pago exacto acredita (`CulqiCheckoutTest`).
 - Un cargo rechazado que llega como objeto `error` se cierra sin revisión ni crédito (`CulqiPaymentTest`).
