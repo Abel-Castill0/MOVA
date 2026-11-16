@@ -175,7 +175,8 @@ class ClassRequestIndexExposureTest extends TestCase
             ->assertOk()->inertiaPage()['props'];
 
         $req = $props['requests'][0];
-        $this->assertEqualsCanonicalizing([...self::REQUEST_KEYS, 'class_offer', 'counteroffer_teacher', 'counteroffer_ref'], array_keys($req));
+        $this->assertEqualsCanonicalizing([...self::REQUEST_KEYS, 'class_offer', 'counteroffer_teacher', 'counteroffer_ref', 'delivery'], array_keys($req));
+        $this->assertContains($req['delivery'], [null, 'awaiting_parent', 'directed', 'published', 'no_teachers'], 'delivery es solo un estado: nunca identidades ni conteos.');
         $this->assertSame(['name'], array_keys($req['class_offer']['teacher_profile']['user']));
 
         $json = json_encode($props['requests']);

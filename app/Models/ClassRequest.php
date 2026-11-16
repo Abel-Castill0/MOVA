@@ -151,7 +151,9 @@ class ClassRequest extends Model
             return $user && ! $user->account_closed_at ? collect([$user]) : collect();
         }
 
-        return TeacherProfile::whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+        $subjectIds = Subject::equivalentIds([$this->subject_id]);
+
+        return TeacherProfile::whereHas('subjects', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
             ->whereNotIn('id', $this->teacherDeclines()->select('teacher_profile_id'))
             ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
             ->with('user')
@@ -188,8 +190,31 @@ class ClassRequest extends Model
 
         return TeacherProfile::where('user_id', $user->id)
             ->where('is_verified', true)->whereHas('user', fn ($q) => $q->whereNull('account_closed_at'))
-            ->whereHas('subjects', fn ($q) => $q->where('subjects.id', $this->subject_id))
+            ->whereHas('subjects', fn ($q) => $q->whereIn('subjects.id', Subject::equivalentIds([$this->subject_id])))
             ->exists();
+    }
+
+    /**
+     * Qué puede decírsele con verdad al padre sobre la entrega de su solicitud:
+     *   awaiting_parent  falta su propia aprobación (control parental); ningún profesor la ve.
+     *   directed         va a un profesor concreto (código u oferta) que hoy puede verla.
+     *   published        solicitud general con al menos un profesor verificado compatible.
+     *   no_teachers      hoy ningún profesor verificado puede verla (seguirá abierta hasta vencer).
+     * null para estados que ya no están esperando a un profesor.
+     */
+    public function deliveryState(): ?string
+    {
+        if ($this->status === 'pending_parent_approval') {
+            return 'awaiting_parent';
+        }
+        if ($this->status !== 'open') {
+            return null;
+        }
+        if ($this->eligibleTeacherUsers()->isEmpty()) {
+            return 'no_teachers';
+        }
+
+        return $this->teacher_profile_id || $this->class_offer_id ? 'directed' : 'published';
     }
 
     public function lesson()

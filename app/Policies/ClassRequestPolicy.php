@@ -59,7 +59,7 @@ class ClassRequestPolicy
         }
 
         $offerIds = $profile->classOffers()->pluck('id');
-        $subjectIds = $profile->subjects()->pluck('subjects.id');
+        $subjectIds = $profile->matchableSubjectIds();
         $ownedViaOffer = $classRequest->class_offer_id && $offerIds->contains($classRequest->class_offer_id);
         $ownedViaSubject = ! $classRequest->class_offer_id && $subjectIds->contains($classRequest->subject_id);
 

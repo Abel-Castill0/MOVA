@@ -252,7 +252,10 @@
                         <span :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', subjectIcon(s.name).bg]" aria-hidden="true">
                           <component :is="subjectIcon(s.name).icon" class="w-[18px] h-[18px]" :stroke-width="1.9" />
                         </span>
-                        <span class="text-xs sm:text-sm font-bold truncate leading-tight">{{ s.name }}</span>
+                        <span class="min-w-0">
+                          <span class="block text-xs sm:text-sm font-bold truncate leading-tight">{{ s.name }}</span>
+                          <span v-if="s.has_teachers === false" class="block text-[10px] font-semibold text-amber-700 leading-tight">Sin profesores por ahora</span>
+                        </span>
                       </div>
                       <div :class="[
                         'w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ml-1 transition-all border',
@@ -267,6 +270,9 @@
                     </button>
                   </div>
                   <InputError :message="form.errors.subject_id" class="mt-1 text-rose-500 text-xs" />
+                  <p v-if="subjectHasNoTeachers" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status" data-testid="no-teachers-notice">
+                    Hoy no hay profesores verificados de <strong>{{ subjectName }}</strong>. Puedes enviar la solicitud igual: quedará abierta por si alguno se incorpora, pero nadie la recibirá de inmediato. Si tienes el código de un profesor, úsalo en el siguiente paso.
+                  </p>
                 </div>
               </div>
 
@@ -328,7 +334,8 @@
                   <!-- Nota informativa sin código -->
                   <div v-if="codeLookup.status === 'idle' && !referralCodeInput" class="mt-3 sm:mt-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 text-xs text-slate-600 flex items-start gap-2.5">
                     <Icon name="info" :size="18" class="text-brand-600 flex-shrink-0 mt-0.5" />
-                    <span>Sin código: tu solicitud se publicará en la red y quedará disponible para todos los profesores verificados de <strong class="text-slate-900">{{ subjectName ? subjectName : 'la materia elegida' }}</strong>.</span>
+                    <span v-if="subjectHasNoTeachers">Sin código: hoy no hay profesores verificados de <strong class="text-slate-900">{{ subjectName }}</strong>, así que nadie recibirá la solicitud de inmediato.</span>
+                    <span v-else>Sin código: tu solicitud se publicará en la red y quedará disponible para todos los profesores verificados de <strong class="text-slate-900">{{ subjectName ? subjectName : 'la materia elegida' }}</strong>.</span>
                   </div>
                 </div>
               </div>
@@ -681,12 +688,15 @@ const form = useForm({
 // ── Computed ───────────────────────────────────────────────────────────────
 const referenceRate       = computed(() => parseFloat(props.offer?.specific_rate ?? props.offer?.teacher_profile?.hourly_rate ?? 0).toFixed(0))
 const subjectName         = computed(() => props.subjects?.find(s => String(s.id) === String(form.subject_id))?.name ?? null)
+// Solicitud general (sin oferta) de una materia que hoy no tiene ningún profesor verificado: se avisa antes de enviar.
+const subjectHasNoTeachers = computed(() => !props.offer && props.subjects?.find(s => String(s.id) === String(form.subject_id))?.has_teachers === false)
 const selectedStudentName = computed(() => props.students?.find(s => String(s.id) === String(form.student_id))?.full_name ?? null)
 
 const recipientSummary = computed(() => {
   if (props.offer) return props.offer.teacher_profile?.user?.name ?? '—'
   if (codeLookup.value.status === 'found') return codeLookup.value.name
-  return `El primer profesor disponible de${subjectName.value ? ' ' + subjectName.value : ' la materia elegida'}`
+  if (subjectHasNoTeachers.value) return `Aún no hay profesores verificados de ${subjectName.value}`
+  return `Profesores verificados de${subjectName.value ? ' ' + subjectName.value : ' la materia elegida'}`
 })
 
 const preferredTimesSummary = computed(() => form.preferred_times.map(timeSlotLabel).join(', '))

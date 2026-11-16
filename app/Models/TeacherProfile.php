@@ -161,6 +161,12 @@ class TeacherProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Materias por las que este profesor recibe solicitudes: las suyas y sus equivalentes (Subject::equivalentIds). */
+    public function matchableSubjectIds(): \Illuminate\Support\Collection
+    {
+        return Subject::equivalentIds($this->subjects()->pluck('subjects.id'));
+    }
+
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'teacher_subject')

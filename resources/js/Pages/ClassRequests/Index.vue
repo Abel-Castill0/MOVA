@@ -34,6 +34,11 @@
               </div>
               <p class="text-sm text-slate-500">{{ r.student?.first_name }} {{ r.student?.last_name }}</p>
               <p class="text-sm text-slate-500 mt-1 line-clamp-2 break-words">{{ r.help_needed }}</p>
+              <p v-if="r.delivery === 'no_teachers'" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900" data-testid="delivery-no-teachers">
+                Sin profesores compatibles por ahora: ningún profesor verificado puede verla todavía. Sigue abierta hasta que venza.
+              </p>
+              <p v-else-if="r.delivery === 'published'" class="mt-1 text-xs text-emerald-700" data-testid="delivery-published">Publicada: los profesores verificados de la materia ya pueden verla.</p>
+              <p v-else-if="r.delivery === 'directed'" class="mt-1 text-xs text-emerald-700" data-testid="delivery-directed">Enviada al profesor que elegiste.</p>
               <p v-if="r.class_offer" class="text-xs text-brand-600 mt-1">
                 Prof. {{ r.class_offer?.teacher_profile?.user?.name }}
               </p>

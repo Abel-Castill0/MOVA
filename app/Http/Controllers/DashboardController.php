@@ -105,7 +105,7 @@ class DashboardController extends Controller
                 // corresponden (mismo invariante que ClassRequestController::teacherIndex).
                 'pending_requests' => $profile?->is_verified ? (function () use ($profile) {
                     $offerIds   = $profile->classOffers()->pluck('id');
-                    $subjectIds = $profile->subjects()->pluck('subjects.id');
+                    $subjectIds = $profile->matchableSubjectIds();
                     // Mismo scope que la lista (respeta la exclusividad del
                     // código de referido).
                     return ClassRequest::where('status', 'open')

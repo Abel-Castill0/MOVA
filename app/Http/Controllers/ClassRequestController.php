@@ -58,7 +58,15 @@ class ClassRequestController extends Controller
             : null;
 
         return Inertia::render('ClassRequests/Create', [
-            'subjects' => Subject::orderBy('name')->get(),
+            // has_teachers: si HOY hay algún profesor verificado que recibiría una solicitud general de esa materia.
+            // El formulario lo dice antes de enviar, para no prometer una entrega que no existe.
+            'subjects' => (function () {
+                $withTeachers = Subject::idsWithVerifiedTeachers();
+
+                return Subject::orderBy('name')->get(['id', 'name', 'level'])
+                    ->map(fn (Subject $s) => [...$s->only(['id', 'name', 'level']), 'has_teachers' => $withTeachers->contains($s->id)])
+                    ->values();
+            })(),
             'students' => auth()->user()->students()->get(),
             'offer' => $offer,
             'isMentorship' => $request->boolean('is_mentorship'),
@@ -247,9 +255,13 @@ class ClassRequestController extends Controller
             event(new ClassRequestCreated($classRequest));
         }
 
-        $message = $classRequest->status === 'pending_parent_approval'
-            ? 'Solicitud guardada. Está pendiente de tu aprobación antes de llegar a los profesores.'
-            : 'Solicitud publicada. Los profesores verificados de la materia podrán verla en su panel.';
+        $hours = (int) config('class_requests.expiry_hours', 24);
+        $message = match ($classRequest->deliveryState()) {
+            'awaiting_parent' => 'Solicitud guardada. Está pendiente de tu aprobación antes de llegar a los profesores.',
+            'directed' => 'Solicitud enviada. El profesor que elegiste ya puede verla en su panel.',
+            'published' => 'Solicitud publicada. Los profesores verificados de la materia ya pueden verla en su panel.',
+            default => "Solicitud guardada, pero hoy no hay profesores verificados de esta materia. Seguirá abierta {$hours} horas por si alguno se incorpora; también puedes probar con otra materia o con el código de un profesor.",
+        };
 
         return redirect()->route('class-requests.index')->with('success', $message);
     }
@@ -263,6 +275,8 @@ class ClassRequestController extends Controller
                 ->latest()->get()
                 ->map(fn (ClassRequest $r) => [
                     ...$this->requestSummary($r),
+                    // Entrega real a profesores (ver ClassRequest::deliveryState); solo un estado, sin identidades.
+                    'delivery' => $r->deliveryState(),
                     'class_offer' => $r->classOffer ? [
                         'id'              => $r->classOffer->id,
                         'teacher_profile' => ['user' => ['name' => $r->classOffer->teacherProfile?->user?->name]],
@@ -355,7 +369,7 @@ class ClassRequestController extends Controller
         }
 
         $offerIds   = $profile->classOffers()->pluck('id');
-        $subjectIds = $profile->subjects()->pluck('subjects.id');
+        $subjectIds = $profile->matchableSubjectIds();
 
         $open = ClassRequest::where('status', 'open')
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
