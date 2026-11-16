@@ -2,7 +2,7 @@
   <AppLayout title="Mis solicitudes">
     <div class="space-y-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-2xl font-black text-slate-900">Solicitudes de clase</h2>
+        <div><h2 class="text-2xl font-black text-slate-900">Solicitudes de clase</h2><p class="mt-1 text-sm text-slate-600">Sigue cada solicitud desde su publicación hasta la programación de la clase.</p></div>
         <Link :href="route('class-requests.create')"
           class="px-5 py-2.5 bg-brand-600 text-white text-sm font-bold rounded-2xl hover:bg-brand-700 active:scale-95 transition-all shadow-md shadow-brand-600/25">
           + Nueva solicitud
@@ -20,7 +20,9 @@
       </div>
 
       <div v-if="!requests.length" class="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
-        <p class="text-slate-500">Sin solicitudes</p>
+        <p class="font-semibold text-slate-800">Todavía no tienes solicitudes</p>
+        <p class="mt-2 text-sm text-slate-500">Cuéntanos qué materia necesita reforzar el alumno para empezar.</p>
+        <Link :href="route('class-requests.create')" class="mt-4 inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Crear mi primera solicitud</Link>
       </div>
 
       <div v-else class="space-y-3.5">
@@ -98,12 +100,18 @@ import { ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
+import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 
 defineProps({ requests: Array })
 
 const processingId = ref(null)
 const action = ref(null)
 const counterofferError = ref('')
+
+useVisibleInertiaRefresh(['requests'], {
+  intervalMs: 30000,
+  shouldRefresh: () => processingId.value === null,
+})
 
 // Hora de Perú explícita: la propuesta se guarda en UTC y el padre siempre
 // la ve en la zona del servicio, sin depender de la del dispositivo.

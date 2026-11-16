@@ -2,49 +2,7 @@
   <AppLayout title="Solicitudes" :compact="true">
     <div class="space-y-3.5">
 
-      <!-- ══════════════════════════════════════════════
-           BARRA DE BÚSQUEDA FLOTANTE (Móvil: aparece al subir, se oculta al bajar)
-           ══════════════════════════════════════════════ -->
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="-translate-y-full opacity-0"
-        enter-to-class="translate-y-0 opacity-100"
-        leave-active-class="transition-all duration-250 ease-in"
-        leave-from-class="translate-y-0 opacity-100"
-        leave-to-class="-translate-y-full opacity-0"
-      >
-        <div
-          v-if="showFloatingSearch && isMobile"
-          class="fixed top-[60px] left-0 right-0 z-20 px-4 py-2.5 bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-sm"
-        >
-          <div class="relative w-full max-w-md mx-auto">
-            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            <input
-              v-model="searchQuery"
-              @focus="isFloatingSearchFocused = true"
-              @blur="onFloatingBlur"
-              type="text"
-              placeholder="Buscar por alumno o materia..."
-              class="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-xs transition-all"
-            />
-            <button
-              v-if="searchQuery"
-              @click="searchQuery = ''"
-              type="button"
-              aria-label="Limpiar búsqueda"
-              class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </Transition>
+      <!-- Buscador único en el flujo de la página: no tapa contenido móvil. -->
 
       <!-- Perfil sin verificar: el servidor no envía ninguna solicitud. -->
       <div
@@ -112,7 +70,7 @@
             {{ isRefreshing ? 'Actualizando…' : 'Actualizar' }}
           </button>
           <!-- Buscador en vivo por alumno o materia -->
-          <div :class="['relative w-full sm:w-72', isMobile && showFloatingSearch ? 'hidden' : '']">
+          <div class="relative w-full sm:w-72">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -120,8 +78,6 @@
             </span>
             <input
               v-model="searchQuery"
-              @focus="isStaticSearchFocused = true"
-              @blur="isStaticSearchFocused = false"
               type="text"
               placeholder="Buscar por alumno o materia..."
               class="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all"
@@ -145,7 +101,6 @@
               v-model="sortBy"
               class="appearance-none bg-white border border-gray-200/90 pl-3.5 pr-8 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs cursor-pointer transition-all"
             >
-              <option value="recent">≡ Ordenar</option>
               <option value="recent">Más recientes</option>
               <option value="urgent">Mayor urgencia</option>
               <option value="student">Alumno (A-Z)</option>
@@ -890,74 +845,13 @@ const searchQuery = ref('')
 const sortBy = ref('recent')
 const statusTab = ref('open')
 const isMobile = ref(false)
-const showFloatingSearch = ref(false)
-const isStaticSearchFocused = ref(false)
-const isFloatingSearchFocused = ref(false)
-let lastScrollY = 0
-
-function onFloatingBlur() {
-  isFloatingSearchFocused.value = false
-  const winScroll = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0
-  if (winScroll <= 80) {
-    showFloatingSearch.value = false
-  }
-}
-
-function handleScroll(e) {
-  if (!isMobile.value) {
-    if (showFloatingSearch.value) showFloatingSearch.value = false
-    return
-  }
-
-  // Si el usuario está interactuando con el buscador estático, no activar el flotante
-  if (isStaticSearchFocused.value) {
-    showFloatingSearch.value = false
-    return
-  }
-
-  const winScroll = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0
-  const targetScroll = (e?.target && typeof e.target.scrollTop === 'number') ? e.target.scrollTop : 0
-  const currentScrollY = Math.max(winScroll, targetScroll)
-  const delta = currentScrollY - lastScrollY
-
-  // Si el usuario está escribiendo en el buscador flotante, mantenerlo visible durante micro-scrolls del teclado
-  if (isFloatingSearchFocused.value) {
-    lastScrollY = currentScrollY
-    return
-  }
-
-  // Si estamos en la zona superior (<= 80px), la barra estática ya es visible en el flujo
-  if (currentScrollY <= 80) {
-    showFloatingSearch.value = false
-    lastScrollY = currentScrollY
-    return
-  }
-
-  // Scroll hacia abajo: ocultar
-  if (delta > 6) {
-    showFloatingSearch.value = false
-  }
-  // Scroll hacia arriba: mostrar con animación fluida
-  else if (delta < -6) {
-    showFloatingSearch.value = true
-  }
-
-  lastScrollY = currentScrollY
-}
-
 function checkMobile() {
-  if (typeof window !== 'undefined') {
-    isMobile.value = window.innerWidth < 1024
-    if (!isMobile.value) {
-      showFloatingSearch.value = false
-    }
-  }
+  if (typeof window !== 'undefined') isMobile.value = window.innerWidth < 1024
 }
 
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  window.addEventListener('scroll', handleScroll, { passive: true, capture: true })
   // En desktop preseleccionar la primera solicitud para ver la pestaña derecha idéntica a la maqueta
   if (window.innerWidth >= 1024 && props.requests.length > 0) {
     selectedRequest.value = props.requests[0]
@@ -967,7 +861,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', checkMobile)
-    window.removeEventListener('scroll', handleScroll, { capture: true })
   }
 })
 
@@ -1335,13 +1228,13 @@ const { refresh, isRefreshing } = useVisibleInertiaRefresh(
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+  return new Date(d).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short' })
 }
 
 function fmtDateTime(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleString('es-ES', {
-    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  return new Date(d).toLocaleString('es-PE', {
+    timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   })
 }
 </script>

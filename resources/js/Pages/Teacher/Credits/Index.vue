@@ -4,7 +4,7 @@
       <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 class="text-xl font-black text-slate-900">Mis créditos MOVA</h2>
-          <p class="text-sm text-slate-500">Consulta tu saldo y revisa todos tus movimientos.</p>
+          <p class="text-sm text-slate-500">Los créditos disponibles permiten aceptar clases; los reservados ya están apartados para clases programadas.</p>
         </div>
         <!-- Con el pago activo es el acceso a la compra; si no lo está, NO finge serlo: lleva a ver paquetes y precios. -->
         <a href="#recargas"
@@ -16,8 +16,8 @@
         </a>
       </div>
 
-      <div class="grid gap-4 sm:grid-cols-2">
-        <section class="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section class="rounded-2xl border border-brand-200 bg-white p-5 shadow-sm lg:col-span-2">
           <p class="text-sm font-semibold text-slate-500">Créditos disponibles</p>
           <p class="mt-3 text-4xl font-black text-brand-700">{{ teacherProfile.credits_available }}</p>
           <p class="mt-2 text-sm text-slate-500">Listos para aceptar nuevas clases.</p>
@@ -274,6 +274,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
 import Icon from '@/Components/Icon.vue'
 import { rechargeStatusStyle } from '@/utils/rechargeStatusColors'
+import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh.js'
 
 const props = defineProps({
   teacherProfile: Object,
@@ -373,6 +374,12 @@ function submitRecharge() {
   })
 }
 
+// La recarga y el ledger siguen siendo datos exclusivos del backend.
+useVisibleInertiaRefresh(['teacherProfile', 'creditTransactions', 'rechargeRequests'], {
+  intervalMs: 30000,
+  shouldRefresh: () => !showRechargeModal.value && !form.processing && !payingWithYape.value,
+})
+
 function tabClass(active) {
   return [
     'rounded-xl px-4 py-2 text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2',
@@ -383,6 +390,7 @@ function tabClass(active) {
 function fmtDate(value) {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima',
     day: '2-digit',
     month: 'short',
     year: 'numeric',

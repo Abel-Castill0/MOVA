@@ -42,7 +42,11 @@
     </Transition>
 
     <!-- Sidebar (Diseño curvo rounded-r-3xl y frosted glass en todas las secciones) -->
-    <aside :class="[
+    <aside ref="sidebarRef" @keydown.tab="trapSidebarFocus"
+      :role="sidebarOpen ? 'dialog' : undefined"
+      :aria-modal="sidebarOpen ? 'true' : undefined"
+      :aria-label="sidebarOpen ? 'Menú de navegación' : undefined"
+      :class="[
         'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ease-in-out',
         'bg-white/85 lg:bg-white/95 backdrop-blur-xl border-r border-slate-200/50 rounded-r-3xl shadow-2xl lg:shadow-none',
         isSidebarCompressed ? 'w-64 lg:w-20' : 'w-64',
@@ -74,7 +78,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
-        <button @click="sidebarOpen = false" aria-label="Cerrar menú"
+        <button ref="sidebarCloseButton" @click="closeSidebar(true)" aria-label="Cerrar menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-xl text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
           <Icon name="close" :size="20" />
         </button>
@@ -86,6 +90,7 @@
           :href="item.href"
           @click="sidebarOpen = false"
           :aria-current="isActive(item.href) ? 'page' : undefined"
+          :aria-label="isSidebarCompressed ? item.label : undefined"
           :title="isSidebarCompressed ? item.label : undefined"
           :class="[
             'flex items-center text-sm font-semibold transition-all duration-150',
@@ -141,7 +146,7 @@
       <!-- Top bar -->
       <header :class="headerClasses">
         <!-- Hamburger (mobile only) -->
-        <button @click="sidebarOpen = true" aria-label="Abrir menú"
+        <button ref="sidebarTrigger" @click="openSidebar" aria-label="Abrir menú"
           class="lg:hidden flex items-center justify-center w-11 h-11 -ml-2 rounded-2xl text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0">
           <Icon name="menu" :size="20" />
         </button>
@@ -214,7 +219,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AccountMenu from '@/Components/AccountMenu.vue'
 import NotificationBell from '@/Components/NotificationBell.vue'
@@ -259,36 +264,58 @@ const page        = usePage()
 const user        = computed(() => page.props.auth?.user)
 const flash       = computed(() => page.props.flash ?? {})
 const sidebarOpen = ref(false)
+const sidebarRef = ref(null)
+const sidebarCloseButton = ref(null)
+const sidebarTrigger = ref(null)
+
+function openSidebar() {
+  sidebarOpen.value = true
+  nextTick(() => sidebarCloseButton.value?.focus())
+}
+
+function closeSidebar(restoreFocus = false) {
+  sidebarOpen.value = false
+  if (restoreFocus) nextTick(() => sidebarTrigger.value?.focus())
+}
+
+function trapSidebarFocus(event) {
+  if (!sidebarOpen.value || window.innerWidth >= 1024 || !sidebarRef.value) return
+  const focusables = Array.from(sidebarRef.value.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter(el => el.getClientRects().length > 0)
+  if (!focusables.length) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function onSidebarEscape(event) {
+  if (event.key === 'Escape' && sidebarOpen.value) {
+    event.stopPropagation()
+    closeSidebar(true)
+  }
+}
+
 const realtimeToast = ref('')
 let toastTimeout
 
 const mainRef = ref(null)
 const isScrolled = ref(false)
 
-const isRequestsSection = computed(() => {
-  const t = (props.title || '').trim().toLowerCase()
-  return t === 'solicitudes' ||
-         t === 'mis solicitudes' ||
-         page.url.startsWith('/teacher/requests') ||
-         page.url.startsWith('/class-requests')
-})
-
-const headerClasses = computed(() => {
-  return [
-    'w-full sticky top-0 z-30 flex items-center gap-3 transition-all duration-300 ease-in-out',
-    isRequestsSection.value
-      ? (isSidebarCompressed.value ? 'lg:-ml-20 lg:w-[calc(100%+5rem)] lg:pl-28' : 'lg:-ml-64 lg:w-[calc(100%+16rem)] lg:pl-72')
-      : '',
-    props.compact ? 'px-4 sm:px-6 lg:pr-8 h-[60px]' : 'px-4 sm:px-6 lg:pr-8 py-3.5 min-h-[64px]',
-    // En mobile siempre muestra la barra con fondo frosted y borde inferior (añade shadow al scrollear)
-    // En desktop es transparente en reposo superior y adquiere barra frosted al scrollear
-    isScrolled.value
-      ? (isRequestsSection.value
-          ? 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-xs lg:bg-[#BDD4F2]/95 lg:border-[#9EC3EB]'
-          : 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-xs lg:bg-[#EBF2FA]/95 lg:backdrop-blur-md lg:border-b lg:border-blue-200/50 lg:shadow-xs')
-      : 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 lg:bg-transparent lg:border-transparent lg:shadow-none'
-  ]
-})
+// Cabecera en el flujo del layout: no sobresale artificialmente sobre el sidebar.
+const headerClasses = computed(() => [
+  'w-full sticky top-0 z-30 flex items-center gap-3 transition-colors duration-200',
+  props.compact ? 'px-4 sm:px-6 lg:pr-8 h-[60px]' : 'px-4 sm:px-6 lg:pr-8 py-3.5 min-h-[64px]',
+  isScrolled.value
+    ? 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 shadow-sm'
+    : 'bg-[#EBF2FA]/95 backdrop-blur-md border-b border-blue-200/50 lg:bg-transparent lg:border-transparent lg:shadow-none',
+])
 
 function checkScroll(e) {
   const mainSt = mainRef.value?.scrollTop || 0
@@ -307,13 +334,45 @@ function showRealtimeToast(message) {
 
 let channel
 let removeNavigateListener
+let realtimeRefreshTimer
+let realtimeConnection
+let realtimeStateHandler
+let layoutMounted = false
+let missedWhileHidden = false
+const seenNotificationIds = new Set()
+
+function queueRealtimeRefresh() {
+  if (document.hidden) {
+    missedWhileHidden = true
+    return
+  }
+  // Un aviso es una señal de invalidez: las props completas se consultan de
+  // nuevo con el rol y las policies actuales; no se confía en el payload WS.
+  const url = page.url.split('?')[0]
+  if (!/^\/(dashboard|class-requests|teacher\/requests|teacher\/classes|teacher\/credits\/?$|my-classes|admin\/)/.test(url)) return
+  clearTimeout(realtimeRefreshTimer)
+  realtimeRefreshTimer = setTimeout(() => {
+    if (layoutMounted) router.reload({ preserveScroll: true, preserveState: true })
+  }, 300)
+}
+
+function refreshOnVisible() {
+  if (!document.hidden && missedWhileHidden) {
+    missedWhileHidden = false
+    queueRealtimeRefresh()
+  }
+}
 
 onMounted(async () => {
+  layoutMounted = true
+  document.addEventListener('keydown', onSidebarEscape)
+  document.addEventListener('visibilitychange', refreshOnVisible)
   window.addEventListener('scroll', checkScroll, { passive: true, capture: true })
   if (mainRef.value) {
     mainRef.value.addEventListener('scroll', checkScroll, { passive: true })
   }
   removeNavigateListener = router.on('navigate', () => {
+    sidebarOpen.value = false
     isScrolled.value = false
     setTimeout(checkScroll, 50)
   })
@@ -321,7 +380,13 @@ onMounted(async () => {
   const userId = user.value?.id
   if (!userId) return
 
-  const { initEcho } = await import('@/echo.js')
+  let initEcho
+  try {
+    ({ initEcho } = await import('@/echo.js'))
+  } catch {
+    return // El resto de la UI y el refresco controlado por página funcionan.
+  }
+  if (!layoutMounted) return
   const echo = initEcho(page.props.realtime)
   // realtime deshabilitado (o sin key pública) es un estado normal, no un
   // error: la UI autenticada sigue funcionando sin notificaciones en vivo.
@@ -329,13 +394,30 @@ onMounted(async () => {
 
   channel = echo.private(`App.Models.User.${userId}`)
   channel.notification((notification) => {
-    router.reload({ only: ['lessons', 'notifications', 'auth'], preserveScroll: true })
+    // Un mismo aviso no debe generar dos refrescos ni dos toasts.
+    const id = notification?.id
+    if (id && seenNotificationIds.has(id)) return
+    if (id) {
+      seenNotificationIds.add(id)
+      if (seenNotificationIds.size > 100) seenNotificationIds.clear()
+    }
+    queueRealtimeRefresh()
     window.dispatchEvent(new CustomEvent('mova:notification', { detail: notification }))
     showRealtimeToast(notification.message)
   })
+  realtimeConnection = echo.connector?.pusher?.connection
+  realtimeStateHandler = ({ previous, current }) => {
+    if (current === 'connected' && previous !== 'initialized') queueRealtimeRefresh()
+  }
+  realtimeConnection?.bind('state_change', realtimeStateHandler)
 })
 
 onUnmounted(() => {
+  layoutMounted = false
+  document.removeEventListener('keydown', onSidebarEscape)
+  document.removeEventListener('visibilitychange', refreshOnVisible)
+  realtimeConnection?.unbind('state_change', realtimeStateHandler)
+  clearTimeout(realtimeRefreshTimer)
   window.removeEventListener('scroll', checkScroll, { capture: true })
   if (mainRef.value) {
     mainRef.value.removeEventListener('scroll', checkScroll)
@@ -370,7 +452,9 @@ function isActive(href) {
   if (href === '/marketplace' && (page.url.startsWith('/marketplace') || page.url.startsWith('/teachers'))) {
     return true
   }
-  return page.url.startsWith(href) && href !== '/'
+  if (href === '/') return page.url.split('?')[0] === '/'
+  const current = page.url.split('?')[0]
+  return current === href || current.startsWith(href + '/')
 }
 
 const navItems = computed(() => {
