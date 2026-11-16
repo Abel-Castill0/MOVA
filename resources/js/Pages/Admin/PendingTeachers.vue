@@ -158,7 +158,7 @@ function submitReject() {
     route('admin.teachers.reject', rejectTarget.value.id),
     { reason: rejectReason.value.trim() },
     {
-      onSuccess: () => closeRejectModal(),
+      onSuccess: () => { rejectTarget.value = null; rejectReason.value = ''; rejectError.value = '' },
       onError: (errors) => { rejectError.value = errors.reason ?? 'No se pudo rechazar al profesor.' },
       onFinish: () => { rejecting.value = false },
     }
