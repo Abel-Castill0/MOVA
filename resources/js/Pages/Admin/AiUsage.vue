@@ -66,14 +66,14 @@
           Sin registros aún.
         </div>
         <div v-else class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          <div v-for="r in recent" :key="r.id" class="flex items-center gap-3 px-4 py-2.5 text-sm">
+          <div v-for="r in recent" :key="r.id" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-sm">
             <span :class="['w-16 text-center px-2 py-0.5 text-xs font-semibold rounded', statusBadge(r.status)]">
               {{ r.status }}
             </span>
-            <span class="text-slate-600 flex-1">{{ r.provider }}/{{ r.model }}</span>
+            <span class="min-w-0 flex-1 break-words text-slate-600">{{ r.provider }}/{{ r.model }}</span>
             <span v-if="r.total_tokens" class="text-xs text-slate-500">{{ r.total_tokens }} tok</span>
-            <span v-if="r.error_type" class="text-xs text-orange-500">{{ r.error_type }}</span>
-            <span class="text-xs text-slate-300 ml-auto">{{ fmtDate(r.created_at) }}</span>
+            <span v-if="r.error_type" class="text-xs text-orange-700">{{ r.error_type }}</span>
+            <span class="text-xs text-slate-600 ml-auto">{{ fmtDate(r.created_at) }}</span>
           </div>
         </div>
       </div>
@@ -93,9 +93,9 @@ const props = defineProps({
 })
 
 const statuses = [
-  { key: 'success',  label: 'Exitosas',  color: 'text-emerald-600' },
-  { key: 'fallback', label: 'Fallback',  color: 'text-amber-500' },
-  { key: 'error',    label: 'Error',     color: 'text-red-500' },
+  { key: 'success',  label: 'Exitosas',  color: 'text-emerald-700' },
+  { key: 'fallback', label: 'Fallback',  color: 'text-amber-700' },
+  { key: 'error',    label: 'Error',     color: 'text-red-700' },
   { key: 'skipped',  label: 'Omitidas',  color: 'text-slate-500' },
 ]
 
@@ -117,7 +117,7 @@ function statusBadge(s) {
 
 function fmtDate(d) {
   return new Date(d).toLocaleString('es-PE', {
-    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+    timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
   })
 }
 </script>

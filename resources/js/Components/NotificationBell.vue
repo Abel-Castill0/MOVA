@@ -1,6 +1,6 @@
 <template>
   <div class="relative" ref="root">
-    <button type="button" @click="open = !open" :aria-label="unread ? `Notificaciones, ${unread} sin leer` : 'Notificaciones' "
+    <button ref="trigger" type="button" @click="open = !open" :aria-label="unread ? `Notificaciones, ${unread} sin leer` : 'Notificaciones' "
       aria-haspopup="true" :aria-expanded="open" aria-controls="notification-panel"
       class="relative flex items-center justify-center w-11 h-11 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-full transition-colors">
       <Icon name="notification" :size="20" />
@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import Icon from '@/Components/Icon.vue'
 
@@ -55,6 +55,7 @@ const placementClasses = computed(() => props.placement === 'down-right'
 
 const open = ref(false)
 const root = ref(null)
+const trigger = ref(null)
 const notifications = ref([])
 const loadError = ref(false)
 const actionError = ref('')
@@ -125,7 +126,10 @@ function fmtDate(d) {
 }
 
 function onEscape(event) {
-  if (event.key === 'Escape') open.value = false
+  if (event.key !== 'Escape' || !open.value) return
+  event.stopPropagation()
+  open.value = false
+  nextTick(() => trigger.value?.focus())
 }
 
 let interval

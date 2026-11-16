@@ -5,6 +5,7 @@ import { usePage } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import MoviMascot from '@/Components/MoviMascot.vue'
 import { formatMessageText } from '@/utils/chatbotFormat.js'
+import { lockBodyScroll } from '@/utils/bodyScrollLock.js'
 
 const props = defineProps({
   modelValue: {
@@ -69,14 +70,19 @@ const launcherRef = ref(null)
 const dialogRef = ref(null)
 
 let lastFocused = null
+let releaseChatScroll = null
 
 watch(isOpen, (open) => {
   if (open) {
+    releaseChatScroll?.()
+    releaseChatScroll = lockBodyScroll()
     lastFocused = document.activeElement
     nudgeVisible.value = false
     scrollToBottom()
     nextTick(() => dialogRef.value?.querySelector('#movi-chat-input')?.focus())
   } else {
+    releaseChatScroll?.()
+    releaseChatScroll = null
     // Devuelve el foco a quien abrió el chat (lanzador flotante o botón de la cabecera).
     nextTick(() => (launcherRef.value ?? lastFocused)?.focus?.())
   }
@@ -125,6 +131,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  releaseChatScroll?.()
+  releaseChatScroll = null
   clearTimeout(nudgeTimer)
   clearTimeout(nudgeHideTimer)
 })
