@@ -30,24 +30,24 @@
            ══════════════════════════════════════════════ -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-2 flex-wrap">
-          <div role="tablist" aria-label="Estado de solicitudes" class="flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/60">
+          <div role="group" aria-label="Estado de solicitudes" class="flex flex-wrap items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/60">
             <button
               @click="statusTab = 'open'"
-              type="button" role="tab" :aria-selected="statusTab === 'open'"
+              type="button" :aria-pressed="statusTab === 'open'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'open' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Abiertas ({{ requests.length }})
             </button>
             <button
               @click="statusTab = 'counteroffered'"
-              type="button" role="tab" :aria-selected="statusTab === 'counteroffered'"
+              type="button" :aria-pressed="statusTab === 'counteroffered'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'counteroffered' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Con contraoferta ({{ counterofferedRequests.length }})
             </button>
             <button
               @click="statusTab = 'rejected'"
-              type="button" role="tab" :aria-selected="statusTab === 'rejected'"
+              type="button" :aria-pressed="statusTab === 'rejected'"
               :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer', statusTab === 'rejected' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800']"
             >
               Rechazadas ({{ rejectedRequests.length }})
@@ -98,7 +98,7 @@
             >
               <option value="recent">Más recientes</option>
               <option value="urgent">Mayor urgencia</option>
-              <option value="student">Alumno (A-Z)</option>
+              <option value="student">Grado (A-Z)</option>
               <option value="subject">Materia (A-Z)</option>
             </select>
             <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
@@ -1075,7 +1075,7 @@ const filteredRequests = computed(() => {
     }
     list.sort((a, b) => score(b) - score(a))
   } else if (sortBy.value === 'student') {
-    list.sort((a, b) => studentLabel(a).localeCompare(studentLabel(b)))
+    list.sort((a, b) => (a.student?.grade_level || '').localeCompare(b.student?.grade_level || ''))
   } else if (sortBy.value === 'subject') {
     list.sort((a, b) => (a.subject?.name || '').localeCompare(b.subject?.name || ''))
   } else {
