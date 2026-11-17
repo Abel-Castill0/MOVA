@@ -3,6 +3,8 @@
 namespace App\Realtime;
 
 use Firebase\JWT\JWT;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -61,25 +63,59 @@ class SignalRClient
         ];
     }
 
+    private const BREAKER_KEY = 'realtime:signalr:down';
+    private const BREAKER_SECONDS = 60;
+
     /** @param array<string, mixed> $payload  Nunca datos personales ni de menores. */
     public function sendToUser(int $userId, array $payload): bool
     {
-        $url = $this->endpoint().'/api/v1/hubs/'.$this->hub().'/users/'.rawurlencode((string) $userId);
+        return $this->sendToUsers([$userId], $payload);
+    }
 
-        try {
-            $response = Http::withToken($this->sign($url, [], 300))
-                ->acceptJson()->connectTimeout(2)->timeout(3)
-                ->post($url, ['target' => 'signal', 'arguments' => [$payload]]);
-        } catch (\Throwable $e) {
-            Log::info('[Realtime] No se pudo publicar la señal.', ['error' => class_basename($e)]);
-
+    /**
+     * Publica la misma señal a varias personas EN PARALELO (una sola espera, no una por destinatario) con tiempos
+     * cortos. Si el servicio falla o no responde, se abre un corte de 60 s: durante ese tiempo no se intenta nada y las
+     * operaciones de MOVA no pagan la espera (la interfaz sigue con su refresco normal).
+     *
+     * @param  list<int>  $userIds
+     * @param  array<string, mixed>  $payload  Nunca datos personales ni de menores.
+     */
+    public function sendToUsers(array $userIds, array $payload): bool
+    {
+        if ($userIds === [] || Cache::has(self::BREAKER_KEY)) {
             return false;
         }
 
-        if (! $response->successful()) {
-            Log::info('[Realtime] El servicio rechazó la señal.', ['status' => $response->status()]);
+        $base = $this->endpoint().'/api/v1/hubs/'.$this->hub().'/users/';
+        $body = ['target' => 'signal', 'arguments' => [$payload]];
+
+        try {
+            $responses = Http::pool(function (Pool $pool) use ($userIds, $base, $body) {
+                foreach ($userIds as $id) {
+                    $url = $base.rawurlencode((string) $id);
+                    $pool->as((string) $id)->withToken($this->sign($url, [], 300))->acceptJson()
+                        ->connectTimeout(1)->timeout(2)->post($url, $body);
+                }
+            });
+        } catch (\Throwable $e) {
+            return $this->trip(class_basename($e));
         }
 
-        return $response->successful();
+        $failed = collect($responses)->filter(fn ($r) => ! ($r instanceof \Illuminate\Http\Client\Response) || ! $r->successful());
+        if ($failed->isNotEmpty()) {
+            $first = $failed->first();
+
+            return $this->trip($first instanceof \Illuminate\Http\Client\Response ? 'HTTP '.$first->status() : class_basename($first));
+        }
+
+        return true;
+    }
+
+    private function trip(string $reason): bool
+    {
+        Cache::put(self::BREAKER_KEY, 1, self::BREAKER_SECONDS);
+        Log::info('[Realtime] Servicio de señales no disponible; se pausa 60 s.', ['reason' => $reason]);
+
+        return false;
     }
 }

@@ -45,10 +45,7 @@ class RealtimeSignal
                     return;
                 }
 
-                $client = app(SignalRClient::class);
-                foreach ($ids as $id) {
-                    $client->sendToUser($id, ['id' => (string) Str::uuid(), 'topics' => $topics, 'at' => now()->toIso8601String()]);
-                }
+                app(SignalRClient::class)->sendToUsers($ids->all(), ['id' => (string) Str::uuid(), 'topics' => $topics, 'at' => now()->toIso8601String()]);
             } catch (\Throwable $e) {
                 Log::info('[Realtime] Señal omitida.', ['error' => class_basename($e)]);
             }

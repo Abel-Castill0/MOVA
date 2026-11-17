@@ -264,10 +264,7 @@ function showRealtimeToast(message) {
 }
 
 let removeNavigateListener
-let realtimeStatusRef
-let stopRealtimeStatusWatch
 let stopNotificationSignal
-const realtimeState = ref('off')
 
 onMounted(async () => {
   window.addEventListener('scroll', checkScroll, { passive: true, capture: true })
@@ -286,8 +283,6 @@ onMounted(async () => {
   // Tiempo real (Azure SignalR). Apagado o sin configurar es un estado normal, no un error: la interfaz sigue con su
   // refresco habitual. Las señales no traen datos; cada página pide los suyos al servidor.
   const realtime = await import('@/realtime.js')
-  realtimeStatusRef = realtime.realtimeStatus
-  stopRealtimeStatusWatch = watch(realtime.realtimeStatus, (value) => { realtimeState.value = value }, { immediate: true })
   stopNotificationSignal = realtime.onSignal('notifications', () => {
     // La campana vuelve a pedir sus avisos; el contador de `auth` se actualiza con el mismo viaje.
     router.reload({ only: ['auth'], preserveScroll: true, preserveState: true })
@@ -306,9 +301,8 @@ onUnmounted(() => {
   }
   clearTimeout(toastTimeout)
   stopNotificationSignal?.()
-  stopRealtimeStatusWatch?.()
-  // Cierra la conexión y los temporizadores al salir del layout (cambio de sesión o cierre): nada queda escuchando.
-  import('@/realtime.js').then((realtime) => realtime.stopRealtime())
+  // La conexión NO se cierra aquí: cada página tiene su propio layout y navegar no debe reabrirla. realtime.js la cierra
+  // al salir de la sesión o cambiar de cuenta (lo detecta en cada navegación).
 })
 
 const isTeacher = computed(() => (user.value?.roles ?? []).includes('teacher'))

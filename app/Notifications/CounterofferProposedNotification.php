@@ -82,11 +82,9 @@ class CounterofferProposedNotification extends Notification implements ShouldQue
 
         $teacher = $this->classRequest->counterofferTeacherProfile?->user?->name ?? 'Un profesor';
         $subject = $this->classRequest->subject?->name ?? 'su clase';
-        $when = $this->classRequest->counteroffer_time
-            ?->copy()->setTimezone(LimaClock::TIMEZONE)
-            ->format('d/m/Y \a \l\a\s H:i');
+        $when = $this->classRequest->counteroffer_time ? LimaClock::dateTimeLong($this->classRequest->counteroffer_time) : '';
         $minutes = (int) $this->classRequest->counteroffer_duration_minutes;
 
-        return "{$teacher} propone la clase de {$subject} el {$when} (hora de Perú), con una duración de {$minutes} minutos.";
+        return "{$teacher} propone la clase de {$subject} el {$when}, con una duración de {$minutes} minutos.";
     }
 }

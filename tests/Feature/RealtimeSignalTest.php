@@ -192,6 +192,40 @@ class RealtimeSignalTest extends TestCase
         $this->assertSame('expired', $request->fresh()->status);
     }
 
+    public function test_many_recipients_are_signalled_in_one_parallel_round_and_a_failure_pauses_the_service_for_a_minute(): void
+    {
+        $this->enable();
+        $subject = Subject::create(['name' => 'Álgebra', 'level' => 'todos']);
+        [, $student] = $this->parentWithStudent();
+        foreach (range(1, 6) as $_) {
+            $this->teacher($subject);
+        }
+
+        ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => 'x', 'status' => 'open']);
+        $this->assertCount(7, $this->sent(), 'Un envío por destinatario (padre + 6 profesores), todos en la misma ronda.');
+
+        // El servicio cae: se pausa y las operaciones siguientes no pagan ninguna espera ni intentan nada.
+        \Illuminate\Support\Facades\Cache::flush();
+        Http::swap(new \Illuminate\Http\Client\Factory()); // empieza de cero: el primer simulacro seguiría respondiendo 202
+        Http::fake([self::ENDPOINT.'/*' => Http::response('boom', 503)]);
+        ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => 'y', 'status' => 'open']);
+        $callsAfterFailure = count($this->sent());
+        $this->assertGreaterThan(0, $callsAfterFailure);
+        $this->assertTrue(\Illuminate\Support\Facades\Cache::has('realtime:signalr:down'));
+
+        ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => 'z', 'status' => 'open']);
+        $this->assertCount($callsAfterFailure, $this->sent(), 'Con el servicio pausado no se hace ninguna llamada nueva.');
+    }
+
+    public function test_a_suspended_user_cannot_negotiate_a_connection(): void
+    {
+        $this->enable();
+        [$parent] = $this->parentWithStudent();
+        $parent->update(['suspended_at' => now()]);
+
+        $this->actingAs($parent->fresh())->postJson(route('realtime.negotiate'))->assertRedirect(route('suspended'));
+    }
+
     public function test_negotiate_requires_login_and_binds_the_token_to_the_session_user_only(): void
     {
         $this->enable();

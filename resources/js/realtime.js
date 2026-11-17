@@ -6,9 +6,13 @@
  * `notifications`, `dashboard`). Cada página vuelve a pedir sus propios datos por HTTP, donde el servidor aplica sesión,
  * rol y alcance. Si algo falla, la interfaz sigue con su refresco normal (estado `fallback`).
  *
- * El módulo se carga bajo demanda desde AppLayout; las páginas de invitado no descargan nada de esto.
+ * UNA conexión por pestaña: vive mientras la sesión sea de la misma persona, aunque se navegue entre páginas (cada página
+ * usa su propio AppLayout, así que el layout NO es quien la cierra). Se cierra al salir de la sesión o al cambiar de
+ * cuenta, detectado en cada navegación de Inertia. Un contador de generación impide que un arranque o parada antiguos
+ * pisen a uno más nuevo.
  */
 import { ref } from 'vue'
+import { router } from '@inertiajs/vue3'
 
 export const ALL_TOPICS = ['requests', 'lessons', 'credits', 'notifications', 'dashboard']
 
@@ -24,13 +28,17 @@ const seen = []
 let pending = new Set()
 let flushTimer = null
 let connection = null
+let connecting = false
 let config = null
 let ownerId = null
-let stopped = true
+let active = false
+let generation = 0
 let retryTimer = null
 let retryCount = 0
 let hiddenTimer = null
 let visibilityBound = false
+let routerBound = false
+let firstToken = null // el token de la primera negociación se reutiliza una vez: un solo POST por conexión
 
 /** Suscribe una función a un tema. Devuelve la función para cancelar. */
 export function onSignal(topic, handler) {
@@ -73,51 +81,67 @@ async function negotiate() {
   return status === 200 ? data : null
 }
 
-function scheduleRetry() {
-  if (stopped || retryTimer) return
+function scheduleRetry(gen) {
+  if (!active || gen !== generation || retryTimer) return
   const delay = RETRY_MS[Math.min(retryCount, RETRY_MS.length - 1)]
   retryCount += 1
   retryTimer = window.setTimeout(() => {
     retryTimer = null
-    connect()
+    connect(gen)
   }, delay)
 }
 
-async function connect() {
-  if (stopped || connection) return
+async function connect(gen) {
+  if (!active || gen !== generation || connection || connecting) return
+  connecting = true
   realtimeStatus.value = 'connecting'
+  let built = null
   try {
     const first = await negotiate()
+    if (gen !== generation) return
     if (!first) {
       realtimeStatus.value = 'off' // el servidor no tiene tiempo real configurado: estado normal, no un error
 
       return
     }
+    firstToken = first.accessToken
     const signalR = await import('@microsoft/signalr')
-    if (stopped) return
+    if (gen !== generation) return
 
-    const built = new signalR.HubConnectionBuilder()
-      .withUrl(first.url, { accessTokenFactory: async () => (await negotiate())?.accessToken ?? '' })
+    built = new signalR.HubConnectionBuilder()
+      .withUrl(first.url, {
+        accessTokenFactory: async () => {
+          if (firstToken) {
+            const token = firstToken
+            firstToken = null
+
+            return token
+          }
+
+          return (await negotiate())?.accessToken ?? ''
+        },
+      })
       .withAutomaticReconnect({ nextRetryDelayInMilliseconds: (ctx) => Math.min(30000, 1000 * 2 ** ctx.previousRetryCount) + Math.random() * 500 })
       .configureLogging(signalR.LogLevel.None)
       .build()
 
-    built.on('signal', receive)
-    built.onreconnecting(() => { realtimeStatus.value = 'reconnecting' })
+    built.on('signal', (signal) => { if (gen === generation) receive(signal) })
+    built.onreconnecting(() => { if (gen === generation) realtimeStatus.value = 'reconnecting' })
     built.onreconnected(() => {
+      if (gen !== generation) return
       realtimeStatus.value = 'live'
       resync() // lo ocurrido mientras no había conexión se recupera pidiendo los datos al servidor
     })
     built.onclose(() => {
+      if (gen !== generation) return // una conexión vieja que se cierra no toca el estado de la nueva
       connection = null
-      if (stopped) return
       realtimeStatus.value = 'fallback'
-      scheduleRetry()
+      scheduleRetry(gen)
     })
 
     await built.start()
-    if (stopped) {
-      await built.stop()
+    if (gen !== generation) {
+      await built.stop().catch(() => {})
 
       return
     }
@@ -126,9 +150,14 @@ async function connect() {
     realtimeStatus.value = 'live'
     resync()
   } catch {
-    connection = null
-    realtimeStatus.value = 'fallback'
-    scheduleRetry()
+    if (built) await built.stop().catch(() => {})
+    if (gen === generation) {
+      connection = null
+      realtimeStatus.value = 'fallback'
+      scheduleRetry(gen)
+    }
+  } finally {
+    connecting = false
   }
 }
 
@@ -143,57 +172,82 @@ async function disconnect() {
 }
 
 function onVisibility() {
-  if (stopped) return
+  if (!active) return
+  const gen = generation
   if (document.hidden) {
     // Una pestaña olvidada no debe ocupar una conexión del servicio: se pausa y se retoma al volver.
     hiddenTimer = window.setTimeout(async () => {
+      if (gen !== generation) return
       await disconnect()
-      if (!stopped) realtimeStatus.value = 'paused'
+      if (active && gen === generation) realtimeStatus.value = 'paused'
     }, HIDDEN_PAUSE_MS)
   } else {
     window.clearTimeout(hiddenTimer)
     if (realtimeStatus.value === 'paused' || (realtimeStatus.value === 'fallback' && !connection)) {
       retryCount = 0
-      connect()
+      connect(gen)
     }
   }
 }
 
+/** Cada navegación de Inertia revisa de quién es la sesión: si salió o cambió, se cierra y (si hay otra cuenta) se reabre. */
+function bindRouter() {
+  if (routerBound) return
+  routerBound = true
+  router.on('navigate', (event) => {
+    const props = event.detail?.page?.props ?? {}
+    const uid = props.auth?.user?.id ?? null
+    if (!uid) {
+      stopRealtime()
+    } else if (uid !== ownerId) {
+      startRealtime(props.realtime, uid)
+    }
+  })
+}
+
 /**
- * Arranca (o reinicia) el tiempo real para ESTE usuario. Si había una conexión de otra persona en la misma pestaña, se
- * cierra antes: nunca se reutiliza una conexión entre cuentas.
+ * Arranca el tiempo real para ESTE usuario. Es idempotente: si ya está activo para la misma persona no hace nada. Si había
+ * una conexión de otra persona en la misma pestaña, se cierra antes: nunca se reutiliza una conexión entre cuentas.
  */
 export async function startRealtime(cfg, userId) {
+  bindRouter()
   if (!cfg?.enabled || !cfg.negotiateUrl || !userId) {
-    realtimeStatus.value = 'off'
+    await stopRealtime()
 
     return
   }
-  if (!stopped && ownerId === userId && (connection || retryTimer)) return
+  if (active && ownerId === userId) {
+    config = cfg
+
+    return
+  }
   await stopRealtime()
   config = cfg
   ownerId = userId
-  stopped = false
+  active = true
+  const gen = ++generation
   if (!visibilityBound) {
     document.addEventListener('visibilitychange', onVisibility)
     visibilityBound = true
   }
-  connect()
+  connect(gen)
 }
 
-/** Cierra la conexión, la reconexión y los temporizadores (al salir de la sesión o desmontar el layout). */
+/** Cierra la conexión, la reconexión y los temporizadores (al salir de la sesión o al cambiar de cuenta). */
 export async function stopRealtime() {
-  stopped = true
+  generation += 1 // invalida de golpe todo lo que esté en curso
+  active = false
   ownerId = null
+  firstToken = null
+  realtimeStatus.value = 'off'
   window.clearTimeout(hiddenTimer)
   window.clearTimeout(flushTimer)
   flushTimer = null
   pending = new Set()
+  seen.length = 0
   if (visibilityBound) {
     document.removeEventListener('visibilitychange', onVisibility)
     visibilityBound = false
   }
   await disconnect()
-  seen.length = 0
-  realtimeStatus.value = 'off'
 }
