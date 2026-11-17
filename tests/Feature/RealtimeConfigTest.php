@@ -7,98 +7,55 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * AZ-3G — resources/js/echo.js leía import.meta.env.VITE_PUSHER_*, que el
- * build de Docker de producción nunca inyecta (son variables build-time de
- * Vite, no runtime). AppLayout inicializaba Echo incondicionalmente para
- * cualquier usuario autenticado, así que `new Echo({ key: undefined, ... })`
- * fallaba en consola en cada carga autenticada en producción.
- *
- * La config ahora es server-runtime, compartida vía HandleInertiaRequests
- * bajo la prop `realtime` -- nunca 'secret' ni 'app_id'.
+ * La configuración de tiempo real viaja al navegador como una prop de Inertia (`realtime`): solo dice si hay tiempo
+ * real y dónde negociar. Nunca la clave del servicio ni su endpoint (AZ-3G: el build de producción no inyecta variables
+ * de Vite; todo es de servidor). Desde la migración a Azure SignalR el único interruptor es REALTIME_DRIVER; la antigua
+ * ruta Pusher/Echo ya no activa nada.
  */
 class RealtimeConfigTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_realtime_is_disabled_when_broadcast_driver_is_not_pusher(): void
+    private const KEY = 'clave-de-prueba-signalr-0123456789abcdef';
+
+    private function realtimeProp(): array
     {
-        config([
-            'broadcasting.default' => 'null',
-            'broadcasting.connections.pusher.key' => 'some-key-that-should-be-ignored',
-        ]);
-
-        $user = User::factory()->create();
-
-        $this->actingAs($user)->get('/dashboard')
-            ->assertInertia(fn ($page) => $page
-                ->where('realtime.enabled', false)
-                ->where('realtime.key', null)
-            );
+        return $this->actingAs(User::factory()->create())->get('/dashboard')->assertOk()->inertiaPage()['props']['realtime'];
     }
 
-    public function test_realtime_is_disabled_when_pusher_key_is_missing(): void
+    public function test_realtime_is_disabled_by_default(): void
     {
-        config([
-            'broadcasting.default' => 'pusher',
-            'broadcasting.connections.pusher.key' => null,
-        ]);
-
-        $user = User::factory()->create();
-
-        $this->actingAs($user)->get('/dashboard')
-            ->assertInertia(fn ($page) => $page
-                ->where('realtime.enabled', false)
-                ->where('realtime.key', null)
-            );
+        $this->assertSame(['enabled' => false, 'driver' => null, 'negotiateUrl' => null], $this->realtimeProp());
     }
 
-    public function test_realtime_shares_public_config_when_pusher_is_fully_configured(): void
+    public function test_a_leftover_pusher_configuration_does_not_enable_realtime(): void
     {
         config([
             'broadcasting.default' => 'pusher',
             'broadcasting.connections.pusher.key' => 'app-key-123',
-            'broadcasting.connections.pusher.options.cluster' => 'sa1',
-            'broadcasting.connections.pusher.options.host' => 'ws-sa1.pusher.com',
-            'broadcasting.connections.pusher.options.port' => 443,
-            'broadcasting.connections.pusher.options.scheme' => 'https',
         ]);
 
-        $user = User::factory()->create();
-
-        $this->actingAs($user)->get('/dashboard')
-            ->assertInertia(fn ($page) => $page
-                ->where('realtime.enabled', true)
-                ->where('realtime.key', 'app-key-123')
-                ->where('realtime.cluster', 'sa1')
-                ->where('realtime.host', 'ws-sa1.pusher.com')
-                ->where('realtime.port', 443)
-                ->where('realtime.scheme', 'https')
-            );
+        $this->assertFalse($this->realtimeProp()['enabled']);
     }
 
-    public function test_pusher_secret_is_never_present_in_inertia_props(): void
+    public function test_signalr_without_endpoint_or_key_stays_disabled(): void
     {
-        config([
-            'broadcasting.default' => 'pusher',
-            'broadcasting.connections.pusher.key' => 'app-key-123',
-            'broadcasting.connections.pusher.secret' => 'super-secret-value',
-            'broadcasting.connections.pusher.app_id' => '999999',
-        ]);
+        config(['realtime.driver' => 'signalr', 'realtime.signalr.endpoint' => null, 'realtime.signalr.access_key' => self::KEY]);
+        $this->assertFalse($this->realtimeProp()['enabled']);
 
-        $user = User::factory()->create();
+        config(['realtime.signalr.endpoint' => 'https://mova-test.service.signalr.net', 'realtime.signalr.access_key' => 'corta']);
+        $this->assertFalse($this->realtimeProp()['enabled']);
+    }
 
-        $response = $this->actingAs($user)->get('/dashboard');
-        $response->assertInertia(function ($page) {
-            $realtime = $page->toArray()['props']['realtime'];
-            $this->assertArrayNotHasKey('secret', $realtime);
-            $this->assertArrayNotHasKey('app_id', $realtime);
-        });
+    public function test_signalr_shares_only_the_negotiate_route_and_never_the_key_or_endpoint(): void
+    {
+        config(['realtime.driver' => 'signalr', 'realtime.signalr.endpoint' => 'https://mova-test.service.signalr.net', 'realtime.signalr.access_key' => self::KEY]);
 
-        // assertDontSee (no assertDontSeeText): el secret viviría dentro del
-        // atributo JSON data-page si se filtrara, y assertDontSeeText
-        // despoja el HTML antes de comparar -- no miraría dentro de un
-        // atributo. assertDontSee compara el contenido crudo de la respuesta.
-        $response->assertDontSee('super-secret-value');
-        $response->assertDontSee('999999');
+        $response = $this->actingAs(User::factory()->create())->get('/dashboard')->assertOk();
+
+        $this->assertSame(['enabled' => true, 'driver' => 'signalr', 'negotiateUrl' => '/realtime/negotiate'], $response->inertiaPage()['props']['realtime']);
+        // assertDontSee compara el contenido crudo: la clave viviría dentro del atributo JSON data-page si se filtrara.
+        $response->assertDontSee(self::KEY);
+        $response->assertDontSee('mova-test.service.signalr.net');
     }
 }
