@@ -22,7 +22,7 @@
             <Icon name="classes" :size="14" /> {{ fmtDate(lesson.start_time) }} · {{ lesson.duration_minutes }} min
           </p>
           <div v-if="lesson.status === 'cancelled' && lesson.cancel_reason"
-            class="mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+            class="mt-2 text-xs text-red-700 bg-red-50 rounded px-2 py-1">
             Motivo de cancelación: {{ lesson.cancel_reason }}
           </div>
           <div v-if="lesson.rescheduled_at && lesson.original_start_time"
@@ -98,11 +98,11 @@
       <!-- Actions footer for scheduled lessons -->
       <div v-if="lesson.status === 'scheduled'" class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-end gap-2">
         <button @click="$emit('reschedule', lesson)"
-          class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+          class="text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
           Reprogramar
         </button>
         <button @click="$emit('cancel', lesson)"
-          class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+          class="text-xs text-red-700 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
           Cancelar clase
         </button>
       </div>

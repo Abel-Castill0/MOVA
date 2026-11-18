@@ -312,6 +312,8 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::post('/teachers/{teacher}/reject', [AdminController::class, 'rejectTeacher'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.teachers.reject');
         Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.suspend');
         Route::post('/users/{user}/unsuspend', [AdminController::class, 'unsuspendUser'])->middleware(['admin.mfa:sensitive', 'throttle:20,1'])->name('admin.users.unsuspend');
+        Route::get('/users/{user}/erasure-preview', [AdminController::class, 'erasurePreview'])->middleware('throttle:30,1')->name('admin.users.erasure-preview');
+        Route::post('/users/{user}/erase', [AdminController::class, 'eraseUser'])->middleware(['admin.mfa:sensitive', 'throttle:5,1'])->name('admin.users.erase');
         Route::get('/requests', [AdminController::class, 'requests'])->name('admin.requests');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('admin.lessons');
         Route::post('/lessons/{lesson}/cancel', [AdminController::class, 'cancelLesson'])->middleware(['admin.mfa:sensitive', 'throttle:10,1'])->name('admin.lessons.cancel');

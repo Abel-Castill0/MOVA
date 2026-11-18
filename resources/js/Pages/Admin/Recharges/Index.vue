@@ -6,11 +6,11 @@
           <h2 class="text-2xl font-bold text-gray-900">Solicitudes de recarga</h2>
           <p class="text-sm text-gray-500">Revisa los pagos reportados por profesores y abona créditos manualmente.</p>
         </div>
-        <span class="text-sm text-slate-400">{{ recharges.total }} solicitudes</span>
+        <span class="text-sm text-slate-500">{{ recharges.total }} solicitudes</span>
       </div>
 
       <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla de recargas">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
@@ -56,7 +56,7 @@
                   >
                     {{ recharge.operation_number }}
                   </span>
-                  <span v-else class="text-xs italic text-slate-400">Automático (sin número de operación)</span>
+                  <span v-else class="text-xs italic text-slate-500">Automático (sin número de operación)</span>
                 </td>
                 <td class="px-5 py-3.5">
                   <span :class="['inline-flex rounded-full px-2.5 py-1 text-xs font-bold', rechargeStatusStyle(recharge.status).color]">{{ rechargeStatusStyle(recharge.status).label }}</span>
@@ -95,7 +95,7 @@
                   </div>
                   <span
                     v-else-if="recharge.status === 'pending' && recharge.payment_method === 'mercadopago'"
-                    class="block text-right text-xs text-slate-400"
+                    class="block text-right text-xs text-slate-500"
                   >
                     Gestionado por Mercado Pago · intento {{ recharge.latest_payment_order?.status ?? 'sin registrar' }}
                   </span>
@@ -136,7 +136,7 @@
                   >
                     Revertida
                   </span>
-                  <span v-else class="block text-right text-xs text-gray-400">Revisada</span>
+                  <span v-else class="block text-right text-xs text-gray-500">Revisada</span>
                 </td>
               </tr>
             </tbody>
@@ -360,7 +360,7 @@ function submitAction() {
 
 function fmtDate(value) {
   if (!value) return '-'
-  return new Date(value).toLocaleDateString('es-PE', {
+  return new Date(value).toLocaleDateString('es-PE', { timeZone: 'America/Lima',
     day: '2-digit',
     month: 'short',
     year: 'numeric',

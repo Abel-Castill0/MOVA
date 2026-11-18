@@ -155,7 +155,7 @@
 
         <!-- Verificando / pendiente / incierto: NUNCA se muestra como "falló", nunca invita a pagar de nuevo -->
         <div v-else-if="isVerifying && pollExhausted" class="flex flex-col items-center gap-3 py-4 text-center" role="status" aria-live="polite">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600" aria-hidden="true">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700" aria-hidden="true">
             <Icon name="info" :size="24" />
           </span>
           <p class="font-bold text-slate-900">No pudimos confirmar tu pago todavía</p>
@@ -178,7 +178,7 @@
 
         <!-- Aprobado -->
         <div v-else-if="status === 'approved'" class="flex flex-col items-center gap-2 py-4 text-center">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <Icon name="check" :size="24" />
           </span>
           <p class="font-bold text-slate-900">¡Pago aprobado!</p>

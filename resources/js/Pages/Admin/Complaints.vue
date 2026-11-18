@@ -84,7 +84,7 @@ function setFilter(v) {
   router.get(route('admin.complaints'), v ? { status: v } : {}, { preserveScroll: true })
 }
 
-const fmt = (d) => d ? new Date(d).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+const fmt = (d) => d ? new Date(d).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' }) : '—'
 
 // Vencimiento orientativo: suma días hábiles (lun–vie), sin feriados.
 function dueDate(created) {
@@ -94,7 +94,7 @@ function dueDate(created) {
     d.setDate(d.getDate() + 1)
     if (d.getDay() !== 0 && d.getDay() !== 6) left--
   }
-  return d.toLocaleDateString('es-PE', { dateStyle: 'medium' })
+  return d.toLocaleDateString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium' })
 }
 
 function respond(c) {

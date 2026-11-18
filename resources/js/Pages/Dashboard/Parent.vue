@@ -34,7 +34,7 @@
            BANNER POST-CLASE (lógica sin cambios)
            ══════════════════════════════════════════════ -->
       <div v-if="postClassLessonId && postClassEnded" class="bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 flex-shrink-0">
           <Icon name="flash-success" :size="20" />
         </div>
         <div class="flex-1">
@@ -123,7 +123,7 @@
           <!-- Clases completadas -->
           <div class="reveal-item group bg-white rounded-2xl border border-gray-100 py-3 px-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
             <div class="flex items-center justify-between gap-2 mb-1.5">
-              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors flex-shrink-0">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-700 group-hover:bg-emerald-100 transition-colors flex-shrink-0">
                 <Icon name="flash-success" :size="16" />
               </div>
               <Link :href="route('parent.lessons')" aria-label="Ver clases completadas"
@@ -437,7 +437,7 @@ const firstName = computed(() => user.value?.name?.split(' ')[0] ?? '')
 // Solo la inicial en mayúscula ("Domingo, 27 de septiembre de 2026"); la
 // clase CSS `capitalize` producía "27 De Septiembre De".
 const today     = computed(() => {
-  const s = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const s = new Date().toLocaleDateString('es-ES', { timeZone: 'America/Lima', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   return s.charAt(0).toUpperCase() + s.slice(1)
 })
 
@@ -454,11 +454,11 @@ const upcomingThisWeek = computed(() => upcomingGrouped.value.thisWeek)
 const upcomingPast     = computed(() => upcomingGrouped.value.past)
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtDateShort(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 // Deduplicado: usa statusStyle() compartido (utils/statusColors.js)

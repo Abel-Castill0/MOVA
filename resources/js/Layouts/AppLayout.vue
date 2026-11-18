@@ -45,14 +45,14 @@
           type="button"
           title="Comprimir menú lateral"
           aria-label="Comprimir menú lateral"
-          class="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+          class="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
         <button ref="drawerCloseRef" @click="sidebarOpen = false" aria-label="Cerrar menú"
-          class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-xl text-slate-400 hover:text-slate-600 active:bg-slate-100 transition-colors">
+          class="lg:hidden flex items-center justify-center w-11 h-11 -mr-2 rounded-xl text-slate-500 hover:text-slate-600 active:bg-slate-100 transition-colors">
           <Icon name="close" :size="20" />
         </button>
       </div>
@@ -95,7 +95,7 @@
           ]"
         >
           <svg
-            :class="['w-4 h-4 shrink-0 transition-transform duration-300', isSidebarCompressed ? 'rotate-180 text-brand-600' : 'text-slate-400']"
+            :class="['w-4 h-4 shrink-0 transition-transform duration-300', isSidebarCompressed ? 'rotate-180 text-brand-600' : 'text-slate-500']"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -127,7 +127,7 @@
           type="button"
           aria-label="Expandir menú lateral"
           title="Expandir menú lateral"
-          class="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-brand-600 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer flex-shrink-0 -ml-1"
+          class="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-500 hover:text-brand-600 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer flex-shrink-0 -ml-1"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />

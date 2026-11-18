@@ -57,7 +57,21 @@ Una cuenta cerrada con el flujo provisional (`account_closed_at` sin `account_er
 
 ## Administración
 
-`/admin/account-deletions` (admin + MFA) lista los cierres: resumen del tratamiento, incidencias excepcionales (limpieza fallida, clases sin cancelar, créditos dentro del plazo de devolución) y solicitudes heredadas. No hay aprobación, reactivación ni botón de borrado: la identidad suprimida no se restaura. Las constancias no impiden que el correo se registre de nuevo.
+`/admin/account-deletions` (admin + MFA) lista los cierres: resumen del tratamiento, incidencias excepcionales (limpieza fallida, clases sin cancelar, créditos dentro del plazo de devolución) y solicitudes heredadas. No hay aprobación, reactivación ni restauración: la identidad suprimida no se restaura. Las constancias no impiden que el correo se registre de nuevo.
+
+### Eliminación por un administrador (2026-11-17)
+
+`Admin → Usuarios → Eliminar` (`POST /admin/users/{user}/erase`, `role:admin` + `admin.mfa:sensitive`, 5/min) ejecuta **el mismo cierre automático** (`AccountLifecycleService::eraseByAdmin` → `performClosure`: misma transacción, mismo orden de bloqueos, mismo ledger append-only, misma anonimización). Diferencias deliberadas respecto al autoservicio:
+
+- **Vista previa obligatoria** (`GET /admin/users/{user}/erasure-preview`, solo conteos): clases a cancelar, solicitudes, créditos, bloqueos. El botón solo se habilita con motivo (≥10 caracteres) y el **correo exacto** de la cuenta escrito.
+- **Bloqueos** (`erasureBlockers`, revalidados bajo bloqueo de fila): créditos comprados dentro de la ventana de devolución de 7 días, órdenes de pago pendientes o en revisión sin resolver, recargas manuales pendientes. Un administrador no decide sobre dinero con derecho a devolución.
+- **Pérdida de saldo no reembolsable**: exige confirmar la cifra **exacta** (`accept_credit_loss`); una cifra distinta (saldo cambiado o petición manipulada) se rechaza. Deja un asiento `forfeiture` «confirmado por la administración».
+- **Auditoría**: la constancia (`account_deletion_requests.events`) guarda `by_admin`, `actor_id`, motivo (con correos y números largos sustituidos por `[correo]`/`[número]`) y si estaba suspendida; `cancelled_by`/`cancel_reason` de las clases canceladas apuntan a la administración, no a la cuenta eliminada. El log solo lleva identificadores (`ADMIN_USER_ERASED`), nunca PII ni el texto libre.
+- **Sin evasión de sanciones**: una cuenta suspendida o con saldo negativo pasa a la lista de bloqueo de re-registro (hashes HMAC; variantes sin `+etiqueta` y, en Gmail, sin puntos). Una cuenta limpia libera correo y teléfono.
+- **Protecciones**: no se puede eliminar a un administrador ni a uno mismo; idempotente ante doble envío; suspender/reactivar una cuenta ya cerrada se rechaza y ambas acciones quedan en el log (`ADMIN_USER_SUSPENDED/UNSUSPENDED`).
+- La lista de usuarios oculta las cuentas eliminadas por defecto (`?erased=1` las muestra) y busca por nombre, correo o teléfono.
+
+Pruebas: `tests/Feature/AdminUserErasureTest.php` (19). Decisiones pendientes del propietario: avisar por correo a la persona antes de eliminar su cuenta; bloqueo «latente» si una cuenta limpia genera deuda después de eliminada (contracargo).
 
 ## Seguridad
 

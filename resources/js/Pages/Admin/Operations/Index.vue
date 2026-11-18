@@ -15,7 +15,7 @@
 
       <!-- ── Encabezado ─────────────────────────────────────────────────── -->
       <header>
-        <h1 class="text-2xl font-bold tracking-tight text-ink">Operaciones</h1>
+        <h2 class="text-2xl font-bold tracking-tight text-ink">Operaciones</h2>
         <p class="mt-1 text-sm text-ink-muted">
           Lo que MOVA ha detectado y necesita una decisión humana.
         </p>
@@ -60,7 +60,7 @@
       <section aria-labelledby="ops-capabilities" class="space-y-3">
         <div>
           <h2 id="ops-capabilities" class="text-sm font-semibold text-ink">Estado de MOVA</h2>
-          <p class="mt-0.5 text-xs text-ink-subtle">
+          <p class="mt-0.5 text-xs text-ink-muted">
             «Sin señal» significa que MOVA no vigila esa capacidad, no que funcione.
           </p>
         </div>
@@ -165,8 +165,8 @@
                       class="rounded-chip bg-canvas px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted"
                     >Cerrada</span>
 
-                    <span class="text-[11px] text-ink-subtle">{{ a.type_label }}</span>
-                    <span v-if="a.occurrences > 1" class="text-[11px] text-ink-subtle">
+                    <span class="text-[11px] text-ink-muted">{{ a.type_label }}</span>
+                    <span v-if="a.occurrences > 1" class="text-[11px] text-ink-muted">
                       · detectada {{ a.occurrences }} veces
                     </span>
                   </div>
@@ -194,12 +194,12 @@
                 class="mt-3.5 flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-3 text-xs"
               >
                 <div v-for="(v, k) in a.context" :key="k" class="flex gap-1.5">
-                  <dt class="text-ink-subtle">{{ k }}</dt>
+                  <dt class="text-ink-muted">{{ k }}</dt>
                   <dd class="font-medium text-ink-muted">{{ v }}</dd>
                 </div>
               </dl>
 
-              <p class="mt-3 text-xs text-ink-subtle">
+              <p class="mt-3 text-xs text-ink-muted">
                 {{ a.occurrences > 1 ? 'Vista por última vez' : 'Detectada' }} {{ relative(a.last_detected_at) }}
               </p>
 
@@ -209,7 +209,7 @@
                 <p class="text-ink-muted">
                   Cerrada {{ relative(a.resolved_at) }}<template v-if="a.resolved_by"> por {{ a.resolved_by }}</template>
                 </p>
-                <p v-if="a.resolution_note" class="mt-0.5 break-words text-ink-subtle">
+                <p v-if="a.resolution_note" class="mt-0.5 break-words text-ink-muted">
                   {{ a.resolution_note }}
                 </p>
               </div>
@@ -230,7 +230,7 @@
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2',
               l.active ? 'bg-brand-600 font-semibold text-white'
                 : l.url ? 'border border-line text-ink-muted hover:bg-canvas'
-                : 'text-ink-subtle',
+                : 'text-ink-muted',
             ]"
           >{{ pageLabel(l.label) }}</component>
         </nav>
@@ -267,7 +267,7 @@
           />
           <div class="mt-1 flex items-start justify-between gap-3">
             <InputError :message="closeForm.errors.reason" class="mt-0" />
-            <span id="close-reason-count" class="shrink-0 text-xs tabular-nums text-ink-subtle">
+            <span id="close-reason-count" class="shrink-0 text-xs tabular-nums text-ink-muted">
               {{ closeForm.reason.length }}/500
             </span>
           </div>
@@ -330,7 +330,7 @@ const statusDot = {
 const statusText = {
   healthy: 'text-success-text',
   attention: 'text-danger-text',
-  unknown: 'text-ink-subtle',
+  unknown: 'text-ink-muted',
 }
 const statusLabel = {
   healthy: 'Operativo',
@@ -432,7 +432,7 @@ const relative = (iso) => {
   if (h < 24) return `hace ${h} h`
   const d = Math.round(h / 24)
   if (d < 30) return `hace ${d} ${d === 1 ? 'día' : 'días'}`
-  return new Date(iso).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // Las etiquetas del paginador de Laravel traen entidades HTML (&laquo;). Se

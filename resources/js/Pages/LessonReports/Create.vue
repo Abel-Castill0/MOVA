@@ -31,7 +31,7 @@
 
         <!-- Topic -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
-          <label class="block text-sm font-semibold text-slate-900">Tema trabajado <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-semibold text-slate-900">Tema trabajado <span class="text-red-600">*</span></label>
           <p class="text-xs text-slate-500">Ej: Fracciones equivalentes, análisis de texto narrativo, derivadas</p>
           <textarea
             v-model="form.topic_covered"
@@ -40,12 +40,12 @@
             class="w-full mt-1 px-3 py-2.5 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
             :class="errors.topic_covered ? 'border-red-300 bg-red-50' : 'border-gray-200'"
           ></textarea>
-          <p v-if="errors.topic_covered" class="text-xs text-red-500">{{ errors.topic_covered }}</p>
+          <p v-if="errors.topic_covered" class="text-xs text-red-600">{{ errors.topic_covered }}</p>
         </div>
 
         <!-- Performance -->
         <div class="bg-white rounded-2xl border border-gray-100 p-5 space-y-1.5">
-          <label class="block text-sm font-semibold text-slate-900">Desempeño del alumno <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-semibold text-slate-900">Desempeño del alumno <span class="text-red-600">*</span></label>
           <p class="text-xs text-slate-500">Ej: Participó activamente, logró resolver los ejercicios con poca ayuda</p>
           <textarea
             v-model="form.student_performance"
@@ -54,7 +54,7 @@
             class="w-full mt-1 px-3 py-2.5 border rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
             :class="errors.student_performance ? 'border-red-300 bg-red-50' : 'border-gray-200'"
           ></textarea>
-          <p v-if="errors.student_performance" class="text-xs text-red-500">{{ errors.student_performance }}</p>
+          <p v-if="errors.student_performance" class="text-xs text-red-600">{{ errors.student_performance }}</p>
         </div>
 
         <!-- Difficulties -->
@@ -156,7 +156,7 @@ function submit() {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   })
 }

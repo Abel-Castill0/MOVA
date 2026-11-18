@@ -266,7 +266,7 @@
 
         <!-- Header Mobile (Tal cual la imagen mockup) -->
         <div class="reveal-item md:hidden text-center mb-8">
-          <div class="inline-flex items-center px-3.5 py-1 rounded-full bg-[#DCEBFF] text-[#2563EB] text-xs font-bold mb-3 shadow-2xs">
+          <div class="inline-flex items-center px-3.5 py-1 rounded-full bg-[#DCEBFF] text-[#1D4ED8] text-xs font-bold mb-3 shadow-2xs">
             ¿Cómo funciona?
           </div>
           <h2 class="text-2xl font-black text-slate-900 tracking-tight leading-tight mb-2">
@@ -390,7 +390,7 @@
               <span class="block text-base font-bold text-slate-900 group-hover:text-brand-700 transition-colors">{{ s.name }}</span>
               <span :class="['mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full capitalize', levelBadge(s.level)]">{{ s.level }}</span>
             </span>
-            <ChevronRight class="w-5 h-5 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true" />
+            <ChevronRight class="w-5 h-5 text-slate-500 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -418,7 +418,7 @@
             <!-- Badges de confianza en móvil y escritorio (llenan el ancho equilibradamente) -->
             <div class="flex items-center gap-2 mt-3.5 flex-wrap">
               <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 border border-blue-100/80 text-[11px] font-semibold text-slate-700 shadow-2xs">
-                <Check class="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" /> Identidad y antecedentes revisados
+                <Check class="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> Identidad y antecedentes revisados
               </span>
               <!-- Solo con valoraciones REALES (avg_rating de reseñas visibles de
                    los profesores destacados) — nunca una cifra fija inventada. -->
@@ -461,10 +461,10 @@
                       <div class="flex gap-0.5">
                         <span v-for="i in 5" :key="i" class="text-sm" :class="i <= Math.round(t.avg_rating) ? 'text-accent-400' : 'text-gray-200'">★</span>
                       </div>
-                      <span class="text-xs text-slate-400">{{ Number(t.avg_rating).toFixed(1) }}</span>
+                      <span class="text-xs text-slate-500">{{ Number(t.avg_rating).toFixed(1) }}</span>
                     </div>
                     <span v-else class="inline-block mt-0.5 text-xs px-2 py-0.5 bg-brand-50 text-brand-600 rounded-full font-medium">Nuevo en MOVA</span>
-                    <p class="text-xs text-slate-400 mt-0.5">{{ t.classes_count }} clases impartidas</p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ t.classes_count }} clases impartidas</p>
                   </div>
                   <span class="ml-auto text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-100 flex-shrink-0">✓ Verificado</span>
                 </div>
@@ -487,7 +487,7 @@
           <div class="teachers-pagination flex justify-center gap-1.5 mt-8"></div>
         </div>
         <div v-else class="reveal-item text-center py-16">
-          <p class="text-slate-400">No hay profesores verificados aún. <Link :href="route('landing.teacher')" class="text-brand-600 hover:underline">¿Eres profesor? Únete</Link></p>
+          <p class="text-slate-500">No hay profesores verificados aún. <Link :href="route('landing.teacher')" class="text-brand-600 hover:underline">¿Eres profesor? Únete</Link></p>
         </div>
       </div>
     </section>
@@ -622,7 +622,7 @@ function levelColor(level) {
 
 function levelBadge(level) {
   const l = (level || '').toLowerCase()
-  if (l === 'primaria') return 'bg-emerald-50 text-emerald-600 border border-emerald-100/90'
+  if (l === 'primaria') return 'bg-emerald-50 text-emerald-700 border border-emerald-100/90'
   if (l === 'secundaria') return 'bg-blue-50 text-blue-600 border border-blue-100/90'
   if (l === 'universidad') return 'bg-purple-50 text-purple-600 border border-purple-100/90'
   return 'bg-slate-100 text-slate-500 border border-slate-200/70'
@@ -780,17 +780,22 @@ onMounted(() => {
   overflow-y: visible;
 }
 .teachers-pagination :deep(.swiper-pagination-bullet) {
-  width: 6px;
-  height: 6px;
+  /* Punto visible de 6 px dentro de un área táctil de 24 px (WCAG 2.2 · 2.5.8). */
+  width: 24px;
+  height: 24px;
+  padding: 9px;
+  box-sizing: border-box;
   background: theme('colors.brand.300');
+  background-clip: content-box;
   opacity: 1;
-  margin: 0 3px !important;
+  margin: 0 !important;
   transition: width 0.25s ease, background-color 0.25s ease;
   border-radius: 999px;
 }
 .teachers-pagination :deep(.swiper-pagination-bullet-active) {
-  width: 22px;
+  width: 40px;
   background: theme('colors.brand.600');
+  background-clip: content-box;
 }
 
 /* ── Botones Motion Graphic: Verde (Padre) y Naranja (Profesor) ──────────── */

@@ -43,7 +43,7 @@
             </button>
           </div>
           <p class="text-xs text-gray-500 mt-1">Si no existe, MOVA la creará.</p>
-          <p v-if="form.errors.subject_ids" class="text-xs text-red-500 mt-1">{{ form.errors.subject_ids }}</p>
+          <p v-if="form.errors.subject_ids" class="text-xs text-red-600 mt-1">{{ form.errors.subject_ids }}</p>
         </div>
         <button type="submit" :disabled="form.processing"
           class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors">

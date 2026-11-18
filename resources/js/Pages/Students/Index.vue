@@ -32,7 +32,7 @@
                 Editar
               </Link>
               <button type="button"
-                class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                class="text-xs text-red-700 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
                 @click="deleteTarget = s">Eliminar</button>
             </div>
           </div>

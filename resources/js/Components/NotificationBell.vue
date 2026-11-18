@@ -95,7 +95,7 @@ async function markAll() {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function onEscape(event) {

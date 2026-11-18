@@ -99,7 +99,7 @@
         <!-- Solicitudes abiertas -->
         <div class="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-4.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
           <div class="flex items-start justify-between gap-3 mb-2.5">
-            <div class="w-9 h-9 sm:w-10 sm:h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-700 flex-shrink-0">
               <Icon name="requests" :size="20" />
             </div>
             <Link :href="route('teacher.requests')" aria-label="Ver solicitudes"
@@ -121,7 +121,7 @@
         <div class="group bg-white rounded-2xl border border-gray-100 p-4 sm:p-4.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200" role="listitem">
           <div class="flex items-start justify-between gap-3 mb-2.5">
             <div :class="['w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0',
-              pending_reports > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600']">
+              pending_reports > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700']">
               <Icon name="my-reports" :size="20" />
             </div>
             <Link :href="route('teacher.lessons')" aria-label="Ver reportes"
@@ -129,7 +129,7 @@
               <Icon name="arrow-right" :size="13" />
             </Link>
           </div>
-          <p class="text-2xl sm:text-3xl font-black tabular-nums" :class="pending_reports > 0 ? 'text-red-500' : 'text-slate-900'">{{ pending_reports }}</p>
+          <p class="text-2xl sm:text-3xl font-black tabular-nums" :class="pending_reports > 0 ? 'text-red-600' : 'text-slate-900'">{{ pending_reports }}</p>
           <p class="text-sm font-semibold text-slate-700 mt-0.5">Reportes pendientes</p>
           <p class="text-xs text-slate-500 mt-0.5 leading-snug truncate">
             <template v-if="pending_reports === 0">No tienes reportes pendientes</template>
@@ -154,7 +154,7 @@
         </div>
         <div class="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
           <Link :href="route('phone.verification.notice')"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-xl hover:bg-orange-700 active:scale-95 transition-all shadow-sm shadow-orange-600/20">
+            class="inline-flex items-center gap-2 px-4 py-2 bg-orange-700 text-white text-sm font-bold rounded-xl hover:bg-orange-700 active:scale-95 transition-all shadow-sm shadow-orange-600/20">
             Verificar celular
             <Icon name="arrow-right" :size="14" />
           </Link>
@@ -286,7 +286,7 @@
             <p class="font-bold text-slate-900 text-sm">No tienes clases próximas</p>
             <p class="text-xs text-slate-500 mt-0.5 mb-3 leading-relaxed">Cuando tengas clases agendadas, aparecerán aquí.</p>
             <Link :href="route('teacher.requests')"
-              class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-orange-600 text-xs sm:text-sm font-bold rounded-xl hover:bg-orange-50/80 transition-colors border border-orange-200 shadow-2xs">
+              class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-orange-700 text-xs sm:text-sm font-bold rounded-xl hover:bg-orange-50/80 transition-colors border border-orange-200 shadow-2xs">
               <Icon name="requests" :size="14" /> Explorar solicitudes
             </Link>
           </div>
@@ -300,7 +300,7 @@
             <Link :href="route('teacher.requests')"
               class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-orange-200 hover:shadow-sm transition-all duration-150">
               <div class="flex items-center gap-3 min-w-0">
-                <div class="w-9 h-9 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 flex-shrink-0 transition-colors">
+                <div class="w-9 h-9 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center text-orange-700 flex-shrink-0 transition-colors">
                   <Icon name="requests" :size="18" />
                 </div>
                 <div class="min-w-0">
@@ -330,7 +330,7 @@
             <Link :href="route('teacher.credits.index')"
               class="group flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3 sm:py-3.5 hover:border-emerald-200 hover:shadow-sm transition-all duration-150">
               <div class="flex items-center gap-3 min-w-0">
-                <div class="w-9 h-9 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0 transition-colors">
+                <div class="w-9 h-9 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 flex-shrink-0 transition-colors">
                   <Icon name="credits" :size="18" />
                 </div>
                 <div class="min-w-0">
@@ -399,7 +399,7 @@ const firstName = computed(() => user.value?.name?.split(' ')[0] ?? '')
 // Solo la inicial en mayúscula ("Domingo, 27 de septiembre de 2026"); la
 // clase CSS `capitalize` producía "27 De Septiembre De".
 const today     = computed(() => {
-  const s = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const s = new Date().toLocaleDateString('es-ES', { timeZone: 'America/Lima', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   return s.charAt(0).toUpperCase() + s.slice(1)
 })
 
@@ -439,6 +439,6 @@ const checklistLabels = {
 function checklistLabel(key) { return checklistLabels[key] ?? key }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 </script>

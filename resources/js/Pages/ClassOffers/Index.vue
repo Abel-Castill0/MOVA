@@ -38,7 +38,7 @@
                 {{ o.is_active ? 'Desactivar' : 'Activar' }}
               </Link>
               <Link :href="route('class-offers.destroy', o.id)" method="delete" as="button"
-                class="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-100 rounded-xl hover:bg-red-50 transition-colors">
+                class="px-3 py-1.5 text-sm font-medium text-red-700 border border-red-100 rounded-xl hover:bg-red-50 transition-colors">
                 Eliminar
               </Link>
             </div>

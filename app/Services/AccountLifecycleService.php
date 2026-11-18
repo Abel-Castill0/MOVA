@@ -41,6 +41,9 @@ class AccountLifecycleService
 
     private const OPEN_REQUEST_STATUSES = ['pending_parent_approval', 'open', 'counteroffered'];
 
+    /** Administrador que ejecuta una eliminación (null = el propio titular cierra su cuenta). Solo vive durante performClosure. */
+    private ?User $actingAdmin = null;
+
     /** Call only inside a transaction, before locking TeacherProfile. */
     public static function lockOpenParticipants(array $ids): Collection
     {
@@ -107,7 +110,8 @@ class AccountLifecycleService
             'credits_refundable' => $refundable,
             'credits_forfeitable' => $forfeitable,
             'pending_payments' => (clone $orders)->whereIn('status', ['created', 'pending'])->count(),
-            'payment_reviews' => (clone $orders)->whereNotNull('review_reason')->count(),
+            'payment_reviews' => (clone $orders)->whereNotNull('review_reason')->whereNull('review_resolved_at')->count(),
+            'pending_recharges' => $teacher?->rechargeRequests()->where('status', 'pending')->count() ?? 0,
             'recharges' => $teacher?->rechargeRequests()->count() ?? 0,
             'financial_records' => $teacher?->creditTransactions()->count() ?? 0,
             'professional_profile' => $teacher !== null,
@@ -145,18 +149,26 @@ class AccountLifecycleService
      */
     public function closeAccount(User $user, string $identityMethod, ?\Closure $validateIdentity = null, bool|int $acceptCreditLoss = false): AccountDeletionRequest
     {
+        return $this->performClosure($user, $identityMethod, $validateIdentity, $acceptCreditLoss, null, null);
+    }
+
+    /** Núcleo común del cierre: `$actor` solo lo informa la eliminación por un administrador. */
+    private function performClosure(User $user, string $identityMethod, ?\Closure $validateIdentity, bool|int $acceptCreditLoss, ?User $actor, ?string $reason): AccountDeletionRequest
+    {
         // Una cuenta ya procesada pierde sus roles: la repetición devuelve la misma constancia (idempotente).
         if ($done = AccountDeletionRequest::where('user_id', $user->id)->where('status', 'completed')->first()) {
             return $done;
         }
         $this->authorize($user);
         $plan = ['lessons' => [], 'notices' => [], 'republished' => []];
+        $this->actingAdmin = $actor;
 
         // Lectura inicial SIN bloqueo y fuera de la transacción: así no se fija una instantánea (REPEATABLE READ)
         // anterior a lo que otro proceso confirme mientras esperamos sus locks.
         $scope = $this->scope($user->id);
 
-        $request = DB::transaction(function () use ($user, $identityMethod, $validateIdentity, $acceptCreditLoss, &$plan, $scope) {
+        try {
+        $request = DB::transaction(function () use ($user, $identityMethod, $validateIdentity, $acceptCreditLoss, $actor, $reason, &$plan, $scope) {
             $plan = ['lessons' => [], 'notices' => [], 'republished' => [], 'unresolved' => []];
             ClassRequest::whereIn('id', $scope['requests'])->orderBy('id')->lockForUpdate()->get(['id']);
             Student::withTrashed()->whereIn('id', $scope['students'])->orderBy('id')->lockForUpdate()->get(['id']);
@@ -180,12 +192,25 @@ class AccountLifecycleService
             $locked->setRelation('teacherProfile', $teacher);
             $summary = $this->summary($locked);
             [, , $forfeitable] = $this->creditPlan($teacher);
+            if ($actor !== null) {
+                // Eliminación por un administrador: se revalida bajo bloqueo (la vista previa pudo quedar desfasada).
+                if ($blockers = $this->erasureBlockers($summary)) {
+                    throw ValidationException::withMessages(['erase' => implode(' ', $blockers)]);
+                }
+            }
+            if ($actor !== null && $forfeitable > 0 && (int) $acceptCreditLoss !== $forfeitable) {
+                // El administrador confirma el importe exacto que se pierde: una cifra distinta (saldo cambiado o petición manipulada) no vale.
+                throw ValidationException::withMessages(['accept_credit_loss' => 'El saldo no utilizado cambió ('.$forfeitable.' crédito(s)): revisa la vista previa y confirma de nuevo.']);
+            }
             if ($forfeitable > 0 && ! $acceptCreditLoss) {
-                throw ValidationException::withMessages(['accept_credit_loss' => 'Debes aceptar la pérdida del saldo no utilizado para continuar.']);
+                throw ValidationException::withMessages(['accept_credit_loss' => $actor
+                    ? 'Confirma expresamente la pérdida del saldo no utilizado de la cuenta para continuar.'
+                    : 'Debes aceptar la pérdida del saldo no utilizado para continuar.']);
             }
 
             $events = $existing?->events ?? [];
-            $events[] = ['action' => $existing ? 'reconfirmed' : 'requested', 'at' => now()->toIso8601String(), 'actor_id' => $locked->id];
+            $events[] = ['action' => $existing ? 'reconfirmed' : 'requested', 'at' => now()->toIso8601String(), 'actor_id' => $actor?->id ?? $locked->id]
+                + ($actor ? ['by_admin' => true, 'reason' => $reason, 'suspended' => $locked->suspended_at !== null] : []);
             $request = $existing ?? AccountDeletionRequest::create([
                 'reference' => (string) Str::uuid(),
                 'user_id' => $locked->id,
@@ -221,6 +246,9 @@ class AccountLifecycleService
 
             return $request;
         }, 5);
+        } finally {
+            $this->actingAdmin = null;
+        }
 
         if ($request->wasRecentlyCreated || $plan['lessons'] || $plan['notices'] || $request->cleanup_status === 'pending') {
             $this->afterCommit($request, $user->id, $plan);
@@ -229,10 +257,56 @@ class AccountLifecycleService
         return $request;
     }
 
+    /**
+     * Motivos por los que un administrador NO puede suprimir la cuenta ahora (vacío = puede).
+     * Un titular que cierra su propia cuenta decide sobre su dinero; un administrador no: no se destruye saldo
+     * con derecho a devolución ni se deja una compra sin resolver.
+     */
+    public function erasureBlockers(array $summary): array
+    {
+        $blockers = [];
+        if (in_array('admin', $summary['roles'] ?? [], true) || ($summary['roles'] ?? []) === []) {
+            $blockers[] = 'Solo se pueden eliminar cuentas de padre o profesor abiertas.';
+        }
+        if (($summary['credits_refundable'] ?? 0) > 0) {
+            $blockers[] = 'La cuenta tiene créditos comprados dentro de la ventana de devolución de '.self::REFUND_WINDOW_DAYS.' días: resuelve el reembolso con la persona titular antes de eliminarla.';
+        }
+        if (($summary['pending_payments'] ?? 0) > 0 || ($summary['payment_reviews'] ?? 0) > 0 || ($summary['pending_recharges'] ?? 0) > 0) {
+            $blockers[] = 'Hay pagos o recargas pendientes de resolver: concílialos antes de eliminar la cuenta.';
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * Eliminación segura de una cuenta por un administrador. Reutiliza el cierre automático (misma transacción,
+     * mismos bloqueos, mismo ledger append-only, misma anonimización): el correo y el teléfono quedan libres para
+     * un alta nueva sin heredar nada, salvo una cuenta suspendida o con deuda, cuyos identificadores pasan a la
+     * lista de bloqueo de re-registro para que eliminar no sirva para evadir la sanción.
+     */
+    public function eraseByAdmin(User $user, User $admin, string $reason, int $acceptCreditLoss = 0): AccountDeletionRequest
+    {
+        abort_unless($admin->hasRole('admin') && ! $admin->account_closed_at && ! $admin->is($user), 403);
+        abort_if($user->account_closed_at !== null || $user->account_erased_at !== null, 409, 'La cuenta ya está cerrada.');
+
+        // El motivo es texto libre y se conserva para siempre en la constancia: se redactan teléfonos, correos y DNI.
+        return $this->performClosure($user, 'admin', null, $acceptCreditLoss > 0 ? $acceptCreditLoss : false, $admin, $this->scrubReason($reason));
+    }
+
+    /** Quita correos y números largos (teléfono, DNI) del motivo; el resto del texto se conserva legible para la auditoría. */
+    private function scrubReason(string $reason): string
+    {
+        $reason = preg_replace('/[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+/u', '[correo]', $reason) ?? $reason;
+        $reason = preg_replace('/\+?\d[\d\s().\-]{5,}\d/u', '[número]', $reason) ?? $reason;
+
+        return mb_substr(trim($reason), 0, 500);
+    }
+
     private function cancelFutureClasses(User $user, array $scope, array &$plan): array
     {
         $isTeacher = $scope['teacher'] !== null;
-        $reason = $isTeacher ? 'El profesor cerró su cuenta en MOVA.' : 'La familia cerró su cuenta en MOVA.';
+        $reason = $this->actingAdmin ? 'La administración de MOVA cerró la cuenta.' : ($isTeacher ? 'El profesor cerró su cuenta en MOVA.' : 'La familia cerró su cuenta en MOVA.');
+        $cancelledBy = $this->actingAdmin?->id ?? $user->id;
         $settlement = app(LessonSettlementService::class);
         $unresolved = [];
 
@@ -251,13 +325,13 @@ class AccountLifecycleService
             }
             foreach ($lessons as $lesson) {
                 try {
-                    $settlement->refund($lesson, $user->id, $reason, 'class_cancelled');
+                    $settlement->refund($lesson, $cancelledBy, $reason, 'class_cancelled');
                 } catch (\RuntimeException) {
                     // Anomalía de ledger: no se fabrica el saldo; queda como incidencia excepcional.
                     $unresolved[] = $lesson->id;
                     continue;
                 }
-                Lesson::whereKey($lesson->id)->update(['cancelled_at' => now(), 'cancelled_by' => $user->id, 'cancel_reason' => $reason]);
+                Lesson::whereKey($lesson->id)->update(['cancelled_at' => now(), 'cancelled_by' => $cancelledBy, 'cancel_reason' => $reason]);
                 $plan['lessons'][] = $lesson->id;
             }
         }
@@ -342,7 +416,9 @@ class AccountLifecycleService
                 'idempotency_key' => $key,
                 'type' => 'forfeiture',
                 'amount' => -$forfeit,
-                'description' => 'Saldo no utilizado perdido al eliminar la cuenta (aceptado por el titular)',
+                'description' => $this->actingAdmin
+                    ? 'Saldo no utilizado perdido al eliminar la cuenta (confirmado por la administración)'
+                    : 'Saldo no utilizado perdido al eliminar la cuenta (aceptado por el titular)',
             ]);
             $profile->update(['credits_available' => $profile->credits_available - $forfeit]);
         } else {

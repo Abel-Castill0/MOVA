@@ -24,6 +24,9 @@ export default {
                 sans: ['Plus Jakarta Sans', 'Inter', ...defaultTheme.fontFamily.sans],
             },
             colors: {
+                // slate-500 de Tailwind (#64748b) da 4.2:1 sobre el canvas azulado y falla AA; este tono da 5.3:1.
+                slate: { 500: '#566478' },
+                gray: { 500: '#5f6877' },
                 // ── Azul MOVA ───────────────────────────────────────────────
                 // Rampa anclada en los colores REALES de la marca, no inventados:
                 //   600 #1F5AA6 → hex del "MOVA MINI MANUAL DE MARCA.pdf"

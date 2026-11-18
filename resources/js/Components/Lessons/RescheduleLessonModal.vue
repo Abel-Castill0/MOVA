@@ -11,7 +11,7 @@
           <span class="font-medium text-ink truncate">{{ lesson ? fmtDate(lesson.start_time) : '' }}</span>
         </div>
         <div v-if="newPreview" class="flex items-center gap-2 min-w-0 mt-1 pt-1 border-t border-line">
-          <Icon name="arrow-right" :size="14" class="text-ink-subtle flex-shrink-0 rotate-90" />
+          <Icon name="arrow-right" :size="14" class="text-ink-muted flex-shrink-0 rotate-90" />
           <span class="font-semibold text-ink truncate">{{ newPreview }}</span>
         </div>
       </div>

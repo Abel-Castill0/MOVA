@@ -52,7 +52,7 @@
         </div>
       </main>
 
-      <footer class="px-4 sm:px-8 py-6 flex flex-wrap gap-4 justify-center text-xs text-gray-400">
+      <footer class="px-4 sm:px-8 py-6 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
         <Link :href="route('legal.terms')" class="hover:text-brand-600 transition-colors">Términos y Condiciones</Link>
         <Link :href="route('legal.privacy')" class="hover:text-brand-600 transition-colors">Política de Privacidad</Link>
         <a :href="`mailto:${$page.props.support.email}`" class="hover:text-brand-600 transition-colors">Soporte</a>

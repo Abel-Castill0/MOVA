@@ -10,8 +10,10 @@ use App\Models\User;
 use App\Notifications\ClassCancelledNotification;
 use App\Notifications\TeacherRejectedNotification;
 use App\Notifications\TeacherVerifiedNotification;
+use App\Services\AccountLifecycleService;
 use App\Services\LessonSettlementService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -19,9 +21,76 @@ class AdminController extends Controller
 {
     public function users()
     {
+        $search = trim((string) request('q', ''));
+        $showErased = request()->boolean('erased');
+
+        $users = User::with('roles:id,name')
+            ->select(['id', 'name', 'email', 'phone', 'suspended_at', 'suspension_reason', 'account_closed_at', 'account_erased_at', 'created_at'])
+            ->when(! $showErased, fn ($query) => $query->whereNull('account_erased_at'))
+            ->when($search !== '', function ($query) use ($search) {
+                $like = '%'.addcslashes($search, '%_\\').'%';
+                $query->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('email', 'like', $like)->orWhere('phone', 'like', $like));
+            })
+            ->latest()->latest('id')
+            ->paginate(20)->withQueryString();
+
         return Inertia::render('Admin/Users', [
-            'users' => User::with('roles')->latest()->paginate(20),
+            'users' => $users,
+            'filters' => ['q' => $search, 'erased' => $showErased],
         ]);
+    }
+
+    /** Consecuencias de eliminar una cuenta, para mostrarlas antes de confirmar (solo lectura). */
+    public function erasurePreview(User $user, AccountLifecycleService $lifecycle)
+    {
+        $summary = $lifecycle->summary($user);
+        $blockers = $user->hasRole('admin')
+            ? ['Una cuenta de administrador no se puede eliminar desde aquí.']
+            : ($user->account_closed_at !== null ? ['La cuenta ya está cerrada.'] : $lifecycle->erasureBlockers($summary));
+
+        return response()->json([
+            'summary' => array_intersect_key($summary, array_flip([
+                'roles', 'students', 'future_classes', 'pending_classes', 'active_requests', 'credits_available',
+                'credits_refundable', 'credits_forfeitable', 'pending_payments', 'payment_reviews', 'recharges', 'financial_records',
+            ])),
+            'suspended' => $user->suspended_at !== null,
+            'in_debt' => (int) ($user->teacherProfile?->credits_available ?? 0) < 0,
+            'blockers' => $blockers,
+        ]);
+    }
+
+    public function eraseUser(User $user, AccountLifecycleService $lifecycle)
+    {
+        if ($user->hasRole('admin') || $user->is(auth()->user())) {
+            return back()->with('error', 'No se puede eliminar a un administrador.');
+        }
+        if ($user->account_closed_at !== null) {
+            return back()->with('error', 'Esa cuenta ya estaba cerrada.');
+        }
+
+        $data = request()->validate([
+            'reason' => 'required|string|min:10|max:500',
+            'confirm_email' => 'required|string|max:255',
+            'accept_credit_loss' => 'nullable|integer|min:0',
+        ], [
+            'reason.required' => 'Indica el motivo de la eliminación (queda en el registro de auditoría).',
+            'reason.min' => 'Describe el motivo con al menos 10 caracteres.',
+            'confirm_email.required' => 'Escribe el correo de la cuenta para confirmar.',
+        ]);
+        if (strcasecmp(trim($data['confirm_email']), $user->email) !== 0) {
+            throw ValidationException::withMessages(['confirm_email' => 'El correo escrito no coincide con el de la cuenta.']);
+        }
+
+        $deletion = $lifecycle->eraseByAdmin($user, auth()->user(), trim($data['reason']), (int) ($data['accept_credit_loss'] ?? 0));
+
+        // Solo identificadores: ni correo, ni nombre, ni teléfono, ni el texto libre del motivo (queda, redactado, en la constancia).
+        Log::info('ADMIN_USER_ERASED', [
+            'admin_id' => auth()->id(),
+            'user_id' => $user->id,
+            'reference' => $deletion->reference,
+        ]);
+
+        return back()->with('success', 'Cuenta eliminada. Sus datos personales se anonimizaron y el correo quedó libre para un alta nueva.');
     }
 
     /**
@@ -305,20 +374,32 @@ class AdminController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
+        if ($user->account_closed_at !== null) {
+            return back()->with('error', 'La cuenta está cerrada: no hay nada que suspender.');
+        }
+
         $user->update([
             'suspended_at'      => now(),
             'suspension_reason' => $data['reason'] ?? 'Suspensión por incumplimiento de términos.',
         ]);
+
+        Log::info('ADMIN_USER_SUSPENDED', ['admin_id' => auth()->id(), 'user_id' => $user->id]);
 
         return back()->with('success', "Usuario {$user->name} suspendido.");
     }
 
     public function unsuspendUser(User $user)
     {
+        if ($user->account_closed_at !== null) {
+            return back()->with('error', 'La cuenta está cerrada y no puede reactivarse.');
+        }
+
         $user->update([
             'suspended_at'      => null,
             'suspension_reason' => null,
         ]);
+
+        Log::info('ADMIN_USER_UNSUSPENDED', ['admin_id' => auth()->id(), 'user_id' => $user->id]);
 
         return back()->with('success', "Cuenta de {$user->name} reactivada.");
     }

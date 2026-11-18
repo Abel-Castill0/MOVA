@@ -12,7 +12,7 @@
         <div class="hidden md:flex items-center justify-center gap-7 absolute left-1/2 -translate-x-1/2">
           <a v-for="link in navLinks" :key="link.href" :href="link.href"
             @click="handleNavClick($event, link.href)"
-            :class="['text-sm font-semibold transition-colors', isSolid ? 'text-slate-700 hover:text-brand-600' : 'text-white/90 hover:text-white']">
+            :class="['inline-flex items-center min-h-[32px] text-sm font-semibold transition-colors', isSolid ? 'text-slate-700 hover:text-brand-600' : 'text-white/90 hover:text-white']">
             {{ link.label }}
           </a>
         </div>
@@ -78,7 +78,7 @@
                         </span>
                         <span>Ir a mi dashboard</span>
                       </div>
-                      <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
                       </svg>
                     </Link>
@@ -91,10 +91,10 @@
                       method="post"
                       as="button"
                       @click="userMenuOpen = false"
-                      class="motion-item group flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50/90 rounded-xl transition-all duration-200 w-full text-left"
+                      class="motion-item group flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-red-700 hover:text-red-700 hover:bg-red-50/90 rounded-xl transition-all duration-200 w-full text-left"
                     >
                       <div class="flex items-center gap-2.5">
-                        <span class="w-7 h-7 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-500 transition-all duration-200 group-hover:scale-110">
+                        <span class="w-7 h-7 rounded-lg bg-red-50 group-hover:bg-red-100 flex items-center justify-center text-red-700 transition-all duration-200 group-hover:scale-110">
                           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                           </svg>

@@ -76,13 +76,13 @@ function removeAvatar() {
             {{ form.processing ? 'Subiendo...' : 'Guardar foto' }}
           </button>
           <button type="button" v-if="!form.avatar && user.avatar_url" @click="removeAvatar" :disabled="removing"
-            class="px-4 py-2 text-sm font-semibold text-red-600 rounded-xl hover:bg-red-50 active:bg-red-100 disabled:opacity-50 transition-all">
+            class="px-4 py-2 text-sm font-semibold text-red-700 rounded-xl hover:bg-red-50 active:bg-red-100 disabled:opacity-50 transition-all">
             {{ removing ? 'Quitando...' : 'Quitar foto' }}
           </button>
           <p v-if="form.recentlySuccessful" class="text-sm text-green-600 font-medium">Guardada ✓</p>
         </div>
         <p class="mt-2 text-xs text-slate-500">JPG, PNG o WEBP. Máximo 4 MB.</p>
-        <p v-if="form.errors.avatar" class="mt-1 text-xs text-red-500">{{ form.errors.avatar }}</p>
+        <p v-if="form.errors.avatar" class="mt-1 text-xs text-red-600">{{ form.errors.avatar }}</p>
       </div>
     </form>
   </section>

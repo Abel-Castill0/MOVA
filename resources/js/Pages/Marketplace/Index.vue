@@ -8,7 +8,7 @@
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h2 class="text-2xl font-black text-ink">Conoce a nuestros profesores</h2>
+          <component :is="$page.props.auth?.user ? 'h2' : 'h1'" class="text-2xl font-black text-ink">Conoce a nuestros profesores</component>
           <p class="text-sm text-ink-muted mt-1 max-w-xl">
             Profesores verificados por MOVA. Envía tu solicitud sin elegir a nadie — el primer
             profesor disponible de la materia te contactará. Después de tu primera clase, pídele
@@ -89,7 +89,7 @@
             </div>
             <div class="min-w-0">
               <p class="font-bold text-ink text-sm truncate">{{ t.user?.name }}</p>
-              <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
                 <Icon name="verified-badge" :size="14" />
                 Verificado por MOVA
               </span>
@@ -99,9 +99,9 @@
           <div v-if="t.review_count" class="flex items-center gap-1 mb-3" role="img" :aria-label="`Calificación ${Number(t.avg_rating).toFixed(1)} de 5, ${t.review_count} ${t.review_count === 1 ? 'reseña' : 'reseñas'}`">
             <span class="text-amber-400 text-sm" aria-hidden="true">★</span>
             <span class="text-xs font-semibold text-ink" aria-hidden="true">{{ Number(t.avg_rating).toFixed(1) }}</span>
-            <span class="text-xs text-ink-subtle" aria-hidden="true">({{ t.review_count }} {{ t.review_count === 1 ? 'reseña' : 'reseñas' }})</span>
+            <span class="text-xs text-ink-muted" aria-hidden="true">({{ t.review_count }} {{ t.review_count === 1 ? 'reseña' : 'reseñas' }})</span>
           </div>
-          <p v-else class="text-xs text-ink-subtle mb-3">Profesor nuevo en MOVA</p>
+          <p v-else class="text-xs text-ink-muted mb-3">Profesor nuevo en MOVA</p>
 
           <div v-if="t.subjects?.length" class="flex flex-wrap gap-1.5 mb-4">
             <span v-for="s in t.subjects" :key="s.id"

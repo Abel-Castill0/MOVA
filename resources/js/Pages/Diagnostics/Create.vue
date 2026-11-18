@@ -15,7 +15,7 @@
 
       <section v-if="step === 1" class="space-y-5">
         <div>
-          <h1 class="text-xl font-black text-slate-900">¿Para cuál hijo es el diagnóstico?</h1>
+          <h2 class="text-xl font-black text-slate-900">¿Para cuál hijo es el diagnóstico?</h2>
           <p class="text-sm text-slate-500">Selecciona el alumno que necesita ayuda.</p>
         </div>
 
@@ -46,7 +46,7 @@
 
       <section v-if="step === 2" class="space-y-5">
         <div>
-          <h1 class="text-xl font-black text-slate-900">¿Qué materia necesita reforzar?</h1>
+          <h2 class="text-xl font-black text-slate-900">¿Qué materia necesita reforzar?</h2>
           <p class="text-sm text-slate-500">Elige una materia para enviar la solicitud a profesores relevantes.</p>
         </div>
 
@@ -77,7 +77,7 @@
 
       <section v-if="step === 3" class="space-y-5">
         <div>
-          <h1 class="text-xl font-black text-slate-900">Cuéntanos el problema</h1>
+          <h2 class="text-xl font-black text-slate-900">Cuéntanos el problema</h2>
           <p class="text-sm text-slate-500">Describe la dificultad académica con claridad.</p>
         </div>
 
@@ -88,7 +88,7 @@
           placeholder="Ejemplo: Mi hijo necesita ayuda con ecuaciones y se bloquea en los ejercicios."
           class="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        <p v-if="errors.difficulty_text" class="text-xs text-red-500">{{ errors.difficulty_text }}</p>
+        <p v-if="errors.difficulty_text" class="text-xs text-red-600">{{ errors.difficulty_text }}</p>
 
         <textarea
           v-model="form.school_feedback"
@@ -105,7 +105,7 @@
 
       <section v-if="step === 4" class="space-y-5">
         <div>
-          <h1 class="text-xl font-black text-slate-900">¿Qué necesitas lograr?</h1>
+          <h2 class="text-xl font-black text-slate-900">¿Qué necesitas lograr?</h2>
           <p class="text-sm text-slate-500">Elige el objetivo principal de esta solicitud.</p>
         </div>
 
@@ -120,7 +120,7 @@
 
       <section v-if="step === 5" class="space-y-5">
         <div>
-          <h1 class="text-xl font-black text-slate-900">¿Con qué urgencia lo necesitas?</h1>
+          <h2 class="text-xl font-black text-slate-900">¿Con qué urgencia lo necesitas?</h2>
           <p class="text-sm text-slate-500">La solicitud se enviará a profesores verificados de la materia.</p>
         </div>
 
@@ -143,7 +143,7 @@
              feedback al padre. Poco probable en el flujo normal (los
              botones ya restringen a valores válidos), pero real si un
              subject/alumno se elimina entre cargar la página y enviar. -->
-        <p v-if="topLevelError" role="alert" class="text-xs text-red-500 text-center">{{ topLevelError }}</p>
+        <p v-if="topLevelError" role="alert" class="text-xs text-red-600 text-center">{{ topLevelError }}</p>
       </section>
     </div>
   </AppLayout>

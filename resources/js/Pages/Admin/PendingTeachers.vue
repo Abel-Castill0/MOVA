@@ -100,7 +100,7 @@
         <textarea v-model="rejectReason" rows="3"
           placeholder="Motivo del rechazo (obligatorio, mínimo 10 caracteres)"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-1" />
-        <p v-if="rejectError" class="text-xs text-red-500 mb-2">{{ rejectError }}</p>
+        <p v-if="rejectError" class="text-xs text-red-600 mb-2">{{ rejectError }}</p>
         <div class="flex gap-2 mt-3">
           <button @click="closeRejectModal"
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
@@ -164,6 +164,6 @@ function submitReject() {
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>

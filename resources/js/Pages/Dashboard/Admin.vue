@@ -22,7 +22,7 @@
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between mb-3">
             <span class="text-2xl">⏳</span>
-            <span class="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">Pendiente</span>
+            <span class="text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">Pendiente</span>
           </div>
           <p class="text-3xl font-black text-orange-500">{{ stats.pending_teachers }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Profesores por verificar</p>
@@ -30,7 +30,7 @@
         <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between mb-3">
             <span class="text-2xl">🎓</span>
-            <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Hoy</span>
+            <span class="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Hoy</span>
           </div>
           <p class="text-3xl font-black text-green-600">{{ stats.classes_today }}</p>
           <p class="text-sm text-slate-500 mt-0.5">Clases programadas hoy</p>
@@ -53,7 +53,7 @@
             <div class="flex items-center justify-between mb-3">
               <span class="text-2xl">📋</span>
               <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                :class="stats.incomplete_profiles > 0 ? 'text-yellow-700 bg-yellow-50' : 'text-green-600 bg-green-50'">
+                :class="stats.incomplete_profiles > 0 ? 'text-yellow-700 bg-yellow-50' : 'text-green-700 bg-green-50'">
                 {{ stats.incomplete_profiles > 0 ? 'Atención' : 'OK' }}
               </span>
             </div>
@@ -64,7 +64,7 @@
             <div class="flex items-center justify-between mb-3">
               <span class="text-2xl">📬</span>
               <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                :class="stats.open_requests > 0 ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50'">
+                :class="stats.open_requests > 0 ? 'text-orange-700 bg-orange-50' : 'text-green-700 bg-green-50'">
                 {{ stats.open_requests > 0 ? 'Pendiente' : 'OK' }}
               </span>
             </div>
@@ -75,18 +75,18 @@
             <div class="flex items-center justify-between mb-3">
               <span class="text-2xl">📝</span>
               <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                :class="stats.completed_without_report > 0 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'">
+                :class="stats.completed_without_report > 0 ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50'">
                 {{ stats.completed_without_report > 0 ? 'Faltante' : 'OK' }}
               </span>
             </div>
-            <p class="text-3xl font-black" :class="stats.completed_without_report > 0 ? 'text-red-500' : 'text-green-600'">{{ stats.completed_without_report }}</p>
+            <p class="text-3xl font-black" :class="stats.completed_without_report > 0 ? 'text-red-600' : 'text-green-600'">{{ stats.completed_without_report }}</p>
             <p class="text-sm text-slate-500 mt-0.5">Clases sin reporte</p>
           </div>
           <div class="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between mb-3">
               <span class="text-2xl">⚠️</span>
               <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                :class="stats.failed_jobs > 0 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'">
+                :class="stats.failed_jobs > 0 ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50'">
                 {{ stats.failed_jobs > 0 ? 'Error' : 'OK' }}
               </span>
             </div>
@@ -143,7 +143,7 @@
           <h3 class="font-bold text-slate-900">Usuarios recientes</h3>
           <Link :href="route('admin.users')" class="text-sm text-brand-600 font-medium hover:underline">Ver todos →</Link>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla de actividad reciente">
           <table class="w-full min-w-[400px]">
             <tbody class="divide-y divide-gray-50">
               <tr v-for="u in recentUsers" :key="u.id" class="hover:bg-slate-50 transition-colors">
@@ -180,9 +180,9 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 
 defineProps({ stats: Object, recentUsers: Array })
 
-const today = computed(() => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
+const today = computed(() => new Date().toLocaleDateString('es-ES', { timeZone: 'America/Lima', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))
 
 function roleClass(role) {
-  return { admin: 'bg-red-50 text-red-600', teacher: 'bg-brand-50 text-brand-700', parent: 'bg-green-50 text-green-700' }[role] ?? 'bg-slate-100 text-slate-500'
+  return { admin: 'bg-red-50 text-red-700', teacher: 'bg-brand-50 text-brand-700', parent: 'bg-green-50 text-green-700' }[role] ?? 'bg-slate-100 text-slate-500'
 }
 </script>

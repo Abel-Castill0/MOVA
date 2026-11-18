@@ -46,7 +46,7 @@ defineProps({ reports: Array })
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     day: 'numeric', month: 'short', year: 'numeric',
   })
 }

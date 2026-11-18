@@ -27,10 +27,38 @@ class ClosureBlocklist extends Model
         return $email === '' ? null : $email;
     }
 
+    /**
+     * Variantes del mismo buzón que comparten bandeja: sin «+etiqueta» y, en Gmail, sin puntos. Se guardan y se
+     * consultan TODAS (la literal sigue siendo la primera, así las filas antiguas siguen valiendo): sin esto,
+     * `ana+2@gmail.com` o `a.na@gmail.com` esquivaban el bloqueo de `ana@gmail.com`.
+     */
+    private static function emailVariants(?string $email): array
+    {
+        $value = self::normalizeEmail($email);
+        if ($value === null) {
+            return [];
+        }
+        $variants = [$value];
+        if (! str_contains($value, '@')) {
+            return $variants;
+        }
+        [$local, $domain] = explode('@', $value, 2);
+        $local = explode('+', $local, 2)[0];
+        if (in_array($domain, ['gmail.com', 'googlemail.com'], true)) {
+            $local = str_replace('.', '', $local);
+            $domain = 'gmail.com';
+        }
+        if ($local !== '') {
+            $variants[] = $local.'@'.$domain;
+        }
+
+        return array_values(array_unique($variants));
+    }
+
     public static function add(?string $email, array $phones, string $reason): void
     {
         $items = [];
-        if ($value = self::normalizeEmail($email)) {
+        foreach (self::emailVariants($email) as $value) {
             $items[] = ['email', $value];
         }
         foreach ($phones as $phone) {
@@ -46,7 +74,7 @@ class ClosureBlocklist extends Model
     public static function blocks(?string $email = null, ?string $phone = null): bool
     {
         $conditions = [];
-        if ($value = self::normalizeEmail($email)) {
+        foreach (self::emailVariants($email) as $value) {
             $conditions[] = ['email', self::hash('email', $value)];
         }
         if ($phone && ($value = User::normalizePhone($phone))) {

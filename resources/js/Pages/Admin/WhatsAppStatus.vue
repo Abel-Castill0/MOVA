@@ -250,8 +250,8 @@ const pilotLeft = computed(() => {
   return `Piloto: quedan ${h} h ${m} min`
 })
 
-const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' }) : '')
-const stepClass = (done) => (done ? 'text-emerald-700' : 'text-slate-400')
+const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'medium' }) : '')
+const stepClass = (done) => (done ? 'text-emerald-700' : 'text-slate-500')
 
 function setNotice(ok, text) {
   notice.value = { ok, text }

@@ -16,7 +16,7 @@
       </div>
 
       <div v-if="!reviews.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay reseñas con ese filtro</p>
+        <p class="text-gray-500 text-sm">No hay reseñas con ese filtro</p>
       </div>
 
       <div v-else class="space-y-3">
@@ -34,16 +34,16 @@
 
               <!-- Comment -->
               <p v-if="r.comment" class="text-sm text-slate-700 leading-relaxed">{{ r.comment }}</p>
-              <p v-else class="text-xs text-slate-400 italic">Sin comentario</p>
+              <p v-else class="text-xs text-slate-500 italic">Sin comentario</p>
 
               <!-- Meta -->
-              <div class="flex flex-wrap gap-3 text-xs text-slate-400 pt-1">
+              <div class="flex flex-wrap gap-3 text-xs text-slate-500 pt-1">
                 <span>Profesor: <strong class="text-slate-600">{{ r.teacher_profile?.user?.name ?? '—' }}</strong></span>
                 <span>Padre: <strong class="text-slate-600">{{ r.parent?.name ?? '—' }}</strong></span>
                 <span>{{ fmtDate(r.created_at) }}</span>
               </div>
 
-              <div v-if="r.moderation_reason" class="text-xs text-orange-600 bg-orange-50 rounded px-2 py-1 mt-1">
+              <div v-if="r.moderation_reason" class="text-xs text-orange-700 bg-orange-50 rounded px-2 py-1 mt-1">
                 Motivo de ocultación: {{ r.moderation_reason }}
               </div>
             </div>
@@ -52,12 +52,12 @@
             <div class="flex flex-col gap-2 flex-shrink-0">
               <button v-if="r.is_visible"
                 @click="openHideModal(r)"
-                class="px-3 py-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors whitespace-nowrap">
+                class="px-3 py-1.5 text-xs font-semibold text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors whitespace-nowrap">
                 Ocultar
               </button>
               <button v-else
                 @click="restoreReview(r)" :disabled="moderating"
-                class="px-3 py-1.5 text-xs font-semibold text-green-600 border border-green-200 rounded-lg hover:bg-green-50 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                class="px-3 py-1.5 text-xs font-semibold text-green-700 border border-green-200 rounded-lg hover:bg-green-50 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                 Mostrar
               </button>
             </div>
@@ -125,7 +125,7 @@ function setFilter(v) {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function openHideModal(r) {

@@ -19,7 +19,7 @@
         <p class="text-gray-500 text-sm">No hay solicitudes con ese filtro</p>
       </div>
 
-      <div v-else class="overflow-x-auto">
+      <div v-else class="overflow-x-auto" tabindex="0" role="region" aria-label="Tabla de solicitudes">
         <table class="w-full text-sm bg-white rounded-xl border border-gray-200 overflow-hidden">
           <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
             <tr>
@@ -47,7 +47,7 @@
                   {{ statusLabel(r.status) }}
                 </span>
                 <div v-if="r.status === 'teacher_rejected' && r.teacher_rejection_reason"
-                  class="text-xs text-red-500 mt-0.5 max-w-[160px] truncate" :title="r.teacher_rejection_reason">
+                  class="text-xs text-red-600 mt-0.5 max-w-[160px] truncate" :title="r.teacher_rejection_reason">
                   {{ r.teacher_rejection_reason }}
                 </div>
               </td>
@@ -93,7 +93,7 @@ function setFilter(status) {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // Deduplicado: antes tenía su propio mapeo estado→color independiente de

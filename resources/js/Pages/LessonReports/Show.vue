@@ -65,12 +65,12 @@ const ReportField = defineComponent({
 })
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   })
 }
 function fmtDateFull(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 }

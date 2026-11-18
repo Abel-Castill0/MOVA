@@ -90,7 +90,7 @@
 
         <!-- Orden de pago creada: el pago ocurre fuera de esta pantalla; los créditos llegan al confirmarse. -->
         <div v-else-if="showOrderPending" class="flex flex-col items-center gap-3 py-4 text-center" role="status">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600" aria-hidden="true">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700" aria-hidden="true">
             <Icon name="info" :size="24" />
           </span>
           <p class="font-bold text-slate-900">Paga {{ currency }} {{ money(recharge.amount_pen) }} con Yape o Plin</p>
@@ -139,7 +139,7 @@
         </div>
 
         <div v-else-if="isVerifying && pollExhausted" class="flex flex-col items-center gap-3 py-4 text-center" role="status">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600" aria-hidden="true">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700" aria-hidden="true">
             <Icon name="info" :size="24" />
           </span>
           <p class="font-bold text-slate-900">No pudimos confirmar tu pago todavía</p>
@@ -160,7 +160,7 @@
         </div>
 
         <div v-else-if="status === 'approved'" class="flex flex-col items-center gap-2 py-4 text-center" data-testid="approved">
-          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <Icon name="check" :size="24" />
           </span>
           <p class="font-bold text-slate-900">¡Pago aprobado!</p>
@@ -253,7 +253,7 @@ const orderExpiresText = computed(() => {
   if (!iso) return ''
   const date = new Date(iso)
 
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'medium', timeStyle: 'short' })
 })
 
 function money(value) {

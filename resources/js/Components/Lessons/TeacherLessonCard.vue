@@ -16,7 +16,7 @@
             <Icon name="classes" :size="14" /> {{ fmtDate(lesson.start_time) }} · {{ lesson.duration_minutes }} min
           </p>
           <div v-if="lesson.status === 'cancelled' && lesson.cancel_reason"
-            class="mt-2 text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+            class="mt-2 text-xs text-red-700 bg-red-50 rounded px-2 py-1">
             Motivo de cancelación: {{ lesson.cancel_reason }}
           </div>
           <div v-if="lesson.rescheduled_at && lesson.original_start_time"
@@ -56,7 +56,7 @@
       <div class="mt-3 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2">
         <template v-if="lesson.lesson_report">
           <Link :href="route('lesson-reports.show', lesson.id)"
-            class="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+            class="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
             Ver reporte enviado <Icon name="check" :size="14" />
           </Link>
         </template>
@@ -72,11 +72,11 @@
           <span class="text-xs text-slate-500">Pendiente de confirmación de pago</span>
           <div class="flex gap-2">
             <button @click="$emit('reschedule', lesson)"
-              class="text-xs text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+              class="text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
               Reprogramar
             </button>
             <button @click="$emit('cancel', lesson)"
-              class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
+              class="text-xs text-red-700 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium">
               Cancelar clase
             </button>
           </div>

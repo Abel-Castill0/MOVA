@@ -43,11 +43,11 @@
         <!-- Date/time -->
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1.5">
-            Fecha y hora de inicio <span class="font-normal text-slate-500">(hora de Perú)</span> <span class="text-red-500">*</span>
+            Fecha y hora de inicio <span class="font-normal text-slate-500">(hora de Perú)</span> <span class="text-red-600">*</span>
           </label>
           <input v-model="form.start_time" type="datetime-local" required :min="minDateTime"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
-          <p v-if="form.errors.start_time" class="text-xs text-red-500 mt-1">{{ form.errors.start_time }}</p>
+          <p v-if="form.errors.start_time" class="text-xs text-red-600 mt-1">{{ form.errors.start_time }}</p>
         </div>
 
         <!-- Duration -->
@@ -73,7 +73,7 @@
                el banner general de arriba (form.errors.accept), no aquí:
                ambos comparten la misma causa (créditos), pero el banner
                general no insinúa que la duración sea la única solución. -->
-          <p v-if="!canAffordSelected" class="text-xs text-red-500 mt-2">
+          <p v-if="!canAffordSelected" class="text-xs text-red-600 mt-2">
             No tienes créditos suficientes para esta duración ({{ selectedCredits }} necesarios, {{ creditsAvailable }} disponibles).
           </p>
         </div>

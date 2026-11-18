@@ -87,8 +87,8 @@ html {
   /* Texto — claro. ink-subtle (2.56:1 sobre blanco) es DECORATIVO: nunca
      texto que transmita información única (ver DESIGN.md). */
   --ink: 15 23 42;                /* slate-900 · 17.85:1 sobre canvas/surface */
-  --ink-muted: 100 116 139;       /* slate-500 · 4.76:1 — AA para cuerpo */
-  --ink-subtle: 148 163 184;      /* slate-400 · 2.56:1 — decorativo, no AA */
+  --ink-muted: 86 100 120;        /* #566478 · 6.0:1 sobre blanco, 5.3:1 sobre canvas: AA para cuerpo */
+  --ink-subtle: 94 108 128;       /* #5e6c80 · 5.3:1 sobre blanco, 4.7:1 sobre canvas: AA (antes slate-400, 2.56:1, fallaba axe) */
 
   /* Bordes — claro. line-strong es una mejora real (2.56:1) sobre el
      border-gray-300 heredado (1.47:1) que hoy usan TextInput/Checkbox, pero

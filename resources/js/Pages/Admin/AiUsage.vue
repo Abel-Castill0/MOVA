@@ -93,9 +93,9 @@ const props = defineProps({
 })
 
 const statuses = [
-  { key: 'success',  label: 'Exitosas',  color: 'text-emerald-600' },
+  { key: 'success',  label: 'Exitosas',  color: 'text-emerald-700' },
   { key: 'fallback', label: 'Fallback',  color: 'text-amber-500' },
-  { key: 'error',    label: 'Error',     color: 'text-red-500' },
+  { key: 'error',    label: 'Error',     color: 'text-red-600' },
   { key: 'skipped',  label: 'Omitidas',  color: 'text-slate-500' },
 ]
 
@@ -116,7 +116,7 @@ function statusBadge(s) {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleString('es-PE', {
+  return new Date(d).toLocaleString('es-PE', { timeZone: 'America/Lima',
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
   })
 }

@@ -3,7 +3,7 @@
     <div class="w-full max-w-6xl mx-auto space-y-3.5 pb-2">
       <!-- Encabezado de página -->
       <div>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Mi perfil</h1>
+        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Mi perfil</h2>
         <p class="text-xs text-slate-500 mt-0.5">
           Edita tu información profesional. Esta información se mostrará en tu perfil público y te ayudará a conectar con más estudiantes.
         </p>
@@ -22,7 +22,7 @@
                 </svg>
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Perfil público</h2>
               </div>
-              <p class="text-[11px] text-slate-400 ml-6">
+              <p class="text-[11px] text-slate-500 ml-6">
                 Esta información se muestra en tu perfil público y a las familias con las que interactúas.
               </p>
             </div>
@@ -77,10 +77,10 @@
                     </svg>
                     Elegir imagen
                   </button>
-                  <p class="text-[10px] text-slate-400 mt-1">JPG, PNG o WEBP. Máximo 4 MB.</p>
+                  <p class="text-[10px] text-slate-500 mt-1">JPG, PNG o WEBP. Máximo 4 MB.</p>
                   <p v-if="avatarForm.processing" class="text-[10px] text-blue-600 font-medium mt-0.5">Subiendo...</p>
-                  <p v-if="avatarSaved" class="text-[10px] text-emerald-600 font-medium mt-0.5">Foto actualizada ✓</p>
-                  <p v-if="avatarForm.errors.avatar" class="text-[10px] text-red-500 mt-0.5">{{ avatarForm.errors.avatar }}</p>
+                  <p v-if="avatarSaved" class="text-[10px] text-emerald-700 font-medium mt-0.5">Foto actualizada ✓</p>
+                  <p v-if="avatarForm.errors.avatar" class="text-[10px] text-red-600 mt-0.5">{{ avatarForm.errors.avatar }}</p>
                 </div>
               </div>
 
@@ -99,8 +99,8 @@
                   title="Haz clic para copiar tu código"
                   class="my-1.5 w-full max-w-[180px] py-1 bg-[#e0edff] hover:bg-blue-100/80 border border-blue-200/60 rounded-xl text-center cursor-pointer transition active:scale-95 shadow-2xs"
                 >
-                  <span v-if="copied" class="text-xs font-bold text-emerald-600">¡Copiado! ✓</span>
-                  <span v-else class="text-sm font-extrabold tracking-widest text-[#155dfc] font-mono">
+                  <span v-if="copied" class="text-xs font-bold text-emerald-700">¡Copiado! ✓</span>
+                  <span v-else class="text-sm font-extrabold tracking-widest text-[#1D4ED8] font-mono">
                     {{ profile?.referral_code || 'JKVSST' }}
                   </span>
                 </button>
@@ -121,7 +121,7 @@
                 </svg>
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Sobre ti</h2>
               </div>
-              <p class="text-[11px] text-slate-400 ml-6">
+              <p class="text-[11px] text-slate-500 ml-6">
                 Cuéntanos un poco sobre tu experiencia, enfoque de enseñanza y lo que te hace un gran profesor.
               </p>
             </div>
@@ -136,7 +136,7 @@
                 placeholder="Cuéntales a los padres tu experiencia enseñando esta materia..."
                 class="w-full border border-slate-200 rounded-2xl p-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-none"
               ></textarea>
-              <div class="text-[10px] text-slate-400 text-right mt-0.5 font-medium">
+              <div class="text-[10px] text-slate-500 text-right mt-0.5 font-medium">
                 {{ form.bio?.length || 0 }}/500
               </div>
             </div>
@@ -151,7 +151,7 @@
                 </svg>
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Tarifa automática</h2>
               </div>
-              <p class="text-[11px] text-slate-400 ml-6">
+              <p class="text-[11px] text-slate-500 ml-6">
                 Tu tarifa se actualiza automáticamente según tus clases completadas y calificación promedio.
               </p>
             </div>
@@ -177,7 +177,7 @@
                 </svg>
                 <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Métodos de pago</h2>
               </div>
-              <p class="text-[11px] text-slate-400 ml-6">
+              <p class="text-[11px] text-slate-500 ml-6">
                 Los padres verán estos números para confirmar el pago offline de tus clases.
               </p>
             </div>
@@ -201,7 +201,7 @@
                     class="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                 </div>
-                <p v-if="form.errors.yape_number" class="text-[11px] text-red-500 mt-0.5">{{ form.errors.yape_number }}</p>
+                <p v-if="form.errors.yape_number" class="text-[11px] text-red-600 mt-0.5">{{ form.errors.yape_number }}</p>
               </div>
 
               <!-- Plin -->
@@ -222,7 +222,7 @@
                     class="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                 </div>
-                <p v-if="form.errors.plin_number" class="text-[11px] text-red-500 mt-0.5">{{ form.errors.plin_number }}</p>
+                <p v-if="form.errors.plin_number" class="text-[11px] text-red-600 mt-0.5">{{ form.errors.plin_number }}</p>
               </div>
             </div>
           </div>
@@ -238,7 +238,7 @@
               </svg>
               <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Materias</h2>
             </div>
-            <p class="text-[11px] text-slate-400 ml-6">
+            <p class="text-[11px] text-slate-500 ml-6">
               Selecciona las materias que enseñas. Puedes agregar nuevas materias si no están en la lista.
             </p>
           </div>

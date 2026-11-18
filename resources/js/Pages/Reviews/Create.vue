@@ -14,7 +14,7 @@
 
         <!-- Star rating -->
         <div>
-          <p class="text-sm font-semibold text-slate-700 mb-2">Calificación <span class="text-red-500">*</span></p>
+          <p class="text-sm font-semibold text-slate-700 mb-2">Calificación <span class="text-red-600">*</span></p>
           <div class="flex gap-2">
             <button v-for="n in 5" :key="n"
               type="button"
@@ -25,7 +25,7 @@
             </button>
           </div>
           <p class="text-xs text-slate-500 mt-1">{{ ratingLabel }}</p>
-          <p v-if="errors.rating" class="text-xs text-red-500 mt-1">{{ errors.rating }}</p>
+          <p v-if="errors.rating" class="text-xs text-red-600 mt-1">{{ errors.rating }}</p>
         </div>
 
         <!-- Comment -->
@@ -79,7 +79,7 @@ const ratingLabel = computed(() => {
 })
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
   })
 }

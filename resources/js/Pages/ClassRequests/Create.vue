@@ -40,7 +40,7 @@
               </p>
             </div>
             <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200/90 rounded-full text-xs font-semibold text-slate-600 shadow-xs">
-              <span class="text-slate-400">Paso</span>
+              <span class="text-slate-500">Paso</span>
               <span class="text-slate-900 font-bold">{{ currentStep }}</span>
               <span class="text-slate-300">/</span>
               <span class="text-slate-500">{{ TOTAL_STEPS }}</span>
@@ -58,7 +58,7 @@
                   ? 'bg-white text-slate-900 font-bold shadow-sm ring-1 ring-black/5'
                   : (idx + 1) < currentStep
                     ? 'text-brand-700 font-medium hover:bg-white/40'
-                    : 'text-slate-400 font-medium'
+                    : 'text-slate-500 font-medium'
               ]"
             >
               <div
@@ -101,7 +101,7 @@
             </div>
 
             <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white border border-slate-200/90 rounded-full text-[11px] font-semibold text-slate-600 shadow-2xs">
-              <span class="text-slate-400">Paso</span>
+              <span class="text-slate-500">Paso</span>
               <span class="text-slate-900 font-bold">{{ currentStep }}</span>
               <span class="text-slate-300">/</span>
               <span class="text-slate-500">{{ TOTAL_STEPS }}</span>
@@ -119,7 +119,7 @@
                   ? 'bg-white shadow-xs'
                   : (idx + 1) < currentStep
                     ? 'text-emerald-700'
-                    : 'text-slate-400'
+                    : 'text-slate-500'
               ]"
             >
               <div
@@ -163,7 +163,7 @@
               <span class="text-slate-800 font-semibold">{{ offer.subject?.name }}</span>
               <span class="text-slate-300">·</span>
               <span class="text-brand-700 font-bold">S/ {{ referenceRate }}/hora</span>
-              <span class="text-[11px] text-slate-400">(referencial)</span>
+              <span class="text-[11px] text-slate-500">(referencial)</span>
             </p>
           </div>
         </div>
@@ -210,7 +210,7 @@
                         </div>
                         <div class="min-w-0">
                           <p class="font-bold text-sm sm:text-base text-slate-900 truncate">{{ s.full_name }}</p>
-                          <p class="text-[11px] text-slate-400 font-medium">Estudiante</p>
+                          <p class="text-[11px] text-slate-500 font-medium">Estudiante</p>
                         </div>
                       </div>
 
@@ -235,7 +235,7 @@
                   <p id="cr-subject-label" class="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                     MATERIA
                   </p>
-                  <div role="group" aria-labelledby="cr-subject-label" class="grid grid-cols-2 gap-2 sm:gap-2.5">
+                  <div role="group" aria-labelledby="cr-subject-label" class="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:gap-2.5">
                     <button
                       v-for="s in subjects" :key="s.id"
                       type="button"
@@ -253,8 +253,8 @@
                           <component :is="subjectIcon(s.name).icon" class="w-[18px] h-[18px]" :stroke-width="1.9" />
                         </span>
                         <span class="min-w-0">
-                          <span class="block text-xs sm:text-sm font-bold truncate leading-tight">{{ s.name }}</span>
-                          <span v-if="s.has_teachers === false" class="block text-[10px] font-semibold text-amber-700 leading-tight">Sin profesores por ahora</span>
+                          <span class="block text-sm font-bold leading-tight break-words">{{ s.name }}</span>
+                          <span v-if="s.has_teachers === false" class="block text-xs font-semibold text-amber-800 leading-tight mt-0.5">Sin profesores por ahora</span>
                         </span>
                       </div>
                       <div :class="[
@@ -363,7 +363,7 @@
                 <button
                   type="button"
                   @click="goPrev"
-                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 py-1 transition-colors"
+                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 py-1 transition-colors"
                 >
                   ← Volver al paso anterior
                 </button>
@@ -450,7 +450,7 @@
                 <button
                   type="button"
                   @click="goPrev"
-                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 py-1 transition-colors"
+                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 py-1 transition-colors"
                 >
                   ← Volver al paso anterior
                 </button>
@@ -479,7 +479,7 @@
                     placeholder="Ej: Necesita repasar fracciones antes de su examen del jueves y resolver dudas de trigonometría."
                   ></textarea>
                   <div class="flex justify-between items-center mt-1 text-[11px] sm:text-xs">
-                    <span :class="form.help_needed.trim().length >= 10 ? 'text-emerald-600 font-semibold' : 'text-slate-400'">
+                    <span :class="form.help_needed.trim().length >= 10 ? 'text-emerald-700 font-semibold' : 'text-slate-500'">
                       {{ form.help_needed.trim().length }} / mín. 10 caracteres
                     </span>
                     <InputError :message="form.errors.help_needed" class="text-rose-500" />
@@ -491,7 +491,7 @@
                   <p id="cr-times-label" class="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 mb-0.5">
                     ¿Cuándo suele estar disponible?
                   </p>
-                  <p class="text-[11px] sm:text-xs text-slate-400 mb-2">
+                  <p class="text-[11px] sm:text-xs text-slate-500 mb-2">
                     Preferencia orientativa — el horario se coordina después con el profesor.
                   </p>
                   <div role="group" aria-labelledby="cr-times-label">
@@ -514,7 +514,7 @@
                 <button
                   type="button"
                   @click="goPrev"
-                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 py-1 transition-colors"
+                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 py-1 transition-colors"
                 >
                   ← Volver al paso anterior
                 </button>
@@ -588,7 +588,7 @@
                 <button
                   type="button"
                   @click="goPrev"
-                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 py-1 transition-colors"
+                  class="w-full text-center text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-700 py-1 transition-colors"
                 >
                   ← Volver a editar datos
                 </button>

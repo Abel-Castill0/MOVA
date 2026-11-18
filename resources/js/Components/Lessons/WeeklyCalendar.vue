@@ -92,7 +92,7 @@
         <!-- CABECERA DE DÍAS DE LA SEMANA (Lun .. Dom) STICKY TOP -->
         <div class="grid grid-cols-[60px_repeat(7,minmax(110px,1fr))] sm:grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-gray-200 bg-white sticky top-0 z-30 select-none shrink-0 shadow-2xs">
           <!-- Esquina vacía de horas -->
-          <div class="border-r border-gray-200 py-2 px-1 flex items-center justify-center text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-white">
+          <div class="border-r border-gray-200 py-2 px-1 flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-white">
             Hora
           </div>
 
@@ -131,7 +131,7 @@
             <div
               v-for="hour in hours"
               :key="hour"
-              class="h-[110px] border-b border-gray-100/90 pr-2 pt-2.5 text-right text-[11px] font-semibold text-slate-400 select-none flex flex-col justify-start"
+              class="h-[110px] border-b border-gray-100/90 pr-2 pt-2.5 text-right text-[11px] font-semibold text-slate-500 select-none flex flex-col justify-start"
             >
               {{ formatHourLabel(hour) }}
             </div>
@@ -254,7 +254,7 @@
               type="button"
               @click="selectedLesson = null"
               aria-label="Cerrar detalle"
-              class="absolute top-4 right-4 w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
+              class="absolute top-4 right-4 w-8 h-8 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -290,7 +290,7 @@
                 </svg>
               </div>
               <div>
-                <p class="text-xs font-medium text-slate-400">Fecha y horario</p>
+                <p class="text-xs font-medium text-slate-500">Fecha y horario</p>
                 <p class="text-sm font-bold text-slate-800 capitalize leading-snug">
                   {{ fmtFullDateRange(selectedLesson) }}
                 </p>
@@ -309,7 +309,7 @@
             </div>
 
             <div v-else-if="selectedLesson.lesson_report" class="mt-3.5 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
-              <Icon name="check" :size="15" class="text-emerald-600 flex-shrink-0" />
+              <Icon name="check" :size="15" class="text-emerald-700 flex-shrink-0" />
               <p class="text-xs font-bold text-emerald-700">
                 Reporte pedagógico completado y disponible.
               </p>
@@ -376,7 +376,7 @@
                 <button
                   type="button"
                   @click="cancelClass(selectedLesson)"
-                  class="text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  class="text-xs font-bold text-red-700 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancelar clase
                 </button>

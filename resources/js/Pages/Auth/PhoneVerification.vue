@@ -60,7 +60,7 @@
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-center tracking-widest text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             placeholder="000000"
           />
-          <p v-if="form.errors.code" class="text-xs text-red-500 mt-1">{{ form.errors.code }}</p>
+          <p v-if="form.errors.code" class="text-xs text-red-600 mt-1">{{ form.errors.code }}</p>
         </div>
 
         <!--
@@ -103,7 +103,7 @@
             {{ secondsLeft > 0 ? `Reenviar código (${secondsLeft} s)` : 'Reenviar código' }}
           </button>
         </form>
-        <p v-if="$page.props.errors.resend" class="text-xs text-red-500 mt-1">{{ $page.props.errors.resend }}</p>
+        <p v-if="$page.props.errors.resend" class="text-xs text-red-600 mt-1">{{ $page.props.errors.resend }}</p>
       </div>
 
       <p class="mt-4 text-center text-xs text-gray-500">

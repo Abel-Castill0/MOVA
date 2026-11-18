@@ -9,7 +9,7 @@ const done = computed(() => props.receipt.status === 'completed')
 const outcome = computed(() => props.receipt.outcome || {})
 const confirming = ref(null)
 const cancelForm = useForm({ reason: 'Cuenta cerrada por su titular' })
-const when = (iso) => new Date(iso).toLocaleString('es-PE', { dateStyle: 'full', timeStyle: 'short' })
+const when = (iso) => new Date(iso).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'full', timeStyle: 'short' })
 const day = (iso) => new Date(iso).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Lima' })
 function cancelLesson(id) { cancelForm.post(route('lessons.cancel', id), { preserveScroll: true, onFinish: () => { confirming.value = null } }) }
 const treatment = computed(() => {

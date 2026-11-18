@@ -164,7 +164,7 @@ function subjectTheme(subject) {
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
   })
 }

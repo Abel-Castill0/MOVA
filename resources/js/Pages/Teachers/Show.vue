@@ -48,21 +48,21 @@
           <div class="flex flex-wrap gap-4 mt-4">
             <div class="text-center">
               <p class="text-xl font-black text-ink">S/ {{ parseFloat(teacher.hourly_rate ?? 0).toFixed(0) }}</p>
-              <p class="text-xs text-ink-subtle">por hora</p>
+              <p class="text-xs text-ink-muted">por hora</p>
             </div>
             <div v-if="teacher.avg_rating" class="text-center" role="img" :aria-label="`Calificación ${teacher.avg_rating} de 5, ${teacher.review_count} ${teacher.review_count === 1 ? 'reseña' : 'reseñas'}`">
-              <p class="text-xl font-black text-amber-500" aria-hidden="true">★ {{ teacher.avg_rating }} <span class="text-sm font-bold text-ink-subtle">de 5</span></p>
-              <p class="text-xs text-ink-subtle" aria-hidden="true">{{ teacher.review_count }} {{ teacher.review_count === 1 ? 'reseña' : 'reseñas' }}</p>
+              <p class="text-xl font-black text-amber-500" aria-hidden="true">★ {{ teacher.avg_rating }} <span class="text-sm font-bold text-ink-muted">de 5</span></p>
+              <p class="text-xs text-ink-muted" aria-hidden="true">{{ teacher.review_count }} {{ teacher.review_count === 1 ? 'reseña' : 'reseñas' }}</p>
             </div>
             <div v-if="teacher.classes_completed > 0" class="text-center">
               <p class="text-xl font-black text-ink">{{ teacher.classes_completed }}</p>
-              <p class="text-xs text-ink-subtle">clases dictadas</p>
+              <p class="text-xs text-ink-muted">clases dictadas</p>
             </div>
           </div>
 
           <!-- Bio -->
           <p v-if="teacher.bio" class="text-sm text-ink-muted mt-4 leading-relaxed">{{ teacher.bio }}</p>
-          <p v-else class="text-sm text-ink-subtle mt-4 italic">Este profesor aún no ha completado su presentación.</p>
+          <p v-else class="text-sm text-ink-muted mt-4 italic">Este profesor aún no ha completado su presentación.</p>
 
           <!-- Modality -->
           <div class="flex items-center gap-1.5 mt-4 text-xs text-ink-muted">
@@ -137,7 +137,7 @@
 
         <div v-else class="space-y-3">
           <div v-if="teacher.avg_rating" class="bg-amber-50 border border-amber-100 rounded-elevated p-4 flex items-center gap-4">
-            <p class="text-4xl font-black text-amber-500">{{ teacher.avg_rating }}<span class="text-lg text-ink-subtle">/5</span></p>
+            <p class="text-4xl font-black text-amber-500">{{ teacher.avg_rating }}<span class="text-lg text-ink-muted">/5</span></p>
             <div>
               <div class="flex gap-0.5" role="img" :aria-label="`${Math.round(teacher.avg_rating)} de 5 estrellas`">
                 <span v-for="n in 5" :key="n" :class="['text-xl', n <= Math.round(teacher.avg_rating) ? 'text-amber-400' : 'text-gray-200']" aria-hidden="true">★</span>
@@ -150,10 +150,10 @@
             class="bg-surface rounded-card border border-line p-4">
             <div class="flex items-center gap-1 mb-1" role="img" :aria-label="`${r.rating} de 5 estrellas`">
               <span v-for="n in 5" :key="n" :class="['text-sm', n <= r.rating ? 'text-amber-400' : 'text-gray-200']" aria-hidden="true">★</span>
-              <span class="text-xs text-ink-subtle ml-2" aria-hidden="true">{{ fmtDate(r.created_at) }}</span>
+              <span class="text-xs text-ink-muted ml-2" aria-hidden="true">{{ fmtDate(r.created_at) }}</span>
             </div>
             <p v-if="r.comment" class="text-sm text-ink leading-relaxed">{{ r.comment }}</p>
-            <p v-else class="text-xs text-ink-subtle italic">Sin comentario adicional.</p>
+            <p v-else class="text-xs text-ink-muted italic">Sin comentario adicional.</p>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@
         <h3 class="font-bold text-ink mb-4">¿Por qué confiar en MOVA?</h3>
         <div class="grid sm:grid-cols-3 gap-4">
           <div class="flex items-start gap-3">
-            <div class="w-8 h-8 bg-emerald-100 rounded-control flex items-center justify-center text-emerald-600 flex-shrink-0">
+            <div class="w-8 h-8 bg-emerald-100 rounded-control flex items-center justify-center text-emerald-700 flex-shrink-0">
               <Icon name="verified-badge" :size="18" />
             </div>
             <div>
@@ -228,6 +228,6 @@ const isTeacher = computed(() => {
 const avatarFailed = ref(false)
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima', day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>

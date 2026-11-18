@@ -16,7 +16,7 @@
       </div>
 
       <div v-if="!lessons.data.length" class="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p class="text-gray-400 text-sm">No hay clases con ese filtro</p>
+        <p class="text-gray-500 text-sm">No hay clases con ese filtro</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -35,7 +35,7 @@
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="l in lessons.data" :key="l.id" class="hover:bg-gray-50">
-              <td class="px-4 py-3 text-gray-400">#{{ l.id }}</td>
+              <td class="px-4 py-3 text-gray-500">#{{ l.id }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ l.class_request?.subject?.name ?? '—' }}</td>
               <td class="px-4 py-3 text-gray-600">{{ l.student?.first_name }} {{ l.student?.last_name }}</td>
               <td class="px-4 py-3 text-gray-500 text-xs">{{ l.student?.parent?.name ?? '—' }}</td>
@@ -43,7 +43,7 @@
               <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ fmtDate(l.start_time) }}</td>
               <td class="px-4 py-3">
                 <StatusBadge :status="l.status" />
-                <div v-if="l.cancel_reason" class="text-xs text-red-500 mt-0.5 max-w-[140px] truncate" :title="l.cancel_reason">
+                <div v-if="l.cancel_reason" class="text-xs text-red-600 mt-0.5 max-w-[140px] truncate" :title="l.cancel_reason">
                   {{ l.cancel_reason }}
                 </div>
               </td>
@@ -51,16 +51,16 @@
                 <div class="flex flex-wrap gap-1">
                   <button v-if="l.status === 'scheduled'"
                     @click="openActionModal('cancel', l)"
-                    class="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-2 rounded transition-colors">
+                    class="text-xs text-red-700 hover:text-red-800 hover:bg-red-50 px-2 py-2 rounded transition-colors">
                     Cancelar
                   </button>
                   <template v-if="canForceSettle(l.status)">
                     <button @click="openActionModal('force-complete', l)"
-                      class="text-xs text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-2 rounded transition-colors">
+                      class="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-2 rounded transition-colors">
                       Forzar cierre
                     </button>
                     <button @click="openActionModal('force-refund', l)"
-                      class="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-2 rounded transition-colors">
+                      class="text-xs text-red-700 hover:text-red-800 hover:bg-red-50 px-2 py-2 rounded transition-colors">
                       Forzar devolución
                     </button>
                   </template>
@@ -99,7 +99,7 @@
         <textarea id="action-reason" v-model="actionReason" rows="3"
           :placeholder="activeActionConfig.placeholder"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 mb-1" />
-        <p v-if="actionError" class="text-xs text-red-500 mb-2" role="alert">{{ actionError }}</p>
+        <p v-if="actionError" class="text-xs text-red-600 mb-2" role="alert">{{ actionError }}</p>
         <div class="flex gap-2 mt-3">
           <button @click="closeActionModal"
             class="flex-1 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
@@ -211,7 +211,7 @@ function submitAction() {
 }
 
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('es-ES', {
+  return new Date(d).toLocaleDateString('es-ES', { timeZone: 'America/Lima',
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
 }

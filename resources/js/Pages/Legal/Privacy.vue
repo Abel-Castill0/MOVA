@@ -126,7 +126,7 @@
 
       </div>
 
-      <div class="mt-8 pt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-400">
+      <div class="mt-8 pt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
         <Link href="/" class="hover:text-brand-600 transition-colors">Inicio</Link>
         <Link :href="route('legal.terms')" class="hover:text-brand-600 transition-colors">Términos y Condiciones</Link>
         <Link :href="route('register')" class="hover:text-brand-600 transition-colors">Crear cuenta</Link>

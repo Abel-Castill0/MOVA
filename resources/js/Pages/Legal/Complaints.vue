@@ -86,8 +86,8 @@
           <fieldset class="space-y-4">
             <legend class="text-lg font-black text-slate-900">3. Detalle</legend>
             <div class="flex flex-wrap gap-4 text-sm text-slate-700" role="radiogroup" aria-label="Tipo de hoja">
-              <label class="flex items-center gap-2"><input v-model="form.type" type="radio" value="reclamo" class="text-brand-600" /> Reclamo <span class="text-slate-400">(disconformidad con el servicio)</span></label>
-              <label class="flex items-center gap-2"><input v-model="form.type" type="radio" value="queja" class="text-brand-600" /> Queja <span class="text-slate-400">(malestar con la atención)</span></label>
+              <label class="flex items-center gap-2"><input v-model="form.type" type="radio" value="reclamo" class="text-brand-600" /> Reclamo <span class="text-slate-500">(disconformidad con el servicio)</span></label>
+              <label class="flex items-center gap-2"><input v-model="form.type" type="radio" value="queja" class="text-brand-600" /> Queja <span class="text-slate-500">(malestar con la atención)</span></label>
             </div>
             <p v-if="form.errors.type" class="text-sm text-red-600">{{ form.errors.type }}</p>
             <Field id="detail" label="Detalle" :error="form.errors.detail">
