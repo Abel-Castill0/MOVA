@@ -682,8 +682,9 @@ class AccountLifecycleTest extends TestCase
         $this->assertSame('completed', $deletion->cleanup_status);
         $this->assertNull($user->fresh()->avatar_url);
 
-        // A late provider confirmation after closure credits the (unusable) wallet through the normal service...
-        app(\App\Services\RechargeApprovalService::class)->credit($recharge, $this->user('admin')->id);
+        // A late provider confirmation (no human reviewer) after closure credits the (unusable) wallet through the normal service;
+        // a human admin can no longer approve it by hand (ClosedAccountPaymentGuardTest)...
+        app(\App\Services\RechargeApprovalService::class)->credit($recharge, null);
         $this->assertSame(5, $teacher->fresh()->credits_available);
         // ...and a failed cleanup is retried by the scheduled command, which also flags that balance as an incident.
         $deletion->forceFill(['cleanup_status' => 'failed'])->save();

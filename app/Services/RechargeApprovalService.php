@@ -6,6 +6,7 @@ use App\Exceptions\ReversalWouldGoNegative;
 use App\Models\OperationalAlert;
 use App\Models\RechargeRequest;
 use App\Models\TeacherProfile;
+use App\Models\User;
 use App\Notifications\RechargeApprovedNotification;
 use App\Notifications\RechargeReversedNotification;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -57,6 +58,9 @@ class RechargeApprovalService
         // todavía no está aprobada.
         if ($result['changed']) {
             $this->notifyAfterCommit($result['recharge'], new RechargeApprovedNotification($result['recharge']));
+            if ($reviewerId === null) {
+                $this->flagClosedAccountPayment($result['recharge']);
+            }
         }
 
         return $result;
@@ -126,6 +130,20 @@ class RechargeApprovalService
                     ->lockForUpdate()
                     ->firstOrFail();
 
+                // Un humano no abona a mano a una cuenta cerrada. Lectura simple de User, DESPUÉS de bloquear el perfil
+                // (nunca bloquear User aquí: el cierre toma User→TeacherProfile y el abono Recarga→TeacherProfile; un
+                // bloqueo de User tras el perfil invertiría el orden). Es la primera lectura sin bloqueo de este
+                // camino, así que ve lo último confirmado. El proveedor sí puede haber cobrado de verdad
+                // (reviewerId null): ahí el ledger debe describir la realidad y la incidencia se decide tras el commit
+                // (flagClosedAccountPayment), porque una lectura dentro de la transacción puede ver una instantánea antigua.
+                if ($reviewerId !== null) {
+                    abort_if(
+                        User::whereKey($teacherProfile->user_id)->whereNotNull('account_closed_at')->exists(),
+                        422,
+                        'La cuenta del profesor está cerrada: no se abonan créditos manualmente.'
+                    );
+                }
+
                 $teacherProfile->creditTransactions()->create([
                     'idempotency_key' => "recharge:{$recharge->id}:deposit",
                     'recharge_request_id' => $recharge->id,
@@ -152,6 +170,46 @@ class RechargeApprovalService
         } catch (UniqueConstraintViolationException) {
             abort(409, 'La recarga presenta una inconsistencia de idempotencia y requiere revisión manual.');
         }
+    }
+
+    /**
+     * Pago confirmado por el proveedor sobre una cuenta que ya está cerrada: queda asentado (el dinero salió del pagador)
+     * y un humano debe devolverlo. Se evalúa DESPUÉS del commit más externo para ver el estado real del cierre, también
+     * cuando el cierre confirmó mientras este abono esperaba el bloqueo del perfil. Un fallo aquí se reporta pero no se
+     * propaga: un reintento vería changed=false y no volvería a levantar la alerta.
+     */
+    private function flagClosedAccountPayment(RechargeRequest $recharge): void
+    {
+        $userId = $recharge->teacherProfile?->user_id;
+        if ($userId === null) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($recharge, $userId) {
+            try {
+                if (! User::whereKey($userId)->whereNotNull('account_closed_at')->exists()) {
+                    return;
+                }
+                $this->raiseClosedAccountIncident($recharge);
+            } catch (Throwable $e) {
+                report($e);
+                \Illuminate\Support\Facades\Log::critical('[Recharge] Pago asentado en una cuenta cerrada y la incidencia no pudo registrarse: devolver el pago manualmente.', ['recharge_request_id' => $recharge->id]);
+            }
+        });
+    }
+
+    private function raiseClosedAccountIncident(RechargeRequest $recharge): void
+    {
+        app(OperationalAlertService::class)->raise(
+            key: "recharge:{$recharge->id}:closed-account-payment",
+            type: OperationalAlert::TYPE_PAYMENT_REVIEW,
+            title: 'Pago recibido en una cuenta ya cerrada',
+            message: 'El proveedor confirmó un cobro de una cuenta que ya estaba cerrada (o se cerró mientras se pagaba). Los créditos '
+                .'quedaron asentados en el ledger de un perfil suprimido y nadie puede usarlos: devuelve el pago al titular. '
+                .'No se acreditó nada a otra cuenta.',
+            context: ['Recarga' => $recharge->id, 'Créditos' => $recharge->credits, 'Importe PEN' => (string) $recharge->amount_pen],
+            severity: OperationalAlert::SEVERITY_CRITICAL,
+        );
     }
 
     /**

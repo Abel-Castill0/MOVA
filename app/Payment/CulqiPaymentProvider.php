@@ -4,6 +4,8 @@ namespace App\Payment;
 
 use App\Models\PaymentOrder;
 use App\Models\RechargeRequest;
+use App\Models\TeacherProfile;
+use App\Models\User;
 use App\Payment\Contracts\CardPaymentInstrument;
 use App\Payment\Contracts\PaymentMethodKind;
 use App\Payment\Contracts\PaymentProviderContract;
@@ -508,6 +510,16 @@ class CulqiPaymentProvider implements PaymentProviderContract
             if ($locked->payment_method !== self::PROVIDER || $locked->status !== 'pending') {
                 throw new RuntimeException(
                     "CulqiPaymentProvider: RechargeRequest#{$recharge->id} no admite un cobro (método '{$locked->payment_method}', estado '{$locked->status}')."
+                );
+            }
+
+            // Una cuenta cerrada no puede iniciar cobros: el pago se acreditaría a un perfil suprimido que nadie usa.
+            // Lectura simple (sin bloquear User): el cierre bloquea User→TeacherProfile y un bloqueo aquí invertiría
+            // el orden. El cierre concurrente se cubre al acreditar (incidencia en RechargeApprovalService).
+            $ownerId = TeacherProfile::whereKey($locked->teacher_profile_id)->value('user_id');
+            if ($ownerId === null || User::whereKey($ownerId)->whereNotNull('account_closed_at')->exists()) {
+                throw new RuntimeException(
+                    "CulqiPaymentProvider: RechargeRequest#{$recharge->id} pertenece a una cuenta cerrada — no se inicia ningún cobro."
                 );
             }
 

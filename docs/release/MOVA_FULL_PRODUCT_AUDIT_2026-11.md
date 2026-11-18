@@ -13,7 +13,7 @@ Registro detallado de cada hallazgo: [`MOVA_AUDIT_FINDINGS.md`](MOVA_AUDIT_FINDI
 - **Problemas más graves encontrados:** ninguno P0/P1 reproducido. Hay defectos P2 de experiencia y accesibilidad que ninguna prueba
   verde detectaba: administración de usuarios inutilizable en móvil, nombres de materia cortados en el paso central del flujo del padre,
   desborde a 320 px, contraste insuficiente generalizado (113 páginas-resolución) y la lista de bloqueo de cuentas sancionadas evadible
-  con alias de Gmail. Un riesgo P2 financiero **preexistente y no corregido** (O-01) queda documentado.
+  con alias de Gmail. Un riesgo P2 financiero preexistente (cobro y abono sobre cuentas cerradas, O-01/O-02) se corrigió en un segundo commit (F-13/F-14).
 - **Resultado:** eliminación segura de cuentas por administrador implementada y probada (19 pruebas + e2e en navegador), 12 hallazgos
   corregidos y medidos antes/después (§D–E), 8 abiertos (4 requieren decisión o tarea financiera propia).
 - **Preparación para usuarios reales:** ver §G «Veredicto».
@@ -31,7 +31,7 @@ Jobs: 4; comandos: 36; tareas programadas: 13 (heartbeat, recordatorios, liquida
 | Admin: usuarios | Tabla ilegible en móvil, sin búsqueda, sin eliminación | F-01–F-03 | Rediseño + eliminación segura + auditoría | Probado en navegador 375/1440 |
 | Admin: resto de paneles | Sin desbordes ni errores | Contraste, regiones con scroll sin foco | F-08, F-10 | OK |
 | Cierre de cuentas / lista de bloqueo | Correcto salvo evasión por alias | F-04, F-05, F-12 | Variantes de correo, conteos, textos | 19 + 153 pruebas verdes |
-| Pagos Culqi, créditos, ledger | **Sin cambios** | O-01, O-02 (preexistentes) | — | No tocado: requiere tarea financiera propia |
+| Pagos Culqi, créditos, ledger | Funcional; cuenta cerrada no contemplada | Cobro/abono sobre cuenta cerrada (F-13, F-14) | Guarda en el proveedor + incidencia crítica en `RechargeApprovalService` | Probado SQLite y MySQL; sin tocar idempotencia ni orden de locks |
 | Tiempo real, WhatsApp, correo, JaaS, Azure | **No auditados en vivo** | — | — | Ver §G |
 
 ## C. Defectos corregidos
@@ -73,7 +73,7 @@ Pruebas: `AdminUserErasureTest` 19/19; regresión dirigida 153 (admin, ciclo de 
 
 ### Gate final
 
-PHPUnit completo (SQLite en memoria, PHP 8.3.36, contenedor `php_qa`) sobre el árbol final: **1947 pruebas, 9425 aserciones, 0 fallos, 25 omitidas** (las omisiones son pruebas exclusivas de MySQL/QA; igual que la línea base documentada de 25). `npm run build` y los 5 `check:*` OK. Playwright del repositorio, perfil MySQL y CI de GitHub: no ejecutados en esta sesión.
+PHPUnit completo (SQLite en memoria, PHP 8.3.36, contenedor `php_qa`) sobre el árbol final: **1956 pruebas, 9456 aserciones, 0 fallos, 25 omitidas** (tras el segundo commit, F-13/F-14; el primero fue 1947) (las omisiones son pruebas exclusivas de MySQL/QA; igual que la línea base documentada de 25). `npm run build` y los 5 `check:*` OK. Perfil MySQL (`phpunit.mysql.xml`, `mysql_qa`) sobre las suites de dinero y cuentas (`ClosedAccountPaymentGuardTest`, `AdminUserErasureTest`, `AccountLifecycleTest`, `AdminActionsTest`, `CulqiPaymentTest`, `AdminRechargeReversalTest`): **179 OK**. En `QaAccountClosureRaceGuardTest` 3 pruebas fallan en este contenedor por entorno (el subproceso usa `DB_HOST=127.0.0.1` y no `mysql_qa`), no por el código. Playwright del repositorio y CI de GitHub: no ejecutados; la carrera multi-proceso real cierre-vs-abono tampoco (solo su simulación determinista).
 
 ## F. Infraestructura
 
@@ -83,7 +83,7 @@ PHPUnit completo (SQLite en memoria, PHP 8.3.36, contenedor `php_qa`) sobre el �
 
 ## G. Riesgos, pendientes y veredicto
 
-- **Defectos reales abiertos:** O-01, O-02 (P2, financieros, preexistentes), O-03–O-06 (P3).
+- **Defectos reales abiertos:** O-03–O-06 (P3). O-01/O-02 corregidos (F-13/F-14).
 - **Decisiones del propietario:** aviso previo a la persona eliminada (O-08), hashes latentes de bloqueo (O-04).
 - **No verificado:** ver el final de `MOVA_AUDIT_FINDINGS.md`.
 - **Veredicto (honesto):** no se encontró ningún P0/P1 reproducible en los flujos recorridos (visitante, padre→profesor, panel admin en navegador real, producción en solo lectura). La plataforma es utilizable por usuarios reales **en lo auditado**; esa afirmación no se extiende a pagos en vivo, tiempo real, WhatsApp, correo, videoclases ni infraestructura Azure, que esta sesión no pudo comprobar. No se declara cumplimiento del 100 % de las condiciones de la fase 16 (faltan: CI en verde sobre el commit, despliegue, MySQL, E2E del repositorio, rollback verificado en caliente).
