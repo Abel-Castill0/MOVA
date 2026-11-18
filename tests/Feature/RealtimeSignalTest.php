@@ -217,6 +217,23 @@ class RealtimeSignalTest extends TestCase
         $this->assertCount($callsAfterFailure, $this->sent(), 'Con el servicio pausado no se hace ninguna llamada nueva.');
     }
 
+    public function test_negotiating_never_spends_the_rate_limit_of_creating_requests(): void
+    {
+        $this->enable();
+        $subject = Subject::create(['name' => 'Álgebra', 'level' => 'todos']);
+        [$parent, $student] = $this->parentWithStudent();
+        $this->teacher($subject);
+
+        foreach (range(1, 12) as $_) {
+            $this->actingAs($parent)->postJson(route('realtime.negotiate'))->assertOk();
+        }
+
+        // El límite de crear solicitudes (10 por minuto) sigue intacto: antes cada negociación le restaba un intento.
+        foreach (range(1, 3) as $i) {
+            $this->actingAs($parent)->post(route('class-requests.store'), ['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => "Texto distinto {$i}"])->assertRedirect(route('class-requests.index'));
+        }
+    }
+
     public function test_a_suspended_user_cannot_negotiate_a_connection(): void
     {
         $this->enable();
