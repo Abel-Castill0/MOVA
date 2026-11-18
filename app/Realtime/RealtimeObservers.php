@@ -3,6 +3,7 @@
 namespace App\Realtime;
 
 use App\Models\ClassRequest;
+use App\Models\ClassRequestTeacherDecline;
 use App\Models\CreditTransaction;
 use App\Models\Lesson;
 use App\Models\RechargeRequest;
@@ -37,6 +38,16 @@ class RealtimeObservers
             if ($request->wasChanged(['status', 'teacher_profile_id', 'class_offer_id', 'counteroffer_teacher_profile_id', 'counteroffer_time'])) {
                 $requestSignal($request);
             }
+        });
+
+        // Un profesor descarta una solicitud pública: la solicitud no cambia, pero a quien la pidió (y al propio profesor)
+        // le cambia lo que ve (entrega, contadores).
+        ClassRequestTeacherDecline::created(function (ClassRequestTeacherDecline $decline) {
+            RealtimeSignal::to(function () use ($decline) {
+                $request = ClassRequest::with('student')->find($decline->class_request_id);
+
+                return [$request?->student?->parent_user_id, \App\Models\TeacherProfile::find($decline->teacher_profile_id)?->user_id];
+            }, ['requests', 'dashboard']);
         });
 
         $lessonSignal = function (Lesson $lesson) {

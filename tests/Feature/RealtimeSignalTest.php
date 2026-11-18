@@ -160,6 +160,25 @@ class RealtimeSignalTest extends TestCase
         $this->assertSame('open', $request->fresh()->status);
     }
 
+    public function test_a_teacher_declining_a_public_request_signals_the_parent_and_that_teacher_only(): void
+    {
+        $this->enable();
+        $subject = Subject::create(['name' => 'Álgebra', 'level' => 'todos']);
+        [$parent, $student] = $this->parentWithStudent();
+        [$teacher, $profile] = $this->teacher($subject);
+        [$other] = $this->teacher($subject);
+        $request = ClassRequest::create(['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => 'x', 'status' => 'open']);
+
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake([self::ENDPOINT.'/*' => Http::response('', 202)]);
+        \App\Models\ClassRequestTeacherDecline::create(['class_request_id' => $request->id, 'teacher_profile_id' => $profile->id, 'declined_at' => now(), 'reason' => 'Sin horario']);
+
+        $users = array_column($this->sent(), 'user');
+        $this->assertEqualsCanonicalizing([$parent->id, $teacher->id], $users);
+        $this->assertNotContains($other->id, $users);
+        $this->assertStringNotContainsString('Sin horario', json_encode($this->sent()));
+    }
+
     public function test_a_credit_ledger_entry_signals_only_the_owner_teacher_with_credit_topics(): void
     {
         $this->enable();
