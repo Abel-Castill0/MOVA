@@ -1,11 +1,9 @@
-// Lunes 00:00:00 de la semana que contiene `date` (por defecto, ahora).
+import { limaStartOfWeek } from '@/utils/limaTime'
+
+// Lunes 00:00 (hora de Lima) de la semana que contiene `date` (por defecto, ahora), como instante. No depende de la zona
+// del navegador: una familia con el reloj en otra zona ve las mismas semanas que WhatsApp y el correo.
 export function startOfWeek(date = new Date()) {
-  const d = new Date(date)
-  const day = d.getDay() // 0=domingo..6=sábado
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
+  return limaStartOfWeek(date)
 }
 
 // Separa una lista por `dateField`: "esta semana o después" vs "pasadas"

@@ -118,12 +118,12 @@
                   : 'text-slate-800'
               ]"
             >
-              {{ day.getDate() }}
+              {{ limaParts(day).day }}
             </span>
           </div>
         </div>
 
-        <!-- REJILLA DE 17 HORAS (07:00 a 24:00) -->
+        <!-- REJILLA DE HORAS (07:00 a 24:00, se amplía si hay clases fuera de rango) -->
         <div class="grid grid-cols-[60px_repeat(7,minmax(110px,1fr))] sm:grid-cols-[72px_repeat(7,minmax(120px,1fr))] relative">
 
           <!-- COLUMNA IZQUIERDA DE HORAS -->
@@ -392,11 +392,12 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import { canJoinJitsi } from '@/utils/lessonJoin'
 import { startOfWeek } from '@/utils/weekGrouping'
+import { LIMA_TZ, limaParts, limaDayKey, addLimaDays, limaMinutesOfDay, fmtLimaClock } from '@/utils/limaTime'
 
 const props = defineProps({
   lessons: { type: Array, required: true },
@@ -409,66 +410,78 @@ const weekOffset = ref(0)
 const selectedLesson = ref(null)
 const calendarScrollContainer = ref(null)
 
-// Rango completo de horas continuo: Mañana a Noche (07:00 a 24:00)
-const START_HOUR = 7
-const END_HOUR = 24
+// Rango base 07:00–24:00; se amplía solo si la semana tiene clases fuera de él (p. ej. 04:30), para que ninguna clase
+// se dibuje en una posición que no es la suya. TODO se calcula en hora de Lima (America/Lima), nunca en la del navegador.
+const BASE_START_HOUR = 7
+const BASE_END_HOUR = 24
 const ROW_HEIGHT_PX = 110
-const TOTAL_HOURS = END_HOUR - START_HOUR
-const TOTAL_MINUTES = TOTAL_HOURS * 60
 
-const hours = computed(() =>
-  Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i)
-)
+function lessonStartMin(l) {
+  return limaMinutesOfDay(l.start_time)
+}
 
-// Cálculo de semanas
-const weekStart = computed(() => {
-  const base = startOfWeek()
-  base.setDate(base.getDate() + weekOffset.value * 7)
-  return base
+// Minutos de fin dentro del día de inicio (tope 24:00: lo que cruza la medianoche se recorta en la columna del día).
+function lessonEndMin(l) {
+  return Math.min(24 * 60, lessonStartMin(l) + (l.duration_minutes || 60))
+}
+
+const startHour = computed(() => {
+  const mins = weekLessons.value.map(lessonStartMin)
+
+  return mins.length ? Math.min(BASE_START_HOUR, Math.floor(Math.min(...mins) / 60)) : BASE_START_HOUR
 })
 
+const endHour = computed(() => {
+  const mins = weekLessons.value.map(lessonEndMin)
+
+  return mins.length ? Math.max(BASE_END_HOUR, Math.ceil(Math.max(...mins) / 60)) : BASE_END_HOUR
+})
+
+const totalMinutes = computed(() => (endHour.value - startHour.value) * 60)
+
+const hours = computed(() =>
+  Array.from({ length: endHour.value - startHour.value }, (_, i) => startHour.value + i)
+)
+
+// Cálculo de semanas: lunes 00:00 de Lima como instante UTC.
+const weekStart = computed(() => addLimaDays(startOfWeek(), weekOffset.value * 7))
+
 const weekDays = computed(() =>
-  Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart.value)
-    d.setDate(d.getDate() + i)
-    return d
-  })
+  Array.from({ length: 7 }, (_, i) => addLimaDays(weekStart.value, i))
 )
 
 const weekLessons = computed(() => {
-  const start = weekStart.value
-  const end = new Date(start)
-  end.setDate(end.getDate() + 7)
+  const start = weekStart.value.getTime()
+  const end = addLimaDays(weekStart.value, 7).getTime()
   return props.lessons.filter((l) => {
-    const t = new Date(l.start_time)
+    const t = new Date(l.start_time).getTime()
     return t >= start && t < end
   })
 })
 
 function lessonsFor(day) {
+  const key = limaDayKey(day)
   return weekLessons.value
-    .filter((l) => sameDay(new Date(l.start_time), day))
+    .filter((l) => limaDayKey(l.start_time) === key)
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
 }
 
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
 function isToday(day) {
-  return sameDay(day, new Date())
+  return limaDayKey(day) === limaDayKey(new Date())
 }
 
 function scrollToInitialHour() {
   nextTick(() => {
     if (!calendarScrollContainer.value) return
-    const curHour = new Date().getHours()
-    let targetHour = 8
-    if (weekOffset.value === 0 && curHour >= START_HOUR && curHour <= END_HOUR) {
-      targetHour = Math.max(START_HOUR, curHour - 1)
+    const curHour = limaParts(new Date()).hour
+    let targetHour = Math.max(startHour.value, 8)
+    if (weekOffset.value === 0 && curHour >= startHour.value && curHour <= endHour.value) {
+      targetHour = Math.max(startHour.value, curHour - 1)
     }
-    const hourOffset = targetHour - START_HOUR
-    const targetScrollTop = hourOffset * ROW_HEIGHT_PX
+    // Si la semana tiene una clase más temprana que la hora objetivo, se enseña desde ella.
+    const first = weekLessons.value.length ? Math.floor(Math.min(...weekLessons.value.map(lessonStartMin)) / 60) : null
+    if (first !== null && first < targetHour && weekOffset.value !== 0) targetHour = Math.max(startHour.value, first)
+    const targetScrollTop = (targetHour - startHour.value) * ROW_HEIGHT_PX
     calendarScrollContainer.value.scrollTo({
       top: targetScrollTop,
       behavior: 'smooth',
@@ -493,7 +506,7 @@ function otherParty(l) {
 }
 
 function dayShortName(day) {
-  const name = day.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '')
+  const name = day.toLocaleDateString('es-ES', { timeZone: LIMA_TZ, weekday: 'short' }).replace('.', '')
   return name.charAt(0).toUpperCase() + name.slice(1, 3)
 }
 
@@ -506,7 +519,7 @@ function formatHourLabel(h) {
 }
 
 function fmtTime(d) {
-  return new Date(d).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return fmtLimaClock(d)
 }
 
 function fmtTimeRange(l) {
@@ -519,28 +532,29 @@ function fmtTimeRange(l) {
 function fmtFullDateRange(l) {
   const start = new Date(l.start_time)
   const dateStr = start.toLocaleDateString('es-ES', {
+    timeZone: LIMA_TZ,
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   })
-  return `${dateStr} de ${fmtTimeRange(l)}`
+  return `${dateStr} de ${fmtTimeRange(l)} (hora de Perú)`
 }
 
 // Etiquetas de cabecera del calendario
 const academicYearCycle = computed(() => {
-  const year = weekStart.value.getFullYear()
-  return `${year} · Clases MOVA`
+  const year = limaParts(weekStart.value).year
+  return `${year} · Clases MOVA · hora de Perú`
 })
 
 const weekHeaderTitle = computed(() => {
   const start = weekDays.value[0]
   const end = weekDays.value[6]
 
-  const sameMonth = start.getMonth() === end.getMonth()
+  const sameMonth = limaParts(start).month === limaParts(end).month
   const startStr = sameMonth
-    ? `${start.getDate()}`
-    : start.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
-  const endStr = end.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
+    ? `${limaParts(start).day}`
+    : start.toLocaleDateString('es-ES', { timeZone: LIMA_TZ, day: 'numeric', month: 'long' })
+  const endStr = end.toLocaleDateString('es-ES', { timeZone: LIMA_TZ, day: 'numeric', month: 'long' })
 
   const prefix = weekOffset.value === 0 ? 'Semana actual' : 'Semana'
   return `${prefix} – Del ${startStr} al ${endStr}`
@@ -609,38 +623,33 @@ function classBadgeStyle(lesson) {
 
 // Posicionamiento absoluto de bloques de clase en la cuadrícula
 function lessonStyle(lesson) {
-  const start = new Date(lesson.start_time)
-  const hour = start.getHours()
-  const minutes = start.getMinutes()
   const duration = lesson.duration_minutes || 60
-
-  const rawMinutesFromStart = Math.max(0, (hour - START_HOUR) * 60 + minutes)
-  const topPercent = (rawMinutesFromStart / TOTAL_MINUTES) * 100
-  const heightPercent = (duration / TOTAL_MINUTES) * 100
-
-  // Asegura que ninguna tarjeta se desborde fuera del fondo de la cuadrícula
-  const boundedTop = Math.max(0.1, Math.min(topPercent, Math.max(0.1, 100 - heightPercent - 0.2)))
-  const boundedHeight = Math.min(heightPercent, 100 - boundedTop)
+  const total = totalMinutes.value
+  const fromStart = lessonStartMin(lesson) - startHour.value * 60
+  const topPercent = (fromStart / total) * 100
+  // La rejilla siempre contiene la clase (rango dinámico); solo se recorta lo que cruza la medianoche.
+  const heightPercent = (Math.min(duration, 24 * 60 - lessonStartMin(lesson)) / total) * 100
 
   return {
-    top: `calc(${boundedTop}% + 2px)`,
-    height: `calc(${boundedHeight}% - 4px)`,
+    top: `calc(${topPercent}% + 2px)`,
+    height: `calc(${heightPercent}% - 4px)`,
     left: '3px',
     right: '3px',
     minHeight: '106px',
   }
 }
 
-// Indicador de hora actual en vivo
-const nowMinutes = ref(new Date().getHours() * 60 + new Date().getMinutes())
+// Indicador de hora actual en vivo (hora de Lima, se refresca cada minuto)
+const nowMinutes = ref(limaMinutesOfDay(new Date()))
+let nowTimer = null
 const isCurrentHourVisible = computed(() => {
   const currentHour = Math.floor(nowMinutes.value / 60)
-  return currentHour >= START_HOUR && currentHour < END_HOUR
+  return currentHour >= startHour.value && currentHour < endHour.value
 })
 
 const currentMinutesPercent = computed(() => {
-  const minutesFromGridStart = Math.max(0, nowMinutes.value - START_HOUR * 60)
-  return Math.min(100, Math.max(0, (minutesFromGridStart / TOTAL_MINUTES) * 100))
+  const minutesFromGridStart = Math.max(0, nowMinutes.value - startHour.value * 60)
+  return Math.min(100, Math.max(0, (minutesFromGridStart / totalMinutes.value) * 100))
 })
 
 // Acciones del modal
@@ -670,5 +679,10 @@ function payClass(lesson) {
 
 onMounted(() => {
   scrollToInitialHour()
+  nowTimer = setInterval(() => { nowMinutes.value = limaMinutesOfDay(new Date()) }, 60000)
+})
+
+onBeforeUnmount(() => {
+  if (nowTimer) clearInterval(nowTimer)
 })
 </script>

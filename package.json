@@ -10,6 +10,7 @@
         "check:movi-availability": "node scripts/check-movi-availability-status.mjs",
         "check:checkout-poll": "node scripts/check-checkout-poll.mjs",
         "check:local-storage": "node --test tests/Frontend/safeLocalStorage.test.mjs",
+        "check:lima-time": "node scripts/check-lima-time-zones.mjs",
         "check:culqi-mcp": "node --test tools/culqi-mcp/test.mjs",
         "qa:frontend": "powershell -ExecutionPolicy Bypass -File scripts/qa-frontend.ps1",
         "qa:production-readonly": "powershell -ExecutionPolicy Bypass -File scripts/qa-production-readonly.ps1"
