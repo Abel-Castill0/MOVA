@@ -4,6 +4,16 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-19 (2) — `48bcc7a` → producción — calendario semanal en hora de Lima (incidente de horas)
+
+- **Incidente:** informe en [`INCIDENT_2026-11-18_TIME_DESYNC.md`](INCIDENT_2026-11-18_TIME_DESYNC.md). Clase real `classes.id=2`: `2026-11-16 09:30 UTC` = 04:30 Lima, guardada correctamente; WhatsApp (código anterior a `27a5ce4`) mostró UTC; el calendario dependía de la zona del navegador y comprimía las clases antes de las 07:00.
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:8302cdfeb774ac6e48054c21d6b5e73a26b61f29df13167569f69f59d621fb1e` (tag `manual-20261119-48bcc7af3ef9`), `git archive` del commit exacto, etiqueta OCI de revisión = SHA completo verificada.
+- **Azure:** web `0000068` → `0000069` (100 %, Healthy), scheduler `0000069` → `0000070` (Healthy, única activa), worker `0000031` → `0000032` (detenido por diseño). Solo `--image`. Sin migraciones.
+- **Verificación:** `/healthz` y `/readyz` 200; producción sirve `app-De6AlqDX.js` (el de la imagen) y el chunk del calendario sin `getHours` y con «hora de Perú»; scheduler ejecutando heartbeat y recordatorios (DONE).
+- **Pruebas previas:** `check:lima-time` en 4 zonas, `LessonTimeConsistencyTest` y suites de notificaciones/Waha/recordatorios OK, Chromium en 4 zonas × escritorio/móvil con clases sintéticas. PHPUnit completo no se repitió (solo cambió JS y una prueba nueva).
+- **No verificado:** vista autenticada de la clase real en producción (sin sesión de profesor; no se creó ni modificó ninguna clase real) y envío real de un WhatsApp nuevo (no se envían mensajes de prueba a clientes).
+- **Rollback:** `sha256:891e3133dc7f0ccfbb877cf8ebbbdff34cb1eff58101f998e771357f936360ac` (`0249799`) con `az containerapp update -g mova-prod-rg -n <app> --image ghcr.io/abel-castill0/mova@sha256:891e3133…360ac`.
+
 ## 2026-11-19 — `0249799` → producción — eliminación segura de cuentas por admin, correcciones de UX/accesibilidad y guarda de cuenta cerrada en pagos
 
 - **Imagen:** `ghcr.io/abel-castill0/mova@sha256:891e3133dc7f0ccfbb877cf8ebbbdff34cb1eff58101f998e771357f936360ac` (tag `manual-20261118-02497998d8f4`), construida en local desde `git archive` del commit exacto (etiqueta OCI de revisión = SHA completo verificada; sin `.env` en la imagen). Contiene `a4c5935` (admin: eliminar cuenta, UX/a11y, lista de bloqueo) y `0249799` (pagos: cuenta cerrada).
