@@ -4,6 +4,17 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-19 — `0249799` → producción — eliminación segura de cuentas por admin, correcciones de UX/accesibilidad y guarda de cuenta cerrada en pagos
+
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:891e3133dc7f0ccfbb877cf8ebbbdff34cb1eff58101f998e771357f936360ac` (tag `manual-20261118-02497998d8f4`), construida en local desde `git archive` del commit exacto (etiqueta OCI de revisión = SHA completo verificada; sin `.env` en la imagen). Contiene `a4c5935` (admin: eliminar cuenta, UX/a11y, lista de bloqueo) y `0249799` (pagos: cuenta cerrada).
+- **Azure:** web `0000067` → `0000068` (100 % del tráfico, Healthy), scheduler `0000068` → `0000069` (Healthy, 1 réplica), worker `0000030` → `0000031` (detenido por diseño, 0 réplicas). Solo se cambió `--image`; escala y variables intactas.
+- **Migraciones:** ninguna (verificado: sin diferencias en `database/migrations` ni en dependencias respecto a `27a5ce4`).
+- **Verificación:** `/healthz` y `/readyz` 200 (base, migraciones y caché ok); páginas públicas 200, 404 con marca, `/admin/users` sin sesión → 302 login, `www` y `http` → 301; **procedencia:** producción sirve `app-CkkWzHyu.js`, el asset de esta imagen; scheduler ejecutando `mova:heartbeat`, `WorkerHeartbeatJob` y `classmate:send-reminders` (DONE) y 0 errores/excepciones en las últimas 200 líneas de web y scheduler.
+- **Pruebas previas:** PHPUnit completo (SQLite) 1956 OK / 25 omitidas; MySQL 179 OK en suites de dinero y cuentas; `npm run build` y `check:*` OK; barrido Playwright + axe en entorno aislado (ver `MOVA_FULL_PRODUCT_AUDIT_2026-11.md`).
+- **CI de GitHub en rojo en `a4c5935` y `0249799`:** único paso fallido `npm audit` (GHSA-fc5q-39xc-vjpf, ReDoS de `picomatch <=4.0.7`, sin versión corregida; solo en la cadena de build vite/tailwind, no en runtime). Los jobs `sqlite`, `mysql` y `e2e` quedaron omitidos por depender de ese paso. Sin cambio de política del CI: decisión pendiente del propietario.
+- **No verificado:** recorridos autenticados reales ni compras/reembolsos en producción (por regla); carrera multi-proceso real cierre-vs-abono; Playwright del repositorio.
+- **Rollback:** imagen anterior `sha256:5eb62f85d37d4f5eccfc44897cabe4e8784c7c54282fb0e781b4c4cf0ad18088` (`27a5ce4`) en las tres apps con `az containerapp update -g mova-prod-rg -n <app> --image ghcr.io/abel-castill0/mova@sha256:5eb62f85…8088`. Sin migraciones: no hay nada que revertir en la base de datos.
+
 ## 2026-11-17 — `27a5ce4` → producción — horas en hora de Perú, tiempo real con Azure SignalR y rediseño de solicitudes, sidebar y créditos
 
 - **Imagen:** `ghcr.io/abel-castill0/mova@sha256:5eb62f85d37d4f5eccfc44897cabe4e8784c7c54282fb0e781b4c4cf0ad18088` (tag `manual-20261117-27a5ce409241`), construida en local desde `git archive` del commit exacto (etiqueta OCI de revisión verificada), sin GitHub Actions (commits `[skip ci]`). Sin migraciones. Dos subidas a GHCR fallaron por cortes de red y se repitieron.
