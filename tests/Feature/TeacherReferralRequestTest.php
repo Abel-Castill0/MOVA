@@ -34,7 +34,7 @@ class TeacherReferralRequestTest extends TestCase
         $subject = Subject::create(['name' => 'Matemáticas', 'level' => 'todos']);
         [$parent, $student] = $this->parentWithStudent();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'teacher_referral_code' => $targetProfile->referral_code,
@@ -69,7 +69,7 @@ class TeacherReferralRequestTest extends TestCase
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Física', 'level' => 'todos']);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'teacher_referral_code' => 'zzzzzz',
@@ -108,7 +108,7 @@ class TeacherReferralRequestTest extends TestCase
         [$teacher, $profile, $subject] = $this->teacherWithSubject();
         [$parent, $student] = $this->parentWithStudent();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita reforzar el tema.',
@@ -118,9 +118,11 @@ class TeacherReferralRequestTest extends TestCase
         $this->assertNull($request->teacher_profile_id);
         $this->assertNull($request->teacher_referral_code);
 
-        // Cualquier profesor verificado que enseñe la materia puede verla y aceptarla.
+        // Cualquier profesor verificado que enseñe la materia puede verla. Con día + franja pedidos no se acepta
+        // directo: la pantalla de aceptación lo devuelve a la bandeja para proponer la hora (ver RequestDayAndSlotTest).
         $this->actingAs($teacher)->get(route('teacher.requests.accept', $request))
-            ->assertOk();
+            ->assertRedirect(route('teacher.requests'));
+        $this->assertCount(1, $this->actingAs($teacher)->get(route('teacher.requests'))->assertOk()->inertiaPage()['props']['requests']);
     }
 
     public function test_lookup_endpoint_finds_a_verified_teacher_by_code(): void

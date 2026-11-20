@@ -153,7 +153,7 @@ class ClassRequestVerificationPrivacyTest extends TestCase
         $this->teacher('OTHERB');
         [$parent, $student] = $this->parentWithStudent();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $this->subject->id,
             'class_offer_id' => $this->offerOf($offerTeacher)->id,
@@ -167,7 +167,7 @@ class ClassRequestVerificationPrivacyTest extends TestCase
     public function test_preferred_times_reject_unknown_duplicate_and_excessive_values(): void
     {
         [$parent, $student] = $this->parentWithStudent();
-        $payload = [
+        $payload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $this->subject->id,
             'help_needed' => 'Necesita repasar fracciones.',
@@ -197,7 +197,7 @@ class ClassRequestVerificationPrivacyTest extends TestCase
         $offerTeacher = $this->teacher('OFFERA');
         [$parent, $student] = $this->parentWithStudent();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $this->subject->id,
             'class_offer_id' => $this->offerOf($offerTeacher)->id,

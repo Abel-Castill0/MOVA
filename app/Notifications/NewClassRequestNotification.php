@@ -39,6 +39,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
     {
         return "MOVA — Nueva solicitud de clase\n\n"
             . "Hola {$notifiable->name}, hay una solicitud de {$this->classRequest->subject->name} compatible con su perfil.\n"
+            . ($this->preference() ? "Clase solicitada para el {$this->preference()}. La hora exacta la propone usted.\n" : '')
             . "Revísela en MOVA: " . $this->appRoute('teacher.requests');
     }
 
@@ -65,6 +66,12 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
      * ClassRequestController::teacherRequestSummary). Esta notificación llega
      * a todos los profesores elegibles, no solo al que termine aceptando.
      */
+    /** «viernes 20 de noviembre, por la tarde», o null en solicitudes sin día + franja. */
+    private function preference(): ?string
+    {
+        return \App\Support\RequestSlots::describe($this->classRequest->preferred_date, $this->classRequest->preferred_slot);
+    }
+
     private function studentLabel(): string
     {
         return (string) $this->classRequest->student->first_name;
@@ -78,6 +85,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             ->line('Colega, ha recibido una nueva solicitud de clase.')
             ->line('**Asignatura:** ' . $this->classRequest->subject->name)
             ->line('**Estudiante:** ' . $this->studentLabel())
+            ->when($this->preference(), fn (MailMessage $mail) => $mail->line('**Preferencia de la familia:** clase solicitada para el ' . $this->preference() . '. La hora exacta la propones tú (hora de Perú).'))
             ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
     }
@@ -89,6 +97,7 @@ class NewClassRequestNotification extends Notification implements ShouldQueue
             'request_id' => $this->classRequest->id,
             'subject'    => $this->classRequest->subject->name,
             'student'    => $this->studentLabel(),
+            'preference' => $this->preference(),
             'message'    => 'Nueva solicitud de ' . $this->classRequest->subject->name . ' de ' . $this->studentLabel() . '.',
         ];
     }

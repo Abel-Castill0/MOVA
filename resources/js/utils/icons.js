@@ -51,6 +51,7 @@ import {
   Sunrise,
   Sun,
   Sunset,
+  Moon,
   RefreshCw,
   ArrowLeft,
   MessageSquareText,
@@ -124,6 +125,7 @@ export const icons = {
   morning: Sunrise,                // 🌅 "Mañana"
   afternoon: Sun,                  // ☀️ "Tarde"
   evening: Sunset,                 // 🌆 "Noche"
+  night: Moon,                     // 🌙 "Noche" (selector de día + franja)
   flexible: RefreshCw,             // 🔄 "Flexible"
 
   // Marketplace/Index.vue, Teachers/Show.vue

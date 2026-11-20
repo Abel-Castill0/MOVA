@@ -50,7 +50,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         [$parent, $student] = $this->parentWithStudent(parentalControl: false);
         [$teacherUser, , $subject] = $this->verifiedTeacherWithSubject();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -68,7 +68,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         [$parent, $student] = $this->parentWithStudent(parentalControl: true);
         [$teacherUser, , $subject] = $this->verifiedTeacherWithSubject();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -87,7 +87,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         [$parent, $student] = $this->parentWithStudent(parentalControl: true);
         [$teacherUser, , $subject] = $this->verifiedTeacherWithSubject();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -113,7 +113,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         [$parent, $student] = $this->parentWithStudent(parentalControl: true);
         [$teacherUser, , $subject] = $this->verifiedTeacherWithSubject();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -142,7 +142,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         $referredProfile = TeacherProfile::where('user_id', $referredTeacher->id)->sole();
         $otherTeacher = $this->verifiedTeacherWithSubject($subject)[0];
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -172,7 +172,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         ]);
         $otherTeacher = $this->verifiedTeacherWithSubject($subject)[0];
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
@@ -197,7 +197,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         $teacherA = $this->verifiedTeacherWithSubject($subject)[0];
         $teacherB = $this->verifiedTeacherWithSubject($subject)[0];
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',
@@ -225,7 +225,7 @@ class ParentalApprovalTeacherNotificationTest extends TestCase
         $unverifiedProfile = TeacherProfile::create(['user_id' => $unverifiedUser->id, 'is_verified' => false]);
         $unverifiedProfile->subjects()->attach($subject->id);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',

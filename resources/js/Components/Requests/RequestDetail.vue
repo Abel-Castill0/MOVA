@@ -12,6 +12,7 @@ import StatusBadge from '@/Components/StatusBadge.vue'
 import { timeSlotLabel } from '@/utils/timeSlots'
 import { fmtLimaDate, fmtLimaDateShort } from '@/utils/limaTime'
 import { requestGoal, requestMessage, studentFirstName } from '@/utils/requestText'
+import { dayLabel, slotPhrase } from '@/utils/requestSlots'
 
 const props = defineProps({
   request: { type: Object, required: true },
@@ -28,6 +29,14 @@ const message = computed(() => {
   return text && same(text) !== same(goal.value) ? text : null
 })
 const times = computed(() => (props.request.preferred_times ?? []).map(timeSlotLabel))
+// Solicitudes nuevas: día + franja. Las anteriores solo traen `preferred_times` y se muestran como siempre.
+const hasDay = computed(() => Boolean(props.request.preferred_date && props.request.preferred_slot))
+const dayText = computed(() => {
+  const label = dayLabel(props.request.preferred_date)
+
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : ''
+})
+const slotText = computed(() => slotPhrase(props.request.preferred_slot).replace('por la ', '').replace(/^./, (c) => c.toUpperCase()))
 </script>
 
 <template>
@@ -61,6 +70,15 @@ const times = computed(() => (props.request.preferred_times ?? []).map(timeSlotL
       <p v-if="message" class="mt-2 whitespace-pre-line break-words rounded-xl bg-slate-50 px-3 py-2 text-sm text-ink-muted">{{ message }}</p>
     </section>
 
+    <!-- Día + franja: una PREFERENCIA de la familia. La hora exacta la propone el profesor. -->
+    <section v-if="hasDay" data-testid="request-preference" class="rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-3">
+      <dl class="space-y-1.5 text-sm">
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Fecha solicitada</dt><dd class="mt-0.5 font-bold text-ink" data-testid="preference-day">{{ dayText }}</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Preferencia</dt><dd class="mt-0.5 font-bold text-ink" data-testid="preference-slot">{{ slotText }}</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Hora exacta</dt><dd class="mt-0.5 font-medium text-ink-muted" data-testid="preference-hour">Pendiente de confirmar (hora de Perú)</dd></div>
+      </dl>
+    </section>
+
     <section v-if="times.length">
       <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Horarios que prefiere la familia</h3>
       <ul class="mt-1.5 flex flex-wrap gap-1.5">
@@ -80,7 +98,9 @@ const times = computed(() => (props.request.preferred_times ?? []).map(timeSlotL
     </section>
 
     <footer v-if="tab === 'open'" class="space-y-2.5 border-t border-line pt-4">
+      <!-- Con día + franja no se agenda al instante: el profesor propone la hora y la familia la confirma. -->
       <Link
+        v-if="!hasDay"
         :href="route('teacher.requests.accept', request.id)"
         class="flex min-h-11 w-full items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
         data-testid="accept-request"
@@ -89,11 +109,13 @@ const times = computed(() => (props.request.preferred_times ?? []).map(timeSlotL
       </Link>
       <button
         type="button"
-        class="flex min-h-11 w-full items-center justify-center rounded-xl border border-brand-200 bg-white px-4 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        :class="hasDay
+          ? 'flex min-h-11 w-full items-center justify-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2'
+          : 'flex min-h-11 w-full items-center justify-center rounded-xl border border-brand-200 bg-white px-4 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'"
         data-testid="propose-time"
         @click="$emit('counteroffer', request)"
       >
-        Proponer otro horario
+        {{ hasDay ? 'Proponer hora' : 'Proponer otro horario' }}
       </button>
       <button
         type="button"

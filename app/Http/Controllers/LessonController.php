@@ -64,6 +64,14 @@ class LessonController extends Controller
         }
         $this->authorize('accept', $classRequest);
 
+        // El día y la franja del padre son una preferencia, no un acuerdo: la clase solo se agenda cuando la familia
+        // confirma la hora propuesta (CounterofferController::accept). Defensa en servidor frente a un POST directo.
+        if ($classRequest->hasPreferredDay()) {
+            throw ValidationException::withMessages([
+                'accept' => 'Esta solicitud pide un día y una franja concretos: propón la hora exacta y la familia la confirmará.',
+            ]);
+        }
+
         $conflict = $this->scheduleConflict(
             $profile->id,
             $classRequest->student_id,

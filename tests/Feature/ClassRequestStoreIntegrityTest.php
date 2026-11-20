@@ -65,7 +65,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
         // como prop de página tras un redirect-back (`assertSessionHasErrors`
         // es la aserción correcta; probar 422+JSON aquí habría sido
         // probar un mecanismo que Inertia no usa en este flujo).
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
@@ -89,7 +89,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
@@ -117,7 +117,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
@@ -139,7 +139,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'class_offer_id' => $offer->id,
@@ -155,7 +155,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
 
-        $payload = [
+        $payload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita reforzar el tema, es lo mismo dos veces.',
@@ -176,13 +176,13 @@ class ClassRequestStoreIntegrityTest extends TestCase
         $subjectA = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
         $subjectB = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subjectA->id,
             'help_needed' => 'Necesita ayuda con A.',
         ])->assertRedirect();
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subjectB->id,
             'help_needed' => 'Necesita ayuda con B.',
@@ -207,7 +207,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
         $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
         $teacherA = $this->verifiedTeacherWithReferralCode();
 
-        $basePayload = [
+        $basePayload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita reforzar el tema.',
@@ -256,20 +256,22 @@ class ClassRequestStoreIntegrityTest extends TestCase
     {
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
-        $payload = [
+        $payload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita reforzar el tema.',
         ];
 
-        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:00');
+        // Reloj relativo a hoy (no una fecha fija): el día pedido debe estar dentro del horizonte permitido.
+        $base = \Illuminate\Support\Carbon::parse(\App\Support\RequestSlots::today().' 10:00:00', 'America/Lima')->utc();
+        \Illuminate\Support\Carbon::setTestNow($base->copy());
         $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
 
-        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:30');
+        \Illuminate\Support\Carbon::setTestNow($base->copy()->addSeconds(30));
         $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
         $this->assertSame(1, ClassRequest::count(), 'A exactamente 30s todavía debe deduplicarse (límite inclusivo).');
 
-        \Illuminate\Support\Carbon::setTestNow('2026-01-01 10:00:31');
+        \Illuminate\Support\Carbon::setTestNow($base->copy()->addSeconds(31));
         $this->actingAs($parent)->post(route('class-requests.store'), $payload)->assertRedirect();
         $this->assertSame(2, ClassRequest::count(), 'A 31s de la solicitud ORIGINAL (10:00:00) ya debe ser una solicitud nueva.');
 
@@ -299,7 +301,7 @@ class ClassRequestStoreIntegrityTest extends TestCase
     {
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
-        $payload = [
+        $payload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Reintento de red simulado: la respuesta del primer POST se perdió.',

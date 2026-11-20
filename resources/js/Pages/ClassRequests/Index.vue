@@ -83,6 +83,12 @@
                   <div class="flex gap-1.5"><dt class="font-semibold">Fecha y hora:</dt><dd>{{ fmtLimaLong(r.counteroffer_time) }} (hora de Perú)</dd></div>
                   <div class="flex gap-1.5"><dt class="font-semibold">Duración:</dt><dd>{{ r.counteroffer_duration_minutes }} min</dd></div>
                 </dl>
+                <p v-if="r.preference_label && r.status === 'counteroffered'" class="mt-2 text-xs" data-testid="counteroffer-asked">Tú pediste: {{ r.preference_label }}.</p>
+                <!-- Hora fuera del día/franja pedidos: alternativa. Solo se agenda si la aceptas expresamente. -->
+                <label v-if="r.status === 'counteroffered' && r.counteroffer_outside_preference" class="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900" data-testid="outside-preference">
+                  <input v-model="outsideOk[r.id]" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300" />
+                  <span>Esta hora está fuera del día o la franja que pediste. Acepto este horario distinto.</span>
+                </label>
                 <p v-if="r.status === 'teacher_rejected' && r.teacher_rejection_reason" class="mt-2 break-words">Motivo: {{ r.teacher_rejection_reason }}</p>
               </div>
 
@@ -92,6 +98,7 @@
                   <span class="group-open:hidden">Ver lo que pediste</span><span class="hidden group-open:inline">Ocultar detalle</span>
                 </summary>
                 <p class="mt-1 whitespace-pre-line break-words rounded-xl bg-slate-50 px-3 py-2 text-sm text-ink-muted">{{ r.help_needed }}</p>
+                <p v-if="r.preference_label" class="mt-2 text-xs text-ink-muted" data-testid="requested-preference">Pediste: {{ r.preference_label }}</p>
                 <p v-if="r.preferred_times?.length" class="mt-2 text-xs text-ink-muted">Horarios preferidos: {{ r.preferred_times.map(timeSlotLabel).join(', ') }}</p>
               </details>
 
@@ -136,6 +143,7 @@ useRealtimeRefresh({ requests: ['requests'], lessons: ['requests'] })
 const processingId = ref(null)
 const action = ref(null)
 const counterofferError = ref('')
+const outsideOk = ref({}) // id de solicitud → «acepto una hora fuera de lo que pedí»
 const filter = ref('all')
 
 const NEEDS_ACTION = ['pending_parent_approval', 'counteroffered']
@@ -225,7 +233,7 @@ function respond(r, kind) {
 
   // Se reenvía la huella de la propuesta mostrada: si cambió en el servidor (otra pestaña, nueva propuesta), no se
   // acepta ni rechaza nada a ciegas.
-  router.post(route(`class-requests.counteroffer.${kind}`, r.id), { counteroffer_ref: r.counteroffer_ref }, {
+  router.post(route(`class-requests.counteroffer.${kind}`, r.id), { counteroffer_ref: r.counteroffer_ref, confirm_outside_preference: Boolean(outsideOk.value[r.id]) }, {
     preserveScroll: true,
     onError: (errors) => {
       counterofferError.value = errors.counteroffer || errors.counteroffer_ref || errors.accept || errors.start_time

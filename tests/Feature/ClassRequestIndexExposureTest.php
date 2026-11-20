@@ -29,6 +29,8 @@ class ClassRequestIndexExposureTest extends TestCase
         // Contraoferta: solo la propuesta (hora + duración), nunca ids del
         // profesor ni del padre.
         'counteroffer_time', 'counteroffer_duration_minutes',
+        // Día + franja pedidos (preferencia de la familia, sin datos personales) y el aviso de hora fuera de la franja.
+        'preferred_date', 'preferred_slot', 'preference_label', 'counteroffer_outside_preference',
     ];
 
     private function scenario(): array

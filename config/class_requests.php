@@ -25,4 +25,28 @@ return [
     */
 
     'expiry_hours' => (int) env('CLASS_REQUEST_EXPIRY_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Franjas horarias de preferencia (día + franja)
+    |--------------------------------------------------------------------------
+    |
+    | El padre elige un DÍA y una FRANJA; es una preferencia, no una reserva: el
+    | profesor propone la hora exacta y la clase solo existe cuando el padre la
+    | acepta. Horas de pared en America/Lima (App\Support\RequestSlots las
+    | convierte a instantes UTC), [start, end) en horas enteras. Única fuente: el
+    | frontend recibe estos valores por props, no los duplica.
+    |
+    | Cubren el horario operativo habitual de MOVA (06:00–22:00). Una hora fuera
+    | de la franja sigue pudiendo proponerse, pero queda marcada como alternativa
+    | que el padre debe aceptar expresamente.
+    */
+    'slots' => [
+        'morning'   => ['label' => 'Mañana', 'start' => 6,  'end' => 12],
+        'afternoon' => ['label' => 'Tarde',  'start' => 12, 'end' => 18],
+        'evening'   => ['label' => 'Noche',  'start' => 18, 'end' => 22],
+    ],
+
+    // Hasta cuántos días por delante se puede pedir una clase puntual.
+    'max_days_ahead' => (int) env('CLASS_REQUEST_MAX_DAYS_AHEAD', 60),
 ];

@@ -12,6 +12,8 @@ use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestRejectedNotification;
 use App\Services\ClassRequestNotifier;
+use App\Support\LimaClock;
+use App\Support\RequestSlots;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +74,11 @@ class ClassRequestController extends Controller
             'isMentorship' => $request->boolean('is_mentorship'),
             'prefillReferralCode' => $prefillCode,
             'prefillSubjectId' => $prefillSubjectId,
+            // Franjas y límites: única fuente en config/class_requests.php. Hoy y el horizonte se calculan en Lima
+            // en el servidor, para que el navegador no decida qué día es.
+            'slots' => collect(RequestSlots::all())->map(fn ($s, $key) => ['value' => $key, ...$s])->values(),
+            'todayLima' => RequestSlots::today(),
+            'maxDaysAhead' => (int) config('class_requests.max_days_ahead', 60),
         ]);
     }
 
@@ -111,6 +118,35 @@ class ClassRequestController extends Controller
      */
     private const DUPLICATE_SUBMISSION_WINDOW_SECONDS = 30;
 
+    /**
+     * Servidor = autoridad: el día debe existir, no ser pasado en hora de Lima ni estar fuera del horizonte, y si es hoy
+     * la franja no puede haber terminado ya. Un fallo es un error de formulario (preferred_date / preferred_slot).
+     */
+    private function assertPreferredDay(array $data): void
+    {
+        $date = $data['preferred_date'] ?? null;
+        $slot = $data['preferred_slot'] ?? null;
+        if ($date === null && $slot === null) {
+            return;
+        }
+        if ($date === null || $slot === null || ! RequestSlots::isValidDate($date)) {
+            throw ValidationException::withMessages(['preferred_date' => 'Elige un día y una franja válidos.']);
+        }
+
+        $today = RequestSlots::today();
+        $limit = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $today, LimaClock::TIMEZONE)
+            ->addDays((int) config('class_requests.max_days_ahead', 60))->format('Y-m-d');
+        if ($date < $today) {
+            throw ValidationException::withMessages(['preferred_date' => 'Ese día ya pasó. Elige hoy o una fecha futura.']);
+        }
+        if ($date > $limit) {
+            throw ValidationException::withMessages(['preferred_date' => 'Elige un día dentro de los próximos '.config('class_requests.max_days_ahead', 60).' días.']);
+        }
+        if (RequestSlots::hasEnded($date, $slot)) {
+            throw ValidationException::withMessages(['preferred_slot' => 'Esa franja de hoy ya terminó. Elige otra o un día posterior.']);
+        }
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -125,7 +161,22 @@ class ClassRequestController extends Controller
                 'morning_weekday', 'afternoon_weekday', 'evening_weekday',
                 'morning_weekend', 'afternoon_weekend', 'flexible',
             ])],
+            // Día + franja (Lima). Preferencia, nunca una reserva. Obligatorios en una clase puntual; el
+            // acompañamiento continuo no tiene un día concreto.
+            'preferred_date' => [Rule::requiredIf(fn () => ! $request->boolean('is_mentorship')), 'nullable', 'date_format:Y-m-d'],
+            'preferred_slot' => [Rule::requiredIf(fn () => ! $request->boolean('is_mentorship')), 'nullable', Rule::in(RequestSlots::keys())],
+        ], [
+            'preferred_date.required' => 'Elige el día de la clase.',
+            'preferred_date.date_format' => 'Elige un día válido.',
+            'preferred_slot.required' => 'Elige mañana, tarde o noche.',
+            'preferred_slot.in' => 'Elige mañana, tarde o noche.',
         ]);
+
+        $this->assertPreferredDay($data);
+        if ($data['is_mentorship'] ?? false) {
+            // El acompañamiento continuo no se ata a un día: no se guarda una preferencia que no aplica.
+            $data['preferred_date'] = $data['preferred_slot'] = null;
+        }
 
         // Ensure the student belongs to the authenticated parent
         $student = auth()->user()->students()->findOrFail($data['student_id']);
@@ -228,6 +279,8 @@ class ClassRequestController extends Controller
                 ->where('is_mentorship', $data['is_mentorship'])
                 ->where('class_offer_id', $data['class_offer_id'] ?? null)
                 ->where('teacher_profile_id', $teacherProfileId)
+                ->where('preferred_date', $data['preferred_date'] ?? null)
+                ->where('preferred_slot', $data['preferred_slot'] ?? null)
                 ->where('created_at', '>=', now()->subSeconds(self::DUPLICATE_SUBMISSION_WINDOW_SECONDS))
                 ->first();
 
@@ -423,6 +476,7 @@ class ClassRequestController extends Controller
             'counterofferedRequests' => $counteroffered->map(fn (ClassRequest $r) => $this->teacherRequestSummary($r)),
             'rejectedRequests'       => $publicDeclineSummaries->concat($rejectedSummaries)->take(10)->values(),
             'verificationPending'    => false,
+            'slots'                  => collect(RequestSlots::all())->map(fn ($s, $key) => ['value' => $key, ...$s])->values(),
         ]);
     }
 
@@ -435,6 +489,12 @@ class ClassRequestController extends Controller
             'is_mentorship'            => $r->is_mentorship,
             'help_needed'              => $r->help_needed,
             'preferred_times'          => $r->preferred_times,
+            // Día + franja (Lima). null en solicitudes anteriores. `preference_label` ya viene redactado para mostrarse.
+            'preferred_date'           => $r->preferred_date,
+            'preferred_slot'           => $r->preferred_slot,
+            'preference_label'         => RequestSlots::describe($r->preferred_date, $r->preferred_slot),
+            // ¿La hora propuesta cae fuera de lo que pidió la familia? (solo con propuesta vigente)
+            'counteroffer_outside_preference' => $r->counteroffer_time !== null && ! $r->proposalFitsPreference($r->counteroffer_time),
             'teacher_rejected_at'      => $r->teacher_rejected_at,
             'teacher_rejection_reason' => $r->teacher_rejection_reason,
             'counteroffer_time'             => $r->counteroffer_time,
@@ -535,6 +595,13 @@ class ClassRequestController extends Controller
         if ($classRequest->status !== 'open') {
             return redirect()->route('teacher.requests')
                 ->with('error', 'Esta solicitud ya no está disponible — probablemente otro profesor la aceptó primero.');
+        }
+
+        // Con día + franja pedidos la clase NO se crea al instante: el profesor propone la hora exacta y la familia la
+        // confirma (CounterofferController). Aceptar directo se reserva para solicitudes anteriores sin esa preferencia.
+        if ($classRequest->hasPreferredDay()) {
+            return redirect()->route('teacher.requests')
+                ->with('error', 'Esta solicitud pide un día y una franja concretos: propón la hora exacta y la familia la confirmará.');
         }
 
         $profile = auth()->user()->teacherProfile;

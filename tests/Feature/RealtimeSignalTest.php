@@ -249,7 +249,7 @@ class RealtimeSignalTest extends TestCase
 
         // El límite de crear solicitudes (10 por minuto) sigue intacto: antes cada negociación le restaba un intento.
         foreach (range(1, 3) as $i) {
-            $this->actingAs($parent)->post(route('class-requests.store'), ['student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => "Texto distinto {$i}"])->assertRedirect(route('class-requests.index'));
+            $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),'student_id' => $student->id, 'subject_id' => $subject->id, 'help_needed' => "Texto distinto {$i}"])->assertRedirect(route('class-requests.index'));
         }
     }
 

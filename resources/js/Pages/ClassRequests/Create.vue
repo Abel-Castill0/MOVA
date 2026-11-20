@@ -462,7 +462,7 @@
               <div class="space-y-4">
                 <div>
                   <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Cuéntanos un poco más</h3>
-                  <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Describe la necesidad específica y cuándo suele estar disponible tu hijo/a.</p>
+                  <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Describe qué necesita aprender tu hijo/a y elige cuándo prefieres la clase.</p>
                 </div>
 
                 <!-- Qué necesita -->
@@ -486,18 +486,22 @@
                   </div>
                 </div>
 
-                <!-- Preferencia horaria -->
-                <div>
-                  <p id="cr-times-label" class="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 mb-0.5">
-                    ¿Cuándo suele estar disponible?
-                  </p>
-                  <p class="text-[11px] sm:text-xs text-slate-500 mb-2">
-                    Preferencia orientativa — el horario se coordina después con el profesor.
-                  </p>
-                  <div role="group" aria-labelledby="cr-times-label">
-                    <TimeSlotPicker v-model="form.preferred_times" />
-                  </div>
+                <!-- Día + franja (clase puntual). El acompañamiento continuo no se ata a un día. -->
+                <div v-if="!form.is_mentorship">
+                  <h4 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">¿Cuándo necesitas la clase?</h4>
+                  <p class="text-xs sm:text-sm text-slate-500 mt-0.5 mb-3">Elige el día y el momento que prefieres. El profesor propondrá la hora exacta.</p>
+                  <DayAndSlotPicker
+                    v-model:date="form.preferred_date"
+                    v-model:slot="form.preferred_slot"
+                    :slots="slots"
+                    :today="todayLima"
+                    :max-days-ahead="maxDaysAhead"
+                    :error="form.errors.preferred_date || form.errors.preferred_slot"
+                  />
                 </div>
+                <p v-else class="rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-xs sm:text-sm text-brand-900">
+                  El acompañamiento continuo se coordina con el profesor: no necesitas elegir un día ahora.
+                </p>
               </div>
 
               <!-- Botones Step 4 -->
@@ -554,10 +558,11 @@
                       </span>
                     </span>
                   </div>
-                  <div v-if="form.preferred_times.length" class="flex justify-between items-center py-2 sm:py-2.5">
-                    <span class="text-slate-500 font-medium">Disponibilidad</span>
-                    <span class="text-slate-900 font-bold text-right max-w-[60%] truncate">{{ preferredTimesSummary }}</span>
+                  <div v-if="preferenceSummary" class="flex justify-between items-center gap-3 py-2 sm:py-2.5" data-testid="summary-preference">
+                    <span class="text-slate-500 font-medium">Cuándo</span>
+                    <span class="text-slate-900 font-bold text-right">{{ preferenceSummary }}</span>
                   </div>
+                  <p v-if="preferenceSummary" class="-mt-1 pb-1 text-[11px] sm:text-xs text-slate-500">Es una preferencia: la clase queda agendada solo cuando el profesor proponga la hora exacta y tú la confirmes.</p>
                   <div class="pt-2 sm:pt-2.5">
                     <span class="text-slate-500 font-medium block mb-1">Descripción de ayuda</span>
                     <p class="text-slate-700 text-xs sm:text-sm italic bg-white/90 p-2.5 sm:p-3.5 rounded-xl border border-slate-200/80 line-clamp-3">
@@ -607,10 +612,10 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import TimeSlotPicker from '@/Components/TimeSlotPicker.vue'
+import DayAndSlotPicker from '@/Components/DayAndSlotPicker.vue'
 import Icon from '@/Components/Icon.vue'
 import InputError from '@/Components/InputError.vue'
-import { timeSlotLabel } from '@/utils/timeSlots'
+import { describePreference } from '@/utils/requestSlots'
 import { subjectIcon } from '@/utils/subjectIcon'
 
 // ── Props ───────────────────────────────────────────────────────────────────
@@ -621,6 +626,9 @@ const props = defineProps({
   isMentorship:        Boolean,
   prefillReferralCode: { type: String, default: null },
   prefillSubjectId:    { type: Number, default: null },
+  slots:               { type: Array, default: () => [] },   // franjas (config/class_requests.php)
+  todayLima:           { type: String, required: true },     // «hoy» en Lima según el servidor
+  maxDaysAhead:        { type: Number, default: 60 },
 })
 
 // ── Wizard ─────────────────────────────────────────────────────────────────
@@ -672,7 +680,8 @@ const step1Valid = computed(() => {
   return true
 })
 
-const step4Valid = computed(() => form.help_needed.trim().length >= 10)
+const step4Valid = computed(() => form.help_needed.trim().length >= 10
+  && (form.is_mentorship || (Boolean(form.preferred_date) && Boolean(form.preferred_slot))))
 
 // ── Form ───────────────────────────────────────────────────────────────────
 const form = useForm({
@@ -682,7 +691,8 @@ const form = useForm({
   teacher_referral_code: '',
   is_mentorship:         props.isMentorship ?? false,
   help_needed:           '',
-  preferred_times:       [],
+  preferred_date:        '',
+  preferred_slot:        '',
 })
 
 // ── Computed ───────────────────────────────────────────────────────────────
@@ -699,7 +709,7 @@ const recipientSummary = computed(() => {
   return `Profesores verificados de${subjectName.value ? ' ' + subjectName.value : ' la materia elegida'}`
 })
 
-const preferredTimesSummary = computed(() => form.preferred_times.map(timeSlotLabel).join(', '))
+const preferenceSummary = computed(() => (form.is_mentorship ? '' : describePreference(form.preferred_date, form.preferred_slot)))
 
 // ── Lookup de código ───────────────────────────────────────────────────────
 const referralCodeInput = ref(props.prefillReferralCode ?? '')
@@ -786,7 +796,15 @@ onBeforeUnmount(() => {
 
 // ── Submit ─────────────────────────────────────────────────────────────────
 function submit() {
-  form.post(route('class-requests.store'))
+  form.post(route('class-requests.store'), {
+    // Un error de día/franja (p. ej. la franja terminó mientras revisabas) se corrige en el paso 4, donde se ve.
+    onError: (errors) => {
+      if (errors.preferred_date || errors.preferred_slot || errors.help_needed) {
+        direction.value = 'back'
+        currentStep.value = 4
+      }
+    },
+  })
 }
 </script>
 

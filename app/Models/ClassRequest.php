@@ -18,7 +18,7 @@ class ClassRequest extends Model
     // campo para dar acceso exclusivo).
     protected $fillable = [
         'student_id', 'subject_id', 'class_offer_id',
-        'is_mentorship', 'help_needed', 'preferred_times', 'status',
+        'is_mentorship', 'help_needed', 'preferred_times', 'preferred_date', 'preferred_slot', 'status',
         'request_reminder_sent_at', 'student_diagnostic_id',
         'teacher_rejected_at', 'teacher_rejection_reason',
         // Campos de contraoferta — asignados solo desde CounterofferController
@@ -36,6 +36,27 @@ class ClassRequest extends Model
         'counteroffer_time'          => 'datetime',
         'counteroffer_duration_minutes' => 'integer',
     ];
+
+    /**
+     * `preferred_date` se queda como cadena «Y-m-d» (día calendario de Lima), sin cast a fecha: un Carbon en UTC
+     * podría desplazarlo un día al serializarse. Las solicitudes históricas tienen ambos campos en NULL.
+     */
+    public function getPreferredDateAttribute($value): ?string
+    {
+        return $value === null ? null : substr((string) $value, 0, 10);
+    }
+
+    /** ¿Trae el nuevo día + franja? (solicitudes anteriores: no.) */
+    public function hasPreferredDay(): bool
+    {
+        return $this->preferred_date !== null && $this->preferred_slot !== null;
+    }
+
+    /** ¿Esta hora propuesta cae dentro del día + franja pedidos? Sin preferencia de día, siempre sí. */
+    public function proposalFitsPreference(\Carbon\CarbonInterface $instant): bool
+    {
+        return ! $this->hasPreferredDay() || \App\Support\RequestSlots::fits($this->preferred_date, $this->preferred_slot, $instant);
+    }
 
     public function isTeacherRejected(): bool
     {

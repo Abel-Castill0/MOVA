@@ -208,6 +208,10 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       await page.getByRole('button', { name: 'Omitir código' }).click();
       await page.getByRole('button', { name: /Clase puntual/ }).click();
       await page.getByLabel('¿En qué necesita ayuda?').fill(`${MARKER}: ecuaciones cuadráticas para examen.`);
+      // «¿Cuándo necesitas la clase?»: día (mañana en Lima) + franja. Es una preferencia: no se elige hora exacta.
+      const tomorrowLima = new Date(Date.now() - 5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+      await page.getByTestId(`day-${tomorrowLima}`).click();
+      await page.getByTestId('slot-afternoon').click();
       await page.getByRole('button', { name: 'Ver resumen' }).click();
       await page.getByRole('button', { name: 'Enviar solicitud' }).click();
       await page.waitForURL(/\/class-requests$/, { timeout: 15000 });
@@ -222,36 +226,38 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       await login(page, TEACHER_EMAIL, TEACHER_PASSWORD);
     });
 
-    await test.step('4. Aceptar solicitud y agendar clase', async () => {
+    await test.step('4. El profesor propone la hora exacta (la solicitud trae día + franja)', async () => {
       await page.goto('/teacher/requests');
       const card = page.getByRole('button').filter({ hasText: MARKER }).last();
       await expect(card).toBeVisible();
       await card.click();
-      // En escritorio la primera solicitud viene preseleccionada: esperar a que
-      // el panel muestre ESTA card antes de leer el href del link.
       await expect(card).toHaveAttribute('aria-pressed', 'true');
 
-      // Panel de detalle de escritorio (el drawer móvil solo existe < 1024 px).
-      const acceptLink = page.getByRole('link', { name: 'Aceptar solicitud' });
-      await expect(acceptLink).toHaveAttribute('href', /\/teacher\/requests\/\d+\/accept/);
-      const href = await acceptLink.getAttribute('href');
-      classRequestId = Number(href.match(/\/teacher\/requests\/(\d+)\/accept/)[1]);
+      // Con día + franja no hay «Aceptar» directo: la clase se agenda cuando la familia confirma la hora propuesta.
+      await expect(page.getByTestId('request-preference')).toContainText('Pendiente de confirmar');
+      await expect(page.getByTestId('accept-request')).toHaveCount(0);
+      await page.getByTestId('propose-time').click();
+
+      // Dentro de la franja pedida (tarde 12:00–18:00, hora de Perú), con minutos al azar para no chocar con las clases del seeder.
+      const tomorrowLima = new Date(Date.now() - 5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+      const minutes = 12 * 60 + Math.floor(Math.random() * 300);
+      const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+      const mm = String(minutes % 60).padStart(2, '0');
+      await page.locator('#counteroffer-time').fill(`${tomorrowLima}T${hh}:${mm}`);
+      await page.getByRole('button', { name: '1 h', exact: true }).click();
+      await page.getByRole('button', { name: 'Enviar propuesta' }).click();
+      await expect(page.getByTestId('tab-counteroffered')).toContainText('1');
+
+      classRequestId = Number(tinker(`echo App\\Models\\ClassRequest::where('help_needed', 'like', '${MARKER}%')->latest('id')->firstOrFail()->id;`));
       expect(classRequestId).toBeGreaterThan(0);
+    });
 
-      await acceptLink.click();
-      await page.waitForURL(/\/teacher\/requests\/\d+\/accept/);
-
-      // Fecha futura arbitraria; el comando de backdate del paso 5 la
-      // reescribe de todas formas. Se usa +5 días con un offset aleatorio
-      // en minutos para minimizar colisión de horario con las 2 clases que
-      // LocalTestDataSeeder ya agenda para este mismo profesor+alumno.
-      const randomMinutes = Math.floor(Math.random() * 600);
-      const future = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + randomMinutes * 60 * 1000);
-      const iso = future.toISOString().slice(0, 16);
-      await page.locator('input[type="datetime-local"]').fill(iso);
-      await page.getByRole('button', { name: '1 h' }).click();
-      await page.getByRole('button', { name: 'Confirmar y crear clase' }).click();
-      await page.waitForURL(/\/teacher\/classes$/, { timeout: 15000 });
+    await test.step('4b. Logout profesor → el padre acepta la propuesta y la clase queda agendada', async () => {
+      await logout(page);
+      await login(page, PARENT_EMAIL, PARENT_PASSWORD);
+      await page.goto('/class-requests');
+      await page.getByRole('button', { name: 'Aceptar', exact: true }).first().click();
+      await page.waitForURL(/\/my-classes/, { timeout: 15000 });
 
       lessonId = Number(
         tinker(
@@ -267,11 +273,6 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
       const status = tinker(`echo App\\Models\\Lesson::find(${lessonId})->status;`);
       expect(status).toBe('scheduled');
-    });
-
-    await test.step('6. Logout profesor → login padre', async () => {
-      await logout(page);
-      await login(page, PARENT_EMAIL, PARENT_PASSWORD);
     });
 
     await test.step('7. Confirmar pago ("Ya pagué")', async () => {

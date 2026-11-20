@@ -59,7 +59,7 @@ class ClassRequestSubjectEligibilityTest extends TestCase
         [$unverified] = $this->teacher($singular, verified: false);
 
         // El padre elige la variante que el profesor A NO tiene registrada (el caso real).
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id, 'subject_id' => $plural->id, 'help_needed' => 'Apoyo con fracciones.',
         ])->assertRedirect(route('class-requests.index'))
             ->assertSessionHas('success', 'Solicitud publicada. Los profesores verificados de la materia ya pueden verla en su panel.');
@@ -100,7 +100,7 @@ class ClassRequestSubjectEligibilityTest extends TestCase
         $this->assertFalse($subjects[$physics->id]['has_teachers']);
         $this->assertTrue($subjects[$algebra->id]['has_teachers']);
 
-        $response = $this->actingAs($parent)->post(route('class-requests.store'), [
+        $response = $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id, 'subject_id' => $physics->id, 'help_needed' => 'Cinemática.',
         ])->assertRedirect(route('class-requests.index'));
         $this->assertStringContainsString('hoy no hay profesores verificados de esta materia', session('success'));
@@ -132,7 +132,7 @@ class ClassRequestSubjectEligibilityTest extends TestCase
         $targetProfile->forceFill(['referral_code' => 'ABC123'])->save();
         [$sameSubject] = $this->teacher($singular);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id, 'subject_id' => $plural->id, 'help_needed' => 'Geometría.', 'teacher_referral_code' => 'abc123',
         ])->assertSessionHas('success', 'Solicitud enviada. El profesor que elegiste ya puede verla en su panel.');
 
@@ -153,7 +153,7 @@ class ClassRequestSubjectEligibilityTest extends TestCase
         [$teacher, $profile] = $this->teacher($singular);
         $inbox = fn () => array_column($this->actingAs($teacher)->get(route('teacher.requests'))->inertiaPage()['props']['requests'], 'id');
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id, 'subject_id' => $plural->id, 'help_needed' => 'Álgebra básica.',
         ])->assertSessionHas('success', 'Solicitud guardada. Está pendiente de tu aprobación antes de llegar a los profesores.');
         $request = ClassRequest::sole();

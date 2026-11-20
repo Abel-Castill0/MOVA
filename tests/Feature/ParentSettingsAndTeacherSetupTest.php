@@ -46,7 +46,7 @@ class ParentSettingsAndTeacherSetupTest extends TestCase
 
         $this->assertTrue($parent->fresh()->parental_control);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda.',

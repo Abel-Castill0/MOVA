@@ -38,7 +38,7 @@ class MentorshipRequestTest extends TestCase
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Materia '.fake()->unique()->numerify('####'), 'level' => 'todos']);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'is_mentorship' => true,

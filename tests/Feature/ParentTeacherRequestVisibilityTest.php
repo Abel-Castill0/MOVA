@@ -38,7 +38,7 @@ class ParentTeacherRequestVisibilityTest extends TestCase
         $subject = Subject::create(['name' => 'Matemática de prueba', 'level' => 'todos']);
         [$teacher] = $this->teacherForSubject($subject);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesito apoyo con fracciones.',
@@ -70,7 +70,7 @@ class ParentTeacherRequestVisibilityTest extends TestCase
         $subject = Subject::create(['name' => 'Física de prueba', 'level' => 'todos']);
         [$teacher] = $this->teacherForSubject($subject);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Necesita ayuda con movimientos.',
@@ -97,7 +97,7 @@ class ParentTeacherRequestVisibilityTest extends TestCase
         [$target, $targetProfile] = $this->teacherForSubject();
         [$other] = $this->teacherForSubject($subject);
 
-        $this->actingAs($parent)->post(route('class-requests.store'), [
+        $this->actingAs($parent)->post(route('class-requests.store'), [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'teacher_referral_code' => $targetProfile->referral_code,
@@ -116,7 +116,7 @@ class ParentTeacherRequestVisibilityTest extends TestCase
         [$parent, $student] = $this->parentWithStudent();
         $subject = Subject::create(['name' => 'Química de prueba', 'level' => 'todos']);
         [$teacher] = $this->teacherForSubject($subject);
-        $payload = [
+        $payload = [...\Tests\Support\Day::tomorrow(),
             'student_id' => $student->id,
             'subject_id' => $subject->id,
             'help_needed' => 'Preparar un examen de química.',

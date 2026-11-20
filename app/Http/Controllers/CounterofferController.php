@@ -119,6 +119,7 @@ class CounterofferController extends Controller
         // Fail-fast; la verdad se re-evalúa bajo lock en el guard.
         $this->assertStillCounteroffered($classRequest, requireFuture: true);
         $this->assertSameProposal($classRequest, $seenRef);
+        $this->assertOutsidePreferenceConfirmed($request, $classRequest);
 
         $scheduling->schedule(
             $classRequest->id,
@@ -137,6 +138,7 @@ class CounterofferController extends Controller
                 // no se agenda nada.
                 $this->assertStillCounteroffered($locked, requireFuture: true);
                 $this->assertSameProposal($locked, $seenRef);
+                $this->assertOutsidePreferenceConfirmed($request, $locked);
 
                 // El profesor que propuso debe SEGUIR siendo elegible y no
                 // estar suspendido — la misma policy que la aceptación normal,
@@ -192,6 +194,21 @@ class CounterofferController extends Controller
         ));
 
         return back()->with('success', 'Propuesta rechazada. Tu solicitud vuelve a estar abierta para los profesores.');
+    }
+
+    /**
+     * Una hora fuera del día + franja que pidió la familia es una ALTERNATIVA: solo se agenda si el padre la acepta
+     * expresamente (`confirm_outside_preference`). Nunca se confirma en silencio un horario distinto del solicitado.
+     */
+    private function assertOutsidePreferenceConfirmed(Request $request, ClassRequest $classRequest): void
+    {
+        if ($classRequest->counteroffer_time !== null
+            && ! $classRequest->proposalFitsPreference($classRequest->counteroffer_time)
+            && ! $request->boolean('confirm_outside_preference')) {
+            throw ValidationException::withMessages([
+                'counteroffer' => 'Esta hora está fuera del día o la franja que pediste. Confirma expresamente que la aceptas.',
+            ]);
+        }
     }
 
     /** Huella de la propuesta que el padre tenía en pantalla (ClassRequest::counterofferRef). */

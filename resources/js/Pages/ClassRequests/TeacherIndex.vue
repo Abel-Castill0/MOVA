@@ -103,6 +103,7 @@
                     {{ r.student?.grade_level || 'Grado no indicado' }} · {{ r.is_mentorship ? 'Acompañamiento continuo' : 'Clase puntual' }}
                   </span>
                   <span class="mt-2 line-clamp-2 block break-words text-sm text-ink">{{ requestGoal(r) }}</span>
+                  <span v-if="r.preference_label" class="mt-1.5 block text-xs font-bold text-brand-700" :data-testid="`request-pref-${r.id}`">Pide: {{ r.preference_label }} · hora por confirmar</span>
                   <span class="mt-2 block text-xs text-ink-muted">Creada el {{ fmtLimaDateShort(r.created_at) }}</span>
                 </button>
               </li>
@@ -140,10 +141,17 @@
     <!-- Proponer otro horario -->
     <Modal :show="Boolean(counterofferTarget)" max-width="md" title-id="counteroffer-title" @close="closeCounteroffer">
       <form class="p-6" @submit.prevent="submitCounteroffer">
-        <h2 id="counteroffer-title" class="text-lg font-bold text-ink">Proponer otro horario</h2>
+        <h2 id="counteroffer-title" class="text-lg font-bold text-ink">{{ counterofferTarget?.preferred_date ? 'Proponer hora' : 'Proponer otro horario' }}</h2>
         <p class="mt-1 text-sm text-ink-muted">
           Clase de <strong class="text-ink">{{ counterofferTarget?.subject?.name }}</strong>. El padre verá tu propuesta en MOVA y podrá aceptarla o rechazarla.
         </p>
+
+        <!-- La familia pidió un día + franja: el profesor propone la HORA exacta. Fuera de la franja se permite, pero se avisa
+             y la familia deberá aceptarla expresamente. -->
+        <div v-if="targetPreference" class="mt-3 rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-sm text-brand-900" data-testid="counteroffer-preference">
+          <p class="font-bold">{{ targetPreference.text }}</p>
+          <p class="mt-0.5 text-xs">Franja: {{ targetPreference.range }} ({{ LIMA_LABEL }}). Propón una hora dentro de ella.</p>
+        </div>
 
         <label for="counteroffer-time" class="mt-4 block text-sm font-semibold text-ink">Fecha y hora que propones <span class="font-normal text-ink-muted">({{ LIMA_LABEL }})</span></label>
         <input
@@ -157,6 +165,9 @@
           class="mt-1 min-h-11 w-full rounded-xl border border-line px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
         />
         <p v-if="counterofferForm.errors.counteroffer_time" id="counteroffer-time-error" class="mt-1 text-xs text-rose-700" role="alert">{{ counterofferForm.errors.counteroffer_time }}</p>
+        <p v-if="outsideSlot" class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status" data-testid="outside-slot-warning">
+          Esta hora queda fuera de lo que pidió la familia. Se enviará como alternativa: la clase solo se agenda si el padre la acepta expresamente.
+        </p>
 
         <fieldset class="mt-4">
           <legend class="text-sm font-semibold text-ink">Duración</legend>
@@ -226,12 +237,14 @@ import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh
 import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import { fmtLimaDateShort, limaLocalToIso, toLimaDatetimeLocal, LIMA_LABEL } from '@/utils/limaTime'
 import { requestGoal, studentFirstName } from '@/utils/requestText'
+import { describePreference, slotContains, slotRange } from '@/utils/requestSlots'
 
 const props = defineProps({
   requests: { type: Array, default: () => [] },
   rejectedRequests: { type: Array, default: () => [] },
   counterofferedRequests: { type: Array, default: () => [] },
   verificationPending: { type: Boolean, default: false },
+  slots: { type: Array, default: () => [] },
 })
 
 const statusTab = ref('open')
@@ -342,9 +355,32 @@ const durations = [
 const minDatetime = computed(() => toLimaDatetimeLocal(new Date(Date.now() + 30 * 60 * 1000)))
 const counterofferForm = useForm({ counteroffer_time: '', duration_minutes: 60 })
 
+const slotDefs = computed(() => props.slots)
+const targetSlot = computed(() => slotDefs.value.find((s) => s.value === counterofferTarget.value?.preferred_slot) ?? null)
+const targetPreference = computed(() => {
+  const t = counterofferTarget.value
+  if (!t?.preferred_date || !targetSlot.value) return null
+
+  return { text: `Clase solicitada para el ${describePreference(t.preferred_date, t.preferred_slot)}`, range: slotRange(targetSlot.value) }
+})
+// ¿La hora escrita cae fuera del día + franja pedidos? (aviso; el servidor lo vuelve a decidir)
+const outsideSlot = computed(() => {
+  if (!targetPreference.value || !counterofferForm.counteroffer_time) return false
+  const iso = limaLocalToIso(counterofferForm.counteroffer_time)
+
+  return iso !== '' && !slotContains(counterofferTarget.value.preferred_date, targetSlot.value, iso)
+})
+
 function openCounteroffer(request) {
   counterofferForm.reset()
   counterofferForm.clearErrors()
+  // Con día + franja pedidos, la propuesta arranca ese día al empezar la franja: solo falta ajustar la hora.
+  const slot = props.slots.find((s) => s.value === request.preferred_slot)
+  if (request.preferred_date && slot) {
+    const start = `${request.preferred_date}T${String(slot.start).padStart(2, '0')}:00`
+    // Hoy, si la franja ya empezó, no se propone una hora que el servidor rechazaría por pasada.
+    counterofferForm.counteroffer_time = start >= minDatetime.value ? start : ''
+  }
   detailOpen.value = false // en móvil la hoja de detalle se cierra: nunca dos diálogos apilados
   counterofferTarget.value = request
 }
