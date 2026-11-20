@@ -4,6 +4,17 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-20 — `5c5fe4e` → producción — solicitar clase por día + franja (mañana/tarde/noche)
+
+- **Cambio:** el paso 4 de «Solicitar una clase» pasa de franjas semanales a **día (calendario, hora de Lima) + franja**. Es una preferencia: el profesor propone la hora exacta y la familia la confirma antes de que exista la clase; una hora fuera de la franja pedida exige aceptación expresa del padre. Franjas centralizadas en `config/class_requests.php` (Mañana 06–12, Tarde 12–18, Noche 18–22, hora de Lima). Las solicitudes anteriores conservan `preferred_times` y siguen aceptándose directo.
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:cb8c1bd19d7d9aca668b2061b793be24e0f6c54ed7e00e6d65b6aaaff0829433` (tag `manual-20261119-5c5fe4e138f1`), `git archive` del commit exacto, etiqueta OCI de revisión = SHA completo verificada.
+- **Migración (aditiva):** `2026_11_19_000001_add_preferred_day_and_slot_to_class_requests` (2 columnas nulas en `class_requests`), ejecutada con `migrate --force` desde la réplica del scheduler nuevo antes de actualizar el web: `DONE` en 122 ms. Respaldo manual previo `predeploy-5c4cfe1-20261119` (más PITR 14 d).
+- **Azure:** scheduler `0000070` → `0000071` (primero), web `0000069` → `0000070` (100 %, Healthy), worker `0000032` → `0000033` (detenido por diseño). Solo `--image`.
+- **Verificación:** `/healthz`, `/readyz` (base, migraciones, caché ok), `/login`, `/register`, `/marketplace` 200; producción sirve `app-BvuYQDX9.js` (el de la imagen) y el chunk `Create-LR2objFe.js` con «¿Cuándo necesitas la clase?»; 0 errores/excepciones en los logs de web y scheduler; scheduler ejecutando heartbeat y recordatorios (DONE).
+- **Pruebas previas:** PHPUnit completo (SQLite) 1979 pruebas, 3 fallos del entorno (`QaAccountClosureRaceGuardTest`, ya documentados: el subproceso usa `DB_HOST` distinto de `mysql_qa`), 7 omitidas; `RequestDayAndSlotTest` (17); `check:lima-time` en 4 zonas; `npm run build`; E2E Playwright aislado (SQLite sintética) con navegador en Lima, Nueva York, UTC y Madrid, móvil y escritorio: padre elige día+franja → profesor ve «hora exacta pendiente» → propone → padre acepta → el calendario muestra 16:00 - 17:00. Capturas en [`day-slot-request/`](day-slot-request/).
+- **No verificado:** E2E en producción (no hay cuentas de prueba; no se crearon solicitudes ni clases reales), `qa/tests/flujo-completo.spec.js` adaptado pero no ejecutado (necesita el stack `e2e_qa`), perfil MySQL de PHPUnit (la migración es una columna nula y se aplicó en producción sin incidencias).
+- **Rollback:** `sha256:8302cdfeb774ac6e48054c21d6b5e73a26b61f29df13167569f69f59d621fb1e` (`48bcc7a`) con `az containerapp update -g mova-prod-rg -n <app> --image ghcr.io/abel-castill0/mova@sha256:8302cdfe…fb1e`. La migración solo añade columnas nulas: el código anterior las ignora; no ejecutar `migrate:rollback`.
+
 ## 2026-11-19 (2) — `48bcc7a` → producción — calendario semanal en hora de Lima (incidente de horas)
 
 - **Incidente:** informe en [`INCIDENT_2026-11-18_TIME_DESYNC.md`](INCIDENT_2026-11-18_TIME_DESYNC.md). Clase real `classes.id=2`: `2026-11-16 09:30 UTC` = 04:30 Lima, guardada correctamente; WhatsApp (código anterior a `27a5ce4`) mostró UTC; el calendario dependía de la zona del navegador y comprimía las clases antes de las 07:00.
