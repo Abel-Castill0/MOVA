@@ -4,153 +4,174 @@ namespace App\Console\Commands;
 
 use App\Models\ClassEvent;
 use App\Models\ClassRequest;
+use App\Models\TeacherProfile;
 use App\Notifications\ClassRequestExpiredNotification;
+use App\Notifications\CounterofferLapsedNotification;
+use App\Support\RequestSlots;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * §14 — Cierra las solicitudes abiertas que nadie respondió.
+ * Vencimiento de solicitudes por OPORTUNIDAD REAL, no por un plazo fijo desde su creación
+ * (ClassRequest::responseDeadline): una clase puntual pedida para el viernes por la tarde sigue abierta hasta el viernes
+ * a las 18:00 de Lima; un acompañamiento, 7 días; una solicitud antigua sin día, sus 24 h de siempre.
  *
- * EL PROBLEMA: una `ClassRequest` en estado `open` no tenía salida. Si ningún
- * profesor la aceptaba ni la rechazaba, se quedaba abierta para siempre
- * (docs/MOVA_SYSTEM_MAP.md R-12). Consecuencias reales:
+ * Por estado:
+ *   open                    vence al pasar su fecha límite                     → expired  (aviso al padre)
+ *   pending_parent_approval solo con día + franja y la franja ya terminó       → expired  (el control parental no se apura
+ *                                                                                           de otro modo: espera al padre)
+ *   counteroffered          la propuesta vence en SU hora (counteroffer_time):
+ *                             - si la solicitud aún tiene oportunidad         → open     (vuelve a recibir propuestas)
+ *                             - si no                                         → expired
+ *                           Una propuesta todavía aceptable nunca se toca, aunque la franja pedida ya haya pasado
+ *                           (era una alternativa explícita que el padre aún puede aceptar).
+ *   accepted / rejected / teacher_rejected / expired: jamás (clases, reservas y créditos quedan intactos).
  *
- *   - La bandeja del profesor (`teacher.requests`) acumulaba solicitudes de
- *     hace meses mezcladas con las de hoy.
- *   - `open_requests` en el panel de admin dejaba de medir demanda viva.
- *   - El padre esperaba indefinidamente por algo que ya nadie iba a atender,
- *     sin ninguna señal de que debía intentar otra cosa.
- *
- * QUÉ NO HACE: no toca dinero. Una solicitud `open` nunca tuvo créditos
- * reservados —la reserva ocurre al ACEPTAR, en `LessonController::store()`— así
- * que expirar es una transición puramente de estado. Por eso este comando puede
- * ser mucho más simple que `mova:settle-lessons`.
+ * No toca dinero: ni una solicitud ni una propuesta reservan créditos (la reserva ocurre al crear la clase). Cada
+ * transición se decide bajo `lockForUpdate` sobre la fila releída: si una aceptación concurrente ganó, aquí se ve
+ * `accepted`/otro estado y no se hace nada ('raced'); si gana este comando, la aceptación encuentra el estado nuevo bajo
+ * su propio lock y se rechaza. Idempotente: una segunda pasada no encuentra nada que cambiar.
  */
 class ExpireClassRequests extends Command
 {
     protected $signature = 'mova:expire-class-requests
-        {--dry-run : Muestra qué expiraría sin escribir nada}';
+        {--dry-run : Muestra qué cambiaría sin escribir nada}';
 
-    protected $description = 'Expira solicitudes de clase abiertas que nadie respondió dentro del plazo';
+    protected $description = 'Vence solicitudes y propuestas cuya oportunidad real de atención ya pasó';
 
     public function handle(): int
     {
-        $hours = (int) config('class_requests.expiry_hours', 24);
-        $cutoff = now()->subHours($hours);
         $dryRun = (bool) $this->option('dry-run');
+        $now = now();
+        $candidates = $this->candidates($now);
 
-        // SOLO 'open'. Nunca `accepted` (ya tiene clase y créditos reservados),
-        // ni los terminales (`rejected`, `teacher_rejected`, `expired`), ni
-        // `pending_parent_approval` — esa última está esperando al PADRE, no a
-        // un profesor: expirarla castigaría al usuario por no haber revisado su
-        // propia bandeja, y el control parental existe precisamente para que
-        // decida sin prisa.
-        $ids = ClassRequest::where('status', 'open')
-            ->where('created_at', '<=', $cutoff)
-            // Una solicitud devuelta a búsqueda (el profesor cerró su cuenta) cuenta su plazo desde ese momento.
-            ->where(fn ($q) => $q->whereNull('republished_at')->orWhere('republished_at', '<=', $cutoff))
-            ->orderBy('id')
-            ->pluck('id');
+        $this->info("Vencimiento por oportunidad real — candidatas: {$candidates->count()}");
+        $tally = ['expired' => 0, 'reopened' => 0, 'raced' => 0, 'error' => 0];
 
-        $this->info("Expiración de solicitudes (plazo: {$hours}h, corte: {$cutoff->toDateTimeString()}) — candidatas: {$ids->count()}");
-
-        $expired = 0;
-        $raced = 0;
-
-        foreach ($ids as $id) {
+        foreach ($candidates as $request) {
+            $plan = $this->decide($request, $now);
+            if ($plan === null) {
+                continue;
+            }
             if ($dryRun) {
-                $this->line("  [dry-run] expiraría ClassRequest {$id}");
+                $this->line("  [dry-run] ClassRequest {$request->id} ({$request->status}, {$request->deadlinePolicy()}): {$plan}");
 
                 continue;
             }
-
-            $outcome = $this->expire($id, $hours);
-
-            match ($outcome) {
-                'expired' => $expired++,
-                'raced' => $raced++,
-                default => null,
-            };
+            $tally[$this->apply($request->id)]++;
         }
 
-        $this->info(($dryRun ? '[dry-run] ' : '')."Expiradas: {$expired}. Ya resueltas por otra vía: {$raced}.");
+        $this->info(($dryRun ? '[dry-run] ' : '')."Vencidas: {$tally['expired']}. Propuestas vencidas que reabren la solicitud: {$tally['reopened']}. Ya resueltas por otra vía: {$tally['raced']}. Errores: {$tally['error']}.");
 
         return self::SUCCESS;
     }
 
     /**
-     * CARRERA ACEPTACIÓN vs EXPIRACIÓN.
-     *
-     * Un profesor puede estar aceptando la solicitud justo cuando el barrido
-     * decide expirarla. Si ganara la expiración después de que
-     * `LessonController::store()` ya reservó créditos y creó la clase, quedaría
-     * una `Lesson` viva colgando de una solicitud `expired`: un estado que la
-     * máquina de estados no contempla y que nadie sabría interpretar.
-     *
-     * El lock resuelve la carrera en los dos sentidos:
-     *
-     *   - Si `store()` llegó primero, su transacción ya movió la solicitud a
-     *     `accepted` y aquí se relee bajo lock un estado que ya no es `open`:
-     *     no se expira nada ('raced').
-     *   - Si este comando llega primero, `store()` se queda esperando el lock y
-     *     al entrar encuentra `expired`, que no es `open` — su propio re-chequeo
-     *     bajo lock la rechaza con el mensaje de "ya no está disponible".
-     *
-     * Es el mismo patrón que `SettleLessons::escalateToReview()` usa para las
-     * clases, y por eso es idempotente: correrlo dos veces seguidas no
-     * reexpira nada.
+     * Prefiltro barato en SQL (el veredicto final es responseDeadline() en PHP, la misma regla que ve la UI).
+     * Día + franja: el día pedido ya es hoy o pasado en Lima. Sin día: superó el plazo más corto posible.
      */
-    private function expire(int $id, int $hours): string
+    private function candidates($now)
+    {
+        $todayLima = RequestSlots::today($now);
+        $legacyCutoff = $now->copy()->subHours(min((int) config('class_requests.expiry_hours', 24), 24 * (int) config('class_requests.mentorship_expiry_days', 7)));
+
+        return ClassRequest::query()
+            ->where(function ($q) use ($todayLima, $legacyCutoff, $now) {
+                $q->where(function ($open) use ($todayLima, $legacyCutoff) {
+                    $open->whereIn('status', ['open', 'pending_parent_approval'])->where(function ($w) use ($todayLima, $legacyCutoff) {
+                        $w->where(fn ($d) => $d->whereNotNull('preferred_date')->where('preferred_date', '<=', $todayLima))
+                            ->orWhere(fn ($n) => $n->whereNull('preferred_date')->where('status', 'open')->where('created_at', '<=', $legacyCutoff));
+                    });
+                })->orWhere(fn ($c) => $c->where('status', 'counteroffered')->where('counteroffer_time', '<=', $now));
+            })
+            ->orderBy('id')
+            ->get();
+    }
+
+    /** Qué le toca a esta solicitud ahora (null = nada). Se vuelve a decidir bajo lock en apply(). */
+    private function decide(ClassRequest $request, $now): ?string
+    {
+        return match ($request->status) {
+            'open' => $request->opportunityHasPassed($now) ? 'expired' : null,
+            'pending_parent_approval' => $request->hasPreferredDay() && $request->opportunityHasPassed($now) ? 'expired' : null,
+            'counteroffered' => $request->counteroffer_time !== null && $request->counteroffer_time->lessThanOrEqualTo($now)
+                ? ($request->opportunityHasPassed($now) ? 'expired' : 'reopened')
+                : null,
+            default => null,
+        };
+    }
+
+    private function apply(int $id): string
     {
         try {
-            $request = DB::transaction(function () use ($id) {
-                $request = ClassRequest::with(['student.parent', 'subject'])
-                    ->whereKey($id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $request || $request->status !== 'open') {
+            $result = DB::transaction(function () use ($id) {
+                $request = ClassRequest::with(['student.parent', 'subject'])->whereKey($id)->lockForUpdate()->first();
+                $now = now();
+                $plan = $request ? $this->decide($request, $now) : null;
+                if ($plan === null) {
                     return null;
                 }
 
-                $request->update(['status' => 'expired']);
+                $lapsedTeacherId = $request->status === 'counteroffered' ? $request->counteroffer_teacher_profile_id : null;
+                $reason = match (true) {
+                    $request->status === 'counteroffered' => 'proposal_lapsed',
+                    $request->status === 'pending_parent_approval' => 'approval_missing',
+                    $request->deadlinePolicy() === 'slot' => 'slot_passed',
+                    default => 'no_answer',
+                };
 
-                ClassEvent::log(
-                    'request_expired',
-                    null,
-                    null,
-                    $request->id,
-                    'Sin respuesta de ningún profesor dentro del plazo'
-                );
+                if ($plan === 'reopened') {
+                    $request->update([
+                        'status' => 'open', 'counteroffer_time' => null, 'counteroffer_duration_minutes' => null, 'counteroffer_teacher_profile_id' => null,
+                    ]);
+                    ClassEvent::log('counteroffer_lapsed', null, null, $request->id, 'La propuesta de horario pasó sin respuesta; la solicitud vuelve a estar abierta.');
+                } else {
+                    $request->update(['status' => 'expired'] + ($request->status === 'counteroffered'
+                        ? ['counteroffer_time' => null, 'counteroffer_duration_minutes' => null, 'counteroffer_teacher_profile_id' => null]
+                        : []));
+                    ClassEvent::log('request_expired', null, null, $request->id, match ($reason) {
+                        'slot_passed' => 'Terminó el día y la franja pedidos sin una clase confirmada',
+                        'approval_missing' => 'Terminó el día y la franja pedidos sin la aprobación del padre',
+                        'proposal_lapsed' => 'La propuesta pasó sin respuesta y ya no quedaba oportunidad',
+                        default => 'Sin respuesta de ningún profesor dentro del plazo',
+                    });
+                }
 
-                return $request;
+                return [$plan, $request, $reason, $lapsedTeacherId];
             });
 
-            if ($request === null) {
+            if ($result === null) {
                 return 'raced';
             }
+            [$plan, $request, $reason, $lapsedTeacherId] = $result;
 
-            // AVISO SOLO AL PADRE, y solo aquí.
-            //
-            // Es quien pierde algo: estaba esperando una clase que ya no va a
-            // llegar y necesita saber que debe volver a intentarlo. A los
-            // profesores NO se les avisa: para ellos es una solicitud que
-            // decidieron no atender, y notificar cada expiración a todos los
-            // profesores elegibles de la materia sería ruido puro.
-            $request->student?->parent?->notify(new ClassRequestExpiredNotification($request));
+            // Avisos SOLO tras el commit. Al padre siempre (pierde algo o debe saber que sigue esperando); al profesor solo
+            // si era SU propuesta la que venció. Nunca a todos los profesores elegibles: sería ruido.
+            // Cada aviso por separado: un fallo al avisar a uno no impide avisar al otro ni revierte el cambio de estado.
+            $notify = function (callable $send) use ($request) {
+                try {
+                    $send();
+                } catch (\Throwable $e) {
+                    Log::warning('CLASS_REQUEST_EXPIRY_NOTICE_FAILED', ['class_request_id' => $request->id, 'error' => $e->getMessage()]);
+                    report($e);
+                }
+            };
+            $parent = $request->student?->parent;
+            $notify(fn () => $parent?->notify($plan === 'reopened'
+                ? new CounterofferLapsedNotification($request, true, 'parent')
+                : new ClassRequestExpiredNotification($request, $reason)));
+            if ($lapsedTeacherId) {
+                $notify(fn () => TeacherProfile::find($lapsedTeacherId)?->user?->notify(new CounterofferLapsedNotification($request, $plan === 'reopened', 'teacher')));
+            }
 
-            $this->line("  ClassRequest {$id}: expirada tras {$hours}h sin respuesta.");
+            $this->line("  ClassRequest {$request->id}: {$plan} ({$reason}).");
 
-            return 'expired';
+            return $plan;
         } catch (\Throwable $e) {
-            Log::error('CLASS_REQUEST_EXPIRY_FAILED', [
-                'class_request_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
+            Log::error('CLASS_REQUEST_EXPIRY_FAILED', ['class_request_id' => $id, 'error' => $e->getMessage()]);
             report($e);
-
-            $this->error("  ClassRequest {$id}: {$e->getMessage()}");
+            $this->error("  ClassRequest {$id}: no se pudo procesar.");
 
             return 'error';
         }

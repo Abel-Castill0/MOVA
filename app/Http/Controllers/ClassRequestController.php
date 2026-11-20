@@ -308,12 +308,13 @@ class ClassRequestController extends Controller
             event(new ClassRequestCreated($classRequest));
         }
 
-        $hours = (int) config('class_requests.expiry_hours', 24);
+        $deadline = $classRequest->responseDeadline();
+        $until = $deadline ? ' hasta el '.LimaClock::dateTimeLong($deadline) : '';
         $message = match ($classRequest->deliveryState()) {
             'awaiting_parent' => 'Solicitud guardada. Está pendiente de tu aprobación antes de llegar a los profesores.',
             'directed' => 'Solicitud enviada. El profesor que elegiste ya puede verla en su panel.',
             'published' => 'Solicitud publicada. Los profesores verificados de la materia ya pueden verla en su panel.',
-            default => "Solicitud guardada, pero hoy no hay profesores verificados de esta materia. Seguirá abierta {$hours} horas por si alguno se incorpora; también puedes probar con otra materia o con el código de un profesor.",
+            default => "Solicitud guardada, pero hoy no hay profesores verificados de esta materia. Seguirá abierta{$until} por si alguno se incorpora; también puedes probar con otra materia o con el código de un profesor.",
         };
 
         return redirect()->route('class-requests.index')->with('success', $message);
@@ -344,6 +345,7 @@ class ClassRequestController extends Controller
                     // reenvía al responder — ver CounterofferController.
                     'counteroffer_ref' => $r->status === 'counteroffered' ? $r->counterofferRef() : null,
                 ]),
+            'mentorshipExpiryDays' => (int) config('class_requests.mentorship_expiry_days', 7),
         ]);
     }
 
@@ -365,6 +367,8 @@ class ClassRequestController extends Controller
                 422,
                 'Solo se pueden aprobar solicitudes pendientes de aprobación.'
             );
+            // Publicar una clase puntual cuya franja ya terminó no le sirve a nadie.
+            abort_if($classRequest->opportunityHasPassed(), 422, 'El día y la franja de esta solicitud ya pasaron. Crea una nueva solicitud.');
 
             $classRequest->update(['status' => 'open']);
             $approvedRequest = $classRequest;
@@ -379,6 +383,53 @@ class ClassRequestController extends Controller
         }
 
         return back()->with('success', 'Solicitud aprobada.');
+    }
+
+    /**
+     * Acompañamiento continuo: el padre puede darle otros N días a una solicitud que venció sin profesor o a la que le
+     * queda poco. Las clases puntuales no se renuevan (su día pasó: se pide otro). No toca dinero.
+     */
+    private function canRenew(ClassRequest $r): bool
+    {
+        if (! $r->is_mentorship || $r->hasPreferredDay() || ! in_array($r->status, ['open', 'expired'], true)) {
+            return false;
+        }
+        if ($r->status === 'expired') {
+            return true;
+        }
+        $deadline = $r->responseDeadline();
+
+        return $deadline !== null && now()->addDays((int) config('class_requests.mentorship_renew_window_days', 2))->greaterThanOrEqualTo($deadline);
+    }
+
+    public function renew(ClassRequest $classRequest, ClassRequestNotifier $notifier)
+    {
+        $this->authorize('view', $classRequest);
+
+        $renewed = DB::transaction(function () use ($classRequest) {
+            $locked = ClassRequest::whereKey($classRequest->id)->lockForUpdate()->firstOrFail();
+            $this->authorize('view', $locked);
+            \App\Services\AccountLifecycleService::lockOpenParticipants([$locked->student->parent_user_id]);
+            abort_unless($locked->student && ! $locked->student->trashed(), 422, 'El alumno de esta solicitud ya no está activo.');
+            abort_unless($this->canRenew($locked), 422, 'Esta solicitud no se puede renovar ahora.');
+
+            $wasExpired = $locked->status === 'expired';
+            $locked->forceFill([
+                'status' => 'open', 'republished_at' => now(), 'request_reminder_sent_at' => null, 'final_reminder_sent_at' => null,
+            ])->save();
+            ClassEvent::log('request_renewed', auth()->id(), null, $locked->id, 'El padre renovó el acompañamiento continuo.');
+
+            return [$locked, $wasExpired];
+        });
+
+        // Una solicitud vencida vuelve a la bandeja: se avisa a los profesores elegibles, como al publicarla.
+        if ($renewed[1]) {
+            $notifier->notifyEligibleTeachers($renewed[0]);
+        }
+
+        $deadline = $renewed[0]->fresh()->responseDeadline();
+
+        return back()->with('success', 'Solicitud renovada: seguirá abierta hasta el '.LimaClock::dateTimeLong($deadline).'.');
     }
 
     public function reject(ClassRequest $classRequest)
@@ -428,7 +479,10 @@ class ClassRequestController extends Controller
             ->visibleToTeacher($profile->id, $offerIds, $subjectIds)
             ->notDeclinedBy($profile->id)
             ->with(['student', 'subject'])
-            ->latest()->get();
+            ->latest()->get()
+            // Sin oportunidad real (franja terminada) ya no se ofrece, aunque el barrido de vencimiento aún no haya pasado.
+            ->reject(fn (ClassRequest $r) => $r->opportunityHasPassed())
+            ->values();
 
         // Solicitudes que ESTE profesor ya contraofreció y están esperando
         // respuesta del padre. Solo se muestran las propias del profesor
@@ -495,6 +549,12 @@ class ClassRequestController extends Controller
             'preference_label'         => RequestSlots::describe($r->preferred_date, $r->preferred_slot),
             // ¿La hora propuesta cae fuera de lo que pidió la familia? (solo con propuesta vigente)
             'counteroffer_outside_preference' => $r->counteroffer_time !== null && ! $r->proposalFitsPreference($r->counteroffer_time),
+            // Fecha límite visible (instante UTC; la UI lo muestra en hora de Perú). Una propuesta pendiente vence en su
+            // propia hora. null cuando ya no espera a nadie (aceptada, rechazada, vencida).
+            'deadline_policy'          => $r->deadlinePolicy(),
+            'respond_by'               => in_array($r->status, ['open', 'pending_parent_approval'], true) ? $r->responseDeadline()?->toIso8601String() : null,
+            'counteroffer_respond_by'  => $r->status === 'counteroffered' ? $r->counteroffer_time?->toIso8601String() : null,
+            'can_renew'                => $this->canRenew($r),
             'teacher_rejected_at'      => $r->teacher_rejected_at,
             'teacher_rejection_reason' => $r->teacher_rejection_reason,
             'counteroffer_time'             => $r->counteroffer_time,

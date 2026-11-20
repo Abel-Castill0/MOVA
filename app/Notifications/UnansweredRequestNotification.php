@@ -13,9 +13,9 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public ClassRequest $classRequest)
+    /** @param  string  $kind  unanswered («sigue sin propuesta») | final (último aviso antes de la franja / del vencimiento) */
+    public function __construct(public ClassRequest $classRequest, public string $kind = 'unanswered')
     {
-        // Se encola después del commit: el worker no debe ver el aviso antes que los datos que lo originan.
         $this->afterCommit();
     }
 
@@ -31,25 +31,55 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
         return $channels;
     }
 
-    public function toMail($notifiable): MailMessage
+    /**
+     * Re-evaluado al ENTREGAR (va encolada): si entre el encolado y el envío alguien propuso un horario, la solicitud
+     * venció, el profesor dejó de ser elegible o ya no queda oportunidad, no se envía por ningún canal.
+     */
+    public function shouldSend($notifiable, string $channel): bool
+    {
+        $request = $this->classRequest->fresh();
+        $teacher = $notifiable->fresh();
+
+        return $request !== null && $teacher !== null && $teacher->suspended_at === null
+            && $request->status === 'open'
+            && ! $request->opportunityHasPassed()
+            && $request->isEligibleTeacherUser($teacher);
+    }
+
+    /** «para el viernes 20 de noviembre, por la tarde» o «hace más de 12 horas» (solicitudes sin día). */
+    private function line(): string
     {
         $subject = $this->classRequest->subject?->name ?? 'una clase';
+        $when = \App\Support\RequestSlots::describe($this->classRequest->preferred_date, $this->classRequest->preferred_slot);
+
+        if ($this->kind === 'final') {
+            return $when
+                ? "Último aviso: una familia necesita una clase de {$subject} el {$when} y todavía no tiene propuesta."
+                : "Último aviso: una solicitud de acompañamiento de {$subject} vence pronto y todavía no tiene propuesta.";
+        }
+
+        return $when
+            ? "Una familia solicitó una clase de {$subject} para el {$when} y todavía no tiene propuesta."
+            : "Una familia solicitó una clase de {$subject} hace más de 12 horas y todavía no tiene propuesta.";
+    }
+
+    public function toMail($notifiable): MailMessage
+    {
         return (new MailMessage)
-            ->subject('Solicitud pendiente en MOVA')
+            ->subject($this->kind === 'final' ? 'Último aviso: solicitud sin propuesta en MOVA' : 'Solicitud pendiente en MOVA')
             ->greeting('Hola, ' . $notifiable->name . '.')
-            ->line("Colega, una familia solicitó una clase de **{$subject}** hace más de 12 horas.")
-            ->line('Responda pronto para no perder la oportunidad.')
+            ->line('Colega, ' . lcfirst($this->line()))
+            ->line('Si le viene bien, proponga la hora exacta desde su panel (hora de Perú). La familia la confirma antes de agendar.')
             ->action('Ver solicitud', $this->appRoute('teacher.requests'))
             ->salutation('El equipo de MOVA');
     }
 
     public function toWhatsApp($notifiable): string
     {
-        $subject = $this->classRequest->subject?->name ?? 'una clase';
-        return "MOVA — Solicitud pendiente\n\n"
+        return "MOVA — " . ($this->kind === 'final' ? 'Último aviso' : 'Solicitud pendiente') . "\n\n"
             . "Hola {$notifiable->name},\n"
-            . "Una familia solicitó una clase de {$subject} hace más de 12 horas.\n"
-            . "Responda pronto desde su panel:\n"
+            . $this->line() . "\n"
+            . "Responda desde su panel:\n"
             . $this->appRoute('teacher.requests');
     }
 
@@ -57,9 +87,10 @@ class UnansweredRequestNotification extends Notification implements ShouldQueue
     {
         return [
             'type'             => 'unanswered_request',
+            'kind'             => $this->kind,
             'class_request_id' => $this->classRequest->id,
             'subject'          => $this->classRequest->subject?->name,
-            'message'          => 'Tiene una solicitud de clase sin responder hace más de 12 horas.',
+            'message'          => $this->line(),
         ];
     }
 }

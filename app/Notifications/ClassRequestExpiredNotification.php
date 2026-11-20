@@ -28,7 +28,10 @@ class ClassRequestExpiredNotification extends Notification implements ShouldQueu
 {
     use Queueable, BuildsAppUrls;
 
-    public function __construct(public ClassRequest $classRequest)
+    /**
+     * @param  string  $reason  no_answer | slot_passed | approval_missing | proposal_lapsed (ExpireClassRequests)
+     */
+    public function __construct(public ClassRequest $classRequest, public string $reason = 'no_answer')
     {
         $this->afterCommit();
     }
@@ -44,20 +47,31 @@ class ClassRequestExpiredNotification extends Notification implements ShouldQueu
         return $channels;
     }
 
-    public function toMail(object $notifiable): MailMessage
+    /** Frase principal, sin culpar al padre y diciendo la causa real. */
+    private function sentence(): string
     {
         $subject = $this->classRequest->subject?->name ?? 'la materia solicitada';
         $student = $this->classRequest->student?->first_name;
+        $for = $student ? " para {$student}" : '';
+        $when = \App\Support\RequestSlots::describe($this->classRequest->preferred_date, $this->classRequest->preferred_slot);
 
+        return match ($this->reason) {
+            'slot_passed' => "Tu solicitud de clase de **{$subject}**{$for} para el {$when} terminó sin una clase confirmada: ningún profesor propuso un horario a tiempo.",
+            'approval_missing' => "Tu solicitud de clase de **{$subject}**{$for} para el {$when} terminó sin publicarse: quedó pendiente de tu aprobación hasta que pasó la franja.",
+            'proposal_lapsed' => "Tu solicitud de clase de **{$subject}**{$for} terminó: la propuesta de horario del profesor pasó sin respuesta y ya no quedaba tiempo para otra.",
+            default => "Tu solicitud de clase de **{$subject}**{$for} caducó porque ningún profesor la tomó a tiempo.",
+        };
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
         return (new MailMessage)
-            ->subject('Tu solicitud de clase caducó — MOVA')
+            ->subject('Tu solicitud de clase terminó — MOVA')
             ->greeting('Hola, '.$notifiable->name.'.')
-            ->line($student
-                ? "Tu solicitud de clase de **{$subject}** para {$student} caducó porque ningún profesor la tomó a tiempo."
-                : "Tu solicitud de clase de **{$subject}** caducó porque ningún profesor la tomó a tiempo.")
+            ->line($this->sentence())
             ->line('No se te ha cobrado nada y puedes volver a solicitarla cuando quieras.')
-            ->line('Si amplías los horarios disponibles o describes con más detalle lo que necesitas, '
-                .'es más probable que un profesor la acepte.')
+            ->line('Si eliges otro día o franja, o describes con más detalle lo que necesitas, '
+                .'es más probable que un profesor te proponga un horario.')
             ->action('Crear una nueva solicitud', $this->appRoute('class-requests.create'))
             ->salutation('El equipo de MOVA');
     }
@@ -67,7 +81,8 @@ class ClassRequestExpiredNotification extends Notification implements ShouldQueu
         return [
             'type' => 'class_request_expired',
             'class_request_id' => $this->classRequest->id,
-            'message' => 'Tu solicitud de clase caducó sin que ningún profesor la tomara.',
+            'reason' => $this->reason,
+            'message' => str_replace('**', '', $this->sentence()),
         ];
     }
 }

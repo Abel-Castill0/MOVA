@@ -92,6 +92,11 @@ class LessonController extends Controller
             $data['start_time'],
             (int) $data['duration_minutes'],
             function (ClassRequest $locked) {
+                if ($locked->status === 'open' && $locked->opportunityHasPassed()) {
+                    throw ValidationException::withMessages([
+                        'accept' => 'El plazo de esta solicitud ya terminó: ya no se puede agendar.',
+                    ]);
+                }
                 if ($locked->status !== 'open') {
                     // Re-chequeo bajo lock: si otra request ganó la carrera
                     // entre el chequeo de arriba y este lock, esta es la que

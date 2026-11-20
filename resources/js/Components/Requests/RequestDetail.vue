@@ -12,7 +12,7 @@ import StatusBadge from '@/Components/StatusBadge.vue'
 import { timeSlotLabel } from '@/utils/timeSlots'
 import { fmtLimaDate, fmtLimaDateShort } from '@/utils/limaTime'
 import { requestGoal, requestMessage, studentFirstName } from '@/utils/requestText'
-import { dayLabel, slotPhrase } from '@/utils/requestSlots'
+import { dayLabel, slotPhrase, timeLeftLabel } from '@/utils/requestSlots'
 
 const props = defineProps({
   request: { type: Object, required: true },
@@ -77,6 +77,12 @@ const slotText = computed(() => slotPhrase(props.request.preferred_slot).replace
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Preferencia</dt><dd class="mt-0.5 font-bold text-ink" data-testid="preference-slot">{{ slotText }}</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Hora exacta</dt><dd class="mt-0.5 font-medium text-ink-muted" data-testid="preference-hour">Pendiente de confirmar (hora de Perú)</dd></div>
       </dl>
+    </section>
+
+    <!-- Hasta cuándo se puede proponer: su oportunidad real (fin de la franja, o el plazo de un acompañamiento). -->
+    <section v-if="tab === 'open' && request.respond_by" class="text-sm" data-testid="request-respond-by">
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Recibe propuestas hasta</h3>
+      <p class="mt-0.5 font-medium text-ink">{{ fmtLimaDate(request.respond_by) }} (hora de Perú) · {{ timeLeftLabel(request.respond_by) }}</p>
     </section>
 
     <section v-if="times.length">

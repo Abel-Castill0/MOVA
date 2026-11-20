@@ -84,6 +84,13 @@
                   <div class="flex gap-1.5"><dt class="font-semibold">Duración:</dt><dd>{{ r.counteroffer_duration_minutes }} min</dd></div>
                 </dl>
                 <p v-if="r.preference_label && r.status === 'counteroffered'" class="mt-2 text-xs" data-testid="counteroffer-asked">Tú pediste: {{ r.preference_label }}.</p>
+                <!-- Fecha límite visible: hasta cuándo recibe propuestas, o hasta cuándo puedes responder a la que tienes. -->
+                <p v-if="r.respond_by" class="mt-2 text-xs font-semibold" :data-testid="`respond-by-${r.id}`">
+                  {{ r.status === 'pending_parent_approval' ? 'Apruébala antes del' : 'Recibe propuestas hasta el' }} {{ fmtLimaLong(r.respond_by) }} (hora de Perú) · {{ timeLeftLabel(r.respond_by, now) }}
+                </p>
+                <p v-if="r.counteroffer_respond_by" class="mt-2 text-xs font-semibold" :data-testid="`proposal-by-${r.id}`">
+                  Responde antes del {{ fmtLimaLong(r.counteroffer_respond_by) }} (hora de Perú) · {{ timeLeftLabel(r.counteroffer_respond_by, now) }}. Si no respondes, la propuesta vence y no se agenda nada.
+                </p>
                 <!-- Hora fuera del día/franja pedidos: alternativa. Solo se agenda si la aceptas expresamente. -->
                 <label v-if="r.status === 'counteroffered' && r.counteroffer_outside_preference" class="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900" data-testid="outside-preference">
                   <input v-model="outsideOk[r.id]" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300" />
@@ -115,6 +122,9 @@
                   {{ processingId === r.id && action === 'reject' ? 'Rechazando…' : 'Rechazar' }}
                 </button>
               </div>
+              <div v-else-if="r.can_renew" class="mt-4 flex flex-wrap gap-2">
+                <Link :href="route('class-requests.renew', r.id)" method="post" as="button" preserve-scroll :data-testid="`renew-${r.id}`" class="min-h-11 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">Renovar {{ renewDays }} días más</Link>
+              </div>
               <div v-else-if="view(r).cta" class="mt-4">
                 <Link :href="view(r).cta.href" class="inline-flex min-h-11 items-center rounded-xl border border-brand-200 px-4 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">{{ view(r).cta.label }}</Link>
               </div>
@@ -127,14 +137,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import StatusBadge from '@/Components/StatusBadge.vue'
 import LiveIndicator from '@/Components/LiveIndicator.vue'
 import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import { fmtLimaDateShort, LIMA_TZ } from '@/utils/limaTime'
 import { timeSlotLabel } from '@/utils/timeSlots'
+import { timeLeftLabel } from '@/utils/requestSlots'
 
 const props = defineProps({ requests: { type: Array, default: () => [] } })
 
@@ -144,6 +155,11 @@ const processingId = ref(null)
 const action = ref(null)
 const counterofferError = ref('')
 const outsideOk = ref({}) // id de solicitud → «acepto una hora fuera de lo que pedí»
+const renewDays = usePage().props.mentorshipExpiryDays ?? 7
+// Reloj para «quedan X»: se refresca cada minuto y se limpia al salir.
+const now = ref(new Date())
+const clock = setInterval(() => { now.value = new Date() }, 60000)
+onBeforeUnmount(() => clearInterval(clock))
 const filter = ref('all')
 
 const NEEDS_ACTION = ['pending_parent_approval', 'counteroffered']
@@ -205,6 +221,15 @@ function view(r) {
       return { ...base, key: 'rejected', reached: 0, stopped: true, stepLabel: 'rechazada', tone: TONES.muted,
         title: 'La rechazaste', text: 'Esta solicitud no se publicó. Puedes crear otra cuando quieras.', cta: newRequest }
     case 'expired':
+      if (r.deadline_policy === 'slot') {
+        return { ...base, key: 'expired', reached: 1, stopped: true, stepLabel: 'terminó', tone: TONES.muted,
+          title: 'Terminó sin una clase confirmada', text: `El día y la franja que pediste (${r.preference_label}) ya pasaron sin una propuesta aceptada. No se cobró nada: puedes pedir otro día.`, cta: newRequest }
+      }
+      if (r.deadline_policy === 'mentorship') {
+        return { ...base, key: 'expired', reached: 1, stopped: true, stepLabel: 'vencida', tone: TONES.muted,
+          title: 'Venció sin profesor', text: 'Ningún profesor tomó el acompañamiento en el plazo. Puedes renovarlo para que siga visible otros días.', cta: newRequest }
+      }
+
       return { ...base, key: 'expired', reached: 1, stopped: true, stepLabel: 'vencida', tone: TONES.muted,
         title: 'Venció sin respuesta', text: 'Ningún profesor la tomó a tiempo. No es un rechazo: puedes volver a publicarla.', cta: newRequest }
     default:

@@ -32,6 +32,8 @@ class ClassRequest extends Model
         'preferred_times'            => 'array',
         'is_mentorship'              => 'boolean',
         'request_reminder_sent_at'   => 'datetime',
+        'final_reminder_sent_at'     => 'datetime',
+        'republished_at'             => 'datetime',
         'teacher_rejected_at'        => 'datetime',
         'counteroffer_time'          => 'datetime',
         'counteroffer_duration_minutes' => 'integer',
@@ -56,6 +58,56 @@ class ClassRequest extends Model
     public function proposalFitsPreference(\Carbon\CarbonInterface $instant): bool
     {
         return ! $this->hasPreferredDay() || \App\Support\RequestSlots::fits($this->preferred_date, $this->preferred_slot, $instant);
+    }
+
+    /** Estados que todavía esperan a alguien y, por tanto, tienen una fecha límite. */
+    public const LIVE_STATUSES = ['open', 'counteroffered', 'pending_parent_approval'];
+
+    /** 'slot' (día + franja), 'mentorship' (acompañamiento) o 'legacy' (solicitudes antiguas sin día). */
+    public function deadlinePolicy(): string
+    {
+        if ($this->hasPreferredDay()) {
+            return 'slot';
+        }
+
+        return $this->is_mentorship ? 'mentorship' : 'legacy';
+    }
+
+    /** Desde cuándo cuenta el plazo: la publicación o la última renovación / republicación. */
+    public function deadlineBasis(): \Illuminate\Support\Carbon
+    {
+        $created = $this->created_at ?? now();
+
+        return $this->republished_at && $this->republished_at->greaterThan($created) ? $this->republished_at->copy() : $created->copy();
+    }
+
+    /**
+     * Hasta cuándo puede recibir (o confirmar) una propuesta: su oportunidad real.
+     *   slot        fin de la franja pedida (hora de Lima → UTC, RequestSlots)
+     *   mentorship  publicación/renovación + mentorship_expiry_days
+     *   legacy      publicación + expiry_hours (la regla con la que se crearon)
+     */
+    public function responseDeadline(): ?\Illuminate\Support\Carbon
+    {
+        return match ($this->deadlinePolicy()) {
+            'slot' => \App\Support\RequestSlots::window($this->preferred_date, $this->preferred_slot)[1] ?? null,
+            'mentorship' => $this->deadlineBasis()->addDays((int) config('class_requests.mentorship_expiry_days', 7)),
+            default => $this->deadlineBasis()->addHours((int) config('class_requests.expiry_hours', 24)),
+        };
+    }
+
+    /** Inicio de la franja pedida (solo clases con día + franja). */
+    public function slotStart(): ?\Illuminate\Support\Carbon
+    {
+        return $this->hasPreferredDay() ? (\App\Support\RequestSlots::window($this->preferred_date, $this->preferred_slot)[0] ?? null) : null;
+    }
+
+    /** ¿Ya no queda oportunidad real de atenderla? */
+    public function opportunityHasPassed(?\Carbon\CarbonInterface $now = null): bool
+    {
+        $deadline = $this->responseDeadline();
+
+        return $deadline !== null && ($now ?? now())->greaterThanOrEqualTo($deadline);
     }
 
     public function isTeacherRejected(): bool

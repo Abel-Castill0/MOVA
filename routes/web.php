@@ -180,6 +180,7 @@ Route::middleware(['auth', 'admin.mfa', 'legal.current'])->group(function () {
         Route::post('/class-requests', [ClassRequestController::class, 'store'])->middleware('throttle:10,1')->name('class-requests.store');
         Route::post('/class-requests/{classRequest}/approve', [ClassRequestController::class, 'approve'])->middleware('throttle:20,1')->name('class-requests.approve');
         Route::post('/class-requests/{classRequest}/reject', [ClassRequestController::class, 'reject'])->middleware('throttle:20,1')->name('class-requests.reject');
+        Route::post('/class-requests/{classRequest}/renew', [ClassRequestController::class, 'renew'])->middleware('throttle:20,1')->name('class-requests.renew');
         // Respuesta del padre dueño a una contraoferta (CSRF de la sesión web,
         // ownership en ClassRequestPolicy::respondToCounteroffer). Aceptar
         // agenda la clase con LessonSchedulingService, la misma primitiva

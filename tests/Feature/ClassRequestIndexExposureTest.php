@@ -31,6 +31,8 @@ class ClassRequestIndexExposureTest extends TestCase
         'counteroffer_time', 'counteroffer_duration_minutes',
         // Día + franja pedidos (preferencia de la familia, sin datos personales) y el aviso de hora fuera de la franja.
         'preferred_date', 'preferred_slot', 'preference_label', 'counteroffer_outside_preference',
+        // Fecha límite visible y renovación (solo instantes y banderas, sin datos personales).
+        'deadline_policy', 'respond_by', 'counteroffer_respond_by', 'can_renew',
     ];
 
     private function scenario(): array

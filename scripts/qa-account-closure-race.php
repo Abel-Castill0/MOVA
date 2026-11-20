@@ -144,7 +144,9 @@ function scenarios(): array
         'teacher-closure-vs-booking' => ['leader' => 'close-teacher', 'follower' => 'schedule', 'options' => [], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'teacher_user', 'available' => 0, 'ledger' => ['deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false] + $base],
         'booking-vs-teacher-closure' => ['leader' => 'schedule', 'follower' => 'close-teacher', 'options' => [], 'expect' => ['leader' => 'scheduled', 'follower' => 'closed', 'closed' => 'teacher_user', 'lessons' => ['cancelled'], 'available' => 0, 'ledger' => ['deposit', 'forfeiture', 'refund', 'reservation'], 'request' => 'open', 'student_erased' => false] + $base],
         // Webhook/recarga manual que se acredita antes o después del cierre: un solo depósito; el saldo tardío queda fuera de uso.
-        'closure-then-pending-recharge-credit' => ['leader' => 'close-teacher', 'follower' => 'credit', 'options' => ['recharge' => true], 'expect' => ['leader' => 'closed', 'follower' => 'credited', 'closed' => 'teacher_user', 'available' => 5, 'ledger' => ['deposit', 'deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'credited' => true] + $base],
+        // Cierre primero: un administrador ya no puede aprobar a mano una recarga de una cuenta cerrada (F-14, 2026-11-17);
+        // la recarga queda pendiente y no se abona nada. (Un pago confirmado por el proveedor sí se asienta: ClosedAccountPaymentGuardTest.)
+        'closure-then-pending-recharge-credit' => ['leader' => 'close-teacher', 'follower' => 'credit', 'options' => ['recharge' => true], 'expect' => ['leader' => 'closed', 'follower' => 'blocked', 'closed' => 'teacher_user', 'available' => 0, 'ledger' => ['deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'credited' => false, 'recharge_pending' => true] + $base],
         'pending-recharge-credit-then-closure' => ['leader' => 'credit', 'follower' => 'close-teacher', 'options' => ['recharge' => true], 'expect' => ['leader' => 'credited', 'follower' => 'closed', 'closed' => 'teacher_user', 'available' => 5, 'ledger' => ['deposit', 'deposit', 'forfeiture'], 'request' => 'open', 'student_erased' => false, 'credited' => true] + $base],
         // Liquidación del scheduler de una clase ya terminada: se conserva y se consume una sola vez; el padre cerrado no recibe avisos.
         'closure-then-settlement' => ['leader' => 'close', 'follower' => 'settle', 'options' => ['lesson' => true, 'real_notifications' => true], 'expect' => ['leader' => 'closed', 'follower' => 'settled', 'lessons' => ['completed'], 'available' => 9, 'ledger' => ['consumption', 'deposit', 'reservation'], 'request' => 'accepted', 'settled' => true, 'parent_notifications' => 0] + $base],
@@ -281,6 +283,9 @@ try {
                 $http = Request::create('/class-requests', 'POST', [
                     'student_id' => $fixture['student'], 'subject_id' => $fixture['subject'],
                     'help_needed' => 'QA synthetic concurrency booking',
+                    // Clase puntual: día (mañana en Lima) + franja, obligatorios desde la solicitud por día + franja.
+                    'preferred_date' => \Illuminate\Support\Carbon::now('America/Lima')->addDay()->format('Y-m-d'),
+                    'preferred_slot' => 'afternoon',
                 ]);
                 $http->setLaravelSession(app('session')->driver());
                 $http->setUserResolver(fn () => Auth::user());
@@ -298,7 +303,14 @@ try {
                 }
             }
             if ($operation === 'credit') {
-                $result = app(RechargeApprovalService::class)->credit(RechargeRequest::findOrFail($fixture['recharge']), $fixture['admin']);
+                try {
+                    $result = app(RechargeApprovalService::class)->credit(RechargeRequest::findOrFail($fixture['recharge']), $fixture['admin']);
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+                    // Cuenta ya cerrada: la aprobación manual se rechaza (422) sin tocar saldo ni ledger.
+                    check($exception->getStatusCode() === 422 && str_contains($exception->getMessage(), 'cerrada'), 'Unexpected credit rejection.');
+
+                    return 'blocked';
+                }
 
                 return $result['changed'] ? 'credited' : 'already-credited';
             }
@@ -430,6 +442,10 @@ try {
             if ($expect['credited'] ?? false) {
                 check(RechargeRequest::findOrFail($fixture['recharge'])->status === 'approved', 'Recharge must complete once.');
                 check(CreditTransaction::where('idempotency_key', 'recharge:'.$fixture['recharge'].':deposit')->count() === 1, 'Recharge deposit must be single.');
+            }
+            if ($expect['recharge_pending'] ?? false) {
+                check(RechargeRequest::findOrFail($fixture['recharge'])->status === 'pending', 'A blocked manual recharge must stay pending.');
+                check(CreditTransaction::where('idempotency_key', 'recharge:'.$fixture['recharge'].':deposit')->count() === 0, 'A blocked manual recharge must not credit.');
             }
             if ($expect['settled'] ?? false) {
                 $lessonRow = Lesson::findOrFail($fixture['lesson']);

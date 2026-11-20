@@ -214,21 +214,15 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        // §14 — Cierra las solicitudes que nadie respondió.
-        //
-        // CADA HORA, no cada minuto: la ventana es de 24 h
-        // (CLASS_REQUEST_EXPIRY_HOURS), así que la precisión de un minuto no
-        // aportaría nada y multiplicaría por 60 un barrido que nadie está
-        // esperando. Con granularidad horaria, una solicitud caduca entre las
-        // 24 h y las 25 h de vida — indistinguible para el usuario.
-        //
-        // Al minuto :30 para no competir con settle-lessons y health-check, que
-        // corren en punto.
         // Cierre automático de cuentas: reintenta la limpieza secundaria y avisa de saldos posteriores al cierre.
         $schedule->command('mova:account-closure:finish')->hourlyAt(45)->withoutOverlapping();
 
+        // Vencimiento por OPORTUNIDAD REAL (ExpireClassRequests): una clase puntual vence al terminar su franja (p. ej.
+        // 18:00 de Lima) y una propuesta pendiente en su propia hora. Cada 5 minutos para que el vencimiento sea puntual;
+        // la consulta es acotada (solo estados vivos con fecha límite cercana) y las acciones sensibles (proponer,
+        // aceptar, aprobar) ya rechazan por su cuenta una oportunidad agotada aunque el barrido no haya pasado.
         $schedule->command('mova:expire-class-requests')
-            ->hourlyAt(30)
+            ->everyFiveMinutes()
             ->withoutOverlapping();
 
         // Vigilante de WAHA (recuperación no destructiva con backoff + alerta). Se auto-desactiva si el control administrativo

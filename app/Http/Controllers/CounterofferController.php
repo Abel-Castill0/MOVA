@@ -74,6 +74,12 @@ class CounterofferController extends Controller
                     'counteroffer_time' => 'Esta solicitud ya no está disponible para una contraoferta.',
                 ]);
             }
+            // Oportunidad real agotada (p. ej. la franja pedida ya terminó) aunque el barrido de vencimiento aún no pasara.
+            if ($locked->opportunityHasPassed()) {
+                throw ValidationException::withMessages([
+                    'counteroffer_time' => 'El plazo de esta solicitud ya terminó: no puede recibir nuevas propuestas.',
+                ]);
+            }
 
             // La elegibilidad se re-evalúa sobre datos frescos y la fila
             // bloqueada: si un admin suspendió o des-verificó al profesor

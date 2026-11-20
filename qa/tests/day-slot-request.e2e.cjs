@@ -86,6 +86,8 @@ async function login(page, email) {
   await parent.waitForLoadState('networkidle')
   const cards = await parent.locator('article').count()
   check(cards === 1, `doble clic → ${cards} solicitud en «Mis solicitudes»`)
+  const deadline = await parent.locator('[data-testid^="respond-by-"]').first().innerText()
+  check(/Recibe propuestas hasta el .*18:00|Recibe propuestas hasta el .*06:00 p/.test(deadline) && /quedan/.test(deadline) && !/24 horas/.test(deadline), `padre ve la fecha límite real: «${deadline}»`)
   await parent.screenshot({ path: `${OUT}/04_parent_requests_after_send.png`, fullPage: false })
 
   // ── PROFESOR (escritorio) ────────────────────────────────────────────
@@ -100,6 +102,8 @@ async function login(page, email) {
   await pref.waitFor()
   const prefText = await pref.innerText()
   check(/Fecha solicitada/i.test(prefText) && /Tarde/.test(prefText) && /Pendiente de confirmar/.test(prefText), 'profesor: fecha solicitada, preferencia «Tarde» y hora exacta pendiente')
+  const tDeadline = await teacher.locator('[data-testid="request-respond-by"]').innerText()
+  check(/quedan/.test(tDeadline), `profesor ve hasta cuándo puede proponer: «${tDeadline.replace(/\s+/g, ' ')}»`)
   check(await teacher.locator('[data-testid="accept-request"]').count() === 0, 'profesor: no hay «Aceptar» directo para una solicitud con día + franja')
   await teacher.screenshot({ path: `${OUT}/05_teacher_request_desktop.png` })
 
@@ -126,6 +130,8 @@ async function login(page, email) {
   await parent.waitForLoadState('networkidle')
   const dl = await parent.locator('dl').first().innerText()
   check(/16:00|04:00/.test(dl), `padre ve la propuesta: «${dl.replace(/\n/g, ' ')}»`)
+  const pBy = await parent.locator('[data-testid^="proposal-by-"]').first().innerText()
+  check(/Responde antes del/.test(pBy) && /no se agenda nada/.test(pBy), `padre ve hasta cuándo responder a la propuesta: «${pBy.slice(0, 70)}…»`)
   check(await parent.locator('[data-testid="outside-preference"]').count() === 0, 'propuesta dentro de la franja: sin casilla de aceptación expresa')
   await parent.screenshot({ path: `${OUT}/08_parent_sees_proposal.png`, fullPage: false })
   await parent.locator('button:has-text("Aceptar")').first().click()

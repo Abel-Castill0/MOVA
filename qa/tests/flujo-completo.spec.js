@@ -420,7 +420,8 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
 
     await test.step('3-4. Navegar a la página de créditos y verificar los cinco paquetes', async () => {
       await page.goto('/teacher/credits');
-      await expect(page.getByText('Mis créditos MOVA')).toBeVisible();
+      // El rediseño de créditos (557afc1) titula la página «Mis créditos» desde el layout (h1).
+      await expect(page.getByRole('heading', { level: 1, name: 'Mis créditos' })).toBeVisible();
 
       // Botón destacado de recarga en la propia página de créditos — siempre
       // visible, apunta a la sección de paquetes.

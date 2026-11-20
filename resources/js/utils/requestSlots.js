@@ -108,3 +108,21 @@ export function monthGrid(y, m) {
 }
 
 export { LIMA_TZ }
+
+/**
+ * «quedan 3 días» / «quedan 5 h» / «quedan 20 min» / «ya terminó». Relativo al instante dado (UTC); no depende de la zona.
+ * Se redondea hacia abajo para no prometer más tiempo del que queda.
+ */
+export function timeLeftLabel(deadlineIso, now = new Date()) {
+  const end = new Date(deadlineIso)
+  if (Number.isNaN(end.getTime())) return ''
+  const ms = end.getTime() - now.getTime()
+  if (ms <= 0) return 'ya terminó'
+  const min = Math.floor(ms / 60000)
+  // Espacio duro (U+00A0) entre número y unidad: «21 h» nunca se parte en dos líneas.
+  if (min < 60) return `quedan ${Math.max(min, 1)} min`
+  const h = Math.floor(min / 60)
+  if (h < 48) return `quedan ${h} h`
+
+  return `quedan ${Math.floor(h / 24)} días`
+}

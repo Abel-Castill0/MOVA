@@ -104,6 +104,7 @@
                   </span>
                   <span class="mt-2 line-clamp-2 block break-words text-sm text-ink">{{ requestGoal(r) }}</span>
                   <span v-if="r.preference_label" class="mt-1.5 block text-xs font-bold text-brand-700" :data-testid="`request-pref-${r.id}`">Pide: {{ r.preference_label }} · hora por confirmar</span>
+                  <span v-if="r.respond_by && statusTab === 'open'" class="mt-1 block text-xs text-ink-muted" :data-testid="`request-deadline-${r.id}`">Recibe propuestas hasta el {{ fmtLimaDateShort(r.respond_by) }} · {{ timeLeftLabel(r.respond_by, now) }}</span>
                   <span class="mt-2 block text-xs text-ink-muted">Creada el {{ fmtLimaDateShort(r.created_at) }}</span>
                 </button>
               </li>
@@ -237,7 +238,7 @@ import { useVisibleInertiaRefresh } from '@/Composables/useVisibleInertiaRefresh
 import { useRealtimeRefresh } from '@/Composables/useRealtimeRefresh'
 import { fmtLimaDateShort, limaLocalToIso, toLimaDatetimeLocal, LIMA_LABEL } from '@/utils/limaTime'
 import { requestGoal, studentFirstName } from '@/utils/requestText'
-import { describePreference, slotContains, slotRange } from '@/utils/requestSlots'
+import { describePreference, slotContains, slotRange, timeLeftLabel } from '@/utils/requestSlots'
 
 const props = defineProps({
   requests: { type: Array, default: () => [] },
@@ -248,6 +249,9 @@ const props = defineProps({
 })
 
 const statusTab = ref('open')
+// Reloj para «quedan X» (se limpia al desmontar, abajo).
+const now = ref(new Date())
+const nowTimer = setInterval(() => { now.value = new Date() }, 60000)
 const searchQuery = ref('')
 const sortBy = ref('recent')
 const selectedRequest = ref(null)
@@ -454,5 +458,8 @@ onMounted(() => {
   syncViewport()
   desktopQuery.addEventListener('change', syncViewport)
 })
-onUnmounted(() => desktopQuery?.removeEventListener('change', syncViewport))
+onUnmounted(() => {
+  desktopQuery?.removeEventListener('change', syncViewport)
+  clearInterval(nowTimer)
+})
 </script>

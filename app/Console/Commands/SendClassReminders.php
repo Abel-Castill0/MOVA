@@ -259,59 +259,69 @@ class SendClassReminders extends Command
     }
 
     /**
-     * F-10 — Dos bugs corregidos aquí:
+     * Recordatorios a profesores de solicitudes SIN propuesta (`open`), según su oportunidad real:
      *
-     *   1. El destinatario se resolvía SOLO desde classOffer. Las solicitudes
-     *      con código de referido y las abiertas (el flujo mayoritario) no
-     *      tenían oferta, así que no se notificaba a nadie. Ahora se usa
-     *      ClassRequest::eligibleTeacherUsers(), el mismo camino que
-     *      SendClassRequestNotifications, para que no puedan divergir.
+     *   1. «Sigue sin propuesta» (`request_reminder_sent_at`): pasadas `unanswered_after_hours` desde la publicación,
+     *      solo si el último aviso todavía no toca (una clase pedida para dentro de pocas horas no recibe dos avisos
+     *      seguidos: se queda con el último).
+     *   2. «Último aviso» (`final_reminder_sent_at`): cuando faltan `final_before_hours` para la franja pedida (o para el
+     *      vencimiento de un acompañamiento), solo si aún queda al menos `final_min_lead_minutes` y han pasado
+     *      `min_gap_hours` desde la publicación y desde el aviso anterior. Las solicitudes antiguas sin día no lo reciben.
      *
-     *   2. request_reminder_sent_at se escribía INCONDICIONALMENTE, incluso sin
-     *      destinatario. Como el barrido filtra por whereNull, esas solicitudes
-     *      quedaban excluidas para siempre y el aviso se perdía de forma
-     *      definitiva.
-     *
-     * F-04: claim + despacho comparten transacción, igual que los recordatorios
-     * de clase.
+     * Nunca se avisa si ya no hay oportunidad (fecha límite pasada) ni de solicitudes con propuesta pendiente, aprobación
+     * del padre pendiente o cerradas. Cada aviso se reclama con un UPDATE condicional en la misma transacción que el
+     * despacho (F-04): dos pasadas simultáneas no duplican. Sin destinatario elegible no se marca (F-10). El canal
+     * (correo/WhatsApp) y su consentimiento los decide la notificación, como siempre.
      */
     private function sendUnansweredRequestAlerts(): void
     {
+        $cfg = config('class_requests.reminders', []);
+        $after = (int) ($cfg['unanswered_after_hours'] ?? 12);
+        $finalBefore = (int) ($cfg['final_before_hours'] ?? 24);
+        $minLead = (int) ($cfg['final_min_lead_minutes'] ?? 60);
+        $gap = (int) ($cfg['min_gap_hours'] ?? 3);
+        $now = now();
+
         $requests = ClassRequest::where('status', 'open')
-            ->whereNull('request_reminder_sent_at')
-            ->where('created_at', '<=', now()->subHours(12))
-            ->with(['classOffer.teacherProfile.user', 'teacherProfile.user', 'subject'])
+            ->where(fn ($q) => $q->whereNull('request_reminder_sent_at')->orWhereNull('final_reminder_sent_at'))
+            ->where('created_at', '<=', $now->copy()->subHours(min($after, $gap)))
+            ->with(['classOffer.teacherProfile.user', 'teacherProfile.user', 'subject', 'student.parent'])
             ->get();
 
         $sent = 0;
         $skipped = 0;
 
         foreach ($requests as $classRequest) {
-            // unique() por id: si un profesor apareciera dos veces al resolver
-            // destinatarios, recibiría el mismo aviso repetido.
-            $recipients = $classRequest->eligibleTeacherUsers()->unique('id');
+            $kind = $this->reminderKind($classRequest, $now, $after, $finalBefore, $minLead, $gap);
+            if ($kind === null) {
+                continue;
+            }
+            $column = $kind === 'final' ? 'final_reminder_sent_at' : 'request_reminder_sent_at';
 
+            // unique() por id: si un profesor apareciera dos veces al resolver destinatarios, recibiría el aviso repetido.
+            $recipients = $classRequest->eligibleTeacherUsers()->unique('id');
             if ($recipients->isEmpty()) {
-                // Se deja SIN marcar a propósito: sin profesor verificado que
-                // pueda atenderla todavía, la solicitud debe seguir siendo
-                // candidata en la próxima pasada (un profesor puede verificarse
-                // más tarde). Marcarla aquí era el bug.
+                // Sin marcar a propósito: un profesor puede verificarse más tarde (F-10).
                 $skipped++;
 
                 continue;
             }
 
             try {
-                $sent += (int) DB::transaction(function () use ($classRequest, $recipients) {
+                $sent += (int) DB::transaction(function () use ($classRequest, $recipients, $column, $kind) {
                     $claimed = ClassRequest::whereKey($classRequest->id)
-                        ->whereNull('request_reminder_sent_at')
-                        ->update(['request_reminder_sent_at' => now()]) === 1;
+                        ->where('status', 'open')
+                        ->whereNull($column)
+                        ->update($kind === 'final' && $classRequest->request_reminder_sent_at === null
+                            // El último aviso sustituye al de «sigue sin propuesta» si este aún no salió: nunca dos seguidos.
+                            ? ['final_reminder_sent_at' => now(), 'request_reminder_sent_at' => now()]
+                            : [$column => now()]) === 1;
 
-                    if (!$claimed) {
+                    if (! $claimed) {
                         return false;
                     }
 
-                    $recipients->each(fn ($user) => $user->notify(new UnansweredRequestNotification($classRequest)));
+                    $recipients->each(fn ($user) => $user->notify(new UnansweredRequestNotification($classRequest, $kind)));
 
                     return true;
                 });
@@ -325,5 +335,38 @@ class SendClassReminders extends Command
         }
 
         $this->info("Unanswered request alerts: {$sent} enviada(s), {$skipped} sin destinatario (no marcadas).");
+    }
+
+    /** 'unanswered' | 'final' | null según la oportunidad real de la solicitud. */
+    private function reminderKind(ClassRequest $r, $now, int $after, int $finalBefore, int $minLead, int $gap): ?string
+    {
+        $deadline = $r->responseDeadline();
+        if ($deadline === null || $now->greaterThanOrEqualTo($deadline) || $r->student?->parent?->account_closed_at !== null) {
+            return null;
+        }
+        $basis = $r->deadlineBasis();
+        $policy = $r->deadlinePolicy();
+
+        // Momento del último aviso: 24 h antes de la franja (clase puntual) o del vencimiento (acompañamiento).
+        $finalAt = match ($policy) {
+            'slot' => $r->slotStart()?->copy()->subHours($finalBefore),
+            'mentorship' => $deadline->copy()->subHours($finalBefore),
+            default => null,
+        };
+
+        if ($finalAt !== null && $r->final_reminder_sent_at === null && $now->greaterThanOrEqualTo($finalAt)) {
+            $enoughLead = $now->copy()->addMinutes($minLead)->lessThanOrEqualTo($deadline);
+            $lastNotice = $r->request_reminder_sent_at && $r->request_reminder_sent_at->greaterThan($basis) ? $r->request_reminder_sent_at : $basis;
+            $spaced = $lastNotice->copy()->addHours($gap)->lessThanOrEqualTo($now);
+
+            return $enoughLead && $spaced ? 'final' : null;
+        }
+
+        if ($r->request_reminder_sent_at === null && $basis->copy()->addHours($after)->lessThanOrEqualTo($now)
+            && ($finalAt === null || $now->lessThan($finalAt))) {
+            return 'unanswered';
+        }
+
+        return null;
     }
 }

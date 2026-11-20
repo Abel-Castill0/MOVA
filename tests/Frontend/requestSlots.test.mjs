@@ -60,3 +60,12 @@ test('la cuadrícula del mes empieza en lunes', () => {
   assert.equal(g.at(-1).filter(Boolean).at(-1), '2026-11-30')
   assert.ok(g.every((w) => w.length === 7))
 })
+
+test('tiempo restante para recibir propuestas (redondeo hacia abajo, sin depender de la zona)', async () => {
+  const { timeLeftLabel } = await import('../../resources/js/utils/requestSlots.js')
+  const now = new Date('2026-11-16T15:00:00Z') // lunes 10:00 Lima
+  assert.equal(timeLeftLabel('2026-11-20T23:00:00Z', now), 'quedan 4\u00a0días') // viernes 18:00 Lima
+  assert.equal(timeLeftLabel('2026-11-17T20:00:00Z', now), 'quedan 29\u00a0h')
+  assert.equal(timeLeftLabel('2026-11-16T15:20:00Z', now), 'quedan 20\u00a0min')
+  assert.equal(timeLeftLabel('2026-11-16T15:00:00Z', now), 'ya terminó')
+})
