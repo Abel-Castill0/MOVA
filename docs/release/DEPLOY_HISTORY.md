@@ -4,6 +4,18 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-20 (2) — `fa19a6e` → producción — vencimiento de solicitudes por oportunidad real
+
+- **Política:** clase puntual (día + franja) abierta hasta que termina su franja (hora de Lima, `RequestSlots`); acompañamiento continuo 7 días desde su publicación o renovación (renovable por el padre); solicitudes antiguas sin día conservan sus 24 h. `pending_parent_approval` con día vence al terminar la franja; una propuesta pendiente vence en su propia hora: la solicitud vuelve a `open` si aún hay oportunidad o vence; una propuesta todavía aceptable nunca se retira; clases confirmadas y créditos intactos. Barrido cada 5 min (`mova:expire-class-requests`, bajo `lockForUpdate`).
+- **Recordatorios:** «sigue sin propuesta» a las 12 h y un único último aviso 24 h antes de la franja (o del vencimiento de un acompañamiento), espaciados ≥3 h y nunca sin oportunidad; re-evaluados al entregar. Nueva columna nula `final_reminder_sent_at`.
+- **Producción antes del cambio (solo lectura):** 0 solicitudes activas (15 vencidas + 1 de acompañamiento vencida, 2 aceptadas); dry-run del nuevo barrido en producción: 0 candidatas. Nada se reactivó ni eliminó.
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:f2642cfa1807769ce6e8e742860abad20248aa99afba87e08793aa9fbb3a44f0` (tag `manual-20261120-fa19a6e19358`). Respaldo previo `predeploy-fa19a6e-20261120`.
+- **Migración:** `2026_11_20_000001_add_final_reminder_sent_at_to_class_requests` (aditiva) desde el scheduler nuevo: DONE 78 ms.
+- **Azure:** scheduler `0000071` → `0000072`, web `0000070` → `0000071` (100 %, Healthy), worker `0000033` → `0000034` (detenido por diseño).
+- **Verificación:** `/healthz`, `/readyz` (base, migraciones, caché), `/login`, `/register` 200; producción sirve `app-CnD-uT_h.js` (el de la imagen); 0 errores en logs de web y scheduler; scheduler ejecutando `mova:expire-class-requests` (cada 5 min), recordatorios y heartbeat.
+- **Pruebas:** **CI de GitHub en verde en `fa19a6e`** (composer, frontend, sqlite, mysql, e2e). PHPUnit completo local 1999 (3 fallos de entorno conocidos de `QaAccountClosureRaceGuardTest`); `ClassRequestOpportunityExpiryTest` (20) también en MySQL 8.4; carreras multiproceso MySQL 15/15; E2E de CI 84 OK + el de créditos corregido; E2E aislado en Lima, UTC y Madrid.
+- **Rollback:** `sha256:cb8c1bd19d7d9aca668b2061b793be24e0f6c54ed7e00e6d65b6aaaff0829433` (`5c5fe4e`). La columna nueva es nula: no ejecutar `migrate:rollback`.
+
 ## 2026-11-20 — `5c5fe4e` → producción — solicitar clase por día + franja (mañana/tarde/noche)
 
 - **Cambio:** el paso 4 de «Solicitar una clase» pasa de franjas semanales a **día (calendario, hora de Lima) + franja**. Es una preferencia: el profesor propone la hora exacta y la familia la confirma antes de que exista la clase; una hora fuera de la franja pedida exige aceptación expresa del padre. Franjas centralizadas en `config/class_requests.php` (Mañana 06–12, Tarde 12–18, Noche 18–22, hora de Lima). Las solicitudes anteriores conservan `preferred_times` y siguen aceptándose directo.
