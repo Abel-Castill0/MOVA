@@ -4,6 +4,16 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-23 — `54246d6` → producción — páginas de la campaña QR /profe y /familias
+
+- **Cambio:** dos páginas públicas de una pantalla (logo, video 1:1 con póster y subtítulos, «Empieza ahora») para tarjetas y volantes con QR. «Empieza ahora» pasa por `/{profe|familias}/empezar` y lleva a la portada con UTM (`qr_tarjeta/offline/profesores`, `qr_volante/offline/padres`). Contadores diarios sin datos personales en `campaign_metrics` (visita, play, clic); `php artisan mova:campaign-stats`. Incluye `54246d6`: una solicitud de acompañamiento ya no valida un día pasado (fallo de CI en `5e01506`).
+- **Videos:** `public/media/campana/profe.mp4` 6,2 MB y `familias.mp4` 5,6 MB (720p H.264/AAC, faststart), servidos con 206 por Caddy en producción.
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:8078eb96eec73d36ee1dabeb41b79a1993ddf1c4ea64b1ff82c6db0fa0986a4a` (tag `manual-20261123-54246d6de3f6`). Respaldo previo `predeploy-5e01506-20261122`.
+- **Migración:** `2026_11_22_000001_create_campaign_metrics_table` (tabla nueva) desde el scheduler nuevo: DONE 138 ms.
+- **Azure:** scheduler `0000072` → `0000073`, web `0000071` → `0000072` (100 %, Healthy), worker `0000034` → `0000035` (detenido por diseño).
+- **Verificación:** CI de GitHub en verde en `54246d6`; `/healthz`, `/readyz`, `/profe`, `/familias` 200; redirecciones con UTM exactas; MP4 con 206; póster y `.vtt` 200; producción sirve `app-DolOrw1b.js` (el de la imagen); WebKit móvil 390×844: botón dentro de la primera pantalla (653 px), el video se reproduce, sin aviso de cookies encima, sin errores (agente marcado como headless: no sumó a las métricas).
+- **Rollback:** `sha256:f2642cfa1807769ce6e8e742860abad20248aa99afba87e08793aa9fbb3a44f0` (`fa19a6e`). La tabla nueva no afecta al código anterior; no ejecutar `migrate:rollback`.
+
 ## 2026-11-20 (2) — `fa19a6e` → producción — vencimiento de solicitudes por oportunidad real
 
 - **Política:** clase puntual (día + franja) abierta hasta que termina su franja (hora de Lima, `RequestSlots`); acompañamiento continuo 7 días desde su publicación o renovación (renovable por el padre); solicitudes antiguas sin día conservan sus 24 h. `pending_parent_approval` con día vence al terminar la franja; una propuesta pendiente vence en su propia hora: la solicitud vuelve a `open` si aún hay oportunidad o vence; una propuesta todavía aceptable nunca se retira; clases confirmadas y créditos intactos. Barrido cada 5 min (`mova:expire-class-requests`, bajo `lockForUpdate`).
