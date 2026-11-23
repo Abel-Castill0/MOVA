@@ -172,10 +172,11 @@ class ClassRequestController extends Controller
             'preferred_slot.in' => 'Elige mañana, tarde o noche.',
         ]);
 
-        $this->assertPreferredDay($data);
-        if ($data['is_mentorship'] ?? false) {
-            // El acompañamiento continuo no se ata a un día: no se guarda una preferencia que no aplica.
+        if ($request->boolean('is_mentorship')) {
+            // El acompañamiento continuo no se ata a un día: ni se valida ni se guarda una preferencia que no aplica.
             $data['preferred_date'] = $data['preferred_slot'] = null;
+        } else {
+            $this->assertPreferredDay($data);
         }
 
         // Ensure the student belongs to the authenticated parent
