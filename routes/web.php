@@ -86,6 +86,10 @@ Route::post('/libro-de-reclamaciones', [ComplaintController::class, 'store'])->m
 // ── Public pages ────────────────────────────────────────────────────────────
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 Route::get('/quienes-somos', [AboutController::class, 'index'])->name('about');
+// Campaña física con QR (tarjetas para profesores y volantes para padres): rutas cortas para un QR con pocos módulos.
+Route::get('/{campaign}', [\App\Http\Controllers\CampaignLandingController::class, 'show'])->where('campaign', 'profe|familias')->name('campaign.show');
+Route::get('/{campaign}/empezar', [\App\Http\Controllers\CampaignLandingController::class, 'start'])->where('campaign', 'profe|familias')->name('campaign.start');
+Route::post('/{campaign}/evento', [\App\Http\Controllers\CampaignLandingController::class, 'event'])->where('campaign', 'profe|familias')->middleware('throttle:30,1')->name('campaign.event');
 
 // Catálogo y compra PÚBLICOS (sin sesión): lo que MOVA vende, con precio visible y un botón de compra funcional. No cobra ni
 // crea recargas por sí mismo; el cobro es teacher.credits.checkout.store (profesor autenticado).

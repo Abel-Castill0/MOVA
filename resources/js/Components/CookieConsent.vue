@@ -10,7 +10,7 @@
          solape real sin depender de reservar espacio en páginas que ya
          caben sin scroll (donde el padding-bottom no reposiciona nada:
          solo añade espacio al final, no empuja el contenido existente). -->
-    <div v-if="visible" ref="bar"
+    <div v-if="visible && !deferred" ref="bar"
       class="fixed inset-x-0 bottom-0 z-[60] px-4 pb-4 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:left-auto sm:w-96 sm:px-0 sm:pb-0"
       role="dialog" aria-label="Aviso de cookies">
       <div class="mx-auto max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-black/10 p-5 sm:mx-0 sm:max-w-none">
@@ -30,8 +30,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 import { readLocalPreference, writeLocalPreference } from '../utils/safeLocalStorage.js'
 
 // C-P2-COOKIE-TRUTH: MOVA no tiene cookies opcionales (ni analítica ni
@@ -42,6 +42,11 @@ import { readLocalPreference, writeLocalPreference } from '../utils/safeLocalSto
 const STORAGE_KEY = 'mova_cookie_consent'
 
 const visible = ref(false)
+
+// Páginas de la campaña QR (/profe, /familias): una sola pantalla con video y botón; el aviso taparía «Empieza ahora».
+// Allí se pospone (no se marca como leído): aparece en la siguiente página, que es la portada a la que lleva el botón.
+const page = usePage()
+const deferred = computed(() => page.component === 'Landing/QrCampaign')
 const bar = ref(null)
 
 // El banner es `fixed bottom-0`: sin esto, tapa cualquier botón que viva
@@ -57,7 +62,7 @@ function reserveSpace() {
   })
 }
 
-watch(visible, (isVisible) => {
+watch(() => visible.value && !deferred.value, (isVisible) => {
   if (isVisible) reserveSpace()
   else document.body.style.paddingBottom = ''
 })
