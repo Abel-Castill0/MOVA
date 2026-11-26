@@ -28,7 +28,7 @@ class LocalTestDataSeeder extends Seeder
         abort_if($subjects->isEmpty(), 500, 'No hay materias sembradas.');
 
         $password = Hash::make('password123');
-        $mathSubject = $subjects->firstWhere('name', 'Matemáticas') ?? $subjects->first();
+        $mathSubject = $subjects->firstWhere('name', 'Matemática') ?? $subjects->first();
         $engSubject  = $subjects->firstWhere('name', 'Inglés') ?? $subjects->skip(1)->first() ?? $mathSubject;
 
         // ── Profesor principal ───────────────────────────────────────────

@@ -16,7 +16,9 @@ class WelcomeController extends Controller
     public function index()
     {
         return Inertia::render('Welcome', [
-            'subjects' => Subject::orderBy('name')->get(['id', 'name', 'level']),
+            // «Materias disponibles»: solo las que hoy enseña algún profesor verificado y activo
+            // (Subject::scopeAvailableForPublic). El resto del catálogo existe pero no se muestra.
+            'subjects' => Subject::availableForPublic()->orderBy('name')->get(['id', 'name', 'level', 'icon']),
 
             // Movi solo se monta si puede responder (ChatbotService::isAvailable).
             'chatbotEnabled' => ChatbotService::isAvailable(),

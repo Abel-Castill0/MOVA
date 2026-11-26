@@ -35,14 +35,14 @@ class MovaCriticalFlowTest extends TestCase
             'password' => 'password',
             'password_confirmation' => 'password',
             'role' => 'teacher',
-            'teacher_subject_names' => ['Neurocálculo Aplicado'],
+            'subject_ids' => [Subject::firstOrCreate(['name' => 'Cálculo'])->id],
             'accepted_terms' => true,
         ])->assertRedirect(route('teacher.setup'));
 
         $teacher = User::where('email', 'profesor-dinamico@example.test')->firstOrFail();
         $profile = $teacher->teacherProfile()->with('subjects')->firstOrFail();
 
-        $this->assertTrue($profile->subjects->contains('name', 'Neurocálculo Aplicado'));
+        $this->assertTrue($profile->subjects->contains('name', 'Cálculo'));
         $this->assertSame(20, $profile->maxAllowedRate());
 
         // El nivel 25 exige AMBOS umbrales: clases completadas y calificación

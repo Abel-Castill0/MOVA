@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\TeacherProfile;
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,7 +40,7 @@ class OptionalEmailVerificationTest extends TestCase
     private function registration(string $role, string $email): array
     {
         return ['name' => 'Persona Nueva', 'email' => $email, 'password' => 'Str0ng-Pass-2026!', 'password_confirmation' => 'Str0ng-Pass-2026!', 'role' => $role, 'accepted_terms' => true]
-            + ($role === 'teacher' ? ['teacher_subject_names' => ['Matemáticas']] : []);
+            + ($role === 'teacher' ? ['subject_ids' => [Subject::firstOrCreate(['name' => 'Matemática'])->id]] : []);
     }
 
     public function test_new_parent_registers_and_enters_without_verifying_email(): void

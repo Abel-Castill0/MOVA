@@ -44,7 +44,7 @@ class CounterofferTest extends TestCase
             Role::findOrCreate($role);
         }
 
-        $this->subject = Subject::firstOrCreateByName('Matemática');
+        $this->subject = Subject::firstOrCreate(['name' => 'Matemática']);
         Notification::fake();
     }
 
@@ -144,7 +144,7 @@ class CounterofferTest extends TestCase
 
     public function test_unrelated_teacher_cannot_counteroffer(): void
     {
-        $other = Subject::firstOrCreateByName('Química');
+        $other = Subject::firstOrCreate(['name' => 'Química']);
         [$teacher] = $this->teacher(true, 10, $other);
         [, $student] = $this->parentWithStudent();
         $request = $this->openRequest($student);

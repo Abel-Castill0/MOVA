@@ -118,7 +118,8 @@ class MoviKnowledgeBase
     private function subjectNames(): string
     {
         try {
-            $names = Subject::query()->orderBy('name')->pluck('name')->all();
+            // Solo materias que hoy se pueden pedir (con profesor verificado y activo), no todo el catálogo.
+            $names = Subject::query()->availableForPublic()->orderBy('name')->pluck('name')->all();
         } catch (\Throwable) {
             $names = [];
         }

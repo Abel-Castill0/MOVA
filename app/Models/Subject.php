@@ -3,15 +3,23 @@
 namespace App\Models;
 
 use App\Services\SubjectNormalizer;
+use App\Support\SubjectCatalog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\UniqueConstraintViolationException;
 
+/**
+ * Materia del catálogo maestro cerrado (App\Support\SubjectCatalog, sembrado por SubjectSeeder).
+ *
+ * Los profesores solo MARCAN materias existentes (subject_ids validados con exists); ya no hay forma de crear
+ * una materia escribiendo texto libre. Una materia es pública («Materias disponibles») solo mientras la tenga
+ * al menos un profesor verificado con la cuenta activa: scopeAvailableForPublic().
+ */
 class Subject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'normalized_name', 'level'];
+    protected $fillable = ['name', 'normalized_name', 'slug', 'level', 'category', 'icon'];
 
     protected static function booted(): void
     {
@@ -19,53 +27,48 @@ class Subject extends Model
             if ($subject->isDirty('name') || !$subject->normalized_name) {
                 $subject->normalized_name = SubjectNormalizer::normalize($subject->name);
             }
+            if (! $subject->slug) {
+                $subject->slug = SubjectCatalog::slugFor($subject->name);
+            }
+            // Una fila con el nombre de una materia del catálogo hereda su categoría e ícono (la vuelve elegible).
+            if (! $subject->category && ($entry = SubjectCatalog::find($subject->slug))) {
+                $subject->category = $entry['category'];
+                $subject->icon ??= $entry['icon'];
+            }
         });
     }
 
-    /**
-     * Busca por nombre normalizado (sin tildes, minúsculas, sin espacios de
-     * más); si no existe, crea con el texto original que escribió el profesor.
-     *
-     * @throws \InvalidArgumentException si el nombre contiene una palabra de
-     *         config('profanity.subject_name_blocklist') — este es el único
-     *         punto de entrada de materias por texto libre (registro y
-     *         edición de perfil), así que basta filtrar aquí una vez.
-     */
-    public static function firstOrCreateByName(string $rawName): self
+    /** Solo materias del catálogo maestro (con categoría): las únicas que un profesor puede elegir. */
+    public function scopeInCatalog(Builder $query): Builder
     {
-        $normalized = SubjectNormalizer::normalize($rawName);
-        static::assertNameIsAppropriate($normalized);
+        return $query->whereNotNull('subjects.category');
+    }
 
-        $existing = static::where('normalized_name', $normalized)->first();
-        if ($existing) {
-            return $existing;
-        }
+    /**
+     * Materias con al menos un profesor VERIFICADO cuya cuenta está activa (ni cerrada/eliminada ni suspendida).
+     * Es la ÚNICA regla de visibilidad pública: la usan la portada, el catálogo público y Movi. Se calcula en cada
+     * consulta (sin bandera ni caché que se puedan desincronizar), así que verificar, rechazar, suspender,
+     * reactivar o cerrar la cuenta de un profesor, o que cambie sus materias, se refleja en la siguiente visita.
+     */
+    public function scopeAvailableForPublic(Builder $query): Builder
+    {
+        return $query->whereHas('teachers', fn (Builder $teachers) => $teachers->publiclyActive());
+    }
 
-        // Variante de una materia que ya existe («Matemática» frente a «Matemáticas»): se reutiliza la del catálogo
-        // (la más antigua) en vez de crear otra fila que partiría en dos a profesores y solicitudes.
-        $key = SubjectNormalizer::matchKey($rawName);
-        $variant = static::orderBy('id')->get(['id', 'name', 'normalized_name', 'level'])
-            ->first(fn (self $s) => SubjectNormalizer::matchKey($s->name) === $key);
-        if ($variant) {
-            return $variant;
-        }
-
-        // N1 (docs/MOVA_AUDIT_PHASE0.md, sección Q): `firstOrCreate()` hace un
-        // SELECT y, si no encuentra nada, un INSERT — sin ninguna protección
-        // entre ambos pasos. Bajo dos requests concurrentes creando/editando
-        // con el MISMO nombre de materia nuevo (p. ej. dos profesores nuevos
-        // escribiendo "Cálculo III" al mismo tiempo), ambos pueden pasar el
-        // SELECT sin encontrar nada e intentar el INSERT — uno gana, el otro
-        // choca contra el UNIQUE de `normalized_name` con un 500 crudo, a
-        // diferencia de cada otro punto de unicidad del sistema
-        // (`idempotency_key`, `operation_number_normalized`,
-        // `phone_verified_normalized`), que sí captura la excepción y
-        // recupera la fila real en vez de fallar.
-        try {
-            return static::create(['name' => trim($rawName), 'level' => 'todos', 'normalized_name' => $normalized]);
-        } catch (UniqueConstraintViolationException) {
-            return static::where('normalized_name', $normalized)->firstOrFail();
-        }
+    /** Lista para el selector del profesor: todo el catálogo, agrupado por categoría y en orden alfabético. */
+    public static function forPicker(): \Illuminate\Support\Collection
+    {
+        return static::query()->inCatalog()->get(['id', 'name', 'level', 'category', 'icon'])
+            ->sortBy(fn (self $s) => sprintf('%02d %s', SubjectCatalog::categoryOrder($s->category), SubjectNormalizer::normalize($s->name)))
+            ->map(fn (self $s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'level' => $s->level,
+                'icon' => $s->icon,
+                'category' => $s->category,
+                'category_label' => SubjectCatalog::categoryLabel($s->category),
+            ])
+            ->values();
     }
 
     /**
@@ -90,30 +93,10 @@ class Subject extends Model
             ->merge($ids)->map(fn ($id) => (int) $id)->unique()->values();
     }
 
-    /** Materias (y sus equivalentes) con al menos un profesor VERIFICADO con la cuenta abierta. */
+    /** Materias (y sus equivalentes) con al menos un profesor verificado y activo (misma regla que la portada). */
     public static function idsWithVerifiedTeachers(): \Illuminate\Support\Collection
     {
-        $taught = \Illuminate\Support\Facades\DB::table('teacher_subject')
-            ->join('teacher_profiles', 'teacher_profiles.id', '=', 'teacher_subject.teacher_profile_id')
-            ->join('users', 'users.id', '=', 'teacher_profiles.user_id')
-            ->where('teacher_profiles.is_verified', true)
-            ->whereNull('users.account_closed_at')
-            ->distinct()
-            ->pluck('teacher_subject.subject_id');
-
-        return static::equivalentIds($taught);
-    }
-
-    private static function assertNameIsAppropriate(string $normalized): void
-    {
-        $words = preg_split('/\s+/', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $blocklist = config('profanity.subject_name_blocklist', []);
-
-        // Comparación por PALABRA COMPLETA, nunca substring — "Educación
-        // Sexual" no debe chocar con nada de esta lista.
-        if (array_intersect($words, $blocklist) !== []) {
-            throw new \InvalidArgumentException('El nombre de la materia no es válido.');
-        }
+        return static::equivalentIds(static::query()->availableForPublic()->pluck('id'));
     }
 
     public function teachers()

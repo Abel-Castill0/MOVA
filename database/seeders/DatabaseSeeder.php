@@ -28,11 +28,11 @@ class DatabaseSeeder extends Seeder
 
         // ── Teachers ──────────────────────────────────────────────
         $teacherData = [
-            ['name' => 'Carlos Fernández',  'email' => 'carlos@mova.test',  'bio' => 'Matemáticas e ingeniería con 8 años de experiencia.',  'rate' => 25, 'subjs' => ['Matemáticas', 'Física']],
+            ['name' => 'Carlos Fernández',  'email' => 'carlos@mova.test',  'bio' => 'Matemáticas e ingeniería con 8 años de experiencia.',  'rate' => 25, 'subjs' => ['Matemática', 'Física']],
             ['name' => 'Laura García',      'email' => 'laura@mova.test',   'bio' => 'Profesora nativa de inglés. CAE certificada.',          'rate' => 30, 'subjs' => ['Inglés']],
             ['name' => 'Miguel Torres',     'email' => 'miguel@mova.test',  'bio' => 'Biología y química para selectividad.',                 'rate' => 22, 'subjs' => ['Biología', 'Química']],
             ['name' => 'Sofía Romero',      'email' => 'sofia@mova.test',   'bio' => 'Filología hispánica. Literatura y redacción.',         'rate' => 20, 'subjs' => ['Lengua y Literatura', 'Historia']],
-            ['name' => 'Alejandro Vega',    'email' => 'alejandro@mova.test','bio' => 'Informática y programación. Full-stack developer.',    'rate' => 35, 'subjs' => ['Informática', 'Matemáticas']],
+            ['name' => 'Alejandro Vega',    'email' => 'alejandro@mova.test','bio' => 'Informática y programación. Full-stack developer.',    'rate' => 35, 'subjs' => ['Computación e Informática', 'Matemática']],
             ['name' => 'Marta Blanco',      'email' => 'marta@mova.test',   'bio' => 'Francés nativo. DELF B2.',                             'rate' => 28, 'subjs' => ['Francés']],
         ];
 
@@ -128,7 +128,7 @@ class DatabaseSeeder extends Seeder
         if ($parents && $subjects->count()) {
             $studentA = $parents[0]['students'][0];
             $studentB = $parents[1]['students'][0];
-            $mathSubject = $subjects->firstWhere('name', 'Matemáticas');
+            $mathSubject = $subjects->firstWhere('name', 'Matemática');
             $engSubject  = $subjects->firstWhere('name', 'Inglés');
 
             if ($mathSubject) {

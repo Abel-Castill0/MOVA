@@ -59,7 +59,7 @@ return [
 
     // Clases particulares por materia (clave = nombre normalizado de Subject). Las paga el padre DIRECTAMENTE al profesor.
     'subjects' => [
-        'matematicas' => [
+        'matematica' => [
             'image' => '/images/catalog/matematicas.svg',
             'alt' => 'Ilustración de una pizarra con operaciones matemáticas y una regla',
             'description' => 'Refuerzo y acompañamiento en aritmética, álgebra y geometría, con ejercicios guiados paso a paso.',

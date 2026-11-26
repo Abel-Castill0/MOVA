@@ -59,7 +59,7 @@ class LessonReportAccessTest extends TestCase
             'grade_level' => 'secundaria',
         ]);
 
-        $subject = Subject::firstOrCreateByName('Matemática');
+        $subject = Subject::firstOrCreate(['name' => 'Matemática']);
         $request = ClassRequest::create([
             'student_id' => $student->id,
             'subject_id' => $subject->id,

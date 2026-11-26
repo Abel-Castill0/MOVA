@@ -239,65 +239,18 @@
               <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Materias</h2>
             </div>
             <p class="text-[11px] text-slate-500 ml-6">
-              Selecciona las materias que enseñas. Puedes agregar nuevas materias si no están en la lista.
+              Elige del catálogo de MOVA las materias que enseñas.
             </p>
           </div>
 
-          <div class="mt-3">
-            <!-- Chips de materias con botón de remoción / alternar ✕ -->
-            <div class="flex flex-wrap items-center gap-2 mb-3">
-              <!-- Materias existentes en la base de datos -->
-              <button
-                v-for="s in subjects"
-                :key="s.id"
-                type="button"
-                @click="toggleSubject(s.id)"
-                :class="[
-                  'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all select-none',
-                  form.subject_ids.includes(s.id)
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200/80 shadow-2xs hover:bg-blue-200/70'
-                    : 'bg-slate-50/70 text-slate-700 border border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
-                ]"
-              >
-                <span>{{ s.name }}</span>
-                <span class="text-[10px] opacity-60 hover:opacity-100">✕</span>
-              </button>
-
-              <!-- Materias personalizadas añadidas por el usuario -->
-              <button
-                v-for="name in form.subject_names"
-                :key="name"
-                type="button"
-                @click="removeSubjectName(name)"
-                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200/80 shadow-2xs hover:bg-blue-200/70 select-none"
-              >
-                <span>{{ name }}</span>
-                <span class="text-[10px] opacity-60 hover:opacity-100">✕</span>
-              </button>
-            </div>
-
-            <!-- Input para añadir nueva materia -->
-            <div class="flex items-center gap-2.5">
-              <input
-                v-model="subjectDraft"
-                aria-label="Nueva materia"
-                type="text"
-                list="subject-suggestions"
-                placeholder="Escribe una materia nueva..."
-                class="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition placeholder:text-slate-400"
-                @keydown.enter.prevent="addSubjectName"
-              />
-              <datalist id="subject-suggestions">
-                <option v-for="s in subjects" :key="s.id" :value="s.name" />
-              </datalist>
-              <button
-                type="button"
-                @click="addSubjectName"
-                class="px-4 py-2 bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs sm:text-sm font-semibold rounded-2xl transition shadow-2xs active:scale-95"
-              >
-                Agregar
-              </button>
-            </div>
+          <div class="mt-3 space-y-2">
+            <p v-if="!profile?.is_verified" class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="note">
+              Tus materias se publicarán automáticamente en MOVA cuando verifiquemos tu perfil.
+            </p>
+            <SubjectPicker v-model="form.subject_ids" :subjects="subjects" input-id="edit-subject-search" />
+            <p v-if="form.errors.subject_ids || form.errors['subject_ids.0']" class="text-xs text-red-600">
+              {{ form.errors.subject_ids || form.errors['subject_ids.0'] }}
+            </p>
           </div>
         </div>
 
@@ -329,6 +282,7 @@ import { computed, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import TeacherAvailabilityEditor from '@/Components/TeacherAvailabilityEditor.vue'
+import SubjectPicker from '@/Components/SubjectPicker.vue'
 
 const props = defineProps({
   profile: Object,
@@ -345,7 +299,6 @@ const form = useForm({
   plin_number: props.profile?.plin_number ?? '',
   mentorship_slots_total: props.profile?.mentorship_slots_total ?? 0,
   subject_ids: props.profile?.subjects?.map(s => s.id) ?? [],
-  subject_names: [],
 })
 
 // Avatar upload form
@@ -405,37 +358,6 @@ async function copyReferralCode() {
   }
   copied.value = true
   setTimeout(() => { copied.value = false }, 2000)
-}
-
-// Materias: Alternar selección
-function toggleSubject(id) {
-  if (form.subject_ids.includes(id)) {
-    form.subject_ids = form.subject_ids.filter(item => item !== id)
-  } else {
-    form.subject_ids.push(id)
-  }
-}
-
-// Materias: Agregar nueva
-const subjectDraft = ref('')
-
-function addSubjectName() {
-  const value = subjectDraft.value.trim()
-  if (!value) return
-
-  const existing = props.subjects?.find(s => s.name.toLowerCase() === value.toLowerCase())
-  if (existing) {
-    if (!form.subject_ids.includes(existing.id)) {
-      form.subject_ids.push(existing.id)
-    }
-  } else if (!form.subject_names.some(n => n.toLowerCase() === value.toLowerCase())) {
-    form.subject_names.push(value)
-  }
-  subjectDraft.value = ''
-}
-
-function removeSubjectName(name) {
-  form.subject_names = form.subject_names.filter(n => n !== name)
 }
 
 function submit() {

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\Subject;
 use App\Models\WhatsAppMessage;
 use App\Notifications\WhatsAppTestNotification;
 use App\WhatsApp\Waha\WahaSessionState;
@@ -103,7 +104,7 @@ class WhatsAppOnboardingTest extends TestCase
 
     public function test_teacher_registration_with_consent_returns_to_the_teacher_setup_after_verifying(): void
     {
-        $this->register(['role' => 'teacher', 'whatsapp_consent' => true, 'teacher_subject_names' => ['Matemáticas']]);
+        $this->register(['role' => 'teacher', 'whatsapp_consent' => true, 'subject_ids' => [Subject::firstOrCreate(['name' => 'Matemática'])->id]]);
 
         $this->assertSame(route('teacher.setup'), session('url.intended'));
     }

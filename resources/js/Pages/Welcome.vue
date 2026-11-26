@@ -381,18 +381,26 @@
           </p>
         </div>
 
-        <div class="reveal-item grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <!-- Solo materias que hoy enseña al menos un profesor verificado (WelcomeController / Subject::availableForPublic). -->
+        <div v-if="subjects.length" class="reveal-item grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <Link v-for="s in subjects" :key="s.id"
             :href="`/class-requests/create?subject_id=${s.id}`"
             class="group bg-white rounded-2xl p-4 flex items-center gap-4 border border-white shadow-sm hover:shadow-lg hover:shadow-brand-900/10 hover:border-brand-200 transition-all duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-300/60">
-            <span :class="['w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0', subjectIcon(s.name).bg]">
-              <component :is="subjectIcon(s.name).icon" class="w-6 h-6" :stroke-width="1.8" aria-hidden="true" />
+            <span :class="['w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0', subjectIcon(s.name, s.icon).bg]">
+              <component :is="subjectIcon(s.name, s.icon).icon" class="w-6 h-6" :stroke-width="1.8" aria-hidden="true" />
             </span>
             <span class="min-w-0 flex-1">
               <span class="block text-base font-bold text-slate-900 group-hover:text-brand-700 transition-colors">{{ s.name }}</span>
               <span :class="['mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full capitalize', levelBadge(s.level)]">{{ s.level }}</span>
             </span>
             <ChevronRight class="w-5 h-5 text-slate-500 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all flex-shrink-0" aria-hidden="true" />
+          </Link>
+        </div>
+        <div v-else class="reveal-item mx-auto max-w-xl rounded-2xl bg-white p-6 text-center shadow-sm">
+          <p class="font-bold text-slate-900">Estamos verificando a nuestros primeros profesores.</p>
+          <p class="mt-1 text-sm text-slate-600">Cada materia aparecerá aquí en cuanto un profesor verificado la enseñe.</p>
+          <Link :href="route('class-requests.create')" class="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-300/60">
+            Solicitar una clase <ChevronRight class="w-4 h-4" aria-hidden="true" />
           </Link>
         </div>
       </div>

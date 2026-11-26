@@ -161,6 +161,16 @@ class TeacherProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Profesor que el público puede ver: verificado por el admin y con la cuenta activa (no cerrada ni eliminada,
+     * no suspendida). Define qué materias son públicas (Subject::scopeAvailableForPublic).
+     */
+    public function scopePubliclyActive(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('teacher_profiles.is_verified', true)
+            ->whereHas('user', fn ($user) => $user->whereNull('users.account_closed_at')->whereNull('users.suspended_at'));
+    }
+
     /** Materias por las que este profesor recibe solicitudes: las suyas y sus equivalentes (Subject::equivalentIds). */
     public function matchableSubjectIds(): \Illuminate\Support\Collection
     {

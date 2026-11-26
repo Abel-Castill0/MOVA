@@ -59,7 +59,9 @@ class PublicCatalogTest extends TestCase
 
     public function test_every_image_referenced_by_the_catalog_exists_in_public(): void
     {
-        $subject = Subject::create(['name' => 'Matemáticas', 'level' => 'todos']);
+        $subject = Subject::create(['name' => 'Matemática', 'level' => 'todos']);
+        // Solo se publican materias con un profesor verificado y activo (Subject::scopeAvailableForPublic).
+        TeacherProfile::create(['user_id' => User::factory()->create()->id, 'is_verified' => true])->subjects()->attach($subject->id);
         $response = $this->get(route('catalog.index'))->assertOk();
         $props = $response->viewData('page')['props'];
 
@@ -83,7 +85,7 @@ class PublicCatalogTest extends TestCase
         $subjects = collect($this->get(route('catalog.index'))->viewData('page')['props']['subjects'])->keyBy('name');
 
         $this->assertSame(1, $subjects['Matemáticas']['verified_teachers']);
-        $this->assertSame(0, $subjects['Inglés']['verified_teachers'], 'Un profesor sin verificar no cuenta como disponibilidad.');
+        $this->assertFalse($subjects->has('Inglés'), 'Un profesor sin verificar no publica la materia.');
         $this->assertSame((int) config('credits.class_rates.base'), $subjects['Matemáticas']['rate_cap']);
     }
 

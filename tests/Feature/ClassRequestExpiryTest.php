@@ -37,7 +37,7 @@ class ClassRequestExpiryTest extends TestCase
             Role::findOrCreate($role);
         }
 
-        $this->subject = Subject::firstOrCreateByName('Matemática');
+        $this->subject = Subject::firstOrCreate(['name' => 'Matemática']);
     }
 
     /**

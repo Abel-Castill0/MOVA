@@ -128,9 +128,14 @@ class MoviLocalAssistantTest extends TestCase
 
     public function test_subjects_come_from_the_database(): void
     {
-        Subject::create(['name' => 'Ajedrez', 'level' => 'todos']);
+        $chess = Subject::create(['name' => 'Ajedrez', 'level' => 'todos']);
+        $hidden = Subject::create(['name' => 'Quechua', 'level' => 'todos']);
+        // Movi solo nombra materias que hoy se pueden pedir: con un profesor verificado y activo.
+        \App\Models\TeacherProfile::create(['user_id' => User::factory()->create()->id, 'is_verified' => true])->subjects()->attach($chess->id);
 
-        $this->assertStringContainsString('Ajedrez', $this->ask('¿Qué materias tienen?'));
+        $reply = $this->ask('¿Qué materias tienen?');
+        $this->assertStringContainsString('Ajedrez', $reply);
+        $this->assertStringNotContainsString($hidden->name, $reply);
     }
 
     /** @return array<string, array{0:string,1:string}> */

@@ -5,16 +5,18 @@ import Icon from '@/Components/Icon.vue'
 import InputError from '@/Components/InputError.vue'
 import MovaLogo from '@/Components/MovaLogo.vue'
 import RegisterVisualPanel from '@/Components/RegisterVisualPanel.vue'
+import SubjectPicker from '@/Components/SubjectPicker.vue'
 
 const props = defineProps({
   lockedRole: { type: String, default: null },
   googleLoginEnabled: { type: Boolean, default: false },
+  // Catálogo cerrado de materias (Subject::forPicker): el profesor elige, no escribe.
+  subjects: { type: Array, default: () => [] },
 })
 
 const year = new Date().getFullYear()
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const subjectDraft = ref('')
 
 const roleLocked = computed(() => props.lockedRole === 'parent' || props.lockedRole === 'teacher')
 
@@ -25,7 +27,7 @@ const form = useForm({
   password: '',
   password_confirmation: '',
   role: props.lockedRole ?? 'parent',
-  teacher_subject_names: [],
+  subject_ids: [],
   accepted_terms: false,
   whatsapp_consent: false,
 })
@@ -57,7 +59,7 @@ const isCurrentStepValid = computed(() => {
   if (step.value === 2) return form.name.trim().length > 0
   if (step.value === 3) return /^\S+@\S+\.\S+$/.test(form.email.trim())
   if (step.value === 4 && form.role === 'teacher') {
-    return form.teacher_subject_names.length > 0 || subjectDraft.value.trim().length > 0
+    return form.subject_ids.length > 0
   }
   if (step.value === passwordStep.value) {
     return form.password.length >= 8 && form.password === form.password_confirmation
@@ -66,21 +68,7 @@ const isCurrentStepValid = computed(() => {
   return true
 })
 
-function addSubject() {
-  const value = subjectDraft.value.trim()
-  if (!value) return
-  if (!form.teacher_subject_names.some((s) => s.toLowerCase() === value.toLowerCase())) {
-    form.teacher_subject_names.push(value)
-  }
-  subjectDraft.value = ''
-}
-
-function removeSubject(subject) {
-  form.teacher_subject_names = form.teacher_subject_names.filter((s) => s !== subject)
-}
-
 function next() {
-  if (step.value === 4 && form.role === 'teacher') addSubject()
   if (step.value < totalSteps.value) step.value += 1
 }
 
@@ -92,7 +80,7 @@ function stepForField(field) {
   if (field === 'role') return 1
   if (field === 'name') return 2
   if (field === 'email' || field === 'phone') return 3
-  if (field === 'teacher_subject_names' || field.startsWith('teacher_subject_names.')) return 4
+  if (field === 'subject_ids' || field.startsWith('subject_ids.')) return 4
   if (field === 'password' || field === 'password_confirmation') return passwordStep.value
   if (field === 'accepted_terms') return totalSteps.value
   return step.value
@@ -405,34 +393,11 @@ function submit() {
             <div v-else-if="step === 4 && form.role === 'teacher'" class="space-y-4 pt-5">
               <div>
                 <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">¿Qué materias te apasiona enseñar?</h3>
-                <p class="text-xs sm:text-sm text-slate-500 mt-1">Escribe materias o cursos especializados. Si no existen, MOVA los creará.</p>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1">Marca las materias que enseñas. Se publicarán automáticamente cuando verifiquemos tu perfil.</p>
               </div>
 
-              <div class="flex gap-2">
-                <input
-                  v-model="subjectDraft"
-                  type="text"
-                  placeholder="Ej: Robótica, Álgebra, Python"
-                  class="flex-1 h-[46px] px-3.5 rounded-xl border border-slate-200 text-slate-900 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
-                  @keydown.enter.prevent="addSubject"
-                />
-                <button type="button" @click="addSubject" class="px-4 h-[46px] rounded-xl bg-[#1B60C4] text-white text-sm font-bold hover:bg-[#154FA6] transition-colors">
-                  Agregar
-                </button>
-              </div>
-
-              <div class="flex flex-wrap gap-2 pt-1">
-                <button
-                  v-for="subject in form.teacher_subject_names"
-                  :key="subject"
-                  type="button"
-                  class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-blue-100 transition-colors"
-                  @click="removeSubject(subject)"
-                >
-                  {{ subject }} ×
-                </button>
-              </div>
-              <InputError :message="form.errors.teacher_subject_names || form.errors['teacher_subject_names.0']" />
+              <SubjectPicker v-model="form.subject_ids" :subjects="subjects" input-id="register-subject-search" />
+              <InputError :message="form.errors.subject_ids || form.errors['subject_ids.0']" />
 
               <div class="pt-4 flex gap-3">
                 <button type="button" @click="back" class="flex-1 h-[46px] rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">

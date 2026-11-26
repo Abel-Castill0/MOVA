@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\LegalAcceptance;
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,7 +47,7 @@ class SynchronousMailFailureRecoveryTest extends TestCase
             'accepted_terms' => true,
             'password' => 'password',
             'password_confirmation' => 'password',
-        ] + ($role === 'teacher' ? ['teacher_subject_names' => ['Matemática']] : []);
+        ] + ($role === 'teacher' ? ['subject_ids' => [Subject::firstOrCreate(['name' => 'Matemática'])->id]] : []);
     }
 
     private function assertNoLeak(): void

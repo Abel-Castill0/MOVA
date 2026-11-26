@@ -39,7 +39,7 @@ class StudentScheduleOverlapTest extends TestCase
             Role::findOrCreate($role);
         }
 
-        $this->subject = Subject::firstOrCreateByName('Matemática');
+        $this->subject = Subject::firstOrCreate(['name' => 'Matemática']);
     }
 
     private function teacher(int $credits = 10): array

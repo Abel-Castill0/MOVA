@@ -36,7 +36,7 @@ class ClassRequestOpportunityExpiryTest extends TestCase
         foreach (['admin', 'teacher', 'parent'] as $role) {
             Role::findOrCreate($role);
         }
-        $this->subject = Subject::firstOrCreateByName('Matemática');
+        $this->subject = Subject::firstOrCreate(['name' => 'Matemática']);
         Notification::fake();
     }
 

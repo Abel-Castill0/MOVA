@@ -177,19 +177,6 @@ class ClassRequestSubjectEligibilityTest extends TestCase
         $this->assertDatabaseHas('class_requests', ['id' => $request->id, 'status' => 'expired']);
     }
 
-    public function test_a_teacher_typing_a_variant_reuses_the_catalogue_subject_instead_of_creating_a_near_duplicate(): void
-    {
-        $catalogue = Subject::create(['name' => 'Matemáticas', 'level' => 'todos']);
-
-        $this->assertSame($catalogue->id, Subject::firstOrCreateByName('Matemática')->id);
-        $this->assertSame($catalogue->id, Subject::firstOrCreateByName('  MATEMATICAS ')->id);
-        $this->assertSame(1, Subject::count());
-
-        $new = Subject::firstOrCreateByName('Matemática financiera');
-        $this->assertNotSame($catalogue->id, $new->id);
-        $this->assertSame([$new->id], Subject::equivalentIds([$new->id])->all());
-    }
-
     private function parentWithStudent(bool $parentalControl = false): array
     {
         $parent = User::factory()->create(['parental_control' => $parentalControl]);

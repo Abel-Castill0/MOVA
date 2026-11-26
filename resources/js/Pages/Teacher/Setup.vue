@@ -15,35 +15,10 @@
           </p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Asignaturas que impartes</label>
-          <div v-if="subjects.length" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-            <label v-for="s in subjects" :key="s.id"
-              :class="['flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm',
-                form.subject_ids.includes(s.id) ? 'bg-brand-50 border-brand-400 text-brand-700' : 'bg-white border-gray-200 text-gray-700']">
-              <input type="checkbox" :value="s.id" v-model="form.subject_ids" class="sr-only" />
-              {{ s.name }}
-            </label>
-          </div>
-          <div class="flex gap-2">
-            <input v-model="subjectDraft" type="text" list="subject-suggestions" placeholder="Escribe una materia nueva y presiona Enter"
-              class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              @keydown.enter.prevent="addSubjectName" />
-            <datalist id="subject-suggestions">
-              <option v-for="s in subjects" :key="s.id" :value="s.name" />
-            </datalist>
-            <button type="button" @click="addSubjectName"
-              class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-              Agregar
-            </button>
-          </div>
-          <div v-if="form.subject_names.length" class="flex flex-wrap gap-2 mt-2">
-            <button v-for="name in form.subject_names" :key="name" type="button" @click="removeSubjectName(name)"
-              class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition-colors">
-              {{ name }} ×
-            </button>
-          </div>
-          <p class="text-xs text-gray-500 mt-1">Si no existe, MOVA la creará.</p>
-          <p v-if="form.errors.subject_ids" class="text-xs text-red-600 mt-1">{{ form.errors.subject_ids }}</p>
+          <p class="block text-sm font-medium text-gray-700 mb-1">Asignaturas que impartes</p>
+          <p class="text-xs text-gray-500 mb-3">Elige del catálogo de MOVA. Se publicarán automáticamente cuando verifiquemos tu perfil.</p>
+          <SubjectPicker v-model="form.subject_ids" :subjects="subjects" input-id="setup-subject-search" />
+          <p v-if="form.errors.subject_ids || form.errors['subject_ids.0']" class="text-xs text-red-600 mt-1">{{ form.errors.subject_ids || form.errors['subject_ids.0'] }}</p>
         </div>
         <button type="submit" :disabled="form.processing"
           class="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors">
@@ -55,37 +30,22 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import SubjectPicker from '@/Components/SubjectPicker.vue'
 
-const props = defineProps({ subjects: Array, profile: Object })
+const props = defineProps({
+  subjects: Array,
+  profile: Object,
+  // Materias que ya eligió al registrarse: se conservan marcadas.
+  selectedSubjectIds: { type: Array, default: () => [] },
+})
 
 const form = useForm({
   bio: '',
   mentorship_slots_total: props.profile?.mentorship_slots_total ?? 0,
-  subject_ids: [],
-  subject_names: [],
+  subject_ids: [...props.selectedSubjectIds],
 })
-
-const subjectDraft = ref('')
-
-function addSubjectName() {
-  const value = subjectDraft.value.trim()
-  if (!value) return
-
-  const existing = props.subjects?.find(s => s.name.toLowerCase() === value.toLowerCase())
-  if (existing) {
-    if (!form.subject_ids.includes(existing.id)) form.subject_ids.push(existing.id)
-  } else if (!form.subject_names.some(n => n.toLowerCase() === value.toLowerCase())) {
-    form.subject_names.push(value)
-  }
-  subjectDraft.value = ''
-}
-
-function removeSubjectName(name) {
-  form.subject_names = form.subject_names.filter(n => n !== name)
-}
 
 function submit() {
   form.post(route('teacher.setup.store'))

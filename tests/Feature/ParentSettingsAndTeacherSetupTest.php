@@ -92,7 +92,7 @@ class ParentSettingsAndTeacherSetupTest extends TestCase
     {
         $teacher = $this->userWithRole('teacher');
         TeacherProfile::create(['user_id' => $teacher->id, 'is_verified' => false]);
-        $math = Subject::create(['name' => 'Matemática Setup', 'level' => 'todos']);
+        $math = Subject::create(['name' => 'Geometría', 'level' => 'todos']);
 
         $this->actingAs($teacher)->post(route('teacher.setup.store'), [
             'bio' => 'Docente con experiencia.',
@@ -112,9 +112,12 @@ class ParentSettingsAndTeacherSetupTest extends TestCase
         $teacher = $this->userWithRole('teacher');
         TeacherProfile::create(['user_id' => $teacher->id, 'is_verified' => false]);
 
+        // Sin materias: error de validación ANTES de escribir nada (antes era un 422 tras guardar la bio).
         $this->actingAs($teacher)->post(route('teacher.setup.store'), [
+            'bio' => 'No debe guardarse.',
             'mentorship_slots_total' => 5,
-        ])->assertStatus(422);
+        ])->assertSessionHasErrors(['subject_ids']);
+        $this->assertNull($teacher->teacherProfile()->first()->bio);
 
         $this->actingAs($teacher)->post(route('teacher.setup.store'), [
             'mentorship_slots_total' => 500,

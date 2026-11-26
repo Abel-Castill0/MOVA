@@ -43,9 +43,11 @@ final class Catalog
         $generic = (array) config('catalog.generic_subject', []);
         $rates = self::classRates();
 
+        // Solo materias con al menos un profesor verificado y activo; el contador usa la misma regla.
         return Subject::query()
+            ->availableForPublic()
             ->orderBy('name')
-            ->withCount(['teachers as verified_teachers_count' => fn ($q) => $q->where('teacher_profiles.is_verified', true)])
+            ->withCount(['teachers as verified_teachers_count' => fn ($q) => $q->publiclyActive()])
             ->get(['id', 'name', 'normalized_name', 'level'])
             ->map(function (Subject $subject) use ($presentation, $generic, $rates) {
                 $p = (array) ($presentation[$subject->normalized_name] ?? $generic);

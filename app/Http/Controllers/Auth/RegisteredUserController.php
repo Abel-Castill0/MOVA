@@ -9,8 +9,7 @@ use App\Models\Subject;
 use App\Models\TeacherProfile;
 use App\Models\User;
 use App\Rules\NormalizablePhone;
-use App\Rules\NotProfane;
-use App\Services\SubjectNormalizer;
+use App\Http\Controllers\TeacherProfileController;
 use App\Notifications\WelcomeParentNotification;
 use App\Notifications\WelcomeTeacherNotification;
 use Illuminate\Auth\Events\Registered;
@@ -38,6 +37,8 @@ class RegisteredUserController extends Controller
         return Inertia::render('Auth/Register', [
             'lockedRole' => $lockedRole,
             'googleLoginEnabled' => GoogleAuthController::isAvailable(),
+            // Catálogo cerrado de materias para el paso del profesor (se eligen, no se escriben).
+            'subjects' => Subject::forPicker(),
         ]);
     }
 
@@ -63,11 +64,14 @@ class RegisteredUserController extends Controller
             'accepted_terms' => 'accepted',
             // Avisos por WhatsApp: casilla propia, sin marcar por defecto y solo con teléfono (ver WhatsAppConsent::TEXT).
             'whatsapp_consent' => 'sometimes|boolean',
-            'teacher_subject_names' => 'required_if:role,teacher|array',
-            'teacher_subject_names.*' => ['nullable', 'string', 'max:100', new NotProfane],
+            // Profesor: materias del catálogo cerrado, solo por id (ver TeacherProfileController::subjectRules).
+            // Para un padre el campo se descarta.
+            'subject_ids' => ['exclude_unless:role,teacher', 'required', 'array', 'min:1', 'max:'.TeacherProfileController::MAX_SUBJECTS],
+            'subject_ids.*' => ['exclude_unless:role,teacher', 'integer', 'distinct', TeacherProfileController::catalogSubjectExists()],
+            'teacher_subject_names' => ['prohibited'],
         ], [
             'accepted_terms.accepted' => 'Debes aceptar los Términos y Condiciones y la Política de Privacidad para continuar.',
-            'teacher_subject_names.required_if' => 'Agrega al menos una materia o curso especializado.',
+            ...TeacherProfileController::SUBJECT_MESSAGES,
         ]);
 
         // Envuelto en transacción: encontrado al corregir el abort_if() de
@@ -99,20 +103,11 @@ class RegisteredUserController extends Controller
             if ($request->role === 'teacher') {
                 $profile = TeacherProfile::create(['user_id' => $user->id, 'hourly_rate' => 20]);
 
-                $subjectIds = collect($request->input('teacher_subject_names', []))
-                    ->map(fn($name) => trim((string) $name))
-                    ->filter()
-                    ->unique(fn($name) => SubjectNormalizer::normalize($name))
-                    ->map(fn($name) => Subject::firstOrCreateByName($name)->id);
-
-                if ($subjectIds->isEmpty()) {
-                    throw ValidationException::withMessages([
-                        'teacher_subject_names' => 'Agrega al menos una materia o curso especializado.',
-                    ]);
-                }
-
+                // Ids ya validados contra el catálogo (exists): aquí no se crea ninguna materia.
                 $profile->subjects()->sync(
-                    $subjectIds->mapWithKeys(fn($id) => [$id => ['specific_rate' => null]])
+                    collect($request->input('subject_ids', []))->map(fn ($id) => (int) $id)->unique()
+                        ->mapWithKeys(fn (int $id) => [$id => ['specific_rate' => null]])
+                        ->all()
                 );
             }
 
