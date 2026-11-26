@@ -4,6 +4,15 @@
 > [`MOVA_PRODUCTION_RUNBOOK.md`](MOVA_PRODUCTION_RUNBOOK.md). Sin secretos ni URLs con tokens. Añade una entrada nueva
 > (la más reciente arriba) en cada despliegue.
 
+## 2026-11-25 — `f4494d2` → producción — portada rápida en móvil (Hero visible al primer pintado)
+
+- **Cambio:** el servidor envía un Hero estático para invitados en la portada (`partials/welcome-shell.blade.php`, retirado por `app.js` al montar); el Hero ya no depende de GSAP para salir de `opacity: 0`; GSAP fuera de la portada, carrusel (Swiper) y Movi en chunks diferidos (JS+CSS crítico de la portada 230,3 → 148,5 KB gzip); en móvil sin manchas con blur, sin `backdrop-filter` y símbolos estáticos; el lanzador de Movi carga su imagen sin `lazy` y muestra un ícono mientras tanto. Caddy: `Cache-Control` inmutable de un año en `/build/*` y 7 días en fuentes/imágenes/medios. Entrypoint del web: solo `optimize` (enlace de storage con `ln -s`, sin `optimize:clear` ni `view:cache` duplicado; worker/scheduler conservan `optimize:clear`).
+- **Imagen:** `ghcr.io/abel-castill0/mova@sha256:e0a454f352ace0462f8145ba62ac2d4c6f01026651ef93a7b2e939e9105a63dc` (tag `f4494d2`), construida por el workflow **Image (GHCR)** con el tag `img-f4494d2` (la credencial local de Docker para ghcr.io devuelve 403). Etiqueta OCI de revisión = `f4494d2edf8a1dee1bcda0965ed54ff0df0a7842`, verificada en la configuración de la imagen.
+- **Migraciones:** ninguna (sin respaldo de base: no hay cambio de datos).
+- **Azure:** scheduler `0000073` → `0000074` (Healthy), web `0000072` → `0000073` (100 %, Healthy), worker `0000035` → `0000036` (detenido por diseño). Solo `--image`; `movap-web` sigue con `minReplicas: 1`.
+- **Verificación:** CI de GitHub en verde en `f4494d2`; `/healthz`, `/readyz`, `/`, `/marketplace`, `/profe` 200; la portada trae `id="mova-shell"` y sirve `app-BIxwkRyY.js` (el mismo hash de la build local); `/build/*` con `public, max-age=31536000, immutable`, fuentes `max-age=604800`, HTML `no-cache, private`; móvil 390×844: título, subtítulo y botones con opacidad 1, Movi con imagen, GSAP no se descarga, sin errores de consola; 0 errores en logs de web y scheduler. PHPUnit completo local 2009 (3 fallos de entorno conocidos de `QaAccountClosureRaceGuardTest`).
+- **Rollback:** `sha256:8078eb96eec73d36ee1dabeb41b79a1993ddf1c4ea64b1ff82c6db0fa0986a4a` (`54246d6`). Sin cambios de base.
+
 ## 2026-11-23 — `54246d6` → producción — páginas de la campaña QR /profe y /familias
 
 - **Cambio:** dos páginas públicas de una pantalla (logo, video 1:1 con póster y subtítulos, «Empieza ahora») para tarjetas y volantes con QR. «Empieza ahora» pasa por `/{profe|familias}/empezar` y lleva a la portada con UTM (`qr_tarjeta/offline/profesores`, `qr_volante/offline/padres`). Contadores diarios sin datos personales en `campaign_metrics` (visita, play, clic); `php artisan mova:campaign-stats`. Incluye `54246d6`: una solicitud de acompañamiento ya no valida un día pasado (fallo de CI en `5e01506`).
