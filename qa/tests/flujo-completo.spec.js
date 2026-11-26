@@ -203,7 +203,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // Wizard de 5 pasos (rediseño integrado): alumno + materia → código de
       // profesor → modalidad → detalle → resumen. Se maneja por roles/labels.
       await page.getByRole('group', { name: 'HIJO/A' }).getByRole('button', { name: /Mateo Prueba/ }).click();
-      await page.getByRole('group', { name: 'MATERIA' }).getByRole('button', { name: 'Matemáticas', exact: true }).click();
+      await page.getByRole('group', { name: 'MATERIA' }).getByRole('button', { name: 'Matemática', exact: true }).click();
       await page.getByRole('button', { name: 'Siguiente', exact: true }).click();
       await page.getByRole('button', { name: 'Omitir código' }).click();
       await page.getByRole('button', { name: /Clase puntual/ }).click();
@@ -508,7 +508,7 @@ test.describe.serial('Flujo completo MOVA (local)', () => {
       // depender de la hora del sistema.
       await expect(page.getByText('LUN')).toBeVisible();
       await expect(
-        page.getByRole('tabpanel').getByText('Matemáticas').first()
+        page.getByRole('tabpanel').getByText('Matemática').first()
       ).toBeVisible();
     });
 
