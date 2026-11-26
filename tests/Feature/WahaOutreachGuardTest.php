@@ -182,7 +182,7 @@ class WahaOutreachGuardTest extends TestCase
         WahaSessionState::record('WORKING');
         WahaSessionState::recordBackup(str_repeat('b2', 32), 100);
 
-        Cache::flush(); // docker/entrypoint.sh: optimize:clear
+        Cache::flush(); // docker/entrypoint.sh: optimize:clear (al arrancar worker/scheduler en cada despliegue)
 
         $this->assertTrue(WahaSessionState::hasContacted('51987654321'));
         $this->assertNotNull(WahaSessionState::pausedUntil());

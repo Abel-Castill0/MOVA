@@ -62,6 +62,16 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Fondo del Hero de la portada. Lo comparten Welcome.vue y el esqueleto estático que el servidor pinta antes de
+   que llegue el JS (resources/views/partials/welcome-shell.blade.php), para que el cambio de uno a otro no se note. */
+.mova-hero-bg {
+  background:
+    radial-gradient(circle at 10% 18%, #073D91 0%, transparent 45%),
+    radial-gradient(circle at 90% 28%, #063882 0%, transparent 50%),
+    radial-gradient(circle at 50% 95%, #032B67 0%, transparent 55%),
+    #021840;
+}
+
 /* ── Tokens semánticos: canvas / surface / ink / line + estados ──────────
    Fuente de verdad ÚNICA para color estructural. Tailwind (ver
    tailwind.config.js) solo EXPONE estas variables como utilidades

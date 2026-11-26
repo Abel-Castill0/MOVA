@@ -194,7 +194,7 @@ Verificar `/readyz`, logs y que `WorkerHeartbeatJob` y `mova:heartbeat` vuelvan 
 
 | Medición | Valor |
 |---|---|
-| Arranque local hasta `/healthz` 200 (0,25 vCPU, imagen ya local), 3 repeticiones | 3,8–3,9 s (storage:link 1,3 s, optimize:clear 0,3 s, optimize 0,4 s, view:cache 0,2 s) |
+| Arranque local hasta `/healthz` 200 (0,25 vCPU, imagen ya local), 3 repeticiones | 3,8–3,9 s (storage:link 1,3 s, optimize:clear 0,3 s, optimize 0,4 s, view:cache 0,2 s). Desde 2026-11-25 el web solo ejecuta `optimize` (el enlace es un `ln -s` y `optimize` ya incluye `view:cache`): ≈ 1,8 s menos según estos mismos tiempos, sin volver a medir en Azure |
 | Arranque en frío en Azure (medido el 2026-10-19) | 22,9 s ⇒ ≈ 19 s son plataforma: planificación de la réplica, **descarga de la imagen (≈ 920 MB)** y sondas |
 | Sondas del web | startup 5 s/5 s, **readiness `/readyz` cada 10 s** (añade 0–10 s), liveness 30 s |
 

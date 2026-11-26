@@ -4,6 +4,7 @@ import axios from 'axios'
 import { usePage } from '@inertiajs/vue3'
 import Icon from '@/Components/Icon.vue'
 import MoviMascot from '@/Components/MoviMascot.vue'
+import { MessageCircle } from 'lucide-vue-next'
 import { formatMessageText } from '@/utils/chatbotFormat.js'
 
 const props = defineProps({
@@ -21,6 +22,7 @@ const page = usePage()
 const supportEmail = computed(() => page.props.support?.email ?? '')
 
 const internalOpen = ref(false)
+const launcherImageReady = ref(false)
 
 const isOpen = computed({
   get: () => (props.modelValue !== undefined ? props.modelValue : internalOpen.value),
@@ -217,7 +219,21 @@ function getCurrentTime() {
         aria-label="Abrir chat con Movi"
         @click="toggleChat"
       >
-        <MoviMascot pose="saluda" :size="52" class="transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none" />
+        <!-- Mientras llega la imagen de Movi el botón muestra un ícono de chat de marca (antes se veía un círculo blanco vacío). -->
+        <MessageCircle
+          v-if="!launcherImageReady"
+          class="absolute h-7 w-7 text-brand-600"
+          :stroke-width="2.2"
+          aria-hidden="true"
+        />
+        <MoviMascot
+          pose="saluda"
+          :size="52"
+          eager
+          class="transition-[transform,opacity] duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none"
+          :class="launcherImageReady ? 'opacity-100' : 'opacity-0'"
+          @loaded="launcherImageReady = true"
+        />
       </button>
     </div>
 

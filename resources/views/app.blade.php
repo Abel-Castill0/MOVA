@@ -44,5 +44,9 @@
     </head>
     <body class="font-sans antialiased bg-canvas text-ink">
         @inertia
+        {{-- Portada para invitados: Hero estático visible antes de que llegue el JS (app.js lo retira al montar). --}}
+        @if (($page['component'] ?? null) === 'Welcome' && ! auth()->check())
+            @include('partials.welcome-shell')
+        @endif
     </body>
 </html>

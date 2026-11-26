@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 /**
  * Movi, la ardilla de MOVA. Una sola fuente para todas sus poses (WebP optimizados en public/images/mascot).
@@ -20,6 +20,20 @@ const props = defineProps({
   size: { type: Number, default: 96 },
   animated: { type: Boolean, default: false },
   alt: { type: String, default: '' },
+  // true para imágenes visibles desde el primer pintado (p. ej. el lanzador flotante de Movi): `loading="lazy"`
+  // en un elemento fijo hacía que iOS Safari retrasara la descarga y el botón se viera vacío.
+  eager: { type: Boolean, default: false },
+})
+
+// `loaded` avisa cuándo la imagen ya está pintada, para que quien la contiene pueda mostrar algo mientras tanto.
+const emit = defineEmits(['loaded'])
+const imgRef = ref(null)
+function markLoaded() {
+  emit('loaded')
+}
+onMounted(() => {
+  // Desde caché la imagen puede estar completa antes de que Vue enganche @load.
+  if (imgRef.value?.complete && imgRef.value.naturalWidth > 0) markLoaded()
 })
 
 const ASSETS = {
@@ -41,13 +55,15 @@ const height = computed(() => Math.round((props.size * asset.value.h) / asset.va
   <picture class="inline-block shrink-0 select-none" :style="{ width: size + 'px', height: height + 'px' }">
     <source v-if="animSrc" media="(prefers-reduced-motion: reduce)" :srcset="staticSrc" type="image/webp" />
     <img
+      ref="imgRef"
       :src="animSrc || staticSrc"
       :alt="alt"
       :width="size"
       :height="height"
       decoding="async"
-      loading="lazy"
+      :loading="eager ? 'eager' : 'lazy'"
       draggable="false"
+      @load="markLoaded"
       class="block h-full w-full object-contain pointer-events-none"
     />
   </picture>

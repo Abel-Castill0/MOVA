@@ -24,10 +24,14 @@ createInertiaApp({
         // página: Welcome.vue no usa layout, AppLayout y GuestLayout son
         // distintos — este es el único punto que garantiza montarse en
         // cualquier ruta, autenticada o no.
-        return createApp({ render: () => h('div', [h(App, props), h(CookieConsent), h(MarkerCursor)]) })
+        const app = createApp({ render: () => h('div', [h(App, props), h(CookieConsent), h(MarkerCursor)]) })
             .use(plugin)
-            .use(ZiggyVue)
-            .mount(el);
+            .use(ZiggyVue);
+        app.mount(el);
+        // Hero estático que el servidor pinta en la portada antes de que llegue este JS
+        // (resources/views/partials/welcome-shell.blade.php): la página real ya está montada, se retira en el mismo frame.
+        document.getElementById('mova-shell')?.remove();
+        return app;
     },
     progress: {
         color: '#4B5563',

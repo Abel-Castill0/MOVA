@@ -11,13 +11,15 @@
     <LandingNavbar />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
-    <section class="relative min-h-screen flex items-center overflow-hidden bg-[#021840]" style="background: radial-gradient(circle at 10% 18%, #073D91 0%, transparent 45%), radial-gradient(circle at 90% 28%, #063882 0%, transparent 50%), radial-gradient(circle at 50% 95%, #032B67 0%, transparent 55%), #021840;">
+    <!-- mova-hero-bg (app.css) es el mismo fondo que pinta el esqueleto estático de resources/views/partials/welcome-shell.blade.php. -->
+    <section class="mova-hero-bg relative min-h-screen flex items-center overflow-hidden">
       <!-- Background Glowing Hexagonal Grid & Ambient Light Blobs -->
       <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <!-- Ambient radial glow blooms -->
-        <div class="absolute -top-24 -left-24 w-[34rem] h-[34rem] bg-blue-600/35 rounded-full blur-[110px]"></div>
-        <div class="absolute top-1/4 -right-20 w-[36rem] h-[36rem] bg-blue-500/30 rounded-full blur-[120px]"></div>
-        <div class="absolute -bottom-16 left-1/3 w-[32rem] h-[32rem] bg-blue-600/25 rounded-full blur-[100px]"></div>
+        <!-- Ambient radial glow blooms: blur de 100–120 px sobre capas de 32–36 rem es lo más caro de pintar en un móvil;
+             ahí el brillo ya lo dan los radial-gradient del fondo, así que solo se pintan desde md. -->
+        <div class="hidden md:block absolute -top-24 -left-24 w-[34rem] h-[34rem] bg-blue-600/35 rounded-full blur-[110px]"></div>
+        <div class="hidden md:block absolute top-1/4 -right-20 w-[36rem] h-[36rem] bg-blue-500/30 rounded-full blur-[120px]"></div>
+        <div class="hidden md:block absolute -bottom-16 left-1/3 w-[32rem] h-[32rem] bg-blue-600/25 rounded-full blur-[100px]"></div>
 
         <!-- Subtle Orbital Rings from Mockup -->
         <div class="absolute -left-48 top-8 w-[38rem] h-[38rem] rounded-full border border-sky-400/35 shadow-[0_0_35px_rgba(56,189,248,0.25)] pointer-events-none"></div>
@@ -55,7 +57,7 @@
 
       <div class="relative z-[1] max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 sm:pt-20 sm:pb-28 text-center flex flex-col items-center">
         <!-- Plataforma educativa en vivo Badge with Soft Pulsating Radial Glow -->
-        <div class="hero-reveal relative z-10 inline-flex items-center gap-2.5 px-4 py-1.5 bg-sky-500/10 backdrop-blur-md rounded-full text-xs sm:text-sm font-medium mb-6 border border-sky-400/30 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
+        <div class="relative z-10 inline-flex items-center gap-2.5 px-4 py-1.5 bg-sky-500/10 md:backdrop-blur-md rounded-full text-xs sm:text-sm font-medium mb-6 border border-sky-400/30 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
           <span class="relative flex h-2.5 w-2.5">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-80"></span>
             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400 shadow-[0_0_10px_#4ade80]"></span>
@@ -64,19 +66,19 @@
         </div>
 
         <!-- Titular Principal Centralizado -->
-        <h1 class="hero-reveal text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-center mb-4 md:mb-6">
+        <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-center mb-4 md:mb-6">
           <span class="block text-white">Aprende con</span>
           <span class="block text-amber-400">los mejores</span>
           <span class="block text-white">profesores</span>
         </h1>
 
         <!-- Subtítulo Centralizado -->
-        <p class="hero-reveal text-xs sm:text-sm md:text-base lg:text-lg text-white/80 leading-relaxed mb-6 md:mb-8 max-w-[290px] sm:max-w-md md:max-w-xl mx-auto text-center font-normal">
+        <p class="text-xs sm:text-sm md:text-base lg:text-lg text-white/80 leading-relaxed mb-6 md:mb-8 max-w-[290px] sm:max-w-md md:max-w-xl mx-auto text-center font-normal">
           Conectamos estudiantes con profesores particulares expertos para clases en vivo por videollamada. Personalizado, flexible y efectivo.
         </p>
 
         <!-- Botones de Acción Desktop (Hidden on mobile) -->
-        <div class="hero-reveal hidden md:flex flex-wrap items-center justify-center gap-4 mb-10">
+        <div class="hidden md:flex flex-wrap items-center justify-center gap-4 mb-10">
           <Link :href="user ? route('dashboard') : route('marketplace')"
             class="px-8 py-3.5 bg-white text-slate-900 font-bold rounded-full hover:bg-slate-100 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.25)] hover:scale-105 active:scale-95 flex items-center gap-2.5">
             <span>{{ user ? 'Ir a mi dashboard' : 'Buscar clases' }}</span>
@@ -121,7 +123,7 @@
         </div>
 
         <!-- Botones de Acción Mobile (Tal cual la imagen mockup) -->
-        <div class="hero-reveal md:hidden flex flex-col items-center gap-3 w-full max-w-[295px] mx-auto mb-6">
+        <div class="md:hidden flex flex-col items-center gap-3 w-full max-w-[295px] mx-auto mb-6">
           <!-- CASO 1: USUARIO AUTENTICADO (Profesor, Padre u otro) -->
           <template v-if="user">
             <!-- Botón 1: Ir a mi dashboard -->
@@ -157,7 +159,7 @@
 
             <!-- Botón 2 para otros roles autenticados: Ver mis clases -->
             <Link v-else :href="route('dashboard')"
-              class="w-full py-3.5 px-6 bg-white/10 hover:bg-white/20 text-white font-bold rounded-full text-sm border border-white/25 backdrop-blur-md flex items-center justify-center gap-2 active:scale-95 transition-all">
+              class="w-full py-3.5 px-6 bg-white/10 hover:bg-white/20 text-white font-bold rounded-full text-sm border border-white/25 flex items-center justify-center gap-2 active:scale-95 transition-all">
               <span>Ver mis clases</span>
             </Link>
           </template>
@@ -173,14 +175,14 @@
 
             <!-- Botón 2: Soy profesor -->
             <Link href="/register?role=teacher"
-              class="w-full py-3.5 px-6 bg-white/10 hover:bg-white/20 text-white font-bold rounded-full text-sm border border-white/25 backdrop-blur-md flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_15px_rgba(0,0,0,0.15)]">
+              class="w-full py-3.5 px-6 bg-white/10 hover:bg-white/20 text-white font-bold rounded-full text-sm border border-white/25 flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_15px_rgba(0,0,0,0.15)]">
               <span>Soy profesor</span>
             </Link>
           </template>
         </div>
 
         <!-- Evidencia de plataforma con líneas divisorias laterales (Desktop only) -->
-        <div class="hero-reveal flex items-center justify-center gap-4 w-full max-w-lg mx-auto mb-8">
+        <div class="flex items-center justify-center gap-4 w-full max-w-lg mx-auto mb-8">
           <div class="h-px flex-1 bg-gradient-to-r from-transparent via-white/20 to-white/30"></div>
           <p class="text-center text-xs sm:text-sm text-white/80 sm:whitespace-nowrap">
             Cada profesor pasa por verificación antes de dictar su primera clase.
@@ -189,7 +191,7 @@
         </div>
 
         <!-- Estadísticas en columnas verticales separadas por divisores (Desktop) -->
-        <div v-if="showStats" class="hero-reveal hidden md:flex items-center justify-center gap-6 sm:gap-10">
+        <div v-if="showStats" class="hidden md:flex items-center justify-center gap-6 sm:gap-10">
           <div class="flex flex-col items-center">
             <span class="text-2xl sm:text-3xl font-black text-white tabular-nums">{{ stats.teachers }}</span>
             <span class="text-xs sm:text-sm text-white/60 mt-1">profesores</span>
@@ -212,7 +214,7 @@
         </div>
 
         <!-- Estadísticas Mobile: Tarjeta Frosted Glass tal cual la imagen -->
-        <div v-if="showStats" class="hero-reveal md:hidden w-full max-w-[325px] mx-auto bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-3.5 shadow-xl">
+        <div v-if="showStats" class="md:hidden w-full max-w-[325px] mx-auto bg-white/10 rounded-2xl border border-white/15 p-3.5 shadow-xl">
           <div class="grid grid-cols-4 items-center text-center divide-x divide-white/15">
             <div class="flex flex-col items-center px-1">
               <span class="text-xl font-black text-white tabular-nums leading-none">{{ stats.teachers }}</span>
@@ -248,7 +250,7 @@
       <!-- Botón chevron circular en el centro de la ola (Mobile) -->
       <a href="#como-funciona"
          aria-label="Ver cómo funciona"
-         class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-8 h-8 rounded-full bg-blue-600/60 hover:bg-blue-600 border border-white/40 backdrop-blur-md flex items-center justify-center text-white shadow-lg shadow-blue-900/40 active:scale-95 transition-all">
+         class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-8 h-8 rounded-full bg-blue-600/60 hover:bg-blue-600 border border-white/40 flex items-center justify-center text-white shadow-lg shadow-blue-900/40 active:scale-95 transition-all">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
         </svg>
@@ -439,52 +441,9 @@
           </div>
         </div>
 
-        <div v-if="featuredTeachers.length" class="reveal-item">
-          <Swiper
-            :modules="[Pagination, Navigation, A11y]"
-            :space-between="24"
-            :slides-per-view="1.15"
-            :breakpoints="{ 640: { slidesPerView: 2, spaceBetween: 24 }, 1024: { slidesPerView: 3, spaceBetween: 28 } }"
-            :pagination="{ el: '.teachers-pagination', clickable: true }"
-            :navigation="{ prevEl: '.teachers-prev', nextEl: '.teachers-next' }"
-            class="teachers-swiper !pb-4"
-          >
-            <SwiperSlide v-for="t in featuredTeachers" :key="t.id" class="h-auto py-1">
-              <div class="group h-full bg-white rounded-2xl border border-gray-100 hover:border-brand-200 p-6 shadow-sm hover:shadow-xl hover:shadow-brand-900/10 transition-all duration-300 hover:-translate-y-1">
-                <div class="flex items-start gap-4 mb-4">
-                  <div class="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-700 rounded-full flex items-center justify-center text-white font-black text-xl flex-shrink-0">
-                    {{ t.user?.name?.charAt(0) ?? '?' }}
-                  </div>
-                  <div class="min-w-0">
-                    <p class="font-bold text-slate-900 truncate">{{ t.user?.name }}</p>
-                    <div v-if="t.avg_rating" class="flex items-center gap-1 mt-0.5">
-                      <div class="flex gap-0.5">
-                        <span v-for="i in 5" :key="i" class="text-sm" :class="i <= Math.round(t.avg_rating) ? 'text-accent-400' : 'text-gray-200'">★</span>
-                      </div>
-                      <span class="text-xs text-slate-500">{{ Number(t.avg_rating).toFixed(1) }}</span>
-                    </div>
-                    <span v-else class="inline-block mt-0.5 text-xs px-2 py-0.5 bg-brand-50 text-brand-600 rounded-full font-medium">Nuevo en MOVA</span>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ t.classes_count }} clases impartidas</p>
-                  </div>
-                  <span class="ml-auto text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full font-medium border border-green-100 flex-shrink-0">✓ Verificado</span>
-                </div>
-                <p class="text-sm text-slate-500 mb-4 line-clamp-2">{{ t.bio || 'Profesor experto en MOVA.' }}</p>
-                <div class="flex flex-wrap gap-1.5 mb-4">
-                  <span v-for="s in (t.subjects || []).slice(0, 3)" :key="s.id"
-                    class="text-xs bg-brand-50 text-brand-700 px-2.5 py-1 rounded-full font-medium border border-brand-100">
-                    {{ s.name }}
-                  </span>
-                </div>
-                <div class="flex items-center justify-end pt-4 border-t border-gray-50">
-                  <Link :href="route('teachers.show', t.id)"
-                    class="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition-colors group-hover:shadow-md group-hover:shadow-brand-600/20">
-                    Ver perfil
-                  </Link>
-                </div>
-              </div>
-            </SwiperSlide>
-          </Swiper>
-          <div class="teachers-pagination flex justify-center gap-1.5 mt-8"></div>
+        <!-- min-h reserva el alto del carrusel mientras llega su chunk (Swiper), para no desplazar lo que sigue. -->
+        <div v-if="featuredTeachers.length" class="reveal-item min-h-[19rem]">
+          <FeaturedTeachersCarousel :teachers="featuredTeachers" />
         </div>
         <div v-else class="reveal-item text-center py-16">
           <p class="text-slate-500">No hay profesores verificados aún. <Link :href="route('landing.teacher')" class="text-brand-600 hover:underline">¿Eres profesor? Únete</Link></p>
@@ -553,21 +512,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
-import { Swiper, SwiperSlide } from 'swiper/vue'
-import { Pagination, Navigation, A11y } from 'swiper/modules'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LandingNavbar from '@/Components/LandingNavbar.vue'
 import LandingFooter from '@/Components/LandingFooter.vue'
-import ChatbotWidget from '@/Components/ChatbotWidget.vue'
 import MoviMascot from '@/Components/MoviMascot.vue'
 import { subjectIcon } from '@/utils/subjectIcon'
 import { Search, UserCheck, Video, ChevronRight, BadgeCheck, Check } from 'lucide-vue-next'
-import 'swiper/css'
-import 'swiper/css/pagination'
-import 'swiper/css/navigation'
+
+// Fuera de la descarga inicial: el carrusel (Swiper + su CSS) está bajo el pliegue y Movi es un lanzador flotante.
+// Ambos se piden en paralelo apenas se monta la portada, sin bloquear el primer pintado del Hero.
+const FeaturedTeachersCarousel = defineAsyncComponent(() => import('@/Components/Landing/FeaturedTeachersCarousel.vue'))
+const ChatbotWidget = defineAsyncComponent(() => import('@/Components/ChatbotWidget.vue'))
 
 const props = defineProps({
   subjects:         { type: Array,  default: () => [] },
@@ -628,59 +584,59 @@ function levelBadge(level) {
   return 'bg-slate-100 text-slate-500 border border-slate-200/70'
 }
 
-gsap.registerPlugin(ScrollTrigger)
+// ── Animaciones de la portada (sin GSAP) ──────────────────────────────────────
+// El Hero NO tiene animación de entrada: título, subtítulo y botones se pintan visibles desde el primer frame
+// (antes GSAP los ponía en opacity:0 al montar y, en un móvil con el hilo principal ocupado, quedaban a medio
+// aparecer). Las secciones bajo el pliegue sí hacen fade-in-up al entrar en pantalla, con IntersectionObserver y
+// transiciones CSS (transform/opacity, en el compositor). Solo se ocultan elementos que aún no se ven y solo desde
+// JS: si el script falla o no corre, todo el contenido queda visible.
+let revealObserver = null
+let stopParallax = null
 
-onMounted(() => {
-  // La regla global de `prefers-reduced-motion` en app.css sólo alcanza a CSS.
-  // GSAP anima por JS, así que necesita este guard explícito. Se usa `.from()`
-  // a propósito: el estado final es el natural del elemento, de modo que si
-  // salimos temprano (o si el JS nunca corre) el contenido queda visible.
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
-  // Hero: entrada inmediata al cargar, sin depender de scroll.
-  gsap.from('.hero-reveal', {
-    opacity: 0,
-    y: 24,
-    duration: 0.7,
-    ease: 'power3.out',
-    stagger: 0.1,
-  })
-
-  // Resto de secciones: fade-in-up con stagger sutil al entrar en viewport.
+function setupReveal() {
+  if (!('IntersectionObserver' in window)) return
+  const pending = []
   document.querySelectorAll('.reveal-group').forEach((group) => {
+    // Lo que ya está en pantalla al cargar no se anima (no hay nada que "revelar").
+    if (group.getBoundingClientRect().top < window.innerHeight * 0.82) return
     const items = group.querySelectorAll('.reveal-item')
     if (!items.length) return
-
-    gsap.from(items, {
-      opacity: 0,
-      y: 28,
-      duration: 0.6,
-      ease: 'power3.out',
-      stagger: { amount: Math.min(items.length * 0.08, 0.6) },
-      immediateRender: false,
-      scrollTrigger: {
-        trigger: group,
-        start: 'top 82%',
-        once: true,
-      },
+    const step = Math.min(0.08, 0.6 / items.length)
+    items.forEach((el, i) => {
+      el.style.transitionDelay = `${(i * step).toFixed(2)}s`
+      el.classList.add('reveal-pending')
     })
+    pending.push(group)
   })
+  if (!pending.length) return
+  revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return
+      entry.target.querySelectorAll('.reveal-pending').forEach((el) => {
+        el.classList.add('reveal-run')
+        el.classList.remove('reveal-pending')
+        // Al terminar se quitan la transición y el retraso, para no alterar los hover propios de cada tarjeta.
+        setTimeout(() => {
+          el.classList.remove('reveal-run')
+          el.style.transitionDelay = ''
+        }, 1400)
+      })
+      revealObserver.unobserve(entry.target)
+    })
+  }, { rootMargin: '0px 0px -18% 0px' })
+  pending.forEach((group) => revealObserver.observe(group))
+}
 
-  // Las webfonts cambian la altura del contenido después de que ScrollTrigger
-  // calculó los puntos de disparo; sin este refresh los triggers quedan
-  // corridos respecto de dónde terminó realmente cada sección.
-  document.fonts?.ready.then(() => ScrollTrigger.refresh())
-
-  // ── Parallax de símbolos matemáticos al mover el mouse ──────────────────
+// Parallax de los símbolos matemáticos: solo con mouse (en táctil no hay mousemove) y solo mientras el puntero se
+// mueve. Antes el bucle requestAnimationFrame corría sin parar también en móviles, recalculando estilos 60 veces
+// por segundo sin ningún efecto visible.
+function setupParallax() {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine) and (min-width: 768px)').matches) return
   const mathSymbols = document.querySelectorAll('.math-sym')
+  if (!mathSymbols.length) return
   let rafId = null
   let targetX = 0, targetY = 0
   let currentX = 0, currentY = 0
-
-  function onMouseMove(e) {
-    targetX = (e.clientX / window.innerWidth  - 0.5)
-    targetY = (e.clientY / window.innerHeight - 0.5)
-  }
 
   function animateSymbols() {
     currentX += (targetX - currentX) * 0.06
@@ -690,20 +646,46 @@ onMounted(() => {
       el.style.setProperty('--mx', `${currentX * depth * 220}px`)
       el.style.setProperty('--my', `${currentY * depth * 160}px`)
     })
-    rafId = requestAnimationFrame(animateSymbols)
+    // Se detiene al alcanzar el objetivo; el próximo mousemove lo reanuda.
+    rafId = Math.abs(targetX - currentX) + Math.abs(targetY - currentY) > 0.001 ? requestAnimationFrame(animateSymbols) : null
+  }
+
+  function onMouseMove(e) {
+    targetX = (e.clientX / window.innerWidth  - 0.5)
+    targetY = (e.clientY / window.innerHeight - 0.5)
+    if (rafId === null) rafId = requestAnimationFrame(animateSymbols)
   }
 
   window.addEventListener('mousemove', onMouseMove, { passive: true })
-  rafId = requestAnimationFrame(animateSymbols)
-
-  onBeforeUnmount(() => {
+  stopParallax = () => {
     window.removeEventListener('mousemove', onMouseMove)
-    cancelAnimationFrame(rafId)
-  })
+    if (rafId !== null) cancelAnimationFrame(rafId)
+  }
+}
+
+onMounted(() => {
+  // La regla global de `prefers-reduced-motion` en app.css cubre el CSS; esto cubre lo que se activa por JS.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  setupReveal()
+  setupParallax()
+})
+
+onBeforeUnmount(() => {
+  revealObserver?.disconnect()
+  stopParallax?.()
 })
 </script>
 
 <style scoped>
+/* ── Revelado al hacer scroll (ver setupReveal) ─────────────────────────────── */
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(28px);
+}
+.reveal-run {
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* ── Símbolos Matemáticos Flotantes (Campo Anti-Gravedad) ─────────────────── */
 /*  El JS aplica translate() inline vía rAF para el parallax de mouse.         */
 /*  Las animaciones CSS suman un float vertical independiente.                 */
@@ -739,9 +721,16 @@ onMounted(() => {
 .math-sym-11 { top: 64%;  left: 19%;   font-size: 3.2rem; animation: mathFloat2 11s ease-in-out infinite 2.4s; }
 
 @media (max-width: 768px) {
+  /* En móvil los símbolos quedan quietos, sin glow (text-shadow) ni capa de composición propia, y se muestran
+     solo 6 de 11: once animaciones infinitas con sombra difusa sobre el fondo del Hero eran trabajo continuo de
+     GPU en teléfonos de gama media. */
   .math-sym {
     opacity: 0.45;
+    animation: none;
+    text-shadow: none;
+    will-change: auto;
   }
+  .math-sym-3, .math-sym-6, .math-sym-8, .math-sym-9, .math-sym-11 { display: none; }
   .math-sym-1  { font-size: 2.5rem; left: 3%; top: 14%; }
   .math-sym-2  { font-size: 2rem; }
   .math-sym-3  { font-size: 2.2rem; }
@@ -773,30 +762,6 @@ onMounted(() => {
   50%       { transform: translate(var(--mx), calc(var(--my) - 24px)) scale(1.06);   }
 }
 
-
-/* Swiper — paginación sutil acorde a la paleta de marca */
-.teachers-swiper {
-  overflow-x: clip;
-  overflow-y: visible;
-}
-.teachers-pagination :deep(.swiper-pagination-bullet) {
-  /* Punto visible de 6 px dentro de un área táctil de 24 px (WCAG 2.2 · 2.5.8). */
-  width: 24px;
-  height: 24px;
-  padding: 9px;
-  box-sizing: border-box;
-  background: theme('colors.brand.300');
-  background-clip: content-box;
-  opacity: 1;
-  margin: 0 !important;
-  transition: width 0.25s ease, background-color 0.25s ease;
-  border-radius: 999px;
-}
-.teachers-pagination :deep(.swiper-pagination-bullet-active) {
-  width: 40px;
-  background: theme('colors.brand.600');
-  background-clip: content-box;
-}
 
 /* ── Botones Motion Graphic: Verde (Padre) y Naranja (Profesor) ──────────── */
 .btn-motion-green,
